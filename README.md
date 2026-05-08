@@ -99,13 +99,13 @@ flutter test
 支持 DeepSeek、OpenAI、OpenRouter 等服务商。
 
 ## APP 截图
-<img width="1440" height="3168" alt="c1da22a6547b4cbc078664970fd44cf0" src="https://github.com/user-attachments/assets/e2e6fdd6-4ed8-42c9-b69c-57eaa30d2faa" />
+<img width="320" height="704" alt="c1da22a6547b4cbc078664970fd44cf0" src="https://github.com/user-attachments/assets/e2e6fdd6-4ed8-42c9-b69c-57eaa30d2faa" />
 
-<img width="1440" height="3168" alt="aa843e9dc256a7c0698773f6539c9768" src="https://github.com/user-attachments/assets/6c4b6d0d-5d11-4d08-86eb-969013aa18c2" />
+<img width="320" height="704" alt="aa843e9dc256a7c0698773f6539c9768" src="https://github.com/user-attachments/assets/6c4b6d0d-5d11-4d08-86eb-969013aa18c2" />
 
-<img width="1440" height="3168" alt="14f777d2eac428bdc7d34ff2fc0c5813" src="https://github.com/user-attachments/assets/68a6c5ce-32dc-428d-af4f-b48f98d5eafc" />
+<img width="320" height="704" alt="14f777d2eac428bdc7d34ff2fc0c5813" src="https://github.com/user-attachments/assets/68a6c5ce-32dc-428d-af4f-b48f98d5eafc" />
 
-<img width="1440" height="3168" alt="de547b1cbb9f1b8adf7dccaaafc5b3ba" src="https://github.com/user-attachments/assets/3f31dd6d-cd96-4bcf-934a-e183b937b0f5" />
+<img width="320" height="704" alt="de547b1cbb9f1b8adf7dccaaafc5b3ba" src="https://github.com/user-attachments/assets/3f31dd6d-cd96-4bcf-934a-e183b937b0f5" />
 
 
 
