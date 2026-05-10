@@ -115,6 +115,17 @@ class AiAnalysisService {
 
   factory AiAnalysisService.fake() => _FakeAiAnalysisService();
 
+  /// 从 Dio response 中安全提取 OpenAI 格式的 content 字段。
+  /// 代理服务偶尔返回非 application/json content-type，导致 response.data 为原始 String。
+  String _extractContentFromResponse(Response response) {
+    dynamic data = response.data;
+    if (data is String) {
+      data = jsonDecode(data);
+    }
+    return (data as Map<String, dynamic>)['choices'][0]['message']['content']
+        as String;
+  }
+
   Dio _createClient(AiProviderConfig config) {
     return Dio(BaseOptions(
       baseUrl: config.baseUrl.endsWith('/')
@@ -1330,7 +1341,7 @@ class AiAnalysisService {
       'max_tokens': maxTokens,
     });
 
-    return response.data['choices'][0]['message']['content'] as String;
+    return _extractContentFromResponse(response);
   }
 
   bool _usesOpenAiCompatibleChat(AiProviderConfig config) {
@@ -1381,7 +1392,7 @@ class AiAnalysisService {
         'temperature': temperature,
         'max_tokens': maxTokens,
       });
-      return response.data['choices'][0]['message']['content'] as String;
+      return _extractContentFromResponse(response);
     }
 
     if (model.contains('gemini') && !baseUrl.contains('openrouter')) {
