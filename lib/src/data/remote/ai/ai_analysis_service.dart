@@ -418,9 +418,39 @@ class AiAnalysisService {
           _isCompositeLanguageAnalysis(correctedText, subjectName);
       if (imagePath != null && File(imagePath).existsSync()) {
         final imageBytes = await File(imagePath).readAsBytes();
-        final imagePrompt = isCompositeLanguageAnalysis
-            ? '$prompt\n\n请按一整道复合题分析，不要拆成多道独立题；英语按空号逐项解析，语文按文常、字词、翻译/释义模块解析。'
-            : prompt;
+
+        // B1: Two-stage analysis for graphical questions.
+        // Phase 1: extract locked visual hypotheses before solving.
+        _VisualHypotheses? lockedHypotheses;
+        if (shouldAnalyzeImageFirst && !isCompositeLanguageAnalysis) {
+          try {
+            lockedHypotheses = await _extractVisualHypotheses(
+              config: config,
+              imageBytes: imageBytes,
+              textHint: correctedText,
+              subjectName: subjectName,
+            );
+            debugPrint('[AiAnalysisService] Phase 1 hypotheses extracted: '
+                'target=${lockedHypotheses.targetObject}, '
+                'labels=${lockedHypotheses.labelInterpretations.length}, '
+                'needsReview=${lockedHypotheses.needsManualReview}');
+          } catch (e) {
+            debugPrint('[AiAnalysisService] Phase 1 extraction failed, '
+                'continuing without locked hypotheses: $e');
+          }
+        }
+
+        final String imagePrompt;
+        if (isCompositeLanguageAnalysis) {
+          imagePrompt =
+              '$prompt\n\n请按一整道复合题分析，不要拆成多道独立题；英语按空号逐项解析，语文按文常、字词、翻译/释义模块解析。';
+        } else if (lockedHypotheses != null) {
+          imagePrompt =
+              '$prompt${_buildLockedHypothesesPrompt(lockedHypotheses)}';
+        } else {
+          imagePrompt = prompt;
+        }
+
         try {
           final content = await _requestAiContentWithImage(
             config: config,
@@ -434,7 +464,18 @@ class AiAnalysisService {
                 ? 'high'
                 : 'auto',
           );
-          final analysis = _parseAnalysisResponse(content);
+          var analysis = _parseAnalysisResponse(content);
+          // B1: Override visualAssumptions with Phase 1 data if available.
+          if (lockedHypotheses != null) {
+            final phase1Assumptions =
+                _hypothesesToVisualAssumptions(lockedHypotheses);
+            analysis = analysis.copyWith(
+              visualAssumptions: phase1Assumptions,
+              visualAssumptionStatus: lockedHypotheses.needsManualReview
+                  ? VisualAssumptionStatus.needsReview
+                  : VisualAssumptionStatus.reliable,
+            );
+          }
           return _ensureAnalysisConsistency(
             analysis,
             questionText: correctedText,
@@ -458,7 +499,17 @@ class AiAnalysisService {
             maxTokens: 2200,
             imageDetail: 'auto',
           );
-          final analysis = _parseAnalysisResponse(content);
+          var analysis = _parseAnalysisResponse(content);
+          if (lockedHypotheses != null) {
+            final phase1Assumptions =
+                _hypothesesToVisualAssumptions(lockedHypotheses);
+            analysis = analysis.copyWith(
+              visualAssumptions: phase1Assumptions,
+              visualAssumptionStatus: lockedHypotheses.needsManualReview
+                  ? VisualAssumptionStatus.needsReview
+                  : VisualAssumptionStatus.reliable,
+            );
+          }
           return _ensureAnalysisConsistency(
             analysis,
             questionText: correctedText,
@@ -899,6 +950,17 @@ class AiAnalysisService {
       analysis,
       questionText: questionText,
     ).isSuspicious;
+  }
+
+  @visibleForTesting
+  VisualAssumptions parseVisualHypothesesForTest(String content) {
+    return _hypothesesToVisualAssumptions(_parseVisualHypotheses(content));
+  }
+
+  @visibleForTesting
+  String buildLockedHypothesesPromptForTest(String hypothesesJson) {
+    final hypotheses = _parseVisualHypotheses(hypothesesJson);
+    return _buildLockedHypothesesPrompt(hypotheses);
   }
 
   String _buildConsistencyVerificationPrompt({
@@ -1538,6 +1600,164 @@ class AiAnalysisService {
     final normalized = text.toLowerCase().trim();
     if (normalized.isEmpty || normalized.length < 80) return true;
     return RegExp(r'如图|下图|上图|图中|示意图|阴影|图形|图示|图所示|看图|观察图').hasMatch(normalized);
+  }
+
+  Future<_VisualHypotheses> _extractVisualHypotheses({
+    required AiProviderConfig config,
+    required Uint8List imageBytes,
+    required String textHint,
+    required String subjectName,
+  }) async {
+    const systemPrompt = '你是几何读图专家。你的唯一任务是观察图片并输出结构化的读图假设，不要解题、不要计算面积/体积/答案。';
+    final prompt = StringBuffer()
+      ..writeln('请仔细观察图片，输出以下 JSON（不要输出其他内容）：')
+      ..writeln()
+      ..writeln('```json')
+      ..writeln('{')
+      ..writeln('  "targetObject": "求解目标对象（如：阴影部分、半圆、扇形等）",')
+      ..writeln('  "targetQuestion": "求什么（如：面积、周长、角度）",')
+      ..writeln('  "labelInterpretations": [')
+      ..writeln(
+          '    {"label": "图中标注的数字或字母", "meaning": "该标注在图中的几何含义", "confidence": "high/medium/low"}')
+      ..writeln('  ],')
+      ..writeln('  "geometricRelationships": ["从图中可确认的几何关系，如：半圆直径=某边长、两线垂直等"],')
+      ..writeln('  "uncertainItems": ["无法从图中确定的关键信息"],')
+      ..writeln('  "needsManualReview": false')
+      ..writeln('}')
+      ..writeln('```')
+      ..writeln()
+      ..writeln('要求：')
+      ..writeln('1. 图中每个可见数字标注必须给出几何含义和置信度。')
+      ..writeln('2. 必须推导出与求解目标最相关的几何关系（如半径/直径来源）。')
+      ..writeln('3. 不要计算最终答案。')
+      ..writeln('4. 如果关键标注含义无法确定，needsManualReview 设为 true。')
+      ..writeln(
+          '5. confidence: high=图中明确标注/可直接读出; medium=需要推理但合理; low=多种解释均可能。');
+    if (textHint.isNotEmpty) {
+      prompt
+        ..writeln()
+        ..writeln('参考文本（仅作线索，不能覆盖图片观察）：')
+        ..writeln(textHint);
+    }
+
+    final content = await _requestAiContentWithImage(
+      config: config,
+      systemPrompt: systemPrompt,
+      prompt: prompt.toString(),
+      imageBytes: imageBytes,
+      maxTokens: 600,
+      imageDetail: 'high',
+      temperature: 0.2,
+    );
+
+    return _parseVisualHypotheses(content);
+  }
+
+  _VisualHypotheses _parseVisualHypotheses(String content) {
+    final jsonMatch = RegExp(r'\{[\s\S]*\}').firstMatch(content);
+    if (jsonMatch == null) {
+      debugPrint(
+          '[AiAnalysisService] Failed to parse visual hypotheses JSON, using empty fallback');
+      return const _VisualHypotheses(
+        targetObject: '',
+        targetQuestion: '',
+        labelInterpretations: [],
+        geometricRelationships: [],
+        uncertainItems: [],
+        needsManualReview: true,
+      );
+    }
+
+    try {
+      final json = jsonDecode(jsonMatch.group(0)!) as Map<String, dynamic>;
+      final labels = (json['labelInterpretations'] as List<dynamic>?)
+              ?.map((e) => _LabelInterpretation(
+                    label:
+                        (e as Map<String, dynamic>)['label']?.toString() ?? '',
+                    meaning: e['meaning']?.toString() ?? '',
+                    confidence: e['confidence']?.toString() ?? 'low',
+                  ))
+              .toList() ??
+          const [];
+      return _VisualHypotheses(
+        targetObject: json['targetObject']?.toString() ?? '',
+        targetQuestion: json['targetQuestion']?.toString() ?? '',
+        labelInterpretations: labels,
+        geometricRelationships:
+            (json['geometricRelationships'] as List<dynamic>?)
+                    ?.map((e) => e.toString())
+                    .toList() ??
+                const [],
+        uncertainItems: (json['uncertainItems'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            const [],
+        needsManualReview: json['needsManualReview'] == true,
+      );
+    } catch (e) {
+      debugPrint('[AiAnalysisService] Error parsing visual hypotheses: $e');
+      return const _VisualHypotheses(
+        targetObject: '',
+        targetQuestion: '',
+        labelInterpretations: [],
+        geometricRelationships: [],
+        uncertainItems: [],
+        needsManualReview: true,
+      );
+    }
+  }
+
+  String _buildLockedHypothesesPrompt(_VisualHypotheses hypotheses) {
+    final buffer = StringBuffer();
+    buffer.writeln();
+    buffer.writeln('【已锁定的读图假设 — 不得修改】');
+    if (hypotheses.targetObject.isNotEmpty ||
+        hypotheses.targetQuestion.isNotEmpty) {
+      buffer.writeln(
+          '求解目标：${hypotheses.targetObject} ${hypotheses.targetQuestion}');
+    }
+    if (hypotheses.labelInterpretations.isNotEmpty) {
+      buffer.writeln('标注含义：');
+      for (final label in hypotheses.labelInterpretations) {
+        buffer.writeln(
+            '- ${label.label} → ${label.meaning} (${label.confidence})');
+      }
+    }
+    if (hypotheses.geometricRelationships.isNotEmpty) {
+      buffer.writeln('几何关系：');
+      for (final rel in hypotheses.geometricRelationships) {
+        buffer.writeln('- $rel');
+      }
+    }
+    if (hypotheses.uncertainItems.isNotEmpty) {
+      buffer.writeln('不确定项：');
+      for (final item in hypotheses.uncertainItems) {
+        buffer.writeln('- $item');
+      }
+    }
+    buffer.writeln();
+    buffer.writeln('规则：步骤中使用的每个数字必须引用上述已声明的标注含义，不得临时赋予新含义。');
+    buffer
+        .writeln('如果上述假设中有不确定项，visualAssumptions.needsManualReview 必须为 true。');
+    return buffer.toString();
+  }
+
+  VisualAssumptions _hypothesesToVisualAssumptions(
+      _VisualHypotheses hypotheses) {
+    return VisualAssumptions(
+      targetObject: hypotheses.targetObject,
+      targetQuestion: hypotheses.targetQuestion,
+      measurements: hypotheses.labelInterpretations
+          .map((l) => VisualMeasurementAssumption(
+                label: l.label,
+                meaning: l.meaning,
+                confidence: l.confidence,
+              ))
+          .toList(),
+      solutionBasis: hypotheses.geometricRelationships,
+      uncertainItems: hypotheses.uncertainItems,
+      needsManualReview: hypotheses.needsManualReview,
+    );
   }
 
   @visibleForTesting
@@ -3036,6 +3256,36 @@ class _ConsistencyVerification {
   final String confidence;
   final bool needsManualReview;
   final String reason;
+}
+
+class _VisualHypotheses {
+  const _VisualHypotheses({
+    required this.targetObject,
+    required this.targetQuestion,
+    required this.labelInterpretations,
+    required this.geometricRelationships,
+    required this.uncertainItems,
+    required this.needsManualReview,
+  });
+
+  final String targetObject;
+  final String targetQuestion;
+  final List<_LabelInterpretation> labelInterpretations;
+  final List<String> geometricRelationships;
+  final List<String> uncertainItems;
+  final bool needsManualReview;
+}
+
+class _LabelInterpretation {
+  const _LabelInterpretation({
+    required this.label,
+    required this.meaning,
+    required this.confidence,
+  });
+
+  final String label;
+  final String meaning;
+  final String confidence;
 }
 
 class ParsedAnalysisResult extends AnalysisResult {

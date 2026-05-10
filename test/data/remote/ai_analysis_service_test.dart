@@ -1210,4 +1210,120 @@ void main() {
       isNot(contains('选项中没有')),
     );
   });
+
+  group('B1: visual hypotheses parsing and prompt building', () {
+    test('parses well-formed visual hypotheses JSON', () {
+      final service = AiAnalysisService.fake();
+      const content = '''
+```json
+{
+  "targetObject": "阴影半圆",
+  "targetQuestion": "求面积",
+  "labelInterpretations": [
+    {"label": "10", "meaning": "右侧竖边高度", "confidence": "high"},
+    {"label": "3", "meaning": "上边水平长度", "confidence": "medium"},
+    {"label": "7", "meaning": "下边水平长度", "confidence": "medium"}
+  ],
+  "geometricRelationships": ["半圆直径 = 左侧斜边 = √(4²+10²) = 2√29"],
+  "uncertainItems": ["3 和 7 是否为端点到竖边的水平距离"],
+  "needsManualReview": false
+}
+```
+''';
+
+      final assumptions = service.parseVisualHypothesesForTest(content);
+
+      expect(assumptions.targetObject, '阴影半圆');
+      expect(assumptions.targetQuestion, '求面积');
+      expect(assumptions.measurements.length, 3);
+      expect(assumptions.measurements[0].label, '10');
+      expect(assumptions.measurements[0].meaning, '右侧竖边高度');
+      expect(assumptions.measurements[0].confidence, 'high');
+      expect(assumptions.solutionBasis,
+          contains('半圆直径 = 左侧斜边 = √(4²+10²) = 2√29'));
+      expect(assumptions.uncertainItems, contains('3 和 7 是否为端点到竖边的水平距离'));
+      expect(assumptions.needsManualReview, isFalse);
+    });
+
+    test('parses hypotheses with needsManualReview true', () {
+      final service = AiAnalysisService.fake();
+      const content = '''
+{
+  "targetObject": "半圆",
+  "targetQuestion": "面积",
+  "labelInterpretations": [
+    {"label": "10", "meaning": "可能是直径也可能是高", "confidence": "low"}
+  ],
+  "geometricRelationships": [],
+  "uncertainItems": ["10 的含义不确定"],
+  "needsManualReview": true
+}
+''';
+
+      final assumptions = service.parseVisualHypothesesForTest(content);
+
+      expect(assumptions.needsManualReview, isTrue);
+      expect(assumptions.measurements[0].confidence, 'low');
+      expect(assumptions.uncertainItems, contains('10 的含义不确定'));
+    });
+
+    test('returns fallback with needsManualReview on malformed JSON', () {
+      final service = AiAnalysisService.fake();
+      const content = 'This is not JSON at all, just plain text.';
+
+      final assumptions = service.parseVisualHypothesesForTest(content);
+
+      expect(assumptions.needsManualReview, isTrue);
+      expect(assumptions.measurements, isEmpty);
+    });
+
+    test('builds locked hypotheses prompt with all fields', () {
+      final service = AiAnalysisService.fake();
+      const hypothesesJson = '''
+{
+  "targetObject": "阴影半圆",
+  "targetQuestion": "求面积",
+  "labelInterpretations": [
+    {"label": "10", "meaning": "右侧竖边高度", "confidence": "high"},
+    {"label": "3", "meaning": "上边水平长度", "confidence": "medium"}
+  ],
+  "geometricRelationships": ["半圆直径 = 斜边长"],
+  "uncertainItems": ["3 是否参与计算"],
+  "needsManualReview": false
+}
+''';
+
+      final prompt = service.buildLockedHypothesesPromptForTest(hypothesesJson);
+
+      expect(prompt, contains('【已锁定的读图假设 — 不得修改】'));
+      expect(prompt, contains('求解目标：阴影半圆 求面积'));
+      expect(prompt, contains('10 → 右侧竖边高度 (high)'));
+      expect(prompt, contains('3 → 上边水平长度 (medium)'));
+      expect(prompt, contains('半圆直径 = 斜边长'));
+      expect(prompt, contains('3 是否参与计算'));
+      expect(prompt, contains('不得临时赋予新含义'));
+    });
+
+    test('builds locked hypotheses prompt with empty optional fields', () {
+      final service = AiAnalysisService.fake();
+      const hypothesesJson = '''
+{
+  "targetObject": "圆",
+  "targetQuestion": "求周长",
+  "labelInterpretations": [],
+  "geometricRelationships": [],
+  "uncertainItems": [],
+  "needsManualReview": false
+}
+''';
+
+      final prompt = service.buildLockedHypothesesPromptForTest(hypothesesJson);
+
+      expect(prompt, contains('【已锁定的读图假设 — 不得修改】'));
+      expect(prompt, contains('求解目标：圆 求周长'));
+      expect(prompt, isNot(contains('标注含义：')));
+      expect(prompt, isNot(contains('几何关系：')));
+      expect(prompt, isNot(contains('不确定项：')));
+    });
+  });
 }
