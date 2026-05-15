@@ -750,6 +750,22 @@ void main() {
     expect(exercises.first.options, ['A. 1', 'B. 2', 'C. 3', 'D. 4']);
   });
 
+  test('analysis prompt anchors right triangle length exercises', () {
+    final service = AiAnalysisService.fake();
+
+    final prompt = service.buildAnalysisPromptForTest(
+      r'如图，\(\angle ABC=90^\circ\)，\(\angle ADC=90^\circ\)，\(BD=BC\)，\(AD=6\)，\(DC=8\)，求 \(BC\) 的长度。',
+      'math',
+      isGraphicalQuestion: true,
+    );
+
+    expect(prompt, contains('domain=planeGeometryLength'));
+    expect(prompt, contains('object=rightTriangle'));
+    expect(prompt, contains('pythagorean'));
+    expect(prompt, contains('简单、同级、提高'));
+    expect(prompt, contains('同一知识点、同一题型、同一核心解法'));
+  });
+
   test('service rejects linear drift for quadratic root source and falls back',
       () {
     final service = AiAnalysisService.fake();
@@ -933,8 +949,10 @@ void main() {
       sourceQuestionText: r'已知函数 \(f(x)=x^2-2x+1\)，求 \(f(3)\) 的值。',
     );
 
-    expect(exercises.length, 1);
-    expect(exercises.single.id, 'good-f');
+    expect(exercises.length, 3);
+    expect(exercises.map((exercise) => exercise.id), isNot(contains('good-f')));
+    expect(exercises.map((exercise) => exercise.question).join(' '),
+        contains('函数'));
   });
 
   test('service preserves valid volume generated exercises', () {
@@ -960,8 +978,10 @@ void main() {
       sourceQuestionText: r'圆锥底面半径 r=3，高 h=4，求体积 V=\frac{1}{3}\pi r^2h。',
     );
 
-    expect(exercises.length, 1);
-    expect(exercises.single.id, 'good-v');
+    expect(exercises.length, 3);
+    expect(exercises.map((exercise) => exercise.id), isNot(contains('good-v')));
+    expect(exercises.map((exercise) => exercise.question).join(' '),
+        contains('圆锥'));
   });
 
   test(
@@ -999,6 +1019,38 @@ void main() {
         isNot(contains('x^2')));
   });
 
+  test('service falls back when strong source has only partial valid output',
+      () {
+    final service = AiAnalysisService.fake();
+    const raw = r'''
+{
+  "subject": "数学",
+  "finalAnswer": "4",
+  "steps": ["代入 x=3"],
+  "aiTags": ["函数"],
+  "knowledgePoints": ["函数值"],
+  "mistakeReason": "代入错误",
+  "studyAdvice": "先代入再计算",
+  "generatedExercises": [
+    {"id": "good-f", "difficulty": "同级", "question": "已知函数 f(x)=x^2+1，求 f(2)", "options": ["A. 3", "B. 4", "C. 5", "D. 6"], "answer": "C", "explanation": "代入 x=2，f(2)=4+1=5"},
+    {"id": "bad-q", "difficulty": "简单", "question": "解方程 x+1=4", "options": ["A. 1", "B. 2", "C. 3", "D. 4"], "answer": "C", "explanation": "移项"},
+    {"id": "bad-geo", "difficulty": "提高", "question": "一个圆半径为 5，求面积", "options": ["A. 5π", "B. 10π", "C. 25π", "D. 50π"], "answer": "C", "explanation": "圆面积"}
+  ]
+}
+''';
+
+    final exercises = service.extractGeneratedExercisesFromContent(
+      raw,
+      questionId: 'q-partial-strong',
+      sourceQuestionText: r'已知函数 \(f(x)=x^2-2x+1\)，求 \(f(3)\) 的值。',
+    );
+
+    expect(exercises.length, 3);
+    expect(exercises.map((exercise) => exercise.id), isNot(contains('good-f')));
+    expect(exercises.map((exercise) => exercise.question).join(' '),
+        contains('函数'));
+  });
+
   test('service preserves valid proportional relation generated exercises', () {
     final service = AiAnalysisService.fake();
     const raw = r'''
@@ -1022,8 +1074,11 @@ void main() {
       sourceQuestionText: r'若 \(\frac{a}{b}=2\)，且 \(a+b=9\)，求 \(a,b\)。',
     );
 
-    expect(exercises.length, 1);
-    expect(exercises.single.id, 'good-ratio');
+    expect(exercises.length, 3);
+    expect(exercises.map((exercise) => exercise.id),
+        isNot(contains('good-ratio')));
+    expect(exercises.map((exercise) => exercise.question).join(' '),
+        contains(r'\frac'));
   });
 
   test('service triangle fallback wraps angle latex in inline math', () {
@@ -1075,9 +1130,77 @@ void main() {
       sourceQuestionText: r'已知 \(x^2+1=5\)，求 \(x\) 的值。',
     );
 
-    expect(exercises.length, 1);
-    expect(exercises.single.id, 'good1');
-    expect(exercises.single.question, contains('x^2'));
+    expect(exercises.length, 3);
+    expect(exercises.map((exercise) => exercise.id), isNot(contains('good1')));
+    expect(exercises.first.question, contains('x^2'));
+  });
+
+  test(
+      'service falls back to right triangle length exercises for pythagorean source',
+      () {
+    final service = AiAnalysisService.fake();
+    const raw = r'''
+{
+  "subject": "数学",
+  "finalAnswer": "5",
+  "steps": ["先用勾股定理求 AC", "再结合等长关系求 BC"],
+  "aiTags": ["直角三角形", "勾股定理"],
+  "knowledgePoints": ["勾股定理", "线段长度"],
+  "mistakeReason": "容易把中间量当答案",
+  "studyAdvice": "先找直角三角形",
+  "generatedExercises": [
+    {"id": "bad1", "difficulty": "简单", "question": "解方程 x+1=4，求 x 的值", "options": ["A. 1", "B. 2", "C. 3", "D. 4"], "answer": "C", "explanation": "移项得 x=3"},
+    {"id": "bad2", "difficulty": "同级", "question": "一个圆的半径为 5，求面积", "options": ["A. 10π", "B. 25π", "C. 50π", "D. 100π"], "answer": "B", "explanation": "圆面积公式"},
+    {"id": "bad3", "difficulty": "提高", "question": "函数 f(x)=x^2，求 f(3)", "options": ["A. 3", "B. 6", "C. 9", "D. 12"], "answer": "C", "explanation": "代入"}
+  ]
+}
+''';
+
+    final exercises = service.extractGeneratedExercisesFromContent(
+      raw,
+      questionId: 'q-right-triangle',
+      sourceQuestionText:
+          r'如图，\(\angle ABC=90^\circ\)，\(\angle ADC=90^\circ\)，\(BD=BC\)，\(AD=6\)，\(DC=8\)，求 \(BC\) 的长度。',
+    );
+
+    expect(exercises.length, 3);
+    expect(exercises.map((exercise) => exercise.id), isNot(contains('bad1')));
+    expect(exercises.map((exercise) => exercise.question).join(' '),
+        contains('直角'));
+    expect(exercises.map((exercise) => exercise.explanation).join(' '),
+        contains('勾股'));
+    expect(exercises.every((exercise) => exercise.diagramData != null), isTrue);
+  });
+
+  test('service rejects diagramData exercise when it drifts from source topic',
+      () {
+    final service = AiAnalysisService.fake();
+    const raw = r'''
+{
+  "subject": "数学",
+  "finalAnswer": "\(\frac{25\pi}{2}\)",
+  "steps": ["半圆面积"],
+  "aiTags": ["半圆", "面积"],
+  "knowledgePoints": ["半圆面积"],
+  "mistakeReason": "漏乘二分之一",
+  "studyAdvice": "先判断目标区域",
+  "generatedExercises": [
+    {"id": "bad-diagram", "difficulty": "简单", "question": "解方程 x+1=4，求 x 的值", "options": ["A. 1", "B. 2", "C. 3", "D. 4"], "answer": "C", "explanation": "移项得 x=3", "diagramData": {"elements": [{"type": "line", "x1": 0.1, "y1": 0.2, "x2": 0.8, "y2": 0.2}]}}
+  ]
+}
+''';
+
+    final exercises = service.extractGeneratedExercisesFromContent(
+      raw,
+      questionId: 'q-diagram-quality-gate',
+      sourceQuestionText: r'如图，一个半径为 5 cm 的圆，求阴影半圆面积。',
+    );
+
+    expect(exercises.length, 3);
+    expect(exercises.map((exercise) => exercise.id),
+        isNot(contains('bad-diagram')));
+    expect(exercises.map((exercise) => exercise.question).join(' '),
+        contains('半圆'));
   });
 
   test('service rejects equation drift for circle area source and falls back',
@@ -1108,13 +1231,11 @@ void main() {
 
     expect(exercises.length, 3);
     expect(exercises.map((exercise) => exercise.id), isNot(contains('bad1')));
-    expect(exercises.first.question, contains('圆'));
+    expect(exercises.first.question, contains('半圆'));
     expect(exercises.map((exercise) => exercise.question).join(' '),
         isNot(contains('解方程')));
-    expect(
-      exercises.map((exercise) => exercise.question).join(' '),
-      anyOf(contains('半圆'), contains('圆环')),
-    );
+    expect(exercises.map((exercise) => exercise.question).join(' '),
+        isNot(contains('圆环')));
   });
 
   test('service preserves valid circle area generated exercises', () {
@@ -1140,8 +1261,11 @@ void main() {
       sourceQuestionText: r'如图，一个半径为 5 cm 的圆，求阴影半圆面积。',
     );
 
-    expect(exercises.length, 1);
-    expect(exercises.single.id, 'good-circle');
+    expect(exercises.length, 3);
+    expect(exercises.map((exercise) => exercise.id),
+        isNot(contains('good-circle')));
+    expect(exercises.map((exercise) => exercise.question).join(' '),
+        contains('半圆'));
   });
 
   test('service rejects solid geometry drift for trapezoid semicircle area',
@@ -1210,5 +1334,4 @@ void main() {
       isNot(contains('选项中没有')),
     );
   });
-
 }

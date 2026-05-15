@@ -26,7 +26,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -52,6 +52,10 @@ class AppDatabase extends _$AppDatabase {
                 generatedExercises, generatedExercises.roundGroupId);
             await migrator.addColumn(
                 generatedExercises, generatedExercises.sourceExerciseId);
+          }
+          if (from < 5) {
+            await migrator.addColumn(
+                generatedExercises, generatedExercises.diagramDataJson);
           }
         },
       );

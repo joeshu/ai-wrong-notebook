@@ -1026,6 +1026,12 @@ class $GeneratedExercisesTable extends GeneratedExercises
   late final GeneratedColumn<String> sourceExerciseId = GeneratedColumn<String>(
       'source_exercise_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _diagramDataJsonMeta =
+      const VerificationMeta('diagramDataJson');
+  @override
+  late final GeneratedColumn<String> diagramDataJson = GeneratedColumn<String>(
+      'diagram_data_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _createdAtMeta =
       const VerificationMeta('createdAt');
   @override
@@ -1049,6 +1055,7 @@ class $GeneratedExercisesTable extends GeneratedExercises
         roundTotal,
         roundGroupId,
         sourceExerciseId,
+        diagramDataJson,
         createdAt
       ];
   @override
@@ -1152,6 +1159,12 @@ class $GeneratedExercisesTable extends GeneratedExercises
           sourceExerciseId.isAcceptableOrUnknown(
               data['source_exercise_id']!, _sourceExerciseIdMeta));
     }
+    if (data.containsKey('diagram_data_json')) {
+      context.handle(
+          _diagramDataJsonMeta,
+          diagramDataJson.isAcceptableOrUnknown(
+              data['diagram_data_json']!, _diagramDataJsonMeta));
+    }
     if (data.containsKey('created_at')) {
       context.handle(_createdAtMeta,
           createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
@@ -1197,6 +1210,8 @@ class $GeneratedExercisesTable extends GeneratedExercises
           .read(DriftSqlType.string, data['${effectivePrefix}round_group_id']),
       sourceExerciseId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}source_exercise_id']),
+      diagramDataJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}diagram_data_json']),
       createdAt: attachedDatabase.typeMapping
           .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
     );
@@ -1225,6 +1240,7 @@ class GeneratedExercise extends DataClass
   final int? roundTotal;
   final String? roundGroupId;
   final String? sourceExerciseId;
+  final String? diagramDataJson;
   final DateTime createdAt;
   const GeneratedExercise(
       {required this.id,
@@ -1242,6 +1258,7 @@ class GeneratedExercise extends DataClass
       this.roundTotal,
       this.roundGroupId,
       this.sourceExerciseId,
+      this.diagramDataJson,
       required this.createdAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1278,6 +1295,9 @@ class GeneratedExercise extends DataClass
     }
     if (!nullToAbsent || sourceExerciseId != null) {
       map['source_exercise_id'] = Variable<String>(sourceExerciseId);
+    }
+    if (!nullToAbsent || diagramDataJson != null) {
+      map['diagram_data_json'] = Variable<String>(diagramDataJson);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -1318,6 +1338,9 @@ class GeneratedExercise extends DataClass
       sourceExerciseId: sourceExerciseId == null && nullToAbsent
           ? const Value.absent()
           : Value(sourceExerciseId),
+      diagramDataJson: diagramDataJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diagramDataJson),
       createdAt: Value(createdAt),
     );
   }
@@ -1341,6 +1364,7 @@ class GeneratedExercise extends DataClass
       roundTotal: serializer.fromJson<int?>(json['roundTotal']),
       roundGroupId: serializer.fromJson<String?>(json['roundGroupId']),
       sourceExerciseId: serializer.fromJson<String?>(json['sourceExerciseId']),
+      diagramDataJson: serializer.fromJson<String?>(json['diagramDataJson']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
   }
@@ -1363,6 +1387,7 @@ class GeneratedExercise extends DataClass
       'roundTotal': serializer.toJson<int?>(roundTotal),
       'roundGroupId': serializer.toJson<String?>(roundGroupId),
       'sourceExerciseId': serializer.toJson<String?>(sourceExerciseId),
+      'diagramDataJson': serializer.toJson<String?>(diagramDataJson),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
   }
@@ -1383,6 +1408,7 @@ class GeneratedExercise extends DataClass
           Value<int?> roundTotal = const Value.absent(),
           Value<String?> roundGroupId = const Value.absent(),
           Value<String?> sourceExerciseId = const Value.absent(),
+          Value<String?> diagramDataJson = const Value.absent(),
           DateTime? createdAt}) =>
       GeneratedExercise(
         id: id ?? this.id,
@@ -1403,6 +1429,9 @@ class GeneratedExercise extends DataClass
         sourceExerciseId: sourceExerciseId.present
             ? sourceExerciseId.value
             : this.sourceExerciseId,
+        diagramDataJson: diagramDataJson.present
+            ? diagramDataJson.value
+            : this.diagramDataJson,
         createdAt: createdAt ?? this.createdAt,
       );
   GeneratedExercise copyWithCompanion(GeneratedExercisesCompanion data) {
@@ -1436,6 +1465,9 @@ class GeneratedExercise extends DataClass
       sourceExerciseId: data.sourceExerciseId.present
           ? data.sourceExerciseId.value
           : this.sourceExerciseId,
+      diagramDataJson: data.diagramDataJson.present
+          ? data.diagramDataJson.value
+          : this.diagramDataJson,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -1458,6 +1490,7 @@ class GeneratedExercise extends DataClass
           ..write('roundTotal: $roundTotal, ')
           ..write('roundGroupId: $roundGroupId, ')
           ..write('sourceExerciseId: $sourceExerciseId, ')
+          ..write('diagramDataJson: $diagramDataJson, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -1480,6 +1513,7 @@ class GeneratedExercise extends DataClass
       roundTotal,
       roundGroupId,
       sourceExerciseId,
+      diagramDataJson,
       createdAt);
   @override
   bool operator ==(Object other) =>
@@ -1500,6 +1534,7 @@ class GeneratedExercise extends DataClass
           other.roundTotal == this.roundTotal &&
           other.roundGroupId == this.roundGroupId &&
           other.sourceExerciseId == this.sourceExerciseId &&
+          other.diagramDataJson == this.diagramDataJson &&
           other.createdAt == this.createdAt);
 }
 
@@ -1519,6 +1554,7 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
   final Value<int?> roundTotal;
   final Value<String?> roundGroupId;
   final Value<String?> sourceExerciseId;
+  final Value<String?> diagramDataJson;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
   const GeneratedExercisesCompanion({
@@ -1537,6 +1573,7 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
     this.roundTotal = const Value.absent(),
     this.roundGroupId = const Value.absent(),
     this.sourceExerciseId = const Value.absent(),
+    this.diagramDataJson = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -1556,6 +1593,7 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
     this.roundTotal = const Value.absent(),
     this.roundGroupId = const Value.absent(),
     this.sourceExerciseId = const Value.absent(),
+    this.diagramDataJson = const Value.absent(),
     required DateTime createdAt,
     this.rowid = const Value.absent(),
   })  : id = Value(id),
@@ -1580,6 +1618,7 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
     Expression<int>? roundTotal,
     Expression<String>? roundGroupId,
     Expression<String>? sourceExerciseId,
+    Expression<String>? diagramDataJson,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
   }) {
@@ -1599,6 +1638,7 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
       if (roundTotal != null) 'round_total': roundTotal,
       if (roundGroupId != null) 'round_group_id': roundGroupId,
       if (sourceExerciseId != null) 'source_exercise_id': sourceExerciseId,
+      if (diagramDataJson != null) 'diagram_data_json': diagramDataJson,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -1620,6 +1660,7 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
       Value<int?>? roundTotal,
       Value<String?>? roundGroupId,
       Value<String?>? sourceExerciseId,
+      Value<String?>? diagramDataJson,
       Value<DateTime>? createdAt,
       Value<int>? rowid}) {
     return GeneratedExercisesCompanion(
@@ -1638,6 +1679,7 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
       roundTotal: roundTotal ?? this.roundTotal,
       roundGroupId: roundGroupId ?? this.roundGroupId,
       sourceExerciseId: sourceExerciseId ?? this.sourceExerciseId,
+      diagramDataJson: diagramDataJson ?? this.diagramDataJson,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
@@ -1691,6 +1733,9 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
     if (sourceExerciseId.present) {
       map['source_exercise_id'] = Variable<String>(sourceExerciseId.value);
     }
+    if (diagramDataJson.present) {
+      map['diagram_data_json'] = Variable<String>(diagramDataJson.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1718,6 +1763,7 @@ class GeneratedExercisesCompanion extends UpdateCompanion<GeneratedExercise> {
           ..write('roundTotal: $roundTotal, ')
           ..write('roundGroupId: $roundGroupId, ')
           ..write('sourceExerciseId: $sourceExerciseId, ')
+          ..write('diagramDataJson: $diagramDataJson, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -2906,6 +2952,7 @@ typedef $$GeneratedExercisesTableCreateCompanionBuilder
   Value<int?> roundTotal,
   Value<String?> roundGroupId,
   Value<String?> sourceExerciseId,
+  Value<String?> diagramDataJson,
   required DateTime createdAt,
   Value<int> rowid,
 });
@@ -2926,6 +2973,7 @@ typedef $$GeneratedExercisesTableUpdateCompanionBuilder
   Value<int?> roundTotal,
   Value<String?> roundGroupId,
   Value<String?> sourceExerciseId,
+  Value<String?> diagramDataJson,
   Value<DateTime> createdAt,
   Value<int> rowid,
 });
@@ -3003,6 +3051,10 @@ class $$GeneratedExercisesTableFilterComposer
 
   ColumnFilters<String> get sourceExerciseId => $composableBuilder(
       column: $table.sourceExerciseId,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get diagramDataJson => $composableBuilder(
+      column: $table.diagramDataJson,
       builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
@@ -3083,6 +3135,10 @@ class $$GeneratedExercisesTableOrderingComposer
       column: $table.sourceExerciseId,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get diagramDataJson => $composableBuilder(
+      column: $table.diagramDataJson,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
       column: $table.createdAt, builder: (column) => ColumnOrderings(column));
 
@@ -3158,6 +3214,9 @@ class $$GeneratedExercisesTableAnnotationComposer
   GeneratedColumn<String> get sourceExerciseId => $composableBuilder(
       column: $table.sourceExerciseId, builder: (column) => column);
 
+  GeneratedColumn<String> get diagramDataJson => $composableBuilder(
+      column: $table.diagramDataJson, builder: (column) => column);
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -3222,6 +3281,7 @@ class $$GeneratedExercisesTableTableManager extends RootTableManager<
             Value<int?> roundTotal = const Value.absent(),
             Value<String?> roundGroupId = const Value.absent(),
             Value<String?> sourceExerciseId = const Value.absent(),
+            Value<String?> diagramDataJson = const Value.absent(),
             Value<DateTime> createdAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -3241,6 +3301,7 @@ class $$GeneratedExercisesTableTableManager extends RootTableManager<
             roundTotal: roundTotal,
             roundGroupId: roundGroupId,
             sourceExerciseId: sourceExerciseId,
+            diagramDataJson: diagramDataJson,
             createdAt: createdAt,
             rowid: rowid,
           ),
@@ -3260,6 +3321,7 @@ class $$GeneratedExercisesTableTableManager extends RootTableManager<
             Value<int?> roundTotal = const Value.absent(),
             Value<String?> roundGroupId = const Value.absent(),
             Value<String?> sourceExerciseId = const Value.absent(),
+            Value<String?> diagramDataJson = const Value.absent(),
             required DateTime createdAt,
             Value<int> rowid = const Value.absent(),
           }) =>
@@ -3279,6 +3341,7 @@ class $$GeneratedExercisesTableTableManager extends RootTableManager<
             roundTotal: roundTotal,
             roundGroupId: roundGroupId,
             sourceExerciseId: sourceExerciseId,
+            diagramDataJson: diagramDataJson,
             createdAt: createdAt,
             rowid: rowid,
           ),

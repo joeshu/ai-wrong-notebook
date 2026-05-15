@@ -1,6 +1,9 @@
 # Worktrees
 .worktrees/
 
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
 # Flutter/Dart
 .dart_tool/
 .flutter-plugins

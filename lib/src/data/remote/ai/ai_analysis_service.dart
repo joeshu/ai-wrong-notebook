@@ -19,6 +19,7 @@ enum _ExerciseDomain {
   proportionalRelation,
   planeGeometryArea,
   planeGeometryAngle,
+  planeGeometryLength,
   solidGeometryVolume,
 }
 
@@ -31,6 +32,7 @@ enum _ExerciseObject {
   proportionalRelation,
   circleFamily,
   triangle,
+  rightTriangle,
   coneCylinder,
 }
 
@@ -46,6 +48,17 @@ enum _ExerciseMethod {
   splitAndCombine,
   shadedArea,
   angleSum,
+  pythagorean,
+  equalLengthRelation,
+}
+
+enum _ExerciseVariant {
+  rightTriangleLength,
+  circleArea,
+  semicircleArea,
+  annulusOrShadedArea,
+  coneVolume,
+  cylinderVolume,
 }
 
 enum _TopicProfileSource { sourceQuestion, exercise }
@@ -56,12 +69,14 @@ class _ExerciseTopicProfile {
     required this.object,
     required this.methods,
     required this.hasStrongSignal,
+    this.variant,
   });
 
   final _ExerciseDomain domain;
   final _ExerciseObject object;
   final Set<_ExerciseMethod> methods;
   final bool hasStrongSignal;
+  final _ExerciseVariant? variant;
 }
 
 class AiQuestionExtractionResult {
@@ -1622,9 +1637,14 @@ class AiAnalysisService {
       buffer.writeln('举一反三锚点：$topicAnchor');
       buffer.writeln(
           'generatedExercises 必须保持 domain/object/method，不得生成 avoid 中的题型。');
+      buffer.writeln(
+          'generatedExercises 必须恰好 3 道选择题，difficulty 依次为 简单、同级、提高；三题必须保持同一知识点、同一题型、同一核心解法。');
+      buffer.writeln(
+          '难度递进只能通过换数、增加一步同方法变形或增加一个同主题条件完成，禁止通过切换题型/知识点提高难度；无法满足时返回空 generatedExercises。');
       final isGeometryDomain =
           topicProfile.domain == _ExerciseDomain.planeGeometryArea ||
               topicProfile.domain == _ExerciseDomain.planeGeometryAngle ||
+              topicProfile.domain == _ExerciseDomain.planeGeometryLength ||
               topicProfile.domain == _ExerciseDomain.solidGeometryVolume;
       if (isGraphicalQuestion || isGeometryDomain) {
         buffer.writeln(
@@ -1640,7 +1660,9 @@ class AiAnalysisService {
   String _exerciseAnchorText(_ExerciseTopicProfile profile) {
     switch (profile.domain) {
       case _ExerciseDomain.planeGeometryArea:
-        return 'domain=planeGeometryArea; object=${profile.object.name}; methods=${profile.methods.map((m) => m.name).join('/')}; avoid=equation/function/quadraticRoot/solidVolume';
+        return 'domain=planeGeometryArea; object=${profile.object.name}; methods=${profile.methods.map((m) => m.name).join('/')}; variant=${profile.variant?.name ?? 'generic'}; avoid=equation/function/quadraticRoot/solidVolume/lengthOnly';
+      case _ExerciseDomain.planeGeometryLength:
+        return 'domain=planeGeometryLength; object=rightTriangle; methods=${profile.methods.map((m) => m.name).join('/')}; variant=rightTriangleLength; avoid=area/angle/equation/function/volume';
       case _ExerciseDomain.algebraEquation:
         if (profile.object == _ExerciseObject.quadraticEquation) {
           return 'domain=algebraEquation; object=quadraticEquation; methods=squareRoot; avoid=linearEquation/function/geometry/volume';
@@ -1651,7 +1673,7 @@ class AiAnalysisService {
       case _ExerciseDomain.planeGeometryAngle:
         return 'domain=planeGeometryAngle; object=triangle; methods=angleSum; avoid=equation/function/volume';
       case _ExerciseDomain.solidGeometryVolume:
-        return 'domain=solidGeometryVolume; object=coneCylinder; methods=formulaSubstitution; avoid=quadraticRoot/function/equationSystem/planeGeometryArea';
+        return 'domain=solidGeometryVolume; object=coneCylinder; methods=formulaSubstitution; variant=${profile.variant?.name ?? 'generic'}; avoid=quadraticRoot/function/equationSystem/planeGeometryArea';
       case _ExerciseDomain.functionEvaluation:
         return 'domain=functionEvaluation; object=functionExpression; methods=functionSubstitution; avoid=quadraticRoot/equationSystem/geometry/volume';
       case _ExerciseDomain.proportionalRelation:
@@ -2016,13 +2038,17 @@ class AiAnalysisService {
     }
 
     final expectedCount = rawExercises.length >= 3 ? 3 : rawExercises.length;
+    if (sourceProfile.hasStrongSignal) {
+      final ordered = _orderedGeneratedExercises(parsed);
+      if (ordered.length == 3) return ordered;
+      return _defaultGeneratedExercises(
+        questionId,
+        analysis: parsedAnalysis,
+        sourceQuestionText: sourceQuestionText,
+      );
+    }
+
     if (parsed.length < expectedCount) {
-      // If we have at least 1 valid exercise with diagramData, keep them
-      // rather than falling back to generic defaults that may not match.
-      final hasDiagram = parsed.any((e) => e.diagramData != null);
-      if (parsed.isNotEmpty && hasDiagram) {
-        return parsed;
-      }
       return _defaultGeneratedExercises(
         questionId,
         analysis: parsedAnalysis,
@@ -2031,6 +2057,22 @@ class AiAnalysisService {
     }
 
     return parsed;
+  }
+
+  List<GeneratedExercise> _orderedGeneratedExercises(
+    List<GeneratedExercise> exercises,
+  ) {
+    const rank = <String, int>{'简单': 0, '同级': 1, '提高': 2};
+    if (exercises.length != 3) return const <GeneratedExercise>[];
+    if (!exercises.every((exercise) => rank.containsKey(exercise.difficulty))) {
+      return const <GeneratedExercise>[];
+    }
+    final ordered = [...exercises]
+      ..sort((a, b) => rank[a.difficulty]!.compareTo(rank[b.difficulty]!));
+    for (var index = 0; index < ordered.length; index++) {
+      ordered[index] = ordered[index].copyWith(order: index);
+    }
+    return ordered;
   }
 
   Map<String, dynamic>? _parseDiagramData(Object? value) {
@@ -2118,13 +2160,6 @@ class AiAnalysisService {
       return false;
     }
 
-    // Geometry exercises with valid diagramData get relaxed format validation —
-    // the AI only generates diagramData for geometry exercises per prompt rules,
-    // so its presence is a strong signal the exercise is on-topic and valid.
-    if (exercise.diagramData != null) {
-      return true;
-    }
-
     final normalizedAnswer = exercise.answer.trim().toUpperCase();
     if (!RegExp(r'^[A-D]$').hasMatch(normalizedAnswer)) return false;
 
@@ -2209,8 +2244,13 @@ class AiAnalysisService {
         exercise.object != source.object) {
       return false;
     }
-    if (source.methods.isEmpty || exercise.methods.isEmpty) return true;
-    return source.methods.intersection(exercise.methods).isNotEmpty;
+    if (source.methods.isNotEmpty && exercise.methods.isNotEmpty) {
+      if (source.methods.intersection(exercise.methods).isEmpty) return false;
+    }
+    if (source.variant != null && exercise.variant != null) {
+      return source.variant == exercise.variant;
+    }
+    return true;
   }
 
   bool _exerciseMatchesTopicAnchor(
@@ -2234,6 +2274,8 @@ class AiAnalysisService {
       case _ExerciseDomain.planeGeometryArea:
         if (_hasForbiddenPlaneAreaDrift(normalized)) return false;
         return _hasPlaneGeometryAreaSignal(normalized);
+      case _ExerciseDomain.planeGeometryLength:
+        return _hasRightTriangleLengthSignal(normalized);
       case _ExerciseDomain.algebraEquation:
         if (profile.object == _ExerciseObject.quadraticEquation) {
           return _hasQuadraticRootSignal(normalized);
@@ -2264,20 +2306,26 @@ class AiAnalysisService {
         !hasVolume && _hasPlaneGeometryAreaSignal(text);
     final hasFunctionEvaluation = _hasFunctionEvaluationSignal(text);
     final hasProportionalRelation = _hasProportionalRelationSignal(text);
+    final hasRightTriangleLength = !hasPlaneGeometryArea &&
+        !hasVolume &&
+        _hasRightTriangleLengthSignal(text);
     final hasEquationSystem =
         !hasProportionalRelation && _hasEquationSystemSignal(text);
-    final hasTriangleAngle =
-        !hasPlaneGeometryArea && _hasTriangleAngleSignal(text);
+    final hasTriangleAngle = !hasPlaneGeometryArea &&
+        !hasRightTriangleLength &&
+        _hasTriangleAngleSignal(text);
     final hasQuadraticRoot = !hasVolume &&
         !hasPlaneGeometryArea &&
         !hasFunctionEvaluation &&
         !hasProportionalRelation &&
+        !hasRightTriangleLength &&
         _hasQuadraticRootSignal(text, allowBareSquareSymbol: true);
     final hasLinearEquation = !hasQuadraticRoot &&
         !hasEquationSystem &&
         !hasFunctionEvaluation &&
         !hasProportionalRelation &&
         !hasPlaneGeometryArea &&
+        !hasRightTriangleLength &&
         _hasLinearEquationSignal(text);
 
     if (hasPlaneGeometryArea) {
@@ -2288,14 +2336,29 @@ class AiAnalysisService {
             : _ExerciseObject.generic,
         methods: _geometryAreaMethods(text),
         hasStrongSignal: true,
+        variant: _circleAreaVariant(text),
+      );
+    }
+    if (hasRightTriangleLength) {
+      final methods = <_ExerciseMethod>{_ExerciseMethod.pythagorean};
+      if (_hasEqualLengthSignal(text)) {
+        methods.add(_ExerciseMethod.equalLengthRelation);
+      }
+      return _ExerciseTopicProfile(
+        domain: _ExerciseDomain.planeGeometryLength,
+        object: _ExerciseObject.rightTriangle,
+        methods: methods,
+        hasStrongSignal: true,
+        variant: _ExerciseVariant.rightTriangleLength,
       );
     }
     if (hasVolume) {
-      return const _ExerciseTopicProfile(
+      return _ExerciseTopicProfile(
         domain: _ExerciseDomain.solidGeometryVolume,
         object: _ExerciseObject.coneCylinder,
-        methods: <_ExerciseMethod>{_ExerciseMethod.formulaSubstitution},
+        methods: const <_ExerciseMethod>{_ExerciseMethod.formulaSubstitution},
         hasStrongSignal: true,
+        variant: _solidVolumeVariant(text),
       );
     }
     if (hasFunctionEvaluation) {
@@ -2406,6 +2469,73 @@ class AiAnalysisService {
     return _hasAnySignal(
             text, <String>['三角', '等腰', '内角', '外角', '角形', r'\triangle', '△']) &&
         _hasAnySignal(text, <String>['角', '度', r'\angle', '∠', r'^\circ', '°']);
+  }
+
+  bool _hasRightTriangleLengthSignal(String text) {
+    if (_hasPlaneGeometryAreaSignal(text) || _hasVolumeSignal(text)) {
+      return false;
+    }
+    final hasLengthTarget = _hasAnySignal(text, <String>[
+      '线段',
+      '边长',
+      '长度',
+      '斜边',
+      '直角边',
+      '求bc',
+      '求 bc',
+      '求 ab',
+      '求ab',
+      '求 ac',
+      '求ac',
+      '求 bd',
+      '求bd',
+    ]);
+    if (!hasLengthTarget) return false;
+    final hasRightTriangle = _hasAnySignal(text, <String>[
+      '直角',
+      '90°',
+      r'90^\circ',
+      r'90^\circ',
+      '勾股',
+      '斜边',
+      '直角三角形',
+      r'a^2+b^2=c^2',
+      r'a^2 + b^2 = c^2',
+    ]);
+    return hasRightTriangle &&
+        _hasAnySignal(
+            text, <String>['三角', '角形', '△', r'\triangle', 'ab', 'bc', 'ac']);
+  }
+
+  bool _hasEqualLengthSignal(String text) {
+    return _hasAnySignal(text, <String>['等长', '相等', 'bd=bc', 'ab=ac', 'bc=bd']);
+  }
+
+  _ExerciseVariant? _circleAreaVariant(String text) {
+    if (_hasAnySignal(
+        text, <String>['圆环', '大圆', '小圆', '空白', '剩余', '减去', '挖去', '内圆', '外圆'])) {
+      return _ExerciseVariant.annulusOrShadedArea;
+    }
+    if (_hasAnySignal(text, <String>['半圆', '一半', r'\frac{1}{2}', '1/2'])) {
+      return _ExerciseVariant.semicircleArea;
+    }
+    if (_hasAnySignal(text, <String>['阴影'])) {
+      return _ExerciseVariant.annulusOrShadedArea;
+    }
+    if (_hasAnySignal(text, <String>['圆', '半径', '直径', r'\pi', 'π'])) {
+      return _ExerciseVariant.circleArea;
+    }
+    return null;
+  }
+
+  _ExerciseVariant? _solidVolumeVariant(String text) {
+    if (_hasAnySignal(text, <String>['圆锥', r'\frac{1}{3}\pi'])) {
+      return _ExerciseVariant.coneVolume;
+    }
+    if (_hasAnySignal(text, <String>['圆柱', 'πr^2h', 'π r^2 h', r'\pi r^2 h'])) {
+      return _ExerciseVariant.cylinderVolume;
+    }
+    return null;
   }
 
   bool _hasPlaneGeometryAreaSignal(String text) {
@@ -2647,6 +2777,543 @@ class AiAnalysisService {
     return buffer.toString();
   }
 
+  List<GeneratedExercise> _defaultCircleAreaExercises(
+    String questionId,
+    DateTime now,
+  ) {
+    return <GeneratedExercise>[
+      GeneratedExercise(
+        id: 'e1',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '简单',
+        question: r'一个圆的半径为 4 cm，求这个圆的面积。',
+        options: const [
+          r'A. \(8\pi\) cm²',
+          r'B. \(12\pi\) cm²',
+          r'C. \(16\pi\) cm²',
+          r'D. \(32\pi\) cm²',
+        ],
+        answer: 'C',
+        explanation: r'圆面积公式为 \(S=\pi r^2\)，代入 \(r=4\)，得 \(S=16\pi\) cm²。',
+        createdAt: now,
+        order: 0,
+        diagramData: _circleDiagram('4cm'),
+      ),
+      GeneratedExercise(
+        id: 'e2',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '同级',
+        question: r'一个圆的直径为 10 cm，求这个圆的面积。',
+        options: const [
+          r'A. \(10\pi\) cm²',
+          r'B. \(20\pi\) cm²',
+          r'C. \(25\pi\) cm²',
+          r'D. \(100\pi\) cm²',
+        ],
+        answer: 'C',
+        explanation: r'直径为 10 cm，所以半径为 5 cm，面积为 \(\pi\times5^2=25\pi\) cm²。',
+        createdAt: now,
+        order: 1,
+        diagramData: _circleDiagram('d=10cm'),
+      ),
+      GeneratedExercise(
+        id: 'e3',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '提高',
+        question: r'一个圆的周长为 \(12\pi\) cm，求这个圆的面积。',
+        options: const [
+          r'A. \(24\pi\) cm²',
+          r'B. \(36\pi\) cm²',
+          r'C. \(48\pi\) cm²',
+          r'D. \(144\pi\) cm²',
+        ],
+        answer: 'B',
+        explanation: r'由 \(2\pi r=12\pi\) 得 \(r=6\)，面积为 \(\pi r^2=36\pi\) cm²。',
+        createdAt: now,
+        order: 2,
+        diagramData: _circleDiagram('C=12π'),
+      ),
+    ];
+  }
+
+  List<GeneratedExercise> _defaultSemicircleAreaExercises(
+    String questionId,
+    DateTime now,
+  ) {
+    return <GeneratedExercise>[
+      GeneratedExercise(
+        id: 'e1',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '简单',
+        question: r'一个半圆的半径为 4 cm，求这个半圆的面积。',
+        options: const [
+          r'A. \(4\pi\) cm²',
+          r'B. \(8\pi\) cm²',
+          r'C. \(16\pi\) cm²',
+          r'D. \(32\pi\) cm²',
+        ],
+        answer: 'B',
+        explanation: r'整圆面积为 \(16\pi\) cm²，半圆面积是一半，所以为 \(8\pi\) cm²。',
+        createdAt: now,
+        order: 0,
+        diagramData: _semicircleDiagram('4cm'),
+      ),
+      GeneratedExercise(
+        id: 'e2',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '同级',
+        question: r'一个半圆的直径为 10 cm，求这个半圆的面积。',
+        options: const [
+          r'A. \(\frac{25\pi}{2}\) cm²',
+          r'B. \(25\pi\) cm²',
+          r'C. \(50\pi\) cm²',
+          r'D. \(10\pi\) cm²',
+        ],
+        answer: 'A',
+        explanation:
+            r'直径为 10 cm，半径为 5 cm，半圆面积为 \(\frac{1}{2}\pi\times5^2=\frac{25\pi}{2}\) cm²。',
+        createdAt: now,
+        order: 1,
+        diagramData: _semicircleDiagram('d=10cm'),
+      ),
+      GeneratedExercise(
+        id: 'e3',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '提高',
+        question: r'一个半圆的弧所在整圆周长为 \(16\pi\) cm，求这个半圆的面积。',
+        options: const [
+          r'A. \(16\pi\) cm²',
+          r'B. \(24\pi\) cm²',
+          r'C. \(32\pi\) cm²',
+          r'D. \(64\pi\) cm²',
+        ],
+        answer: 'C',
+        explanation:
+            r'由 \(2\pi r=16\pi\) 得 \(r=8\)，半圆面积为 \(\frac{1}{2}\pi\times8^2=32\pi\) cm²。',
+        createdAt: now,
+        order: 2,
+        diagramData: _semicircleDiagram('C=16π'),
+      ),
+    ];
+  }
+
+  List<GeneratedExercise> _defaultAnnulusAreaExercises(
+    String questionId,
+    DateTime now,
+  ) {
+    return <GeneratedExercise>[
+      GeneratedExercise(
+        id: 'e1',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '简单',
+        question: r'一个圆环的外圆半径为 5 cm，内圆半径为 3 cm，求圆环面积。',
+        options: const [
+          r'A. \(8\pi\) cm²',
+          r'B. \(12\pi\) cm²',
+          r'C. \(16\pi\) cm²',
+          r'D. \(25\pi\) cm²',
+        ],
+        answer: 'C',
+        explanation: r'圆环面积为大圆面积减小圆面积，\(25\pi-9\pi=16\pi\) cm²。',
+        createdAt: now,
+        order: 0,
+        diagramData: _annulusDiagram('5cm', '3cm'),
+      ),
+      GeneratedExercise(
+        id: 'e2',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '同级',
+        question: r'一个圆形花坛半径为 6 m，中间挖去半径为 2 m 的圆形区域，剩余部分面积是多少？',
+        options: const [
+          r'A. \(24\pi\) m²',
+          r'B. \(28\pi\) m²',
+          r'C. \(32\pi\) m²',
+          r'D. \(36\pi\) m²',
+        ],
+        answer: 'C',
+        explanation: r'剩余面积为 \(36\pi-4\pi=32\pi\) m²。',
+        createdAt: now,
+        order: 1,
+        diagramData: _annulusDiagram('6m', '2m'),
+      ),
+      GeneratedExercise(
+        id: 'e3',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '提高',
+        question: r'一个圆环的外圆直径为 14 cm，内圆直径为 10 cm，求圆环面积。',
+        options: const [
+          r'A. \(12\pi\) cm²',
+          r'B. \(24\pi\) cm²',
+          r'C. \(36\pi\) cm²',
+          r'D. \(48\pi\) cm²',
+        ],
+        answer: 'B',
+        explanation: r'外半径为 7 cm，内半径为 5 cm，圆环面积为 \(49\pi-25\pi=24\pi\) cm²。',
+        createdAt: now,
+        order: 2,
+        diagramData: _annulusDiagram('d=14', 'd=10'),
+      ),
+    ];
+  }
+
+  List<GeneratedExercise> _defaultRightTriangleLengthExercises(
+    String questionId,
+    DateTime now,
+  ) {
+    return <GeneratedExercise>[
+      GeneratedExercise(
+        id: 'e1',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '简单',
+        question: r'如图，直角三角形两条直角边分别为 6 和 8，求斜边的长度。',
+        options: const ['A. 8', 'B. 9', 'C. 10', 'D. 12'],
+        answer: 'C',
+        explanation: r'由勾股定理，斜边 \(c=\sqrt{6^2+8^2}=10\)。',
+        createdAt: now,
+        order: 0,
+        diagramData: _rightTriangleDiagram('6', '8', '?'),
+      ),
+      GeneratedExercise(
+        id: 'e2',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '同级',
+        question: r'如图，直角三角形的斜边为 13，一条直角边为 5，求另一条直角边的长度。',
+        options: const ['A. 8', 'B. 10', 'C. 12', 'D. 14'],
+        answer: 'C',
+        explanation: r'设另一条直角边为 \(x\)，则 \(x^2+5^2=13^2\)，所以 \(x=12\)。',
+        createdAt: now,
+        order: 1,
+        diagramData: _rightTriangleDiagram('5', '?', '13'),
+      ),
+      GeneratedExercise(
+        id: 'e3',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '提高',
+        question:
+            r'如图，\(\angle ABC=90^\circ\)，点 \(D\) 在 \(AB\) 上，\(BD=BC\)，\(AD=7\)，\(AC=17\)，求 \(BC\) 的长度。',
+        options: const ['A. 6', 'B. 8', 'C. 10', 'D. 12'],
+        answer: 'B',
+        explanation:
+            r'设 \(BC=BD=x\)，则 \(AB=x+7\)。由勾股定理，\((x+7)^2+x^2=17^2\)，解得 \(x=8\)，所以 \(BC=8\)。',
+        createdAt: now,
+        order: 2,
+        diagramData: _rightTriangleCompositeDiagram(),
+      ),
+    ];
+  }
+
+  Map<String, dynamic> _circleDiagram(String label) {
+    return <String, dynamic>{
+      'elements': [
+        {
+          'type': 'arc',
+          'cx': 0.5,
+          'cy': 0.5,
+          'r': 0.35,
+          'startAngle': 0,
+          'sweepAngle': 360,
+          'filled': false
+        },
+        {'type': 'point', 'x': 0.5, 'y': 0.5, 'label': 'O', 'role': 'label'},
+        {
+          'type': 'line',
+          'x1': 0.5,
+          'y1': 0.5,
+          'x2': 0.85,
+          'y2': 0.5,
+          'style': 'solid',
+          'role': 'known'
+        },
+        {'type': 'text', 'text': label, 'x': 0.68, 'y': 0.42, 'role': 'known'},
+      ],
+    };
+  }
+
+  Map<String, dynamic> _semicircleDiagram(String label) {
+    return <String, dynamic>{
+      'elements': [
+        {
+          'type': 'arc',
+          'cx': 0.5,
+          'cy': 0.6,
+          'r': 0.3,
+          'startAngle': 180,
+          'sweepAngle': 180,
+          'filled': true
+        },
+        {
+          'type': 'line',
+          'x1': 0.2,
+          'y1': 0.6,
+          'x2': 0.8,
+          'y2': 0.6,
+          'style': 'solid',
+          'role': 'known'
+        },
+        {'type': 'text', 'text': label, 'x': 0.5, 'y': 0.68, 'role': 'known'},
+        {'type': 'point', 'x': 0.5, 'y': 0.6, 'label': 'O', 'role': 'label'},
+      ],
+    };
+  }
+
+  Map<String, dynamic> _annulusDiagram(String outer, String inner) {
+    return <String, dynamic>{
+      'elements': [
+        {
+          'type': 'arc',
+          'cx': 0.5,
+          'cy': 0.5,
+          'r': 0.4,
+          'startAngle': 0,
+          'sweepAngle': 360,
+          'filled': false
+        },
+        {
+          'type': 'arc',
+          'cx': 0.5,
+          'cy': 0.5,
+          'r': 0.26,
+          'startAngle': 0,
+          'sweepAngle': 360,
+          'filled': false
+        },
+        {
+          'type': 'line',
+          'x1': 0.5,
+          'y1': 0.5,
+          'x2': 0.9,
+          'y2': 0.5,
+          'style': 'solid',
+          'role': 'known'
+        },
+        {
+          'type': 'line',
+          'x1': 0.5,
+          'y1': 0.5,
+          'x2': 0.76,
+          'y2': 0.5,
+          'style': 'dashed',
+          'role': 'known'
+        },
+        {'type': 'text', 'text': outer, 'x': 0.73, 'y': 0.42, 'role': 'known'},
+        {'type': 'text', 'text': inner, 'x': 0.61, 'y': 0.56, 'role': 'known'},
+        {'type': 'point', 'x': 0.5, 'y': 0.5, 'label': 'O', 'role': 'label'},
+      ],
+    };
+  }
+
+  Map<String, dynamic> _rightTriangleDiagram(
+    String legA,
+    String legB,
+    String hypotenuse,
+  ) {
+    return <String, dynamic>{
+      'elements': [
+        {
+          'type': 'polygon',
+          'points': [
+            [0.2, 0.8],
+            [0.2, 0.25],
+            [0.78, 0.8],
+          ],
+          'labels': [
+            {'text': 'A', 'x': 0.18, 'y': 0.86},
+            {'text': 'B', 'x': 0.16, 'y': 0.2},
+            {'text': 'C', 'x': 0.82, 'y': 0.86},
+          ],
+        },
+        {'type': 'rightAngle', 'x': 0.2, 'y': 0.8},
+        {'type': 'text', 'text': legA, 'x': 0.14, 'y': 0.52, 'role': 'known'},
+        {'type': 'text', 'text': legB, 'x': 0.5, 'y': 0.86, 'role': 'known'},
+        {
+          'type': 'text',
+          'text': hypotenuse,
+          'x': 0.53,
+          'y': 0.48,
+          'role': 'target'
+        },
+      ],
+    };
+  }
+
+  Map<String, dynamic> _rightTriangleCompositeDiagram() {
+    return <String, dynamic>{
+      'elements': [
+        {
+          'type': 'polygon',
+          'points': [
+            [0.2, 0.82],
+            [0.2, 0.22],
+            [0.78, 0.82],
+          ],
+          'labels': [
+            {'text': 'A', 'x': 0.18, 'y': 0.16},
+            {'text': 'B', 'x': 0.16, 'y': 0.88},
+            {'text': 'C', 'x': 0.82, 'y': 0.88},
+            {'text': 'D', 'x': 0.18, 'y': 0.56},
+          ],
+        },
+        {'type': 'rightAngle', 'x': 0.2, 'y': 0.82},
+        {'type': 'point', 'x': 0.2, 'y': 0.55, 'label': 'D', 'role': 'label'},
+        {'type': 'text', 'text': 'AD=7', 'x': 0.1, 'y': 0.38, 'role': 'known'},
+        {'type': 'text', 'text': 'BD=x', 'x': 0.1, 'y': 0.68, 'role': 'target'},
+        {
+          'type': 'text',
+          'text': 'BC=x',
+          'x': 0.49,
+          'y': 0.88,
+          'role': 'target'
+        },
+        {
+          'type': 'text',
+          'text': 'AC=17',
+          'x': 0.55,
+          'y': 0.48,
+          'role': 'known'
+        },
+        {
+          'type': 'tickMark',
+          'x1': 0.2,
+          'y1': 0.55,
+          'x2': 0.2,
+          'y2': 0.82,
+          'ticks': 1
+        },
+        {
+          'type': 'tickMark',
+          'x1': 0.2,
+          'y1': 0.82,
+          'x2': 0.78,
+          'y2': 0.82,
+          'ticks': 1
+        },
+      ],
+    };
+  }
+
+  List<GeneratedExercise> _defaultConeVolumeExercises(
+    String questionId,
+    DateTime now,
+  ) {
+    return <GeneratedExercise>[
+      GeneratedExercise(
+        id: 'e1',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '简单',
+        question: r'圆锥底面半径为 \(r=2\)，高为 \(h=3\)，则体积 \(V\) 为',
+        options: const [
+          r'A. \(4\pi\)',
+          r'B. \(8\pi\)',
+          r'C. \(12\pi\)',
+          r'D. \(6\pi\)',
+        ],
+        answer: 'A',
+        explanation:
+            r'\(V=\frac{1}{3}\pi r^2 h=\frac{1}{3}\pi \times 4 \times 3=4\pi\)',
+        createdAt: now,
+        order: 0,
+      ),
+      GeneratedExercise(
+        id: 'e2',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '同级',
+        question: r'圆锥底面半径为 \(r=3\)，高为 \(h=6\)，则体积 \(V\) 为',
+        options: const [
+          r'A. \(12\pi\)',
+          r'B. \(18\pi\)',
+          r'C. \(24\pi\)',
+          r'D. \(54\pi\)',
+        ],
+        answer: 'B',
+        explanation:
+            r'\(V=\frac{1}{3}\pi r^2h=\frac{1}{3}\pi\times9\times6=18\pi\)。',
+        createdAt: now,
+        order: 1,
+      ),
+      GeneratedExercise(
+        id: 'e3',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '提高',
+        question: r'一个圆锥体积为 \(24\pi\)，底面半径为 \(r=3\)，求高 \(h\)。',
+        options: const ['A. 6', 'B. 8', 'C. 10', 'D. 12'],
+        answer: 'B',
+        explanation:
+            r'由 \(24\pi=\frac{1}{3}\pi\times9\times h=3\pi h\)，得 \(h=8\)。',
+        createdAt: now,
+        order: 2,
+      ),
+    ];
+  }
+
+  List<GeneratedExercise> _defaultCylinderVolumeExercises(
+    String questionId,
+    DateTime now,
+  ) {
+    return <GeneratedExercise>[
+      GeneratedExercise(
+        id: 'e1',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '简单',
+        question: r'圆柱底面半径为 \(r=2\)，高为 \(h=5\)，则圆柱体积为',
+        options: const [
+          r'A. \(10\pi\)',
+          r'B. \(20\pi\)',
+          r'C. \(25\pi\)',
+          r'D. \(40\pi\)',
+        ],
+        answer: 'B',
+        explanation: r'圆柱体积 \(V=\pi r^2h=\pi\times4\times5=20\pi\)。',
+        createdAt: now,
+        order: 0,
+      ),
+      GeneratedExercise(
+        id: 'e2',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '同级',
+        question: r'圆柱底面直径为 6，高为 4，则圆柱体积为',
+        options: const [
+          r'A. \(24\pi\)',
+          r'B. \(30\pi\)',
+          r'C. \(36\pi\)',
+          r'D. \(48\pi\)',
+        ],
+        answer: 'C',
+        explanation: r'直径为 6，所以半径为 3，体积 \(V=\pi\times9\times4=36\pi\)。',
+        createdAt: now,
+        order: 1,
+      ),
+      GeneratedExercise(
+        id: 'e3',
+        questionId: questionId,
+        generationMode: ExerciseGenerationMode.practice,
+        difficulty: '提高',
+        question: r'一个圆柱体积为 \(45\pi\)，底面半径为 3，求高。',
+        options: const ['A. 3', 'B. 4', 'C. 5', 'D. 6'],
+        answer: 'C',
+        explanation: r'由 \(45\pi=\pi\times3^2\times h=9\pi h\)，得 \(h=5\)。',
+        createdAt: now,
+        order: 2,
+      ),
+    ];
+  }
+
   List<GeneratedExercise> _defaultGeneratedExercises(
     String questionId, {
     AnalysisResult? analysis,
@@ -2660,193 +3327,18 @@ class AiAnalysisService {
 
     if (profile.domain == _ExerciseDomain.planeGeometryArea &&
         profile.object == _ExerciseObject.circleFamily) {
-      return <GeneratedExercise>[
-        GeneratedExercise(
-          id: 'e1',
-          questionId: questionId,
-          generationMode: ExerciseGenerationMode.practice,
-          difficulty: '简单',
-          question: r'一个圆的半径为 4 cm，求这个圆的面积。',
-          options: const [
-            r'A. \(8\pi\) cm²',
-            r'B. \(12\pi\) cm²',
-            r'C. \(16\pi\) cm²',
-            r'D. \(32\pi\) cm²',
-          ],
-          answer: 'C',
-          explanation: r'圆面积公式为 \(S=\pi r^2\)，代入 \(r=4\)，得 \(S=16\pi\) cm²。',
-          createdAt: now,
-          order: 0,
-          diagramData: const <String, dynamic>{
-            'elements': [
-              {
-                'type': 'arc',
-                'cx': 0.5,
-                'cy': 0.5,
-                'r': 0.35,
-                'startAngle': 0,
-                'sweepAngle': 360,
-                'filled': false
-              },
-              {
-                'type': 'point',
-                'x': 0.5,
-                'y': 0.5,
-                'label': 'O',
-                'role': 'label'
-              },
-              {
-                'type': 'line',
-                'x1': 0.5,
-                'y1': 0.5,
-                'x2': 0.85,
-                'y2': 0.5,
-                'style': 'solid',
-                'role': 'known'
-              },
-              {
-                'type': 'text',
-                'text': '4cm',
-                'x': 0.67,
-                'y': 0.42,
-                'role': 'known'
-              },
-            ],
-          },
-        ),
-        GeneratedExercise(
-          id: 'e2',
-          questionId: questionId,
-          generationMode: ExerciseGenerationMode.practice,
-          difficulty: '同级',
-          question: r'一个半圆的半径为 5 cm，求这个半圆的面积。',
-          options: const [
-            r'A. \(10\pi\) cm²',
-            r'B. \(\frac{25\pi}{2}\) cm²',
-            r'C. \(25\pi\) cm²',
-            r'D. \(50\pi\) cm²',
-          ],
-          answer: 'B',
-          explanation:
-              r'整圆面积为 \(25\pi\) cm²，半圆面积是整圆的一半，所以为 \(\frac{25\pi}{2}\) cm²。',
-          createdAt: now,
-          order: 1,
-          diagramData: const <String, dynamic>{
-            'elements': [
-              {
-                'type': 'arc',
-                'cx': 0.5,
-                'cy': 0.6,
-                'r': 0.3,
-                'startAngle': 180,
-                'sweepAngle': 180,
-                'filled': true
-              },
-              {
-                'type': 'line',
-                'x1': 0.2,
-                'y1': 0.6,
-                'x2': 0.8,
-                'y2': 0.6,
-                'style': 'solid',
-                'role': 'known'
-              },
-              {
-                'type': 'text',
-                'text': '5cm',
-                'x': 0.5,
-                'y': 0.68,
-                'role': 'known'
-              },
-              {
-                'type': 'point',
-                'x': 0.5,
-                'y': 0.6,
-                'label': 'O',
-                'role': 'label'
-              },
-            ],
-          },
-        ),
-        GeneratedExercise(
-          id: 'e3',
-          questionId: questionId,
-          generationMode: ExerciseGenerationMode.practice,
-          difficulty: '提高',
-          question: r'一个圆环的外圆半径为 6 cm，内圆半径为 4 cm，求圆环面积。',
-          options: const [
-            r'A. \(12\pi\) cm²',
-            r'B. \(16\pi\) cm²',
-            r'C. \(20\pi\) cm²',
-            r'D. \(36\pi\) cm²',
-          ],
-          answer: 'C',
-          explanation: r'圆环面积等于大圆面积减小圆面积，\(36\pi-16\pi=20\pi\) cm²。',
-          createdAt: now,
-          order: 2,
-          diagramData: const <String, dynamic>{
-            'elements': [
-              {
-                'type': 'arc',
-                'cx': 0.5,
-                'cy': 0.5,
-                'r': 0.4,
-                'startAngle': 0,
-                'sweepAngle': 360,
-                'filled': false
-              },
-              {
-                'type': 'arc',
-                'cx': 0.5,
-                'cy': 0.5,
-                'r': 0.27,
-                'startAngle': 0,
-                'sweepAngle': 360,
-                'filled': false
-              },
-              {
-                'type': 'line',
-                'x1': 0.5,
-                'y1': 0.5,
-                'x2': 0.9,
-                'y2': 0.5,
-                'style': 'solid',
-                'role': 'known'
-              },
-              {
-                'type': 'line',
-                'x1': 0.5,
-                'y1': 0.5,
-                'x2': 0.77,
-                'y2': 0.5,
-                'style': 'dashed',
-                'role': 'known'
-              },
-              {
-                'type': 'text',
-                'text': '6cm',
-                'x': 0.72,
-                'y': 0.42,
-                'role': 'known'
-              },
-              {
-                'type': 'text',
-                'text': '4cm',
-                'x': 0.6,
-                'y': 0.56,
-                'role': 'known'
-              },
-              {
-                'type': 'point',
-                'x': 0.5,
-                'y': 0.5,
-                'label': 'O',
-                'role': 'label'
-              },
-            ],
-          },
-        ),
-      ];
+      if (profile.variant == _ExerciseVariant.semicircleArea) {
+        return _defaultSemicircleAreaExercises(questionId, now);
+      }
+      if (profile.variant == _ExerciseVariant.annulusOrShadedArea) {
+        return _defaultAnnulusAreaExercises(questionId, now);
+      }
+      return _defaultCircleAreaExercises(questionId, now);
+    }
+
+    if (profile.domain == _ExerciseDomain.planeGeometryLength &&
+        profile.object == _ExerciseObject.rightTriangle) {
+      return _defaultRightTriangleLengthExercises(questionId, now);
     }
 
     if (profile.domain == _ExerciseDomain.algebraEquation &&
@@ -3173,56 +3665,10 @@ class AiAnalysisService {
     }
 
     if (profile.domain == _ExerciseDomain.solidGeometryVolume) {
-      return <GeneratedExercise>[
-        GeneratedExercise(
-          id: 'e1',
-          questionId: questionId,
-          generationMode: ExerciseGenerationMode.practice,
-          difficulty: '简单',
-          question: r'圆锥底面半径为 \(r=2\)，高为 \(h=3\)，则体积 \(V\) 为',
-          options: const [
-            r'A. \(4\pi\)',
-            r'B. \(8\pi\)',
-            r'C. \(12\pi\)',
-            r'D. \(6\pi\)',
-          ],
-          answer: 'A',
-          explanation:
-              r'\(V=\frac{1}{3}\pi r^2 h=\frac{1}{3}\pi \times 4 \times 3=4\pi\)',
-          createdAt: now,
-          order: 0,
-        ),
-        GeneratedExercise(
-          id: 'e2',
-          questionId: questionId,
-          generationMode: ExerciseGenerationMode.practice,
-          difficulty: '同级',
-          question: r'圆柱底面半径为 \(r=3\)，高为 \(h=5\)，则圆柱体积为',
-          options: const [
-            r'A. \(15\pi\)',
-            r'B. \(30\pi\)',
-            r'C. \(45\pi\)',
-            r'D. \(20\pi\)',
-          ],
-          answer: 'C',
-          explanation: r'\(V=\pi r^2 h=\pi \times 9 \times 5=45\pi\)',
-          createdAt: now,
-          order: 1,
-        ),
-        GeneratedExercise(
-          id: 'e3',
-          questionId: questionId,
-          generationMode: ExerciseGenerationMode.practice,
-          difficulty: '提高',
-          question: r'同底等高的圆锥和圆柱，圆柱体积是圆锥体积的几倍？',
-          options: const ['A. 2倍', 'B. 3倍', 'C. 4倍', 'D. 1倍'],
-          answer: 'B',
-          explanation:
-              r'圆锥体积 \(V_1=\frac{1}{3}\pi r^2 h\)，圆柱体积 \(V_2=\pi r^2 h\)，所以 \(V_2/V_1=3\)',
-          createdAt: now,
-          order: 2,
-        ),
-      ];
+      if (profile.variant == _ExerciseVariant.cylinderVolume) {
+        return _defaultCylinderVolumeExercises(questionId, now);
+      }
+      return _defaultConeVolumeExercises(questionId, now);
     }
 
     if (profile.domain == _ExerciseDomain.functionEvaluation) {

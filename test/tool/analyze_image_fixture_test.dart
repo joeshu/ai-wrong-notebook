@@ -29,6 +29,9 @@ void main() {
       subjectName: _env('AI_FIXTURE_SUBJECT') ?? 'math',
       imagePath: imageFile.path,
     );
+    // ignore: avoid_print
+    print(
+        '[TEST] result type: ${result.runtimeType}, isParsed: ${result is ParsedAnalysisResult}');
     final generatedExercises = result is ParsedAnalysisResult
         ? service.extractGeneratedExercisesFromContent(
             result.rawContent,
@@ -41,6 +44,13 @@ void main() {
             questionId: 'fixture',
             sourceQuestionText: _env('AI_FIXTURE_TEXT'),
           );
+    // ignore: avoid_print
+    print('[TEST] generatedExercises count: ${generatedExercises.length}');
+    for (final ex in generatedExercises) {
+      // ignore: avoid_print
+      print(
+          '[TEST] exercise: ${ex.id}, hasDiagram: ${ex.diagramData != null}, q: ${ex.question.substring(0, ex.question.length.clamp(0, 40))}');
+    }
 
     final report = _buildReport(result, generatedExercises);
     const encoder = JsonEncoder.withIndent('  ');

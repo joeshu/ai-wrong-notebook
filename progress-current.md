@@ -1,71 +1,68 @@
-# 项目进展 / Park — 2026-05-13
+# 项目进展 / Park — 2026-05-16
 
-## 当前版本状态
+## Done
 
-- 当前 APK：`build/app/outputs/flutter-apk/ai-wrong-notebook-v62-20260513-0325.apk`
-- 当前版本号仍为 v62：本次属于 bug 修复与验证包，小改动只更新时间戳，不递增版本号。
-- APK 已按项目规则留在 `build/app/outputs/flutter-apk/`，未复制到 Desktop。
-- 本地仍有多组未提交改动；提交前需要显式确认文件清单，不能 `git add .`。
+- 已恢复并继续上次中断的 AI 图形题/举一反三质量优化工作。
+- 已强化 `generatedExercises` 生成与过滤逻辑：
+  - prompt 增加“恰好 3 道选择题，difficulty 依次为 简单/同级/提高”。
+  - 三题必须保持同一知识点、同一题型、同一核心解法。
+  - 难度递进只能通过换数、增加同方法变形或同主题条件完成，禁止切换知识点/题型。
+- 已新增/扩展练习题 topic profile：
+  - `planeGeometryArea`：圆面积、半圆面积、圆环/阴影面积。
+  - `planeGeometryLength`：直角三角形长度、勾股定理、等长关系。
+  - `solidGeometryVolume`：圆锥体积、圆柱体积。
+- 已增强生成练习题质量门：
+  - 拒绝自我否定练习题，例如“选项中没有该值/选项设计不严谨/无正确选项”。
+  - 强信号源题必须保留 domain/object/method/variant，AI 输出不足或漂移时回退本地默认题。
+  - 几何练习题要求带 `diagramData`。
+- 已优化本地 fallback 题库：
+  - 半圆面积、圆面积、圆环/阴影面积。
+  - 直角三角形长度（含勾股定理 + 等长关系提高题）。
+  - 圆锥/圆柱体积。
+- 已修复一个检查时发现的不严谨 fallback：右三角形“提高”题原来用“同类结构下 BC=AC/2”不够严谨，已改为 `BD=BC=x`，通过 `(x+7)^2+x^2=17^2` 明确推出 `BC=8`。
+- 已把 `GeneratedExercise.diagramData` 接入持久化：
+  - `lib/src/domain/models/generated_exercise.dart`
+  - `lib/src/data/local/tables/generated_exercises.dart`
+  - `lib/src/data/local/app_database.dart` schemaVersion `4 -> 5`
+  - `lib/src/data/local/app_database.g.dart`
+  - `lib/src/data/repositories/drift_question_repository.dart`
+- 已修正 split 单题场景的 saved exercises 继承逻辑：单题拆分时继续保留 `source.savedExercises`。
+- 已把 fixture 图片回归测试的 `needsReview` 语义改为 warning：只要内部答案一致、状态正确、练习题无自我否定，就不 hard fail。
 
-## 今日完成
+## Verification
 
-### 1. 继续排查几何练习题 `diagramData` 首次不显示问题
-
-用户真机验证确认：
-
-- 拍照 → AI 解析 → 解析结果页 → 立即点击「开始练习」：举一反三几何题无配图。
-- 首次保存到错题本 → 直接进入错题详情 → 立即练习：举一反三几何题无配图。
-- 保存后重新从「错题本 → 错题详情 → 开始练习」进入：同一题有配图。
-
-关键结论：持久化 JSON 中 `savedExercises[].diagramData` 是存在的，问题不在生成或 SharedPreferences 序列化丢字段；差异在“即时内存对象”和“重新从 JSON 反序列化对象”的结构/解析路径。
-
-### 2. 第一层修复：练习页缓存刷新
-
-文件：`lib/src/features/analysis/presentation/exercise_practice_screen.dart`
-
-- 原逻辑只按 `questionId` 判断是否复用 `_exercises`。
-- 已改为同时比较：
-  - `questionId`
-  - `practiceContext.candidateId`
-  - 练习数据源版本（包含 `diagramData`）
-- 避免同一题数据补全后仍复用旧 `_exercises`。
-- 完成练习/继续练习时同步内部 source version，避免完成页被误重置。
-
-### 3. 第二层修复：几何图组件兼容即时内存 Map
-
-文件：`lib/src/features/analysis/presentation/widgets/geometry_diagram_widget.dart`
-
-- `GeometryDiagramWidget` 原解析器对 `elements` / `auxiliaryLines` 子元素使用严格 `Map<String, dynamic>` cast。
-- 即时 AI 内存对象里的嵌套 map 可能是 `Map<dynamic, dynamic>`，而重新进入错题本后 JSON 反序列化会变成更稳定的字符串 key map。
-- 已新增 `_asStringMap`，解析 `elements` / `auxiliaryLines` 时兼容 `Map` 并转换为 `Map<String, dynamic>`。
-- 这次没有改 `math_content_view.dart`、`katex_math_view.dart`、`assets/katex/`，也没有动 LaTeX 正则或 LaTeX 渲染引擎。
-
-### 4. 测试与验证
-
-- `flutter test test/features/analysis/exercise_practice_test.dart` → `EXIT_CODE:0`
-  - 覆盖同一题 `diagramData` 从无到有时练习页刷新。
-  - 覆盖 `GeometryDiagramWidget` 解析即时内存 `Map<dynamic, dynamic>` 子元素。
-- `flutter analyze --no-fatal-infos lib/src/features/analysis/presentation/widgets/geometry_diagram_widget.dart test/features/analysis/exercise_practice_test.dart lib/src/features/analysis/presentation/exercise_practice_screen.dart` → `EXIT_CODE:0`
-- LaTeX 渲染相关文件 diff 检查 → `EXIT_CODE:0`，无输出。
-- `flutter build apk --release` → `EXIT_CODE:0`
-- 最新 APK：`build/app/outputs/flutter-apk/ai-wrong-notebook-v62-20260513-0325.apk`
+- `dart format lib/src/data/remote/ai/ai_analysis_service.dart lib/src/domain/models/generated_exercise.dart lib/src/data/local/tables/generated_exercises.dart lib/src/data/local/app_database.dart lib/src/data/repositories/drift_question_repository.dart lib/src/app/providers.dart test/data/remote/ai_analysis_service_test.dart test/tool/analyze_image_fixture_test.dart`
+  - 已执行，格式化完成。
+- `flutter test test/data/remote/ai_analysis_service_test.dart test/data/local/drift_question_repository_test.dart test/features/analysis/exercise_practice_test.dart test/tool/analyze_image_fixture_test.dart`
+  - `EXIT_CODE=0`
+  - `52 passed, 1 skipped`
+  - skip 原因：未设置 `AI_FIXTURE_IMAGE` 时本地图片回归自动跳过。
+- `flutter analyze --no-fatal-infos --no-fatal-warnings`
+  - `EXIT_CODE=0`
+  - 仍有既有 non-fatal `204 issues found`。
+  - 其中 warning 包括 `test/tool/direct_image_test.dart` 的 `Timeout` 注解位置、`test/tool/geometry_canvas_demo.dart` 的 unused import；info 主要是 prompt 字符串 escape、旧测试 const、demo deprecated API。
+  - 本次没有为清 analyzer 去触碰 LaTeX 渲染文件。
 
 ## Blockers / 风险点
 
-1. 本地没有 Android 真机或模拟器，无法由我直接跑完整 UI 手动流程；需要用户用 `0325` APK 真机复测两个即时入口。
-2. 真机旧包 `0242` 已证明第一层缓存修复不够；`0325` 包加入了几何图内存 Map 兼容修复，仍待真机确认。
-3. `ai_analysis_service.dart` 里 AI prompt 文本包含 LaTeX 反斜杠，完整 analyzer 会报 `unnecessary_string_escapes` info；本次按用户要求没有清理这些 prompt 文本，更没有触碰 LaTeX 渲染引擎。
-4. 当前 git working tree 有较多历史/并行改动与未跟踪文件，提交必须显式确认文件清单，避免误提交无关草稿。
+- 本地没有真机/模拟器 UI 验证；图形题完整拍照 → AI → 练习链路仍需要真机回归。
+- 当前 working tree 包含较多历史未提交/未跟踪文件，不应 `git add .`。
+- `flutter analyze --no-fatal-infos --no-fatal-warnings` 成功，但仓库仍有 non-fatal warning/info；如果 CI 默认 fatal warnings，需要单独处理或调整命令。
+- 用户此前在会话里暴露过真实 API Key，建议到服务商后台重置/作废该 key，不要把 key 写入任何交接文件或 git。
+- 远端同步状态之前交接记录提到 main 与 origin/main 存在 diverge；本次尚未执行 pull/rebase/push，提交前后都应先确认分支状态。
 
 ## Next First Step
 
-1. 用户安装并测试 `ai-wrong-notebook-v62-20260513-0325.apk`：
-   - AI 解析后立即「开始练习」是否有图。
-   - 首次保存到错题详情后立即练习是否有图。
-   - 重新从错题本进入是否仍正常有图。
-2. 如果 `0325` 仍没图，下一步加最小 debug：在练习页输出当前 exercise 的 `diagramData.runtimeType`、`elements.runtimeType`、首个 element runtimeType，以及 `GeometryDiagramWidget` parse result；用真机 logcat / flutter logs 看即时入口和重进入口差异。
-3. 完成 park 本地 WIP 提交：先确认精确文件清单，再 `git add <explicit files>`，commit message 固定 `wip: end of day state`。
+1. 先确认是否做本地 WIP commit。
+2. 若提交：只 stage 本次相关文件的显式清单，commit message 固定为 `wip: end of day state`，不 push。
+3. 切换到 Codex CLI 后，先让 Codex 读取：
+   - `CLAUDE.md`
+   - `progress-current.md`
+   - `progress-codex-cli-handoff.md`
+   - `progress-ai-b1-handoff.md`
+   - `progress-ai-geometry-handoff.md`
+4. Codex 接手后的第一个技术任务：用真实图片 fixture + `AI_MODEL=gpt-5.5` 回归图形题，观察读图准确率和 generatedExercises 质量。
 
 ## Tomorrow first action
 
-- 先看用户真机复测 `0325` APK 结果；如果通过，再收尾提交；如果失败，按上述 debug 点继续定位即时内存对象和图形 parser 的差异。
+- 先完成本地 WIP commit；然后在 Codex CLI 中运行 targeted tests，确认环境一致后继续 gpt-5.5 图片回归。

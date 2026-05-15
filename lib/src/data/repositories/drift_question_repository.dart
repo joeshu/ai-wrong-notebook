@@ -91,6 +91,9 @@ class DriftQuestionRepository implements QuestionRepository {
               roundTotal: Value(normalized.roundTotal),
               roundGroupId: Value(normalized.roundGroupId),
               sourceExerciseId: Value(normalized.sourceExerciseId),
+              diagramDataJson: Value(normalized.diagramData == null
+                  ? null
+                  : jsonEncode(normalized.diagramData)),
               createdAt: normalized.createdAt,
             );
           }).toList(),
@@ -192,6 +195,15 @@ class DriftQuestionRepository implements QuestionRepository {
         ? null
         : List<String>.from(jsonDecode(row.optionsJson!) as List);
 
+    Map<String, dynamic>? diagramData;
+    if (row.diagramDataJson != null && row.diagramDataJson!.isNotEmpty) {
+      try {
+        diagramData = jsonDecode(row.diagramDataJson!) as Map<String, dynamic>;
+      } catch (_) {
+        diagramData = null;
+      }
+    }
+
     return GeneratedExercise(
       id: row.id,
       questionId: row.questionId,
@@ -212,6 +224,7 @@ class DriftQuestionRepository implements QuestionRepository {
       roundTotal: row.roundTotal,
       roundGroupId: row.roundGroupId,
       sourceExerciseId: row.sourceExerciseId,
+      diagramData: diagramData,
     );
   }
 }

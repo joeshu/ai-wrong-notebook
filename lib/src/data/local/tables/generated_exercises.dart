@@ -18,6 +18,7 @@ class GeneratedExercises extends Table {
   IntColumn get roundTotal => integer().nullable()();
   TextColumn get roundGroupId => text().nullable()();
   TextColumn get sourceExerciseId => text().nullable()();
+  TextColumn get diagramDataJson => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
 
   @override

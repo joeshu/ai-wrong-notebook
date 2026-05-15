@@ -162,11 +162,13 @@ QuestionRecord buildSplitQuestionRecord({
       source.splitResult?.hasMultipleCandidates ?? false;
   final analysisResult = candidateSnapshot?.analysisResult ??
       (hasMultipleCandidates ? null : source.analysisResult);
-  final savedExercises =
-      (candidateSnapshot?.savedExercises ?? const <GeneratedExercise>[])
-          .asMap()
-          .entries
-          .map((entry) {
+  final savedExercises = (candidateSnapshot?.savedExercises ??
+          (hasMultipleCandidates
+              ? const <GeneratedExercise>[]
+              : source.savedExercises))
+      .asMap()
+      .entries
+      .map((entry) {
     final order = entry.value.order ?? entry.key;
     final roundIndex = entry.value.roundIndex ?? 1;
     return entry.value.copyWith(
