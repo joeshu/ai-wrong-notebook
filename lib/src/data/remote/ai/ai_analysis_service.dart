@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
@@ -35,6 +36,25 @@ enum _ExerciseObject {
   triangle,
   rightTriangle,
   coneCylinder,
+}
+
+class _Point2 {
+  const _Point2(this.x, this.y);
+
+  final double x;
+  final double y;
+}
+
+class _ExteriorAngleSpec {
+  const _ExteriorAngleSpec({
+    required this.extensionPoint,
+    required this.vertex,
+    required this.basePoint,
+  });
+
+  final String extensionPoint;
+  final String vertex;
+  final String basePoint;
 }
 
 enum _ExerciseMethod {
@@ -1605,7 +1625,8 @@ class AiAnalysisService {
 - 答案字段填写正确选项的字母（如 "A"）
 - 【几何题配图规则】如果原题属于几何类（三角形、圆、平行四边形、梯形、圆锥等），每道练习题必须附带 diagramData 字段，用结构化 JSON 描述几何图形。坐标使用归一化 0-1 范围。格式：
   {"elements":[{"type":"polygon","points":[[x,y],...],"labels":[{"text":"A","x":0.5,"y":0.05}]},{"type":"line","x1":0,"y1":0,"x2":1,"y2":1,"style":"solid|dashed","role":"known|target|label"},{"type":"text","text":"10cm","x":0.5,"y":0.7,"role":"known"},{"type":"angleArc","vx":0.5,"vy":0.1,"startAngle":55,"sweepAngle":70,"r":0.08,"label":"50°"},{"type":"rightAngle","x":0.5,"y":0.8},{"type":"tickMark","x1":0,"y1":0,"x2":0.5,"y2":0.5,"ticks":1},{"type":"arc","cx":0.5,"cy":0.5,"r":0.3,"startAngle":0,"sweepAngle":180,"filled":true},{"type":"ellipse","cx":0.5,"cy":0.8,"rx":0.3,"ry":0.08},{"type":"point","x":0.5,"y":0.5,"label":"O","role":"label"}],"auxiliaryLines":[...同格式，解题辅助线]}
-  role 取值：known（已知条件红色）、target/solve（求解目标绿色）、label（标注蓝色）、auxiliary（辅助线橙色）
+  role 取值：known（已知条件红色）、target/solve（求解目标绿色）、label（标注蓝色）、auxiliary（辅助线橙色）、external（外角弧）
+  三角形外角图必须画清楚延长线：例如“D 在 AB 的延长线上”时，D、A、B 必须共线且 D 在 A 的另一侧；表示外角的 angleArc 必须加 "role":"external"，并画在延长线与另一边之间，不能画成三角形内角。
   非几何题不要输出 diagramData
 - aiTags 要求简短精炼（2-8个字），数量 2-4 个，如 ["压强", "力学", "公式"]
 - knowledgePoints 可以详细描述，长度不限，如 ["压强公式p=f/s，压强与压力的关系", "受力面积相同时，压力越大压强越大"]
@@ -2479,6 +2500,9 @@ class AiAnalysisService {
         exercise.diagramData == null) {
       return false;
     }
+    if (_hasInvalidExteriorAngleDiagram(exercise)) {
+      return false;
+    }
 
     if (!sourceProfile.hasStrongSignal) return true;
 
@@ -2500,6 +2524,156 @@ class AiAnalysisService {
       profileSource: _TopicProfileSource.exercise,
     );
     return _isExerciseProfileCompatible(sourceProfile, exerciseProfile);
+  }
+
+  bool _hasInvalidExteriorAngleDiagram(GeneratedExercise exercise) {
+    final diagram = exercise.diagramData;
+    if (diagram == null) return false;
+
+    final spec = _exteriorAngleSpec(exercise.question);
+    if (spec == null) {
+      return false;
+    }
+
+    final labels = _diagramPointLabels(diagram);
+    final vertex = labels[spec.vertex];
+    final base = labels[spec.basePoint];
+    final extension = labels[spec.extensionPoint];
+    if (vertex == null || base == null || extension == null) return true;
+
+    final baseRay = _Point2(base.x - vertex.x, base.y - vertex.y);
+    final extensionRay =
+        _Point2(extension.x - vertex.x, extension.y - vertex.y);
+    final baseLength = math.sqrt(baseRay.x * baseRay.x + baseRay.y * baseRay.y);
+    final extensionLength = math.sqrt(
+        extensionRay.x * extensionRay.x + extensionRay.y * extensionRay.y);
+    if (baseLength < 0.001 || extensionLength < 0.001) return true;
+
+    final cross =
+        (baseRay.x * extensionRay.y - baseRay.y * extensionRay.x).abs() /
+            (baseLength * extensionLength);
+    final dot = baseRay.x * extensionRay.x + baseRay.y * extensionRay.y;
+    if (cross > 0.08 || dot >= 0) return true;
+
+    final hasExtensionLine = _hasDiagramLineBetween(diagram, vertex, extension);
+    if (!hasExtensionLine) return true;
+
+    final hasExternalArc = _diagramElements(diagram).any((element) {
+      if (element['type'] != 'angleArc') return false;
+      final vx = element['vx'];
+      final vy = element['vy'];
+      if (vx is! num || vy is! num) return false;
+      if (!_isNear(_Point2(vx.toDouble(), vy.toDouble()), vertex)) {
+        return false;
+      }
+      final role = element['role']?.toString().toLowerCase();
+      return role == 'external' || role == 'explicit';
+    });
+    return !hasExternalArc;
+  }
+
+  _ExteriorAngleSpec? _exteriorAngleSpec(String question) {
+    final text = question
+        .toLowerCase()
+        .replaceAll(r'\angle', '∠')
+        .replaceAll(RegExp(r'\\[()\[\]{}]'), '')
+        .replaceAll(RegExp(r'[\\()\[\]{}\s]'), '');
+    if (!text.contains('外角') || !text.contains('延长')) return null;
+
+    final extensionMatch =
+        RegExp(r'点?([a-z])在([a-z])([a-z])的?延长线上').firstMatch(text);
+    final angleMatch = RegExp(r'∠([a-z])([a-z])([a-z])').firstMatch(text);
+    if (extensionMatch == null || angleMatch == null) return null;
+
+    final extensionPoint = angleMatch.group(1)!;
+    final vertex = angleMatch.group(2)!;
+    final namedExtensionPoint = extensionMatch.group(1)!;
+    final segmentStart = extensionMatch.group(2)!;
+    final segmentEnd = extensionMatch.group(3)!;
+
+    if (namedExtensionPoint != extensionPoint) return null;
+    if (vertex == segmentStart) {
+      return _ExteriorAngleSpec(
+        extensionPoint: extensionPoint,
+        vertex: vertex,
+        basePoint: segmentEnd,
+      );
+    }
+    if (vertex == segmentEnd) {
+      return _ExteriorAngleSpec(
+        extensionPoint: extensionPoint,
+        vertex: vertex,
+        basePoint: segmentStart,
+      );
+    }
+    return null;
+  }
+
+  Map<String, _Point2> _diagramPointLabels(Map<String, dynamic> diagram) {
+    final labels = <String, _Point2>{};
+    for (final element in _diagramElements(diagram)) {
+      final type = element['type'];
+      if (type == 'polygon') {
+        final points = element['points'];
+        final rawLabels = element['labels'];
+        if (points is! List || rawLabels is! List) continue;
+        for (var i = 0; i < rawLabels.length && i < points.length; i++) {
+          final labelMap = rawLabels[i];
+          final point = points[i];
+          if (labelMap is! Map || point is! List || point.length < 2) continue;
+          final label = labelMap['text']?.toString().trim().toLowerCase();
+          final x = point[0];
+          final y = point[1];
+          if (label == null || label.isEmpty || x is! num || y is! num) {
+            continue;
+          }
+          labels[label] = _Point2(x.toDouble(), y.toDouble());
+        }
+      } else if (type == 'point') {
+        final label = element['label']?.toString().trim().toLowerCase();
+        final x = element['x'];
+        final y = element['y'];
+        if (label == null || label.isEmpty || x is! num || y is! num) {
+          continue;
+        }
+        labels[label] = _Point2(x.toDouble(), y.toDouble());
+      }
+    }
+    return labels;
+  }
+
+  Iterable<Map<String, dynamic>> _diagramElements(
+      Map<String, dynamic> diagram) {
+    final elements = diagram['elements'];
+    if (elements is! List) return const Iterable<Map<String, dynamic>>.empty();
+    return elements.whereType<Map>().map(Map<String, dynamic>.from);
+  }
+
+  bool _hasDiagramLineBetween(
+    Map<String, dynamic> diagram,
+    _Point2 a,
+    _Point2 b,
+  ) {
+    return _diagramElements(diagram).any((element) {
+      if (element['type'] != 'line') return false;
+      final x1 = element['x1'];
+      final y1 = element['y1'];
+      final x2 = element['x2'];
+      final y2 = element['y2'];
+      if (x1 is! num || y1 is! num || x2 is! num || y2 is! num) {
+        return false;
+      }
+      final p1 = _Point2(x1.toDouble(), y1.toDouble());
+      final p2 = _Point2(x2.toDouble(), y2.toDouble());
+      return (_isNear(p1, a) && _isNear(p2, b)) ||
+          (_isNear(p1, b) && _isNear(p2, a));
+    });
+  }
+
+  bool _isNear(_Point2 a, _Point2 b, {double threshold = 0.04}) {
+    final dx = a.x - b.x;
+    final dy = a.y - b.y;
+    return dx * dx + dy * dy <= threshold * threshold;
   }
 
   bool _exerciseMatchesSourceTarget(
@@ -4261,11 +4435,11 @@ class AiAnalysisService {
           generationMode: ExerciseGenerationMode.practice,
           difficulty: '提高',
           question:
-              r'\(\triangle ABC\) 的一个外角为 \(120^\circ\)，与它不相邻的一个内角为 \(45^\circ\)，则另一个不相邻内角是多少？',
-          options: const ['A. 45°', 'B. 60°', 'C. 75°', 'D. 120°'],
+              r'在 \(\triangle ABC\) 中，若 \(AB=AC\)，点 \(D\) 在 \(AB\) 的延长线上，且外角 \(\angle DAC=120^\circ\)，求 \(\angle B\)。',
+          options: const ['A. 50°', 'B. 55°', 'C. 60°', 'D. 65°'],
           answer: 'C',
           explanation:
-              r'三角形外角等于两个不相邻内角之和，所以另一个内角为 \(120^\circ-45^\circ=75^\circ\)。',
+              r'因为 \(D\) 在 \(AB\) 的延长线上，所以 \(\angle A+\angle DAC=180^\circ\)，得 \(\angle A=60^\circ\)。又因为 \(AB=AC\)，所以 \(\angle B=\angle C\)，因此 \(\angle B=\frac{180^\circ-60^\circ}{2}=60^\circ\)。',
           createdAt: now,
           order: 2,
           diagramData: const <String, dynamic>{
@@ -4273,42 +4447,66 @@ class AiAnalysisService {
               {
                 'type': 'polygon',
                 'points': [
-                  [0.5, 0.15],
-                  [0.15, 0.75],
-                  [0.7, 0.75]
+                  [0.5, 0.35],
+                  [0.24, 0.8],
+                  [0.76, 0.8]
                 ],
                 'labels': [
-                  {'text': 'A', 'x': 0.5, 'y': 0.08},
-                  {'text': 'B', 'x': 0.1, 'y': 0.82},
-                  {'text': 'C', 'x': 0.72, 'y': 0.82}
+                  {'text': 'A', 'x': 0.5, 'y': 0.27},
+                  {'text': 'B', 'x': 0.18, 'y': 0.86},
+                  {'text': 'C', 'x': 0.82, 'y': 0.86}
                 ]
               },
               {
                 'type': 'line',
-                'x1': 0.7,
-                'y1': 0.75,
-                'x2': 0.95,
-                'y2': 0.75,
-                'style': 'dashed',
-                'role': 'auxiliary'
+                'x1': 0.643,
+                'y1': 0.103,
+                'x2': 0.5,
+                'y2': 0.35,
+                'style': 'solid',
+                'role': 'known'
+              },
+              {
+                'type': 'point',
+                'x': 0.643,
+                'y': 0.103,
+                'label': 'D',
+                'role': 'label'
+              },
+              {
+                'type': 'tickMark',
+                'x1': 0.5,
+                'y1': 0.35,
+                'x2': 0.24,
+                'y2': 0.8,
+                'ticks': 1
+              },
+              {
+                'type': 'tickMark',
+                'x1': 0.5,
+                'y1': 0.35,
+                'x2': 0.76,
+                'y2': 0.8,
+                'ticks': 1
               },
               {
                 'type': 'angleArc',
-                'vx': 0.7,
-                'vy': 0.75,
-                'startAngle': -5,
+                'vx': 0.5,
+                'vy': 0.35,
+                'startAngle': -60,
                 'sweepAngle': 120,
-                'r': 0.07,
-                'label': '120°'
+                'r': 0.09,
+                'label': '120°',
+                'role': 'external'
               },
               {
                 'type': 'angleArc',
-                'vx': 0.15,
-                'vy': 0.75,
-                'startAngle': -10,
-                'sweepAngle': 40,
+                'vx': 0.24,
+                'vy': 0.8,
+                'startAngle': -5,
+                'sweepAngle': 60,
                 'r': 0.08,
-                'label': '45°'
+                'label': '?'
               },
             ],
           },

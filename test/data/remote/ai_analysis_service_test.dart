@@ -4,6 +4,38 @@ import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_controller.dart';
 
+class _Vector {
+  const _Vector(this.x, this.y);
+
+  final double x;
+  final double y;
+}
+
+Map<String, _Vector> _diagramLabels(Map<String, dynamic> diagramData) {
+  final labels = <String, _Vector>{};
+  final elements = diagramData['elements'] as List;
+  for (final element in elements.whereType<Map>()) {
+    if (element['type'] == 'polygon') {
+      final points = element['points'] as List;
+      final rawLabels = element['labels'] as List? ?? const [];
+      for (var i = 0; i < points.length && i < rawLabels.length; i++) {
+        final point = points[i] as List;
+        final label = rawLabels[i] as Map;
+        labels[label['text'] as String] = _Vector(
+          (point[0] as num).toDouble(),
+          (point[1] as num).toDouble(),
+        );
+      }
+    } else if (element['type'] == 'point') {
+      labels[element['label'] as String] = _Vector(
+        (element['x'] as num).toDouble(),
+        (element['y'] as num).toDouble(),
+      );
+    }
+  }
+  return labels;
+}
+
 void main() {
   test(
       'fake analysis controller returns ready record with persistent exercises',
@@ -1299,6 +1331,75 @@ void main() {
     expect(exercises.first.question, contains(r'\(\angle A=50^\circ\)'));
     expect(exercises.first.question, isNot(contains(r'\\angle')));
     expect(exercises.first.explanation, contains(r'\(180^\circ\)'));
+  });
+
+  test('service rejects exterior angle diagram when D is not on AB extension',
+      () {
+    final service = AiAnalysisService.fake();
+    const raw = r'''
+{
+  "subject": "数学",
+  "finalAnswer": "70°",
+  "steps": ["等腰三角形底角相等"],
+  "aiTags": ["等腰三角形", "外角"],
+  "knowledgePoints": ["三角形外角"],
+  "mistakeReason": "外角位置不清",
+  "studyAdvice": "先画延长线",
+  "generatedExercises": [
+    {
+      "id": "bad-exterior",
+      "difficulty": "提高",
+      "question": "在 \\(\\triangle ABC\\) 中，若 \\(AB=AC\\)，点 \\(D\\) 在 \\(AB\\) 的延长线上，且外角 \\(\\angle DAC=120^\\circ\\)，求 \\(\\angle B\\)。",
+      "options": ["A. \\(50^\\circ\\)", "B. \\(55^\\circ\\)", "C. \\(60^\\circ\\)", "D. \\(65^\\circ\\)"],
+      "answer": "C",
+      "explanation": "外角 120°，所以顶角 60°，底角 60°。",
+      "diagramData": {
+        "elements": [
+          {"type": "polygon", "points": [[0.5,0.22],[0.2,0.82],[0.82,0.82]], "labels": [{"text":"A","x":0.5,"y":0.14},{"text":"B","x":0.15,"y":0.87},{"text":"C","x":0.87,"y":0.87}]},
+          {"type": "line", "x1":0.5,"y1":0.22,"x2":0.36,"y2":0.02,"style":"solid","role":"known"},
+          {"type":"point","x":0.36,"y":0.02,"label":"D","role":"label"},
+          {"type":"tickMark","x1":0.5,"y1":0.22,"x2":0.2,"y2":0.82,"ticks":1},
+          {"type":"tickMark","x1":0.5,"y1":0.22,"x2":0.82,"y2":0.82,"ticks":1},
+          {"type":"angleArc","vx":0.5,"vy":0.22,"startAngle":20,"sweepAngle":120,"r":0.1,"label":"120°"},
+          {"type":"angleArc","vx":0.2,"vy":0.82,"startAngle":0,"sweepAngle":60,"r":0.08,"label":"?"}
+        ],
+        "auxiliaryLines": []
+      }
+    }
+  ]
+}
+''';
+
+    final exercises = service.extractGeneratedExercisesFromContent(
+      raw,
+      questionId: 'q-exterior-diagram',
+      sourceQuestionText:
+          r'在 \(\triangle ABC\) 中，若 \(AB=AC\)，且 \(\angle A=40^\circ\)，求 \(\angle B\)。',
+    );
+
+    expect(exercises.map((exercise) => exercise.id),
+        isNot(contains('bad-exterior')));
+    final hard =
+        exercises.singleWhere((exercise) => exercise.difficulty == '提高');
+    expect(hard.question, contains('外角'));
+    expect(hard.question, contains(r'\(\angle DAC=120^\circ\)'));
+
+    final labels = _diagramLabels(hard.diagramData!);
+    final a = labels['A']!;
+    final b = labels['B']!;
+    final d = labels['D']!;
+    final ab = _Vector(b.x - a.x, b.y - a.y);
+    final ad = _Vector(d.x - a.x, d.y - a.y);
+    final cross = (ab.x * ad.y - ab.y * ad.x).abs();
+    final dot = ab.x * ad.x + ab.y * ad.y;
+
+    expect(cross, lessThan(0.001));
+    expect(dot, lessThan(0));
+    final externalArc = (hard.diagramData!['elements'] as List)
+        .whereType<Map>()
+        .where((element) => element['type'] == 'angleArc')
+        .singleWhere((element) => element['label'] == '120°');
+    expect(externalArc['role'], 'external');
   });
   test('service preserves valid quadratic root generated exercises', () {
     final service = AiAnalysisService.fake();

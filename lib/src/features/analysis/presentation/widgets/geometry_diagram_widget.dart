@@ -322,7 +322,9 @@ class _GeometryPainter extends CustomPainter {
     final r = ang.r * math.min(a.width, a.height);
     final rect = Rect.fromCircle(center: center, radius: r);
 
-    final computed = _computeAngleFromPolygon(ang.vx, ang.vy);
+    final computed = ang.usesExplicitAngles
+        ? null
+        : _computeAngleFromPolygon(ang.vx, ang.vy);
     final double startRad;
     final double sweepRad;
     if (computed != null) {
@@ -655,13 +657,16 @@ class _TextEl extends _GeoElement {
 class _AngleArcEl extends _GeoElement {
   final double vx, vy, startAngle, sweepAngle, r;
   final String label;
+  final String? role;
   _AngleArcEl(
       {required this.vx,
       required this.vy,
       required this.startAngle,
       required this.sweepAngle,
       required this.r,
-      this.label = ''});
+      this.label = '',
+      this.role});
+  bool get usesExplicitAngles => role == 'external' || role == 'explicit';
   factory _AngleArcEl.fromJson(Map<String, dynamic> j) => _AngleArcEl(
         vx: (j['vx'] as num).toDouble(),
         vy: (j['vy'] as num).toDouble(),
@@ -669,6 +674,7 @@ class _AngleArcEl extends _GeoElement {
         sweepAngle: (j['sweepAngle'] as num).toDouble(),
         r: (j['r'] as num).toDouble(),
         label: j['label'] as String? ?? '',
+        role: j['role'] as String?,
       );
 }
 
