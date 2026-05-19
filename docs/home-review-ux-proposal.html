@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>首页统计与复习页交互优化预览</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --appbar: #1e293b;
+      --surface: #05070a;
+      --surface-soft: #111827;
+      --surface-chip: #172033;
+      --text: #e5e7eb;
+      --muted: #a8b1c6;
+      --subtle: #78839b;
+      --line: rgba(229, 231, 235, .20);
+      --line-soft: rgba(229, 231, 235, .12);
+      --primary: #7c83d6;
+      --primary-strong: #6366f1;
+      --green: #22c55e;
+      --orange: #f59e0b;
+      --blue: #60a5fa;
+      --red: #ef4444;
+      --shadow: 0 18px 44px rgba(0,0,0,.28);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #d8d8d8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      padding: 28px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, 390px);
+      gap: 28px;
+      justify-content: center;
+      align-items: start;
+    }
+    .wrap { width: 390px; }
+    .phone {
+      width: 390px;
+      height: 844px;
+      background: var(--bg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+    .status {
+      height: 44px;
+      background: var(--appbar);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #eef2f7;
+    }
+    .appbar {
+      min-height: 88px;
+      background: var(--appbar);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-size: 30px;
+      letter-spacing: .02em;
+    }
+    .content {
+      padding: 24px;
+      height: calc(100% - 132px);
+      overflow: hidden;
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 21px;
+      line-height: 1.25;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      margin: -4px 0 18px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin: 0 0 12px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 750;
+    }
+    .icon-box {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: rgba(124, 131, 214, .18);
+      color: var(--primary);
+      font-size: 15px;
+    }
+    .card-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .stats-row.two { grid-template-columns: repeat(2, 1fr); }
+    .mini-stat {
+      border-radius: 14px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line-soft);
+      padding: 12px 8px;
+      text-align: center;
+    }
+    .mini-stat .value {
+      font-size: 23px;
+      font-weight: 850;
+      margin-bottom: 4px;
+      letter-spacing: .01em;
+    }
+    .mini-stat .label {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .value.total { color: var(--text); }
+    .value.due { color: var(--orange); }
+    .value.mastered { color: var(--green); }
+    .value.new { color: var(--blue); }
+    .value.rate { color: var(--primary); }
+    .hero-stat {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .big-stat {
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(124,131,214,.18), rgba(124,131,214,.08));
+      border: 1px solid rgba(124,131,214,.24);
+      padding: 16px;
+    }
+    .big-stat .label { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .big-stat .value { font-size: 34px; font-weight: 850; color: var(--text); }
+    .big-stat .hint { margin-top: 6px; color: var(--subtle); font-size: 11px; line-height: 1.45; }
+    .progress-card {
+      border-radius: 16px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line-soft);
+      padding: 16px;
+    }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+    .progress-track {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(229,231,235,.12);
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 43%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--primary), var(--green));
+    }
+    .trend {
+      height: 105px;
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      margin-top: 10px;
+      padding: 12px 4px 0;
+    }
+    .bar {
+      flex: 1;
+      border-radius: 8px 8px 0 0;
+      background: rgba(124,131,214,.48);
+    }
+    .bar.orange { background: rgba(245,158,11,.62); }
+    .bar.green { background: rgba(34,197,94,.56); }
+    .labels {
+      display: flex;
+      justify-content: space-between;
+      color: var(--subtle);
+      font-size: 10px;
+      padding: 0 1px;
+      margin-top: 6px;
+    }
+    .item {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .item-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .chip {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(229,231,235,.14);
+      color: var(--text);
+      background: rgba(124,131,214,.14);
+    }
+    .chip.orange { background: rgba(245,158,11,.14); }
+    .chip.green { background: rgba(34,197,94,.13); }
+    .question {
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn {
+      min-height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn.review {
+      color: #fbbf24;
+      border-color: rgba(245,158,11,.42);
+      background: rgba(245,158,11,.10);
+    }
+    .btn.done {
+      color: white;
+      border-color: var(--green);
+      background: #16a34a;
+    }
+    .btn.single {
+      grid-column: 1 / -1;
+      color: var(--text);
+      background: var(--surface-soft);
+      border-color: var(--line-soft);
+      font-weight: 650;
+    }
+    .explain {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(124,131,214,.12);
+      border: 1px solid rgba(124,131,214,.22);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .bottom-nav {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 86px;
+      background: #141414;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      color: #a6a6a6;
+      font-size: 13px;
+      text-align: center;
+    }
+    .active { color: white; }
+    .caption {
+      width: 390px;
+      background: white;
+      color: #111827;
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      border-radius: 14px;
+      margin-top: 14px;
+    }
+    .caption b { color: #0f172a; }
+    @media (max-width: 1260px) {
+      .grid { grid-template-columns: 390px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid">
+    <div class="wrap">
+      <div class="phone">
+        <div class="status"><span>04:52</span><span>5G 100</span></div>
+        <div class="appbar"><span>首页</span><span style="font-size:22px;color:#cbd5e1">＋</span></div>
+        <div class="content">
+          <h2>1. 首页：学习统计优化</h2>
+          <div class="sub">首页统计不放“复习中”，强调用户一眼能懂的整体规模、今日任务和掌握成果。</div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title"><span class="icon-box">📊</span><span>学习统计</span></div>
+              <div class="card-note">本地错题本</div>
+            </div>
+            <div class="hero-stat">
+              <div class="big-stat">
+                <div class="label">总错题</div>
+                <div class="value">56</div>
+                <div class="hint">累计保存到错题本的题目</div>
+              </div>
+              <div class="progress-card">
+                <div class="progress-label"><span>掌握率</span><span>43%</span></div>
+                <div class="progress-track"><div class="progress-fill"></div></div>
+                <div class="hint" style="margin-top:10px;color:var(--subtle);font-size:11px;line-height:1.45">24 题已掌握</div>
+              </div>
+            </div>
+            <div class="stats-row">
+              <div class="mini-stat"><div class="value due">8</div><div class="label">待复习</div></div>
+              <div class="mini-stat"><div class="value new">12</div><div class="label">新增错题</div></div>
+              <div class="mini-stat"><div class="value mastered">24</div><div class="label">已掌握</div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span class="icon-box">🕘</span><span>最近新增</span></div>
+            <div style="height:14px"></div>
+            <div class="item" style="margin-bottom:0;padding:13px;border-radius:14px">
+              <div class="question" style="font-size:14px;margin-bottom:4px">现在完成时与一般过去时的区别</div>
+              <div class="meta" style="margin-bottom:0">英语 · 今天</div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav"><div class="active">首页</div><div>错题本</div><div>复习</div><div>设置</div></div>
+      </div>
+      <div class="caption"><b>首页推荐：</b>学习统计用“总错题 / 待复习 / 新增错题 / 已掌握 / 掌握率”。“待复习”表示未掌握题，不暗示间隔复习算法。</div>
+    </div>
+
+    <div class="wrap">
+      <div class="phone">
+        <div class="status"><span>04:52</span><span>5G 100</span></div>
+        <div class="appbar"><span>复习</span><span style="font-size:22px;color:#cbd5e1">↻</span></div>
+        <div class="content">
+          <h2>2. 复习页：整体进度优化</h2>
+          <div class="sub">复习页顶部只回答：“还有多少未掌握、已经掌握多少、整体掌握率如何”。不再显示永远为 0 的“复习中”。</div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title"><span class="icon-box">↻</span><span>整体进度</span></div>
+              <div class="card-note">复习概览</div>
+            </div>
+            <div class="progress-card" style="margin-bottom:12px">
+              <div class="progress-label"><span>掌握进度</span><span>24 / 56</span></div>
+              <div class="progress-track"><div class="progress-fill"></div></div>
+            </div>
+            <div class="stats-row">
+              <div class="mini-stat"><div class="value due">8</div><div class="label">待复习</div></div>
+              <div class="mini-stat"><div class="value mastered">24</div><div class="label">已掌握</div></div>
+              <div class="mini-stat"><div class="value total">56</div><div class="label">总错题</div></div>
+            </div>
+          </div>
+
+          <div class="section-title">待复习</div>
+          <div class="item">
+            <div class="item-top"><span class="chip">英语</span><span class="chip orange">待复习</span></div>
+            <div class="question">现在完成时常与 for years、since、so far、already、yet 等连用。</div>
+            <div class="meta">建议：先回忆规则，再查看解析。</div>
+            <div class="actions"><div class="btn review">↻ 继续复习</div><div class="btn done">✓ 已掌握</div></div>
+          </div>
+          <div class="explain">“整体进度”里的数字是状态摘要；下面列表里的按钮是操作。两者语义分开，用户不会把按钮误认为当前状态。</div>
+        </div>
+        <div class="bottom-nav"><div>首页</div><div>错题本</div><div class="active">复习</div><div>设置</div></div>
+      </div>
+      <div class="caption"><b>复习页顶部推荐：</b>整体进度 = 掌握进度条 + 待复习 / 已掌握 / 总错题。当前没有间隔复习算法，所以不使用“今日待复习”。</div>
+    </div>
+
+    <div class="wrap">
+      <div class="phone">
+        <div class="status"><span>04:52</span><span>5G 100</span></div>
+        <div class="appbar"><span>复习</span><span style="font-size:22px;color:#cbd5e1">↻</span></div>
+        <div class="content">
+          <h2>3. 复习 item：操作区优化</h2>
+          <div class="sub">避免“已掌握”默认按钮看起来像题目状态。改为先给用户一个明确判断动作。</div>
+
+          <div class="item">
+            <div class="item-top"><span class="chip">英语</span><span class="chip orange">待判断</span></div>
+            <div class="question">一般过去时的被动语态：was/were + 过去分词，用来表示“某物被……”。</div>
+            <div class="meta">请先判断这题现在是否已经掌握。</div>
+            <div class="actions">
+              <div class="btn review">还没掌握</div>
+              <div class="btn done">已掌握</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-top"><span class="chip">数学</span><span class="chip orange">待判断</span></div>
+            <div class="question">已知 x + 1 = 3，求 x。注意移项时符号变化。</div>
+            <div class="meta">如果仍不确定，点“还没掌握”，题目继续保留在复习队列。</div>
+            <div class="actions">
+              <div class="btn review">还没掌握</div>
+              <div class="btn done">已掌握</div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="item-top"><span class="chip">物理</span><span class="chip green">已完成判断</span></div>
+            <div class="question">受力分析时先确定研究对象，再画重力、支持力、摩擦力。</div>
+            <div class="meta">用户点击“还没掌握”后的反馈态。</div>
+            <div class="actions">
+              <div class="btn single">已加入后续复习</div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav"><div>首页</div><div>错题本</div><div class="active">复习</div><div>设置</div></div>
+      </div>
+      <div class="caption"><b>item 推荐：</b>按钮文案用“还没掌握 / 已掌握”最直观。它不是状态展示，而是用户的复习判断动作；点击后再显示结果反馈。</div>
+    </div>
+  </div>
+</body>
+</html>

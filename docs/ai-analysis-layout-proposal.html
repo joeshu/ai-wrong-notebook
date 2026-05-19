@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI解析结果页新版排版</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f7f8fb;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #1f2937;
+    }
+
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 16px 48px;
+    }
+
+    .title {
+      margin-bottom: 20px;
+    }
+
+    .title h1 {
+      margin: 0 0 8px;
+      font-size: 26px;
+    }
+
+    .title p {
+      margin: 0;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 28px;
+      align-items: start;
+    }
+
+    .phone {
+      max-width: 390px;
+      margin: 0 auto;
+      border-radius: 34px;
+      background: #111827;
+      padding: 10px;
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+    }
+
+    .screen {
+      min-height: 820px;
+      background: #f7f8fb;
+      border-radius: 26px;
+      overflow: hidden;
+    }
+
+    .status {
+      height: 24px;
+      background: #ffffff;
+    }
+
+    .nav {
+      height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 18px;
+      background: #ffffff;
+      border-bottom: 1px solid #eef0f4;
+    }
+
+    .back {
+      font-size: 28px;
+      line-height: 1;
+      color: #111827;
+    }
+
+    .nav-title {
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .content {
+      padding: 16px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e8ebf2;
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .meta-card {
+      border-radius: 18px;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      height: 27px;
+      padding: 0 10px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 650;
+      background: #f1f5ff;
+      color: #4f46e5;
+    }
+
+    .tag.green {
+      background: #ecfdf5;
+      color: #059669;
+    }
+
+    .tag.gray {
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+
+    .tag.orange {
+      background: #fff7ed;
+      color: #c26a00;
+    }
+
+    .meta-desc {
+      margin: 6px 0 10px;
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .section-title span {
+      color: #9ca3af;
+      font-size: 12px;
+    }
+
+    .question-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      margin-bottom: 12px;
+    }
+
+    .question-tab {
+      flex: 0 0 auto;
+      height: 38px;
+      min-width: 76px;
+      padding: 0 14px;
+      border-radius: 10px;
+      border: 1px solid #d8dcef;
+      background: #ffffff;
+      color: #374151;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .question-tab.active {
+      background: #ede9fe;
+      color: #5b21b6;
+      border-color: #c4b5fd;
+    }
+
+    .question-card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 13px;
+    }
+
+    .question-label {
+      margin-bottom: 8px;
+      color: #6b7280;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .question-text {
+      font-size: 15px;
+      line-height: 1.65;
+      color: #111827;
+      white-space: pre-wrap;
+    }
+
+    .long-question-note {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #f5f3ff;
+      color: #6d28d9;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    details {
+      margin-top: 10px;
+    }
+
+    summary {
+      cursor: pointer;
+      list-style: none;
+      color: #5b21b6;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .full-text {
+      margin-top: 10px;
+      padding: 10px;
+      background: #f9fafb;
+      border-radius: 12px;
+      color: #374151;
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .source-card {
+      background: #f8fafc;
+    }
+
+    .source-preview {
+      height: 122px;
+      margin-top: 10px;
+      border-radius: 13px;
+      background:
+        linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(16, 185, 129, 0.08)),
+        repeating-linear-gradient(
+          0deg,
+          rgba(255,255,255,.65),
+          rgba(255,255,255,.65) 10px,
+          rgba(255,255,255,.3) 10px,
+          rgba(255,255,255,.3) 20px
+        );
+      border: 1px dashed #cbd5e1;
+      display: grid;
+      place-items: center;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .answer {
+      border-color: #bbf7d0;
+      background: #effdf5;
+    }
+
+    .mistake {
+      border-color: #fed7aa;
+      background: #fff7ed;
+    }
+
+    .suggestion {
+      border-color: #fde68a;
+      background: #fffbeb;
+    }
+
+    .status-card {
+      border-color: #a7f3d0;
+      background: #ecfdf5;
+    }
+
+    .knowledge {
+      border-color: #d8b4fe;
+      background: #faf5ff;
+    }
+
+    .card.answer h2,
+    .card.status-card h2 {
+      color: #047857;
+    }
+
+    .card.mistake h2 {
+      color: #c2410c;
+    }
+
+    .card.suggestion h2 {
+      color: #b45309;
+    }
+
+    .card.knowledge h2 {
+      color: #6d28d9;
+    }
+
+    .content-text {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .content-text strong {
+      font-weight: 800;
+    }
+
+    .knowledge-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .knowledge-item {
+      padding: 9px 10px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.65);
+      border: 1px solid rgba(139, 92, 246, 0.18);
+      color: #4c1d95;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .steps {
+      background: transparent;
+      border: 0;
+      padding: 0;
+    }
+
+    .step-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #eef2ff;
+      color: #4f46e5;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .step p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.65;
+      color: #374151;
+    }
+
+    .practice-card {
+      background: #ffffff;
+    }
+
+    .practice-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .practice-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .practice-count {
+      color: #9ca3af;
+      font-size: 13px;
+    }
+
+    .practice-item {
+      padding: 12px;
+      border-radius: 13px;
+      border: 1px solid #eef0f4;
+      margin-bottom: 10px;
+      background: #ffffff;
+    }
+
+    .difficulty {
+      display: inline-flex;
+      margin-bottom: 8px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #dcfce7;
+      color: #16a34a;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .practice-question {
+      margin: 0 0 8px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #111827;
+    }
+
+    .practice-answer {
+      color: #9ca3af;
+      font-size: 13px;
+    }
+
+    .bottom-bar {
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      gap: 10px;
+      padding: 12px 16px 16px;
+      background: rgba(247, 248, 251, 0.94);
+      backdrop-filter: blur(10px);
+      border-top: 1px solid #edf0f5;
+    }
+
+    .detail-nav-actions {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 50%;
+      background: transparent;
+      display: grid;
+      place-items: center;
+      color: #111827;
+      padding: 0;
+    }
+
+    .icon-button svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    .compact-meta .question-label {
+      margin-top: 10px;
+    }
+
+    .no-margin {
+      margin-bottom: 0;
+    }
+
+    .flat-question {
+      border: 0;
+      background: #f9fafb;
+      padding: 12px;
+    }
+
+    .detail-bottom-bar {
+      background: rgba(247, 248, 251, 0.96);
+    }
+
+    .batch-card {
+      background: #ffffff;
+    }
+
+    .batch-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      color: #374151;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .batch-title em {
+      color: #9ca3af;
+      font-style: normal;
+      font-weight: 600;
+    }
+
+    .batch-icon {
+      color: #6b7280;
+      font-weight: 800;
+    }
+
+    .batch-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .batch-tab {
+      min-width: 68px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      background: #ffffff;
+      color: #4b5563;
+      font-size: 14px;
+      font-weight: 750;
+    }
+
+    .batch-tab.active {
+      border-color: #4f46e5;
+      background: #5b5cf6;
+      color: #ffffff;
+    }
+
+    .review-card {
+      background: #ffffff;
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .review-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .review-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      font-weight: 850;
+    }
+
+    .review-count {
+      color: #9ca3af;
+      font-size: 14px;
+    }
+
+    .review-desc {
+      margin: 0 0 16px;
+      color: #6b7280;
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .wide-primary {
+      width: 100%;
+      height: 48px;
+      border-radius: 999px;
+      border: 0;
+      background: #3545b8;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 850;
+    }
+
+    .detail-caption {
+      margin: 12px auto 0;
+      max-width: 390px;
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .btn {
+      height: 44px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 800;
+      border: 0;
+    }
+
+    .btn.secondary {
+      flex: 1;
+      background: #ffffff;
+      color: #4f46e5;
+      border: 1px solid #d8dcf0;
+    }
+
+    .btn.primary {
+      flex: 1.6;
+      background: #1d4ed8;
+      color: #ffffff;
+    }
+
+    .caption {
+      margin: 12px auto 0;
+      max-width: 390px;
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 860px) {
+      .preview-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <section class="title">
+      <h1>AI解析结果页新版排版方案</h1>
+      <p>重点：当前题目直接完整展示；原图折叠；AI解析页与错题详情页使用同一信息结构。</p>
+    </section>
+
+    <section class="preview-grid">
+      <article>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"></div>
+            <header class="nav">
+              <div class="back">‹</div>
+              <div class="nav-title">AI 解析结果</div>
+            </header>
+
+            <div class="content">
+              <section class="card meta-card">
+                <div class="tag-row">
+                  <span class="tag">数学</span>
+                  <span class="tag green">AI识别</span>
+                  <span class="tag gray">未复习</span>
+                </div>
+                <div class="tag-row">
+                  <span class="tag orange">函数</span>
+                  <span class="tag orange">单题解析</span>
+                </div>
+                <p class="meta-desc">这张图片已识别为 1 道题，AI 已生成完整解析。</p>
+              </section>
+
+              <section class="card">
+                <div class="section-title">
+                  <h2>当前题目</h2>
+                  <span>完整展示</span>
+                </div>
+                <div class="question-card">
+                  <div class="question-label">题目</div>
+                  <div class="question-text">已知函数 f(x)=x²−2x+1，在 x=3 时的值是多少？请写出计算过程。</div>
+                  <div class="long-question-note">短题和中等题直接完整展示；如果后续遇到特别长的材料题，可在此处提示“题干较长，可收起/展开”。</div>
+                </div>
+              </section>
+
+              <section class="card source-card">
+                <div class="section-title">
+                  <h2>原题来源</h2>
+                  <span>默认收起，减少占屏</span>
+                </div>
+                <details>
+                  <summary>查看原题图片 / 识别文本</summary>
+                  <div class="source-preview">原题图片缩略预览</div>
+                  <div class="full-text">OCR识别文本放在这里，仅用于核对，不再在页面其它位置重复展示。</div>
+                </details>
+              </section>
+
+              <section class="card answer">
+                <div class="section-title"><h2>正确解答</h2></div>
+                <p class="content-text">当 x = 3 时，函数值为<br><strong>f(3)=3²−2×3+1=9−6+1=4</strong>，所以答案是 <strong>4</strong>。</p>
+              </section>
+
+              <section class="card mistake">
+                <div class="section-title"><h2>错因分析</h2></div>
+                <p class="content-text">学生常见错误是代入时漏算某一项，例如只算了 3²−2×3，或者把 −2x 错看成 +2x。</p>
+              </section>
+
+              <section class="card suggestion">
+                <div class="section-title"><h2>学习建议</h2></div>
+                <p class="content-text">做函数求值题时，建议先完整写出代入过程，再分步计算，避免符号和乘法错误。</p>
+              </section>
+
+              <section class="card knowledge">
+                <div class="section-title"><h2>知识点</h2></div>
+                <div class="knowledge-list">
+                  <div class="knowledge-item">函数值的求法：已知函数和自变量，只需代入解析式计算。</div>
+                  <div class="knowledge-item">计算顺序：先乘方，再乘除，最后加减。</div>
+                </div>
+              </section>
+
+              <section class="card steps">
+                <div class="section-title"><h2>解题步骤</h2></div>
+                <div class="step-list">
+                  <div class="step"><div class="step-num">1</div><p>把 x = 3 代入函数 f(x)=x²−2x+1。</p></div>
+                  <div class="step"><div class="step-num">2</div><p>得到 f(3)=3²−2×3+1。</p></div>
+                  <div class="step"><div class="step-num">3</div><p>计算 9−6+1=4。</p></div>
+                </div>
+              </section>
+            </div>
+
+            <div class="bottom-bar">
+              <button class="btn secondary">再练习</button>
+              <button class="btn primary">保存到错题本</button>
+            </div>
+          </div>
+        </div>
+        <p class="caption">单题版：取消“题目文本 + 原题图片 + 原题文本”的三次重复，只保留当前题目卡片和折叠来源。</p>
+      </article>
+
+      <article>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"></div>
+            <header class="nav">
+              <div class="back">‹</div>
+              <div class="nav-title">AI 解析结果</div>
+            </header>
+
+            <div class="content">
+              <section class="card meta-card">
+                <div class="tag-row">
+                  <span class="tag">数学</span>
+                  <span class="tag green">AI识别</span>
+                  <span class="tag gray">未复习</span>
+                </div>
+                <div class="tag-row">
+                  <span class="tag orange">爆送 6 题</span>
+                  <span class="tag orange">编号拆题</span>
+                  <span class="tag orange">当前第 3 题</span>
+                </div>
+                <p class="meta-desc">这张图片已识别为多题内容，保存时会进入逐题确认。</p>
+              </section>
+
+              <section class="card">
+                <div class="section-title">
+                  <h2>题目切换</h2>
+                  <span>只做导航</span>
+                </div>
+                <div class="question-tabs">
+                  <button class="question-tab">第 1 题</button>
+                  <button class="question-tab">第 2 题</button>
+                  <button class="question-tab active">✓ 第 3 题</button>
+                  <button class="question-tab">第 4 题</button>
+                </div>
+                <div class="question-card">
+                  <div class="question-label">当前题目</div>
+                  <div class="question-text">3. 函数 f(x)=x²−2x+1 在 x=3 时的值是多少？请写出代入、计算和最终答案。</div>
+                  <div class="long-question-note">当前题目区域直接展示所选子题的完整题干，题号切换只负责导航，不再额外重复题干预览。</div>
+                </div>
+              </section>
+
+              <section class="card source-card">
+                <div class="section-title">
+                  <h2>原题来源</h2>
+                  <span>整张图只出现一次</span>
+                </div>
+                <details>
+                  <summary>查看整张原题图片 / 完整识别文本</summary>
+                  <div class="source-preview">多题原图缩略预览</div>
+                  <div class="full-text">完整 OCR 文本放在这里。拆题后的每道题只在对应题目卡片中显示，避免重复占用页面。</div>
+                </details>
+              </section>
+
+              <section class="card answer">
+                <div class="section-title"><h2>正确解答</h2></div>
+                <p class="content-text">当 x = 3 时，函数值为<br><strong>f(3)=3²−2×3+1=9−6+1=4</strong>，所以答案是 <strong>4</strong>。</p>
+              </section>
+
+              <section class="card mistake">
+                <div class="section-title"><h2>错因分析</h2></div>
+                <p class="content-text">常见错误是代入后漏项，或者将 −2x 的符号看错，导致计算结果错误。</p>
+              </section>
+
+              <section class="card suggestion">
+                <div class="section-title"><h2>学习建议</h2></div>
+                <p class="content-text">遇到二次函数求值题，建议完整写出代入表达式，再按照运算顺序逐步计算。</p>
+              </section>
+
+              <section class="card status-card">
+                <div class="section-title"><h2>当前子题状态</h2></div>
+                <p class="content-text">当前正在查看第 3 / 6 题，已切换到独立解析结果。当前已切换到第 3 题独立解析。</p>
+              </section>
+
+              <section class="card knowledge">
+                <div class="section-title"><h2>知识点</h2></div>
+                <div class="knowledge-list">
+                  <div class="knowledge-item">函数值的求法：已知函数 f(x) 和自变量 x 的值时，只需代入计算。</div>
+                  <div class="knowledge-item">本题中的函数也可以写成 f(x)=(x−1)²。</div>
+                </div>
+              </section>
+
+              <section class="card steps">
+                <div class="section-title"><h2>解题步骤</h2></div>
+                <div class="step-list">
+                  <div class="step"><div class="step-num">1</div><p>先把 x = 3 代入函数 f(x)=x²−2x+1。</p></div>
+                  <div class="step"><div class="step-num">2</div><p>得到 f(3)=3²−2×3+1。</p></div>
+                  <div class="step"><div class="step-num">3</div><p>计算乘方和乘法：3²=9，2×3=6。</p></div>
+                  <div class="step"><div class="step-num">4</div><p>再计算加减：9−6+1=4。</p></div>
+                </div>
+              </section>
+
+              <section class="card practice-card">
+                <div class="practice-head">
+                  <h2 class="practice-title">举一反三</h2>
+                  <span class="practice-count">3题</span>
+                </div>
+                <div class="practice-item">
+                  <span class="difficulty">简单</span>
+                  <p class="practice-question">已知函数 f(x)=x²−4x+4，则 f(5) 的值是多少？</p>
+                  <div class="practice-answer">答案：A</div>
+                </div>
+                <div class="practice-item">
+                  <span class="difficulty">简单</span>
+                  <p class="practice-question">函数 f(x)=(x−2)² 在 x=6 时的函数值为多少？</p>
+                  <div class="practice-answer">答案：B</div>
+                </div>
+              </section>
+            </div>
+
+            <div class="bottom-bar">
+              <button class="btn secondary">再练习</button>
+              <button class="btn primary">保存到错题本</button>
+            </div>
+          </div>
+        </div>
+        <p class="caption">多题版：保留题号切换，但取消“拆题预览长文本 + 原题图片 + 当前题目文本”的重复堆叠。</p>
+      </article>
+
+      <article>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"></div>
+            <header class="nav detail-nav">
+              <div class="back">‹</div>
+              <div class="nav-title">错题详情</div>
+              <div class="detail-nav-actions" aria-label="页面操作">
+                <button class="icon-button" title="编辑">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16.8V20h3.2L17.7 9.5l-3.2-3.2L4 16.8Zm15.9-9.7a1 1 0 0 0 0-1.4l-1.6-1.6a1 1 0 0 0-1.4 0l-1.3 1.3 3.2 3.2 1.1-1.5Z"/></svg>
+                </button>
+                <button class="icon-button" title="关闭">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"/></svg>
+                </button>
+              </div>
+            </header>
+
+            <div class="content">
+              <section class="card meta-card compact-meta">
+                <div class="tag-row">
+                  <span class="tag">数学</span>
+                  <span class="tag green">AI识别</span>
+                  <span class="tag gray">未复习</span>
+                  <span class="tag gray">拍照批次 · 第 1 题</span>
+                </div>
+                <div class="question-label">AI标签</div>
+                <div class="tag-row no-margin">
+                  <span class="tag orange">一元二次</span>
+                  <span class="tag orange">平方根</span>
+                  <span class="tag orange">解方程</span>
+                </div>
+              </section>
+
+              <section class="card batch-card">
+                <div class="batch-title">
+                  <span class="batch-icon">▦</span>
+                  <strong>同批题目</strong>
+                  <em>6 题</em>
+                </div>
+                <div class="batch-tabs">
+                  <button class="batch-tab active">第 1 题</button>
+                  <button class="batch-tab">第 2 题</button>
+                  <button class="batch-tab">第 3 题</button>
+                  <button class="batch-tab">第 4 题</button>
+                  <button class="batch-tab">第 5 题</button>
+                  <button class="batch-tab">第 6 题</button>
+                </div>
+              </section>
+
+              <section class="card question-section">
+                <div class="section-title">
+                  <h2>当前题目</h2>
+                  <span>完整展示</span>
+                </div>
+                <div class="question-card flat-question">
+                  <div class="question-text">1. 已知 x² + 1 = 5，求 x 的值。</div>
+                </div>
+              </section>
+
+              <section class="card source-card">
+                <div class="section-title">
+                  <h2>原题来源</h2>
+                  <span>需要核对时展开</span>
+                </div>
+                <details>
+                  <summary>查看原题图片 / 识别文本</summary>
+                  <div class="source-preview">错题原图缩略预览</div>
+                  <div class="full-text">1. 已知 x² + 1 = 5，求 x 的值。OCR识别文本仅用于核对。</div>
+                </details>
+              </section>
+
+              <section class="card answer">
+                <div class="section-title"><h2>正确答案</h2></div>
+                <p class="content-text">由 x² + 1 = 5 得 x² = 4，所以 <strong>x = ±2</strong>。</p>
+              </section>
+
+              <section class="card mistake">
+                <div class="section-title"><h2>错因分析</h2></div>
+                <p class="content-text">学生常见错误有三类：一是把 x² = 4 只解成 x = 2，遗漏 x = -2；二是对“开平方”理解不清，没有意识到平方为 4 的数有两个；三是缺少检验步骤，导致漏解后没有发现。</p>
+              </section>
+
+              <section class="card suggestion">
+                <div class="section-title"><h2>学习建议</h2></div>
+                <p class="content-text">遇到含有平方的方程时，先化成标准形式，再判断是否需要开平方。特别要记住：若 x² = a 且 a &gt; 0，那么 x = ±√a。</p>
+              </section>
+
+              <section class="card knowledge">
+                <div class="section-title">
+                  <h2>知识点</h2>
+                  <span>只保留一处</span>
+                </div>
+                <div class="knowledge-list">
+                  <div class="knowledge-item">解形如 x² = a 的方程时，若 a &gt; 0，则有两个实数解：x = ±√a。</div>
+                  <div class="knowledge-item">平方与开平方是互逆运算，但开平方时必须注意正负两种情况，不能漏解。</div>
+                  <div class="knowledge-item">解方程后要养成代入原方程检验的习惯，确认所得结果是否都成立。</div>
+                </div>
+              </section>
+
+              <section class="card steps">
+                <div class="section-title"><h2>解题步骤</h2></div>
+                <div class="step-list">
+                  <div class="step"><div class="step-num">1</div><p>先将方程 x² + 1 = 5 两边同时减去 1，得到 x² = 4。</p></div>
+                  <div class="step"><div class="step-num">2</div><p>再对等式两边开平方，注意平方根有正负两种情况，所以 x = ±2。</p></div>
+                  <div class="step"><div class="step-num">3</div><p>最后检验：当 x = 2 时，2² + 1 = 5；当 x = -2 时，(-2)² + 1 = 5，两个值都满足原方程。</p></div>
+                </div>
+              </section>
+
+              <section class="card review-card">
+                <div class="review-head">
+                  <div class="review-title">↻ 举一反三</div>
+                  <div class="review-count">3/3 已答</div>
+                </div>
+                <p class="review-desc">继续基于这道原题完成练习，已作答状态会保留。</p>
+                <button class="wide-primary">▶ 继续练习</button>
+              </section>
+            </div>
+
+            <div class="bottom-bar detail-bottom-bar">
+              <button class="btn secondary">仍需复习</button>
+              <button class="btn primary">已掌握</button>
+            </div>
+          </div>
+        </div>
+        <p class="detail-caption">错题详情版：顶部只保留分类和 AI 标签；知识点只在解析区出现一次；右上角改为统一图标按钮。</p>
+      </article>
+
+      <article>
+        <div class="phone">
+          <div class="screen">
+            <div class="status"></div>
+            <header class="nav detail-nav">
+              <div class="back">‹</div>
+              <div class="nav-title">错题详情</div>
+              <div class="detail-nav-actions" aria-label="页面操作">
+                <button class="icon-button" title="编辑">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16.8V20h3.2L17.7 9.5l-3.2-3.2L4 16.8Zm15.9-9.7a1 1 0 0 0 0-1.4l-1.6-1.6a1 1 0 0 0-1.4 0l-1.3 1.3 3.2 3.2 1.1-1.5Z"/></svg>
+                </button>
+                <button class="icon-button" title="关闭">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"/></svg>
+                </button>
+              </div>
+            </header>
+
+            <div class="content">
+              <section class="card meta-card compact-meta">
+                <div class="tag-row">
+                  <span class="tag">物理</span>
+                  <span class="tag green">AI识别</span>
+                  <span class="tag gray">未复习</span>
+                  <span class="tag gray">单题</span>
+                </div>
+                <div class="question-label">AI标签</div>
+                <div class="tag-row no-margin">
+                  <span class="tag orange">大气压</span>
+                  <span class="tag orange">压强</span>
+                  <span class="tag orange">物理应用</span>
+                </div>
+              </section>
+
+              <section class="card question-section">
+                <div class="section-title">
+                  <h2>当前题目</h2>
+                  <span>完整展示</span>
+                </div>
+                <div class="question-card flat-question">
+                  <div class="question-text">5. 如图所示的实例中，与大气压有关的是（ ）
+A. 医生进行肌肉注射
+B. 下水管 U 形设计
+C. 用吸盘搬运玻璃
+D. 书包带做得宽大</div>
+                </div>
+              </section>
+
+              <section class="card review-card">
+                <div class="review-head">
+                  <div class="review-title">↻ 举一反三</div>
+                  <div class="review-count">3/3 已答</div>
+                </div>
+                <p class="review-desc">继续基于这道原题完成练习，已作答状态会保留。</p>
+                <button class="wide-primary">▶ 继续练习</button>
+              </section>
+
+              <section class="card source-card">
+                <div class="section-title">
+                  <h2>原题来源</h2>
+                  <span>需要核对时展开</span>
+                </div>
+                <details>
+                  <summary>查看原题图片 / 识别文本</summary>
+                  <div class="source-preview">物理题原图缩略预览</div>
+                  <div class="full-text">5. 如图所示的实例中，与大气压有关的是（ ）A. 医生进行肌肉注射 B. 下水管 U 形设计 C. 用吸盘搬运玻璃 D. 书包带做得宽大</div>
+                </details>
+              </section>
+
+              <section class="card answer">
+                <div class="section-title"><h2>正确答案</h2></div>
+                <p class="content-text"><strong>C. 用吸盘搬运玻璃。</strong>吸盘压在玻璃上时，内部空气被挤出，外部大气压将吸盘压在玻璃表面，从而能够搬运玻璃。</p>
+              </section>
+
+              <section class="card mistake">
+                <div class="section-title"><h2>错因分析</h2></div>
+                <p class="content-text">学生可能把“压强”和“大气压”混淆。A 主要利用液体压强和推力，B 主要利用连通器原理，D 是通过增大受力面积来减小压强，只有 C 直接利用大气压。</p>
+              </section>
+
+              <section class="card suggestion">
+                <div class="section-title"><h2>学习建议</h2></div>
+                <p class="content-text">判断生活实例是否与大气压有关时，重点看是否存在“内部压强变小、外部大气压把物体压住或托住”的现象。</p>
+              </section>
+
+              <section class="card knowledge">
+                <div class="section-title">
+                  <h2>知识点</h2>
+                  <span>只保留一处</span>
+                </div>
+                <div class="knowledge-list">
+                  <div class="knowledge-item">大气压会对浸在空气中的物体产生压强，生活中常见现象有吸盘、吸管吸饮料、注射器吸药液等。</div>
+                  <div class="knowledge-item">吸盘工作原理：挤出内部空气后，内部压强减小，外部大气压将吸盘压在物体表面。</div>
+                  <div class="knowledge-item">压强公式 p = F / S：受力面积越大，压强越小；书包带做宽是为了减小压强，不是大气压现象。</div>
+                </div>
+              </section>
+
+              <section class="card steps">
+                <div class="section-title"><h2>解题步骤</h2></div>
+                <div class="step-list">
+                  <div class="step"><div class="step-num">1</div><p>分析 A：医生进行肌肉注射，主要利用液体压强和推力使药液进入人体，不是大气压现象。</p></div>
+                  <div class="step"><div class="step-num">2</div><p>分析 B：下水管 U 形设计，主要利用连通器原理并起到存水防臭作用，不是大气压的典型应用。</p></div>
+                  <div class="step"><div class="step-num">3</div><p>分析 C：吸盘内部空气减少，外部大气压把吸盘压在玻璃表面，这是典型的大气压应用。</p></div>
+                  <div class="step"><div class="step-num">4</div><p>分析 D：书包带做宽是为了增大受力面积、减小压强，属于压强知识。</p></div>
+                  <div class="step"><div class="step-num">5</div><p>综合判断，正确选项是 C。</p></div>
+                </div>
+              </section>
+            </div>
+
+            <div class="bottom-bar detail-bottom-bar">
+              <button class="btn secondary">仍需复习</button>
+              <button class="btn primary">已掌握</button>
+            </div>
+          </div>
+        </div>
+        <p class="detail-caption">单题错题详情版：没有“同批题目”模块，直接进入当前题目；其余解析结构与多题详情保持一致。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

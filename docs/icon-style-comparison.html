@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CupertinoIcons vs Material Icons 风格对比</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --blue: #2563eb;
+      --indigo: #6366f1;
+      --green: #16a34a;
+      --orange: #ea580c;
+      --shadow: 0 18px 45px rgba(15, 23, 42, .08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #eef2ff 0, var(--bg) 260px);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      line-height: 1.55;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 36px 20px 64px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap: 24px;
+      align-items: stretch;
+      margin-bottom: 24px;
+    }
+
+    .hero-card, .panel, .phone, .table-card {
+      background: rgba(255,255,255,.92);
+      border: 1px solid rgba(226,232,240,.9);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-card { padding: 28px; }
+    h1 { margin: 0 0 12px; font-size: 30px; letter-spacing: -.04em; }
+    h2 { margin: 0 0 16px; font-size: 20px; }
+    h3 { margin: 0 0 8px; font-size: 15px; }
+    p { margin: 0; color: var(--muted); }
+    .hero-card p { font-size: 15px; }
+
+    .badge-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .badge {
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #eef2ff;
+      color: #4338ca;
+      border: 1px solid #c7d2fe;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .summary-item {
+      padding: 16px;
+      border-radius: 18px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+    }
+    .summary-item strong { display: block; margin-bottom: 6px; font-size: 15px; }
+    .summary-item span { color: var(--muted); font-size: 13px; }
+
+    .section { margin-top: 24px; }
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+
+    .phone {
+      overflow: hidden;
+      border-radius: 30px;
+      border: 8px solid #111827;
+      box-shadow: 0 24px 60px rgba(15,23,42,.18);
+      background: white;
+    }
+
+    .phone-header {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      border-bottom: 1px solid #edf2f7;
+      background: #fff;
+      font-weight: 800;
+    }
+
+    .phone-body { padding: 16px; }
+    .phone-title { font-size: 21px; font-weight: 850; letter-spacing: -.02em; margin-bottom: 14px; }
+
+    .list-item {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 13px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .list-item:last-child { border-bottom: 0; }
+    .list-copy { flex: 1; min-width: 0; }
+    .list-copy b { display: block; font-size: 14px; }
+    .list-copy span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+    .bottom-nav {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid #edf2f7;
+      background: #fff;
+    }
+    .nav-item {
+      height: 64px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+    .nav-item.active { color: var(--indigo); font-weight: 700; }
+
+    .icon {
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      color: currentColor;
+    }
+    .icon svg { width: 28px; height: 28px; display: block; }
+    .icon.small svg { width: 22px; height: 22px; }
+    .icon.circle {
+      width: 40px; height: 40px; border-radius: 14px; background: #eef2ff; color: var(--indigo);
+    }
+
+    /* Cupertino: 更细、更圆、更轻，接近 iOS SF Symbols 的线性图标 */
+    .cupertino svg * {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.75;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .cupertino .filled { fill: currentColor; stroke: none; }
+
+    /* Material: 更粗、更几何、更实体，接近 Android Material Icons 的识别方式 */
+    .material svg * {
+      fill: currentColor;
+      stroke: none;
+    }
+    .material.outline svg * {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.35;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .panel { padding: 20px; }
+    .icon-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+    .icon-cell {
+      min-height: 104px;
+      padding: 12px 8px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-align: center;
+    }
+    .icon-cell label { font-size: 12px; color: var(--muted); }
+
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 16px;
+      font-size: 14px;
+    }
+    .compare-table th, .compare-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+    .compare-table th { background: #f8fafc; font-size: 13px; color: #334155; }
+    .compare-table tr:last-child td { border-bottom: 0; }
+    .tag {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 700;
+      margin-right: 6px;
+      margin-bottom: 4px;
+    }
+
+    .recommend {
+      padding: 18px;
+      border-radius: 20px;
+      background: #ecfdf5;
+      border: 1px solid #bbf7d0;
+      color: #14532d;
+    }
+    .recommend p { color: #166534; }
+
+    @media (max-width: 900px) {
+      .hero, .two-col { grid-template-columns: 1fr; }
+      .icon-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-card">
+        <h1>CupertinoIcons vs Material Icons</h1>
+        <p>“iOS 味道更浓”通常指图标更细、更圆润、更轻，像 iPhone 系统里的 SF Symbols；“安卓味更浓”通常指图标更粗、更几何、更实体，像 Android Material Design 的默认图标。</p>
+        <div class="badge-row">
+          <span class="badge">Cupertino = iOS 风格</span>
+          <span class="badge">Material = Android / Google 风格</span>
+          <span class="badge">字体体积可 tree-shake</span>
+        </div>
+      </div>
+      <div class="summary hero-card">
+        <div class="summary-item">
+          <strong>CupertinoIcons</strong>
+          <span>细线、圆角、轻盈、留白多，适合“清爽、学生工具、iOS 感”。</span>
+        </div>
+        <div class="summary-item">
+          <strong>Material Icons</strong>
+          <span>粗线/实体、几何块面强，适合“安卓原生、Google 风、识别更直接”。</span>
+        </div>
+        <div class="summary-item">
+          <strong>为什么会有 MaterialIcons 字体？</strong>
+          <span>Flutter 的 Material 组件可能需要默认图标字体；即使业务代码没写 Icons.xxx，也建议声明。</span>
+        </div>
+        <div class="summary-item">
+          <strong>体积影响？</strong>
+          <span>开启 tree-shaking 后只打包用到的字形，本项目构建中 MaterialIcons 被裁剪到约 1.6KB。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two-col">
+      <div>
+        <h2>同一个页面：Cupertino 风格</h2>
+        <div class="phone">
+          <div class="phone-header">
+            <span class="icon cupertino small"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></span>
+            <span>错题详情</span>
+            <span class="icon cupertino small"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+          </div>
+          <div class="phone-body">
+            <div class="phone-title">一次方程错题</div>
+            <div class="list-item">
+              <span class="icon circle cupertino"><svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5Z"/><path d="M8 7h6M8 11h8"/></svg></span>
+              <div class="list-copy"><b>原题来源</b><span>图片 + 当前题目完整展示</span></div>
+              <span class="icon cupertino small"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></span>
+            </div>
+            <div class="list-item">
+              <span class="icon circle cupertino"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+              <div class="list-copy"><b>正确答案</b><span>x = 2</span></div>
+            </div>
+            <div class="list-item">
+              <span class="icon circle cupertino"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4Z"/><path d="M12 9v5M12 17h.01"/></svg></span>
+              <div class="list-copy"><b>错因分析</b><span>移项时符号处理错误</span></div>
+            </div>
+            <div class="list-item">
+              <span class="icon circle cupertino"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5c-.9.7-1.5 1.7-1.5 2.5h-4c0-.8-.6-1.8-1.5-2.5Z"/></svg></span>
+              <div class="list-copy"><b>学习建议</b><span>先写等式变形，再代入检查</span></div>
+            </div>
+          </div>
+          <div class="bottom-nav">
+            <div class="nav-item active"><span class="icon cupertino small"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/></svg></span>首页</div>
+            <div class="nav-item"><span class="icon cupertino small"><svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5Z"/></svg></span>错题本</div>
+            <div class="nav-item"><span class="icon cupertino small"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/></svg></span>复习</div>
+            <div class="nav-item"><span class="icon cupertino small"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.04.04-2 3-.05-.02a1.8 1.8 0 0 0-2.1.2l-.1.08a1.8 1.8 0 0 0-.55 1.7H9a1.8 1.8 0 0 0-.55-1.7l-.1-.08a1.8 1.8 0 0 0-2.1-.2L6.2 20l-2-3 .04-.04a1.8 1.8 0 0 0 .36-2"/></svg></span>设置</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2>同一个页面：Material 风格</h2>
+        <div class="phone">
+          <div class="phone-header">
+            <span class="icon material"><svg viewBox="0 0 24 24"><path d="M20 11H7.8l5.6-5.6L12 4 4 12l8 8 1.4-1.4L7.8 13H20z"/></svg></span>
+            <span>错题详情</span>
+            <span class="icon material"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.8 9.95l-3.75-3.75L3 17.25Zm17.7-10.2a1 1 0 0 0 0-1.4l-2.35-2.35a1 1 0 0 0-1.4 0l-1.85 1.85 3.75 3.75 1.85-1.85Z"/></svg></span>
+          </div>
+          <div class="phone-body">
+            <div class="phone-title">一次方程错题</div>
+            <div class="list-item">
+              <span class="icon circle material"><svg viewBox="0 0 24 24"><path d="M18 2H6a2 2 0 0 0-2 2v16a1 1 0 0 0 1.5.86L12 17l6.5 3.86A1 1 0 0 0 20 20V4a2 2 0 0 0-2-2ZM8 6h8v2H8Zm0 4h8v2H8Z"/></svg></span>
+              <div class="list-copy"><b>原题来源</b><span>图片 + 当前题目完整展示</span></div>
+              <span class="icon material"><svg viewBox="0 0 24 24"><path d="M10 6 8.6 7.4 13.2 12l-4.6 4.6L10 18l6-6z"/></svg></span>
+            </div>
+            <div class="list-item">
+              <span class="icon circle material"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-2 14.6-4-4L7.4 11.2 10 13.8l6.6-6.6L18 8.6Z"/></svg></span>
+              <div class="list-copy"><b>正确答案</b><span>x = 2</span></div>
+            </div>
+            <div class="list-item">
+              <span class="icon circle material"><svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21Zm12-3h-2v-2h2Zm0-4h-2v-4h2Z"/></svg></span>
+              <div class="list-copy"><b>错因分析</b><span>移项时符号处理错误</span></div>
+            </div>
+            <div class="list-item">
+              <span class="icon circle material"><svg viewBox="0 0 24 24"><path d="M9 21h6v-1H9v1Zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2Z"/></svg></span>
+              <div class="list-copy"><b>学习建议</b><span>先写等式变形，再代入检查</span></div>
+            </div>
+          </div>
+          <div class="bottom-nav">
+            <div class="nav-item active"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></span>首页</div>
+            <div class="nav-item"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M18 2H6a2 2 0 0 0-2 2v16a1 1 0 0 0 1.5.86L12 17l6.5 3.86A1 1 0 0 0 20 20V4a2 2 0 0 0-2-2Z"/></svg></span>错题本</div>
+            <div class="nav-item"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 0 0-8 8H1l4 4 4-4H6a6 6 0 0 1 10.24-4.24ZM19 8l-4 4h3a6 6 0 0 1-10.24 4.24l-1.41 1.41A8 8 0 0 0 20 12h3Z"/></svg></span>复习</div>
+            <div class="nav-item"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M19.43 12.98c.04-.32.07-.65.07-.98s-.02-.66-.07-.98l2.11-1.65-2-3.46-2.49 1a7.2 7.2 0 0 0-1.69-.98L15 3h-4l-.36 2.93c-.6.24-1.17.56-1.69.98l-2.49-1-2 3.46 2.11 1.65c-.04.32-.07.65-.07.98s.02.66.07.98l-2.11 1.65 2 3.46 2.49-1c.52.4 1.08.73 1.69.98L11 21h4l.36-2.93c.6-.24 1.17-.56 1.69-.98l2.49 1 2-3.46ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/></svg></span>设置</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two-col">
+      <div class="panel">
+        <h2>常用图标单独对比</h2>
+        <div class="icon-grid">
+          <div class="icon-cell"><span class="icon cupertino"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10.5V20h14v-9.5"/></svg></span><label>Cupertino 首页</label></div>
+          <div class="icon-cell"><span class="icon cupertino"><svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-1.5Z"/></svg></span><label>Cupertino 书本</label></div>
+          <div class="icon-cell"><span class="icon cupertino"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><label>Cupertino 完成</label></div>
+          <div class="icon-cell"><span class="icon cupertino"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4Z"/><path d="M12 9v5M12 17h.01"/></svg></span><label>Cupertino 警告</label></div>
+          <div class="icon-cell"><span class="icon cupertino"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5c-.9.7-1.5 1.7-1.5 2.5h-4c0-.8-.6-1.8-1.5-2.5Z"/></svg></span><label>Cupertino 灯泡</label></div>
+          <div class="icon-cell"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></span><label>Material 首页</label></div>
+          <div class="icon-cell"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M18 2H6a2 2 0 0 0-2 2v16a1 1 0 0 0 1.5.86L12 17l6.5 3.86A1 1 0 0 0 20 20V4a2 2 0 0 0-2-2Z"/></svg></span><label>Material 书本</label></div>
+          <div class="icon-cell"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-2 14.6-4-4L7.4 11.2 10 13.8l6.6-6.6L18 8.6Z"/></svg></span><label>Material 完成</label></div>
+          <div class="icon-cell"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21Zm12-3h-2v-2h2Zm0-4h-2v-4h2Z"/></svg></span><label>Material 警告</label></div>
+          <div class="icon-cell"><span class="icon material"><svg viewBox="0 0 24 24"><path d="M9 21h6v-1H9v1Zm3-19a7 7 0 0 0-4 12.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2Z"/></svg></span><label>Material 灯泡</label></div>
+        </div>
+      </div>
+
+      <div class="table-card panel">
+        <h2>差异说明</h2>
+        <table class="compare-table">
+          <tr><th>维度</th><th>CupertinoIcons</th><th>Material Icons</th></tr>
+          <tr><td>系统气质</td><td>iOS / Apple</td><td>Android / Google</td></tr>
+          <tr><td>线条</td><td>偏细，圆润，线性为主</td><td>偏粗，几何，实体图标更多</td></tr>
+          <tr><td>观感</td><td>轻、精致、留白多</td><td>稳、直接、识别强</td></tr>
+          <tr><td>适合场景</td><td>学习工具、清爽应用、跨平台但偏 iOS 感</td><td>安卓原生、工具型、希望和 Android 系统控件更一致</td></tr>
+          <tr><td>本项目现状</td><td>代码中大量使用 CupertinoIcons</td><td>业务代码未直接发现 Icons.xxx，但 Material 组件可能需要字体声明</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <section class="section recommend">
+      <h2>我的建议</h2>
+      <p>当前先保留 CupertinoIcons，不急着全站替换，因为它已经覆盖大部分页面且视觉一致。`uses-material-design: true` 建议保留，用来保证 Material 组件默认图标字体可用；由于 Flutter 会 tree-shake，实测 MaterialIcons 只增加约 1.6KB，几乎不影响 APK 体积。后续如果你希望 App 更“安卓原生”，再单独做一轮图标风格统一，把 CupertinoIcons 系统性替换为 Material Icons。</p>
+    </section>
+  </div>
+</body>
+</html>

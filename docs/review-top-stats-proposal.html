@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>复习页顶部统计优化预览</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --appbar: #1e293b;
+      --surface: #05070a;
+      --surface-2: #111827;
+      --surface-3: #172033;
+      --text: #e5e7eb;
+      --muted: #a8b1c6;
+      --line: rgba(229, 231, 235, .22);
+      --primary: #7c83d6;
+      --green: #22c55e;
+      --orange: #f59e0b;
+      --blue: #60a5fa;
+      --shadow: 0 18px 44px rgba(0,0,0,.28);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #d8d8d8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      display: flex;
+      gap: 28px;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 28px;
+    }
+    .wrap { width: 390px; }
+    .phone {
+      width: 390px;
+      height: 844px;
+      background: var(--bg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+    .status {
+      height: 44px;
+      background: var(--appbar);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #eef2f7;
+    }
+    .appbar {
+      height: 88px;
+      background: var(--appbar);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-size: 30px;
+      letter-spacing: .02em;
+    }
+    .content {
+      padding: 24px;
+      height: calc(100% - 132px);
+      overflow: hidden;
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 22px;
+      line-height: 1.2;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.55;
+      margin: -4px 0 18px;
+    }
+    .section-title {
+      font-size: 19px;
+      font-weight: 800;
+      margin: 0 0 12px;
+    }
+    .summary-card {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 22px;
+    }
+    .summary-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .summary-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 750;
+    }
+    .summary-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: rgba(124, 131, 214, .18);
+      color: var(--primary);
+    }
+    .summary-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .mini-stat {
+      border-radius: 14px;
+      background: var(--surface-2);
+      border: 1px solid rgba(229, 231, 235, .12);
+      padding: 12px 8px;
+      text-align: center;
+    }
+    .mini-stat .value {
+      font-size: 23px;
+      font-weight: 850;
+      margin-bottom: 4px;
+      letter-spacing: .01em;
+    }
+    .mini-stat .label {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .value.due { color: var(--orange); }
+    .value.mastered { color: var(--green); }
+    .value.total { color: var(--text); }
+    .value.new { color: var(--blue); }
+    .compact-strip {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+    .pill-stat {
+      flex: 1;
+      border-radius: 999px;
+      border: 1px solid rgba(229, 231, 235, .14);
+      background: rgba(5, 7, 10, .82);
+      padding: 10px 8px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .pill-stat b {
+      color: var(--text);
+      font-size: 16px;
+      margin-right: 4px;
+    }
+    .item {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .item-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .chip {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(229,231,235,.14);
+      color: var(--text);
+      background: rgba(124,131,214,.14);
+    }
+    .chip.orange { background: rgba(245,158,11,.14); }
+    .question {
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn {
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .btn.review {
+      color: #fbbf24;
+      border-color: rgba(245,158,11,.42);
+      background: rgba(245,158,11,.10);
+    }
+    .btn.done {
+      color: white;
+      border-color: var(--green);
+      background: #16a34a;
+    }
+    .old-card {
+      opacity: .68;
+      filter: grayscale(.15);
+    }
+    .old-bad {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+      margin-top: 12px;
+      padding: 11px;
+      border-radius: 12px;
+      background: rgba(239,68,68,.10);
+      border: 1px solid rgba(239,68,68,.20);
+    }
+    .bottom-nav {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 86px;
+      background: #141414;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      color: #a6a6a6;
+      font-size: 13px;
+      text-align: center;
+    }
+    .active { color: white; }
+    .caption {
+      width: 390px;
+      background: white;
+      color: #111827;
+      padding: 14px 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      border-radius: 14px;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="phone">
+      <div class="status"><span>04:40</span><span>5G 100</span></div>
+      <div class="appbar"><span>复习</span><span style="font-size:22px;color:#cbd5e1">↻</span></div>
+      <div class="content">
+        <h2>推荐：复习页顶部统计</h2>
+        <div class="sub">替换“已掌握 / 复习中 / 新增”，避免“复习中永远 0”和“新增”语义混进复习页。</div>
+
+        <div class="summary-card">
+          <div class="summary-head">
+            <div class="summary-title"><span class="summary-icon">↻</span><span>今日复习</span></div>
+            <div class="summary-note">按当前待复习队列</div>
+          </div>
+          <div class="stats-row">
+            <div class="mini-stat">
+              <div class="value due">8</div>
+              <div class="label">今日待复习</div>
+            </div>
+            <div class="mini-stat">
+              <div class="value mastered">24</div>
+              <div class="label">已掌握</div>
+            </div>
+            <div class="mini-stat">
+              <div class="value total">56</div>
+              <div class="label">总错题</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">今日待复习</div>
+        <div class="item">
+          <div class="item-top"><span class="chip">英语</span><span class="chip orange">今日待复习</span></div>
+          <div class="question">现在完成时常与 for years、since、so far、already、yet 等连用。</div>
+          <div class="actions"><div class="btn review">↻ 继续复习</div><div class="btn done">✓ 已掌握</div></div>
+        </div>
+        <div class="item">
+          <div class="item-top"><span class="chip">数学</span><span class="chip orange">今日待复习</span></div>
+          <div class="question">移项时注意符号变化，x + 1 = 3 得 x = 2。</div>
+          <div class="actions"><div class="btn review">↻ 继续复习</div><div class="btn done">✓ 已掌握</div></div>
+        </div>
+      </div>
+      <div class="bottom-nav"><div>首页</div><div>错题本</div><div class="active">复习</div><div>设置</div></div>
+    </div>
+    <div class="caption"><b>推荐方案：</b>顶部只保留“今日待复习 / 已掌握 / 总错题”。“新增”更适合放在首页或统计趋势里，不放在复习页顶部。</div>
+  </div>
+
+  <div class="wrap">
+    <div class="phone">
+      <div class="status"><span>04:40</span><span>5G 100</span></div>
+      <div class="appbar"><span>复习</span><span style="font-size:22px;color:#cbd5e1">↻</span></div>
+      <div class="content">
+        <h2>备选：更轻量横条</h2>
+        <div class="sub">如果觉得卡片太重，可以用胶囊横条，但信息密度更高，精致感略弱。</div>
+
+        <div class="compact-strip">
+          <div class="pill-stat"><b style="color:var(--orange)">8</b>待复习</div>
+          <div class="pill-stat"><b style="color:var(--green)">24</b>已掌握</div>
+          <div class="pill-stat"><b>56</b>总错题</div>
+        </div>
+
+        <div class="summary-card old-card">
+          <div class="summary-title"><span class="summary-icon">×</span><span>当前不推荐表达</span></div>
+          <div class="stats-row">
+            <div class="mini-stat"><div class="value mastered">24</div><div class="label">已掌握</div></div>
+            <div class="mini-stat"><div class="value total">0</div><div class="label">复习中</div></div>
+            <div class="mini-stat"><div class="value new">12</div><div class="label">新增</div></div>
+          </div>
+          <div class="old-bad">问题：复习中如果没有真实阶段流转就会长期为 0；新增是错题增长指标，不是复习任务指标。</div>
+        </div>
+
+        <div class="section-title">今日待复习</div>
+        <div class="item">
+          <div class="item-top"><span class="chip">物理</span><span class="chip orange">今日待复习</span></div>
+          <div class="question">受力分析时先确定研究对象，再画重力、支持力、摩擦力。</div>
+          <div class="actions"><div class="btn review">↻ 继续复习</div><div class="btn done">✓ 已掌握</div></div>
+        </div>
+      </div>
+      <div class="bottom-nav"><div>首页</div><div>错题本</div><div class="active">复习</div><div>设置</div></div>
+    </div>
+    <div class="caption"><b>备选方案：</b>顶部用轻量 pill 横条。可用，但我更推荐左侧的卡片方案，和当前页面卡片体系更一致。</div>
+  </div>
+</body>
+</html>

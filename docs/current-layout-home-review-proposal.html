@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>按当前排版更新：首页与复习页优化预览</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f172a;
+      --appbar: #1e293b;
+      --surface: #05070a;
+      --surface-soft: #111827;
+      --text: #e5e7eb;
+      --muted: #a8b1c6;
+      --line: rgba(229, 231, 235, .20);
+      --primary: #7c83d6;
+      --blue: #2563eb;
+      --orange: #ea580c;
+      --green: #16a34a;
+      --gray: #9ca3af;
+      --shadow: 0 18px 44px rgba(0,0,0,.28);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #d8d8d8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      padding: 28px;
+    }
+    .grid { display: grid; grid-template-columns: repeat(2, 390px); gap: 28px; justify-content: center; align-items: start; }
+    .wrap { width: 390px; }
+    .phone { width: 390px; height: 844px; background: var(--bg); overflow: hidden; box-shadow: var(--shadow); position: relative; }
+    .status { height: 44px; background: var(--appbar); display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 15px; font-weight: 700; }
+    .appbar { min-height: 88px; background: var(--appbar); display: flex; align-items: center; padding: 0 24px; font-size: 30px; }
+    .content { padding: 20px 24px 24px; height: calc(100% - 132px); overflow: hidden; }
+    .title-large { font-size: 22px; font-weight: 600; margin: 0; }
+    .section-row { display: flex; align-items: center; justify-content: space-between; }
+    .btn-primary { height: 52px; border-radius: 999px; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; margin-top: 16px; }
+    .review-banner { margin-top: 20px; padding: 16px; border-radius: 12px; border: 1px solid rgba(234,88,12,.35); background: rgba(234,88,12,.12); display: flex; align-items: center; }
+    .banner-icon { width: 44px; height: 44px; border-radius: 22px; background: rgba(234,88,12,.18); display: grid; place-items: center; color: #f97316; font-size: 22px; margin-right: 12px; }
+    .banner-title { font-size: 16px; font-weight: 600; }
+    .banner-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .stats-grid { margin-top: 12px; }
+    .row { display: flex; gap: 12px; margin-bottom: 12px; }
+    .stat-card { flex: 1; border-radius: 10px; padding: 12px; text-align: center; border: 1px solid; }
+    .stat-card .value { font-size: 22px; font-weight: 800; margin-bottom: 2px; }
+    .stat-card .label { font-size: 11px; font-weight: 650; }
+    .blue { background: rgba(37,99,235,.14); border-color: rgba(37,99,235,.35); color: #60a5fa; }
+    .orange { background: rgba(234,88,12,.14); border-color: rgba(234,88,12,.35); color: #fb923c; }
+    .green { background: rgba(22,163,74,.14); border-color: rgba(22,163,74,.35); color: #4ade80; }
+    .gray { background: rgba(168,177,198,.12); border-color: rgba(168,177,198,.28); color: #cbd5e1; }
+    .progress-card { margin-top: 4px; padding: 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); }
+    .progress-head { font-size: 13px; font-weight: 650; color: var(--muted); margin-bottom: 12px; }
+    .chart { height: 118px; display: flex; align-items: flex-end; gap: 12px; padding-top: 8px; }
+    .bar { flex: 1; border-radius: 8px 8px 0 0; background: rgba(124,131,214,.52); }
+    .bar.green-bar { background: rgba(22,163,74,.6); }
+    .bar.orange-bar { background: rgba(234,88,12,.55); }
+    .recent-card, .review-card, .history-card { border-radius: 14px; border: 1px solid var(--line); background: var(--surface); padding: 12px; margin-bottom: 8px; }
+    .recent-card { display: flex; align-items: center; gap: 12px; }
+    .subject-icon { width: 36px; height: 36px; border-radius: 18px; background: rgba(124,131,214,.14); display: grid; place-items: center; color: var(--primary); }
+    .q-title { font-size: 14px; font-weight: 550; line-height: 1.45; color: var(--text); }
+    .q-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .summary-card { padding: 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+    .summary-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .summary-title { font-size: 14px; font-weight: 650; }
+    .summary-total { font-size: 12px; color: var(--muted); }
+    .mini-row { display: flex; justify-content: space-around; }
+    .mini-stat { text-align: center; min-width: 80px; }
+    .mini-stat .value { font-size: 22px; font-weight: 800; margin-bottom: 2px; }
+    .mini-stat .label { font-size: 11px; color: var(--muted); }
+    .review-section-title { margin-top: 20px; display: flex; align-items: baseline; gap: 8px; }
+    .review-section-title .main { font-size: 22px; font-weight: 700; }
+    .review-section-title .count { font-size: 14px; color: var(--muted); }
+    .review-card { padding: 12px; }
+    .review-main { display: flex; align-items: center; gap: 12px; }
+    .review-icon { width: 40px; height: 40px; border-radius: 20px; background: rgba(124,131,214,.14); display: grid; place-items: center; color: var(--primary); }
+    .review-content { flex: 1; min-width: 0; }
+    .tag-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+    .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(234,88,12,.14); color: var(--text); }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .outline, .filled { height: 38px; border-radius: 999px; display: grid; place-items: center; font-size: 14px; font-weight: 700; }
+    .outline { border: 1px solid rgba(234,88,12,.42); color: #fbbf24; background: rgba(234,88,12,.08); }
+    .filled { background: var(--primary); color: white; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; margin-bottom: 14px; }
+    .tab { height: 40px; border-radius: 999px; display: grid; place-items: center; font-size: 13px; font-weight: 750; border: 1px solid var(--line); color: var(--muted); background: var(--surface); }
+    .tab.selected { color: white; background: var(--primary); border-color: var(--primary); }
+    .status-chip { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(22,163,74,.14); color: #4ade80; }
+    .history-card { margin-top: 24px; display: flex; align-items: center; gap: 12px; }
+    .bottom-nav { position: absolute; left: 0; right: 0; bottom: 0; height: 86px; background: #141414; display: grid; grid-template-columns: repeat(4,1fr); align-items: center; color: #a6a6a6; font-size: 13px; text-align: center; }
+    .active { color: white; }
+    .caption { width: 390px; background: white; color: #111827; padding: 14px 16px; font-size: 14px; line-height: 1.6; border-radius: 14px; margin-top: 14px; }
+
+    .detail-card { border-radius: 16px; border: 1px solid var(--line); background: var(--surface); padding: 16px; margin-bottom: 12px; }
+    .detail-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:750; margin-bottom:10px; }
+    .detail-icon { width:24px; height:24px; border-radius:8px; display:grid; place-items:center; background:rgba(124,131,214,.16); color:var(--primary); font-size:13px; }
+    .detail-text { font-size:14px; line-height:1.55; color:var(--text); }
+    .detail-muted { font-size:12px; line-height:1.5; color:var(--muted); }
+    .practice-card { border-radius:16px; border:1px solid var(--line); background:var(--surface); padding:16px; margin-bottom:12px; }
+    .practice-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .practice-title { font-size:16px; font-weight:750; }
+    .bottom-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+    .bottom-actions.single { grid-template-columns:1fr; }
+    .danger-action { height:42px; border-radius:999px; border:1px solid rgba(234,88,12,.42); color:#fbbf24; background:rgba(234,88,12,.08); display:grid; place-items:center; font-size:14px; font-weight:750; }
+    .primary-action { height:42px; border-radius:999px; border:1px solid var(--primary); color:white; background:var(--primary); display:grid; place-items:center; font-size:14px; font-weight:750; }
+    .neutral-action { height:42px; border-radius:999px; border:1px solid var(--line); color:var(--text); background:var(--surface-soft); display:grid; place-items:center; font-size:14px; font-weight:750; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 390px; } }
+  </style>
+</head>
+<body>
+  <div class="grid">
+    <div class="wrap">
+      <div class="phone">
+        <div class="status"><span>04:58</span><span>5G 100</span></div>
+        <div class="content" style="height: calc(100% - 44px); padding-top: 20px;">
+          <p class="title-large">开始拍错题</p>
+          <div class="btn-primary">📷 拍照录题</div>
+          <div class="review-banner">
+            <div class="banner-icon">↻</div>
+            <div style="flex:1">
+              <div class="banner-title">待复习</div>
+              <div class="banner-sub">32 道错题需要巩固</div>
+            </div>
+            <div style="color:#f97316;font-size:22px">›</div>
+          </div>
+
+          <div style="height:20px"></div>
+          <p class="title-large">学习统计</p>
+          <div class="stats-grid">
+            <div class="row">
+              <div class="stat-card blue"><div class="value">56</div><div class="label">题库总量</div></div>
+              <div class="stat-card gray"><div class="value">5</div><div class="label">今日新增</div></div>
+            </div>
+            <div class="row">
+              <div class="stat-card orange"><div class="value">32</div><div class="label">待复习</div></div>
+              <div class="stat-card green"><div class="value">24</div><div class="label">已掌握</div></div>
+            </div>
+          </div>
+          <div class="progress-card">
+            <div class="progress-head" style="display:flex;justify-content:space-between;align-items:center">
+              <span>掌握进度</span>
+              <span style="color:var(--green);font-size:18px;font-weight:800">43%</span>
+            </div>
+            <div style="height:10px;border-radius:999px;background:rgba(229,231,235,.12);overflow:hidden;margin-bottom:10px">
+              <div style="height:100%;width:43%;border-radius:999px;background:linear-gradient(90deg,var(--primary),var(--green))"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:12px">
+              <span>24 / 56 已掌握</span>
+              <span>32 待复习</span>
+            </div>
+          </div>
+
+          <div style="height:24px"></div>
+          <div class="section-row"><p class="title-large">最近新增</p><span style="color:var(--primary);font-size:14px">查看全部</span></div>
+          <div style="height:8px"></div>
+          <div class="recent-card"><div class="subject-icon">英</div><div style="flex:1"><div class="q-title">现在完成时与一般过去时的区别</div><div class="q-sub">英语 · 今日新增</div></div><div style="color:var(--muted);font-size:22px">›</div></div>
+        </div>
+        <div class="bottom-nav"><div class="active">首页</div><div>错题本</div><div>复习</div><div>设置</div></div>
+      </div>
+      <div class="caption"><b>首页严格沿用当前排版：</b>保留“学习统计”标题、两行统计卡片、下面单独“掌握进度”卡片。统计顺序改为：题库总量 / 今日新增，待复习 / 已掌握；掌握进度用进度条表达。</div>
+    </div>
+
+    <div class="wrap">
+      <div class="phone">
+        <div class="status"><span>04:58</span><span>5G 100</span></div>
+        <div class="appbar">复习</div>
+        <div class="content">
+          <div class="summary-card">
+            <div class="summary-head"><div class="summary-title">整体进度</div><div class="summary-total">共 56 题</div></div>
+            <div class="mini-row">
+              <div class="mini-stat"><div class="value orange" style="background:none;border:0;color:#fb923c">32</div><div class="label">待复习</div></div>
+              <div class="mini-stat"><div class="value green" style="background:none;border:0;color:#4ade80">24</div><div class="label">已掌握</div></div>
+              <div class="mini-stat"><div class="value gray" style="background:none;border:0;color:#cbd5e1">56</div><div class="label">总错题</div></div>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <div class="tab selected">待复习 32</div>
+            <div class="tab">已掌握 24</div>
+          </div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.45;margin:-4px 4px 12px">当前显示未掌握题，点进详情后再判断是否掌握。</div>
+          <div class="review-card">
+            <div class="review-main">
+              <div class="review-icon">英</div>
+              <div class="review-content">
+                <div class="q-title">现在完成时常与 for years、since、so far 连用。</div>
+                <div class="tag-row"><span style="font-size:12px;color:#7c83d6">英语</span><span class="tag">时态</span><span class="tag">语法</span></div>
+              </div>
+              <div style="color:var(--muted);font-size:22px">›</div>
+            </div>
+          </div>
+          <div class="review-card">
+            <div class="review-main">
+              <div class="review-icon">数</div>
+              <div class="review-content">
+                <div class="q-title">已知 x + 1 = 3，求 x。注意移项符号变化。</div>
+                <div class="tag-row"><span style="font-size:12px;color:#7c83d6">数学</span><span class="tag">一次方程</span></div>
+              </div>
+              <div style="color:var(--muted);font-size:22px">›</div>
+            </div>
+          </div>
+
+          <div style="height:14px"></div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.55;padding:0 4px 6px">卡片只作为进入详情的入口；掌握状态在详情页阅读知识点 / 举一反三后再判断。</div>
+
+          <div class="history-card"><span style="font-size:20px;color:var(--muted)">◷</span><span style="flex:1;font-size:14px">复习记录</span><span style="color:var(--muted);font-size:22px">›</span></div>
+        </div>
+        <div class="bottom-nav"><div>首页</div><div>错题本</div><div class="active">复习</div><div>设置</div></div>
+      </div>
+      <div class="caption"><b>复习页更新：</b>顶部仍是“整体进度”卡片，下面改为主流轻量 segmented tabs：待复习 32 / 已掌握 24。列表卡片不再放操作按钮，只作为进入详情的入口；状态判断放到详情页完成。</div>
+    </div>
+
+
+    <div class="wrap">
+      <div class="phone">
+        <div class="status"><span>04:58</span><span>5G 100</span></div>
+        <div class="appbar"><span style="font-size:34px;margin-right:20px">‹</span><span>错题详情</span></div>
+        <div class="content">
+          <div class="tag-row" style="margin-bottom:12px"><span class="chip orange">待复习</span><span class="chip">英语</span><span class="tag">时态</span></div>
+          <div class="detail-card"><div class="detail-title"><span class="detail-icon">题</span><span>原题</span></div><div class="detail-text">现在完成时常与 for years、since、so far、already、yet 等连用。</div></div>
+          <div class="detail-card"><div class="detail-title"><span class="detail-icon">✓</span><span>正确答案</span></div><div class="detail-text">have kept the habit</div></div>
+          <div class="detail-card"><div class="detail-title"><span class="detail-icon">知</span><span>知识点</span></div><div class="detail-text">现在完成时表示动作或状态从过去持续到现在，常与 for / since 等时间状语连用。</div></div>
+          <div class="practice-card"><div class="practice-head"><span class="practice-title">举一反三</span><span class="detail-muted">0/3 已答</span></div><div class="detail-muted">先继续阅读知识点或完成练习，再判断这题是否已经掌握。</div><div style="height:12px"></div><div class="neutral-action">继续练习</div></div>
+          <div class="bottom-actions"><div class="danger-action">仍需复习</div><div class="primary-action">已掌握</div></div>
+        </div>
+        <div class="bottom-nav"><div>首页</div><div>错题本</div><div class="active">复习</div><div>设置</div></div>
+      </div>
+      <div class="caption"><b>待复习题详情：</b>底部保留两个状态动作：“仍需复习 / 已掌握”。不操作时默认仍保持待复习；用户阅读知识点或练习后再判断。</div>
+    </div>
+
+    <div class="wrap">
+      <div class="phone">
+        <div class="status"><span>04:58</span><span>5G 100</span></div>
+        <div class="appbar"><span style="font-size:34px;margin-right:20px">‹</span><span>错题详情</span></div>
+        <div class="content">
+          <div class="tag-row" style="margin-bottom:12px"><span class="status-chip">已掌握</span><span class="chip">英语</span><span class="tag">时态</span></div>
+          <div class="detail-card"><div class="detail-title"><span class="detail-icon">题</span><span>原题</span></div><div class="detail-text">现在完成时常与 for years、since、so far、already、yet 等连用。</div></div>
+          <div class="detail-card"><div class="detail-title"><span class="detail-icon">知</span><span>知识点</span></div><div class="detail-text">这题已掌握，仍可以继续回看知识点和练习，巩固长期记忆。</div></div>
+          <div class="practice-card"><div class="practice-head"><span class="practice-title">举一反三</span><span class="detail-muted">3/3 已答</span></div><div class="detail-muted">可继续练习，但不会自动改变已掌握状态。</div><div style="height:12px"></div><div class="neutral-action">继续练习</div></div>
+          <div class="bottom-actions single"><div class="danger-action">仍需复习</div></div>
+        </div>
+        <div class="bottom-nav"><div>首页</div><div>错题本</div><div class="active">复习</div><div>设置</div></div>
+      </div>
+      <div class="caption"><b>已掌握题详情：</b>默认不操作就是保持已掌握。只提供一个弱操作“仍需复习”，用于用户发现还不熟时重新加入待复习。</div>
+    </div>
+  </div>
+</body>
+</html>

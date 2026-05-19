@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 解析结果页面布局优化预览</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f5f5;
+    padding: 20px;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .phone-frame {
+    background: white;
+    border-radius: 40px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 16px;
+  }
+
+  .header-icon {
+    width: 24px;
+    height: 24px;
+    background: #eee;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    font-size: 12px;
+  }
+
+  .header-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #333;
+  }
+
+  .tag-section {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  .tag-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .tag {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .tag-subject { background: #eef2ff; color: #4f46e5; }
+  .tag-ai { background: #f0fdf4; color: #16a34a; }
+  .tag-status { background: #f3f4f6; color: #6b7280; }
+
+  .tag-label {
+    font-size: 11px;
+    color: #6b7280;
+    margin-bottom: 4px;
+  }
+
+  .tag-ai-label {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .tag-orange {
+    background: #fff7ed;
+    color: #d97706;
+  }
+
+  .question-preview {
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .section-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 8px;
+    font-size: 11px;
+  }
+
+  .section-title {
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .question-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1f2937;
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+  }
+
+  .question-text-math {
+    background: #1f2937;
+    color: #f3f4f6;
+    font-family: monospace;
+  }
+
+  .analysis-section {
+    padding: 14px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+  }
+
+  .analysis-answer {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+  }
+
+  .analysis-reason {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+  }
+
+  .analysis-advice {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+  }
+
+  .section-icon-answer { background: #dcfce7; color: #16a34a; }
+  .section-icon-reason { background: #ffedd5; color: #ea580c; }
+  .section-icon-advice { background: #fef3c7; color: #d97706; }
+
+  .section-title-answer { color: #166534; }
+  .section-title-reason { color: #9a3412; }
+  .section-title-advice { color: #92400e; }
+
+  .section-content {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 8px;
+  }
+
+  .answer-content { color: #15803d; font-weight: 600; }
+  .reason-content { color: #c2410c; }
+  .advice-content { color: #b45309; }
+
+  .knowledge-section {
+    margin-bottom: 16px;
+  }
+
+  .knowledge-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+  }
+
+  .knowledge-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .knowledge-item {
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: #4f46e5;
+  }
+
+  .steps-section {
+    margin-bottom: 16px;
+  }
+
+  .steps-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 10px;
+  }
+
+  .step-item {
+    display: flex;
+    margin-bottom: 10px;
+  }
+
+  .step-number {
+    width: 24px;
+    height: 24px;
+    background: #eef2ff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #4f46e5;
+    flex-shrink: 0;
+    margin-right: 10px;
+  }
+
+  .step-content {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 16px 0;
+  }
+
+  .legend {
+    background: #fefce8;
+    border: 1px solid #fef08a;
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 20px;
+  }
+
+  .legend-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #854d0e;
+    margin-bottom: 12px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #713f12;
+  }
+
+  .legend-marker {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+    margin-top: 6px;
+    flex-shrink: 0;
+  }
+
+  .marker-green { background: #22c55e; }
+  .marker-blue { background: #3b82f6; }
+  .marker-red { background: #ef4444; }
+  .marker-orange { background: #f97316; }
+  .marker-gray { background: #6b7280; }
+
+  .new-badge {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+</style>
+</head>
+<body>
+
+<h2 style="text-align: center; margin-bottom: 20px; color: #333;">📱 布局优化方案预览</h2>
+
+<!-- 方案对比说明 -->
+<div class="legend">
+  <div class="legend-title">🔍 优化前后对比</div>
+  <div class="legend-item">
+    <div class="legend-marker marker-red"></div>
+    <div><strong>优化前问题：</strong>题目内容出现两次（AI标签下方黑色文本 + 原题预览内再次显示），长文本重复阅读很累。</div>
+  </div>
+  <div class="legend-item">
+    <div class="legend-marker marker-green"></div>
+    <div><strong>优化后效果：</strong>根据内容类型智能显示，理科(数/理/化)显示在标签下方，文科(语/英/政/史/地)仅在"原题"中显示一次。</div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<h3 style="margin-bottom: 12px; color: #4f46e5;">📘 场景1：英语/语文长文本 <span class="new-badge">已优化</span></h3>
+
+<div class="phone-frame">
+  <div class="header">
+    <div class="header-icon">←</div>
+    <div class="header-title">AI 解析结果</div>
+  </div>
+
+  <!-- 标签区域 -->
+  <div class="tag-section">
+    <div class="tag-row">
+      <span class="tag tag-subject">英语</span>
+      <span class="tag tag-ai">AI识别</span>
+      <span class="tag tag-status">未复习</span>
+    </div>
+    <div class="tag-label">AI标签</div>
+    <div class="tag-ai-label">
+      <span class="tag tag-orange">语法填空</span>
+      <span class="tag tag-orange">时态语态</span>
+      <span class="tag tag-orange">定语从句</span>
+    </div>
+  </div>
+
+  <!-- ✅ 优化后：文科题目不再重复显示，直接进入原题区域 -->
+
+  <!-- 原题区域 -->
+  <div class="question-preview">
+    <div class="section-header">
+      <div class="section-icon section-icon-answer">📄</div>
+      <div class="section-title section-title-answer">原题</div>
+    </div>
+    <div class="question-text" style="max-height: 200px; overflow: hidden; position: relative;">
+      <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(transparent, white);"></div>
+      期中复习之语法选择进阶练5篇<br><br>
+      1. Saving for a Rainy Day<br><br>
+      阅读短文，选择最佳答案填空。<br><br>
+      In China, saving money has always been considered a traditional virtue (美德)...
+      <br><br>
+      <span style="color: #3b82f6; font-size: 12px;">[图片预览]</span>
+    </div>
+  </div>
+
+  <!-- 正确解答 -->
+  <div class="analysis-section analysis-answer">
+    <div class="section-header">
+      <div class="section-icon section-icon-answer">✓</div>
+      <div class="section-title section-title-answer">正确解答</div>
+    </div>
+    <div class="section-content answer-content">
+      答案为：1.C 2.B 3.C 4.A 5.C 6.C 7.A 8.B 9.A
+    </div>
+  </div>
+
+  <!-- 错因分析 -->
+  <div class="analysis-section analysis-reason">
+    <div class="section-header">
+      <div class="section-icon section-icon-reason">⚠</div>
+      <div class="section-title section-title-reason">错因分析</div>
+    </div>
+    <div class="section-content reason-content">
+      学生可能出错的原因有：一是忽视时间标志词，如第1空没有看到"For thousands of years"...
+    </div>
+  </div>
+
+  <!-- 学习建议 -->
+  <div class="analysis-section analysis-advice">
+    <div class="section-header">
+      <div class="section-icon section-icon-advice">💡</div>
+      <div class="section-title section-title-advice">学习建议</div>
+    </div>
+    <div class="section-content advice-content">
+      建议你按"语法线索词 + 固定搭配 + 句子结构"三个层次做题...
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<h3 style="margin-bottom: 12px; color: #16a34a;">📗 场景2：数学/物理理科内容 <span class="new-badge">已优化</span></h3>
+
+<div class="phone-frame">
+  <div class="header">
+    <div class="header-icon">←</div>
+    <div class="header-title">AI 解析结果</div>
+  </div>
+
+  <!-- 标签区域 -->
+  <div class="tag-section">
+    <div class="tag-row">
+      <span class="tag tag-subject">数学</span>
+      <span class="tag tag-status">未复习</span>
+    </div>
+  </div>
+
+  <!-- ✅ 优化后：理科题目显示在标签下方（需要渲染LaTeX），原题区域仅显示图片 -->
+
+  <!-- 题目预览（理科） -->
+  <div style="background: #f3f4f6; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+    <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #1f2937;">
+      1. 已知 <span style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">$x^2+1=5$</span>，求 <span style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">$x$</span> 的值。
+    </div>
+    <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px; color: #1f2937;">
+      4. 解方程组：
+      <div style="background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; margin-top: 4px; text-align: center;">
+        ⎧ x + y = 5<br>
+        ⎨ x - y = 1<br>
+        ⎩
+      </div>
+    </div>
+  </div>
+
+  <!-- 原题区域（仅图片） -->
+  <div class="question-preview">
+    <div class="section-header">
+      <div class="section-icon section-icon-answer">📄</div>
+      <div class="section-title section-title-answer">原题</div>
+    </div>
+    <div style="background: #f9fafb; border-radius: 8px; height: 120px; display: flex; align-items: center; justify-content: center; color: #9ca3af;">
+      [原图预览 - 可点击放大]
+    </div>
+    <!-- 理科不在这里重复显示题目 -->
+  </div>
+
+  <!-- 正确解答 -->
+  <div class="analysis-section analysis-answer">
+    <div class="section-header">
+      <div class="section-icon section-icon-answer">✓</div>
+      <div class="section-title section-title-answer">正确解答</div>
+    </div>
+    <div class="section-content answer-content">
+      第1题：x = ±2<br>
+      第4题：x = 3, y = 2
+    </div>
+  </div>
+
+  <!-- 错因分析 -->
+  <div class="analysis-section analysis-reason">
+    <div class="section-header">
+      <div class="section-icon section-icon-reason">⚠</div>
+      <div class="section-title section-title-reason">错因分析</div>
+    </div>
+    <div class="section-content reason-content">
+      第1题只写出x=2而漏掉x=-2...
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 实现逻辑说明 -->
+<div class="legend">
+  <div class="legend-title">🧠 实现逻辑</div>
+  <div class="legend-item">
+    <div class="legend-marker marker-blue"></div>
+    <div><strong>contentFormat == plain (语/英/政/史/地)：</strong>题目只在"原题"区域显示一次，配合图片。</div>
+  </div>
+  <div class="legend-item">
+    <div class="legend-marker marker-blue"></div>
+    <div><strong>contentFormat == latexMixed (数/理/化)：</strong>题目在标签下方直接渲染（需要LaTeX），"原题"区域仅显示图片。</div>
+  </div>
+  <div class="legend-item">
+    <div class="legend-marker marker-gray"></div>
+    <div><strong>多题目候选：</strong>保持原有的拆题预览逻辑不变。</div>
+  </div>
+</div>
+
+</body>
+</html>
