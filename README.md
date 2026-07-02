@@ -99,8 +99,6 @@ flutter test
 支持 DeepSeek、OpenAI、OpenRouter 等服务商。
 
 
-    
-
 ## APP 截图
 <table>
   <tr>
@@ -113,10 +111,6 @@ flutter test
   </tr>
 </table>
 
-## License
-
-MIT
-
 ## Star History
 
 <a href="https://www.star-history.com/?repos=tjunsh%2Fai-wrong-notebook&type=date&legend=top-left">
@@ -126,3 +120,7 @@ MIT
    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tjunsh/ai-wrong-notebook&type=date&legend=bottom-right" />
  </picture>
 </a>
+
+## License
+
+MIT
