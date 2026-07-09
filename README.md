@@ -105,7 +105,8 @@ flutter test
 对 AI错题本项目的大模型 API 支持。 
 本项目的 AI 视觉分析能力基于兼容 OpenAI API 格式的多模态模型，用户可在应用内自行配置 API 地址、API Key 和模型名称。
 
-> 本项目不内置 API Key，也不绑定特定服务商；[dohoya.com]和[vbcode.io] 为推荐的大模型 API 服务提供方之一。
+> 本项目不内置 API Key，也不绑定特定服务商；
+> [dohoya.com]和[vbcode.io] 为推荐的大模型 API 服务提供方之一。
 
 
 ## APP 截图
