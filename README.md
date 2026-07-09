@@ -124,13 +124,9 @@ flutter test
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=tjunsh%2Fai-wrong-notebook&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=tjunsh/ai-wrong-notebook&type=date&theme=dark&legend=bottom-right" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=tjunsh/ai-wrong-notebook&type=date&legend=bottom-right" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tjunsh/ai-wrong-notebook&type=date&legend=bottom-right" />
- </picture>
-</a>
+<p align="center">
+  <img src="docs/assets/star-history-202679.png" alt="Star History" width="720" />
+</p>
 
 ## License
 
