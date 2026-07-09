@@ -102,6 +102,7 @@ flutter test
 
 感谢 [Dohoya.com](https://www.dohoya.com/sign-up?aff=hiUV)  
 感谢 [Vbcode.io](https://vbcode.io/sign-up?aff=lEmu)
+
 对 AI错题本项目的大模型 API 支持。 
 本项目的 AI 视觉分析能力基于兼容 OpenAI API 格式的多模态模型，用户可在应用内自行配置 API 地址、API Key 和模型名称。
 
