@@ -1,0 +1,52 @@
+name: iOS No Codesign IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ios-no-codesign.yml'
+      - 'ios/**'
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ios-no-codesign.yml'
+      - 'ios/**'
+      - 'lib/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+
+jobs:
+  build-ios-no-codesign:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.0
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install
+
+      - name: Build release IPA without codesign
+        run: flutter build ipa --release --no-codesign
+
+      - name: Upload no-codesign IPA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-wrong-notebook-ios-no-codesign-ipa
+          path: |
+            build/ios/ipa/*.ipa
+            build/ios/archive/*.xcarchive
+          if-no-files-found: error
+          retention-days: 30
