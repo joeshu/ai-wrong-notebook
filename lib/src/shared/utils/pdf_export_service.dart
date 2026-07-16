@@ -160,12 +160,12 @@ class PdfExportService {
               ),
             );
           },
-          footer: (pw.Context ctx, int? pageCount) {
+          footer: (pw.Context ctx) {
             return pw.Container(
               alignment: pw.Alignment.center,
               margin: const pw.EdgeInsets.only(top: 8),
               child: pw.Text(
-                '— $pageCount —',
+                '— ${ctx.pageNumber} —',
                 style: pw.TextStyle(
                   fontSize: 10,
                   color: PdfColors.grey400,
