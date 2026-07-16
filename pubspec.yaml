@@ -52,4 +52,5 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - assets/fonts/NotoSansSC.ttf
+    - assets/fonts/NotoSansCJKsc-Regular.otf
+  - assets/fonts/NotoSansCJKsc-Bold.otf

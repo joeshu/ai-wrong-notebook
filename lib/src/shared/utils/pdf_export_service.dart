@@ -13,10 +13,17 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 class PdfExportService {
   PdfExportService._();
   static pw.Font? _baseFont;
+  static pw.Font? _boldFont;
 
-  static Future<pw.Font> _getFont() async {
+  static Future<pw.Font> _getFont({bool bold = false}) async {
+    if (bold) {
+      if (_boldFont != null) return _boldFont!;
+      final data = await rootBundle.load('assets/fonts/NotoSansCJKsc-Bold.otf');
+      _boldFont = pw.Font.ttf(data);
+      return _boldFont!;
+    }
     if (_baseFont != null) return _baseFont!;
-    final data = await rootBundle.load('assets/fonts/NotoSansSC.ttf');
+    final data = await rootBundle.load('assets/fonts/NotoSansCJKsc-Regular.otf');
     _baseFont = pw.Font.ttf(data);
     return _baseFont!;
   }
@@ -24,7 +31,8 @@ class PdfExportService {
   static Future<File> generatePdf(List<QuestionRecord> questions) async {
     final pdf = pw.Document();
     final font = await _getFont();
-    final theme = pw.ThemeData.withFont(base: font);
+    final fontBold = await _getFont(bold: true);
+    final theme = pw.ThemeData.withFont(base: font, bold: fontBold);
 
     final grouped = <Subject, List<QuestionRecord>>{};
     for (final q in questions) {
