@@ -30,14 +30,15 @@ class PdfExportService {
 
   /// 清理 LaTeX 标记，保留可读的纯文本
   static String _cleanLatex(String input) {
+    // 移除 LaTeX 标记和花括号
     var text = input
-        // LaTeX 公式标记
         .replaceAll(r'\(', '')
         .replaceAll(r'\)', '')
-        .replaceAllMapped(RegExp(r'\\mathrm\{([^}]*)\}'), (m) => m[1] ?? '')
-        .replaceAllMapped(RegExp(r'\\text\{([^}]*)\}'), (m) => m[1] ?? '')
-        .replaceAllMapped(RegExp(r'\\frac\{([^}]*)\}\{([^}]*)\}'),
-            (m) => '${m[1]}/${m[2]}')
+        .replaceAll(r'\mathrm', ' ')
+        .replaceAll(r'\text', ' ')
+        .replaceAll(r'\frac', '/')
+        .replaceAll('{', '')
+        .replaceAll('}', '')
         .replaceAll(r'\cdot', '·')
         .replaceAll(r'\times', '×')
         .replaceAll(r'\div', '÷')
@@ -52,18 +53,47 @@ class PdfExportService {
         .replaceAll(r'\neq', '≠')
         .replaceAll(r'\cdots', '...')
         .replaceAll(r'\dots', '...')
-        // 未知 LaTeX 命令：去掉反斜杠
-        .replaceAllMapped(RegExp(r'\\([a-zA-Z]+)'), (m) => m[1] ?? '')
-        // 占位符 \n 换行——先保留井号作为临时标记
         .replaceAll(r'\n', '\n')
-        // 占位符 \t 为空格
         .replaceAll(r'\t', ' ')
-        // 移除 pdf 不支持的字符（控制字符，保留 \n 和 tab）
-        .replaceAllMapped(RegExp(r'[^\u0009\u000A\u000D\u0020-\uD7FF\uE000-\uFFFD]'),
-            (m) => '')
-        .replaceAll('  ', ' ')
-        .trim();
-    return text;
+        .replaceAll('  ', ' ');
+    // 逐字符过滤：移除残余 LaTeX 命令（反斜杠+字母）和 pdf 不允许的字符
+    final buf = StringBuffer();
+    for (var i = 0; i < text.length; i++) {
+      final ch = text[i];
+      final code = text.codeUnitAt(i);
+      // 跳过反斜杠+字母序列（残余 LaTeX 命令）
+      if (ch == r'\' && i + 1 < text.length) {
+        final next = text[i + 1];
+        if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z')) {
+          i++; // 跳过反斜杠后的首字母
+          while (i + 1 < text.length) {
+            final c = text[i + 1];
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '*') {
+              i++;
+            } else {
+              break;
+            }
+          }
+          continue;
+        }
+      }
+      // 只保留 pdf 允许的字符
+      if (code == 0x09 || code == 0x0A || code == 0x0D) {
+        buf.write(ch);
+      } else if (code >= 0x20 && code <= 0xD7FF) {
+        buf.write(ch);
+      } else if (code >= 0xE000 && code <= 0xFFFD) {
+        buf.write(ch);
+      } else if (code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length) {
+        final next = text.codeUnitAt(i + 1);
+        if (next >= 0xDC00 && next <= 0xDFFF) {
+          buf.write(ch);
+          i++;
+          buf.write(text[i]);
+        }
+      }
+    }
+    return buf.toString().trim();
   }
 
   static Future<File> generatePdf(List<QuestionRecord> questions) async {
