@@ -29,52 +29,54 @@ class PdfExportService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
-        build: (ctx) => [
-          pw.SizedBox(height: 120),
-          pw.Center(
-            child: pw.Text(
-              '错题本整理报告',
-              style: pw.TextStyle(
-                fontSize: 28,
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColor.fromInt(0x6366F1),
+        build: (ctx) {
+          return <pw.Widget>[
+            pw.SizedBox(height: 120),
+            pw.Center(
+              child: pw.Text(
+                '错题本整理报告',
+                style: pw.TextStyle(
+                  fontSize: 28,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColor.fromInt(0x6366F1),
+                ),
               ),
             ),
-          ),
-          pw.SizedBox(height: 16),
-          pw.Center(
-            child: pw.Text(
-              'AI Wrong Notebook',
-              style: const pw.TextStyle(
-                fontSize: 14,
-                color: PdfColors.grey600,
+            pw.SizedBox(height: 16),
+            pw.Center(
+              child: pw.Text(
+                'AI Wrong Notebook',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  color: PdfColors.grey600,
+                ),
               ),
             ),
-          ),
-          pw.SizedBox(height: 40),
-          pw.Divider(color: PdfColors.grey300),
-          pw.SizedBox(height: 24),
-          pw.Center(
-            child: pw.Text(
-              '共 ${questions.length} 道错题',
-              style: const pw.TextStyle(fontSize: 16),
+            pw.SizedBox(height: 40),
+            pw.Divider(color: PdfColors.grey300),
+            pw.SizedBox(height: 24),
+            pw.Center(
+              child: pw.Text(
+                '共 ${questions.length} 道错题',
+                style: pw.TextStyle(fontSize: 16),
+              ),
             ),
-          ),
-          pw.SizedBox(height: 8),
-          pw.Center(
-            child: pw.Text(
-              '导出时间：$dateStr',
-              style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
+            pw.SizedBox(height: 8),
+            pw.Center(
+              child: pw.Text(
+                '导出时间：$dateStr',
+                style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
+              ),
             ),
-          ),
-          pw.SizedBox(height: 12),
-          pw.Center(
-            child: pw.Text(
-              '涵盖 ${sortedSubjects.length} 个学科',
-              style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
+            pw.SizedBox(height: 12),
+            pw.Center(
+              child: pw.Text(
+                '涵盖 ${sortedSubjects.length} 个学科',
+                style: pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
+              ),
             ),
-          ),
-        ],
+          ];
+        },
       ),
     );
 
@@ -83,49 +85,56 @@ class PdfExportService {
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
-        build: (ctx) => [
-          pw.Text(
-            '目  录',
-            style: pw.TextStyle(
-              fontSize: 22,
-              fontWeight: pw.FontWeight.bold,
+        build: (ctx) {
+          final tocItems = <pw.Widget>[
+            pw.Text(
+              '目  录',
+              style: pw.TextStyle(
+                fontSize: 22,
+                fontWeight: pw.FontWeight.bold,
+              ),
             ),
-          ),
-          pw.SizedBox(height: 20),
-          ...sortedSubjects.map((subject) {
+            pw.SizedBox(height: 20),
+          ];
+          for (final subject in sortedSubjects) {
             final list = grouped[subject]!;
-            return pw.Padding(
-              padding: const pw.EdgeInsets.symmetric(vertical: 6),
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    '${subject.label}（${list.length} 题）',
-                    style: const pw.TextStyle(fontSize: 14),
-                  ),
-                  pw.Text(
-                    '第 ${_subjectPageLabel(sortedSubjects, subject)} 页',
-                    style: const pw.TextStyle(
-                      fontSize: 12,
-                      color: PdfColors.grey500,
+            tocItems.add(
+              pw.Padding(
+                padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      '${subject.label}（${list.length} 题）',
+                      style: pw.TextStyle(fontSize: 14),
                     ),
-                  ),
-                ],
+                    pw.Text(
+                      '第 ${_subjectPageLabel(sortedSubjects, subject)} 页',
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        color: PdfColors.grey500,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
-          }),
-          pw.SizedBox(height: 20),
-          pw.Divider(color: PdfColors.grey200),
-          pw.SizedBox(height: 12),
-          pw.Text(
-            '掌握程度说明：● 待学习（New）  ● 复习中（Reviewing）  ● 已掌握（Mastered）',
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-          ),
-          pw.Text(
-            '内容状态说明：● 处理中（Processing）  ● 已完成（Ready）  ● 失败（Failed）',
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-          ),
-        ],
+          }
+          tocItems.addAll([
+            pw.SizedBox(height: 20),
+            pw.Divider(color: PdfColors.grey200),
+            pw.SizedBox(height: 12),
+            pw.Text(
+              '掌握程度说明：● 待学习（New）  ● 复习中（Reviewing）  ● 已掌握（Mastered）',
+              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+            ),
+            pw.Text(
+              '内容状态说明：● 处理中（Processing）  ● 已完成（Ready）  ● 失败（Failed）',
+              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+            ),
+          ]);
+          return tocItems;
+        },
       ),
     );
 
@@ -138,28 +147,32 @@ class PdfExportService {
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(40),
-          header: (ctx) => pw.Container(
-            alignment: pw.Alignment.centerRight,
-            margin: const pw.EdgeInsets.only(bottom: 8),
-            child: pw.Text(
-              subject.label,
-              style: const pw.TextStyle(
-                fontSize: 10,
-                color: PdfColors.grey400,
+          header: (pw.Context ctx) {
+            return pw.Container(
+              alignment: pw.Alignment.centerRight,
+              margin: const pw.EdgeInsets.only(bottom: 8),
+              child: pw.Text(
+                subject.label,
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  color: PdfColors.grey400,
+                ),
               ),
-            ),
-          ),
-          footer: (ctx, pageCount) => pw.Container(
-            alignment: pw.Alignment.center,
-            margin: const pw.EdgeInsets.only(top: 8),
-            child: pw.Text(
-              '— $pageCount —',
-              style: const pw.TextStyle(
-                fontSize: 10,
-                color: PdfColors.grey400,
+            );
+          },
+          footer: (pw.Context ctx, int? pageCount) {
+            return pw.Container(
+              alignment: pw.Alignment.center,
+              margin: const pw.EdgeInsets.only(top: 8),
+              child: pw.Text(
+                '— $pageCount —',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  color: PdfColors.grey400,
+                ),
               ),
-            ),
-          ),
+            );
+          },
           build: (ctx) {
             final widgets = <pw.Widget>[
               pw.Row(
@@ -172,7 +185,7 @@ class PdfExportService {
                   pw.SizedBox(width: 12),
                   pw.Text(
                     '${subject.label}（${list.length} 题）',
-                    style: const pw.TextStyle(
+                    style: pw.TextStyle(
                       fontSize: 20,
                       fontWeight: pw.FontWeight.bold,
                     ),
@@ -211,7 +224,11 @@ class PdfExportService {
 
   static PdfColor _subjectPdfColor(Subject subject) {
     final c = subject.color;
-    return PdfColor.fromInt(c.r.toInt() << 16 | c.g.toInt() << 8 | c.b.toInt());
+    return PdfColor.fromInt(
+      (c.r.toInt() & 0xFF) << 16 |
+      (c.g.toInt() & 0xFF) << 8 |
+      (c.b.toInt() & 0xFF),
+    );
   }
 
   static List<pw.Widget> _buildQuestionEntry(
@@ -252,21 +269,21 @@ class PdfExportService {
       final statusLabel = _statusLabel(q.contentStatus);
       labelParts.add(pw.TextSpan(
         text: '[$statusLabel] ',
-        style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey500),
+        style: pw.TextStyle(fontSize: 11, color: PdfColors.grey500),
       ));
     }
 
     if (q.reviewCount > 0) {
       labelParts.add(pw.TextSpan(
         text: '已复习 ${q.reviewCount} 次 ',
-        style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey500),
+        style: pw.TextStyle(fontSize: 11, color: PdfColors.grey500),
       ));
     }
 
     final createDateStr = DateFormat('MM/dd').format(q.createdAt);
     labelParts.add(pw.TextSpan(
       text: createDateStr,
-      style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey400),
+      style: pw.TextStyle(fontSize: 11, color: PdfColors.grey400),
     ));
 
     widgets.add(pw.RichText(
@@ -289,7 +306,7 @@ class PdfExportService {
         ),
         child: pw.Text(
           questionText,
-          style: const pw.TextStyle(fontSize: 12, lineSpacing: 1.5),
+          style: pw.TextStyle(fontSize: 12, lineSpacing: 1.5),
         ),
       ));
       widgets.add(pw.SizedBox(height: 6));
@@ -320,7 +337,7 @@ class PdfExportService {
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
           child: pw.Text(
             '❌ 错因分析：${analysis.mistakeReason}',
-            style: const pw.TextStyle(fontSize: 11),
+            style: pw.TextStyle(fontSize: 11),
           ),
         ));
         widgets.add(pw.SizedBox(height: 4));
@@ -368,7 +385,7 @@ class PdfExportService {
                   padding: const pw.EdgeInsets.symmetric(vertical: 2),
                   child: pw.Text(
                     '${entry.key + 1}. ${entry.value}',
-                    style: const pw.TextStyle(fontSize: 11),
+                    style: pw.TextStyle(fontSize: 11),
                   ),
                 );
               }),
