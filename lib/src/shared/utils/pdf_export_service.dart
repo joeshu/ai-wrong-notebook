@@ -54,10 +54,13 @@ class PdfExportService {
         .replaceAll(r'\dots', '...')
         // 未知 LaTeX 命令：去掉反斜杠
         .replaceAllMapped(RegExp(r'\\([a-zA-Z]+)'), (m) => m[1] ?? '')
-        // 替换字面量 \n 为真正的换行符
+        // 占位符 \n 换行——先保留井号作为临时标记
         .replaceAll(r'\n', '\n')
-        // 替换字面量 \t 为空格
+        // 占位符 \t 为空格
         .replaceAll(r'\t', ' ')
+        // 移除 pdf 不支持的字符（控制字符，保留 \n 和 tab）
+        .replaceAllMapped(RegExp(r'[^\u0009\u000A\u000D\u0020-\uD7FF\uE000-\uFFFD]'),
+            (m) => '')
         .replaceAll('  ', ' ')
         .trim();
     return text;
