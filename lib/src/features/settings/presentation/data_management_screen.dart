@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
 
 class DataManagementScreen extends ConsumerWidget {
   const DataManagementScreen({super.key});
@@ -55,14 +56,27 @@ class DataManagementScreen extends ConsumerWidget {
               onTap: () => _importQuestions(context, ref),
             ),
             const SizedBox(height: 8),
-            _DataCard(
-              icon: CupertinoIcons.arrow_down,
-              title: '导出当前题库',
-              subtitle: '导出所有错题为 JSON 文件，可分享',
-              onTap: questions.isEmpty
-                  ? null
-                  : () => _exportQuestions(context, questions),
-            ),
+            Builder(builder: (cardContext) {
+              return _DataCard(
+                icon: CupertinoIcons.arrow_down,
+                title: '导出当前题库',
+                subtitle: '导出所有错题为 JSON 文件，可分享',
+                onTap: questions.isEmpty
+                    ? null
+                    : () => _exportQuestions(cardContext, questions),
+              );
+            }),
+            const SizedBox(height: 8),
+            Builder(builder: (cardContext) {
+              return _DataCard(
+                icon: CupertinoIcons.doc_text,
+                title: '导出整理为 PDF',
+                subtitle: '按学科整理，包含题目、分析、解题步骤',
+                onTap: questions.isEmpty
+                    ? null
+                    : () => PdfExportService.sharePdf(cardContext, questions),
+              );
+            }),
             const SizedBox(height: 8),
             _DataCard(
               icon: CupertinoIcons.trash,
@@ -98,8 +112,12 @@ class DataManagementScreen extends ConsumerWidget {
       file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(list));
 
       if (!context.mounted) return;
+      final box = context.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return;
+      final origin = box.localToGlobal(Offset.zero) & box.size;
       await Share.shareXFiles([XFile(file.path)],
-          text: '导出 ${questions.length} 道错题');
+          text: '导出 ${questions.length} 道错题',
+          sharePositionOrigin: origin);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

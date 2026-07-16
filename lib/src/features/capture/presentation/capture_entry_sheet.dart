@@ -160,10 +160,14 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
       if (result.errorMessage != null) {
         // Show error message
         String message;
-        if (result.errorMessage!.contains('permission')) {
-          message = '相机权限被拒绝，请在系统设置中开启';
+        final error = result.errorMessage!;
+        if (error.contains('permission') ||
+            error.contains('camera_access_denied') ||
+            error.contains('camera access') ||
+            error.contains('denied')) {
+          message = '相机权限被拒绝，请在系统设置 → 智能错题本 中开启相机权限';
         } else {
-          message = '打开失败: ${result.errorMessage}';
+          message = '打开失败: $error';
         }
         setState(() => _errorMessage = message);
         return;
