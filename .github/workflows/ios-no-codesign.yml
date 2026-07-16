@@ -43,15 +43,7 @@ jobs:
 
       - name: Build unsigned .app
         run: |
-          flutter build ios --release --no-codesign || \
-          (echo "Fallback: flutter build failed due to signing check, using xcodebuild directly" && \
-           cd ios && \
-           xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos \
-             -configuration Release-iphoneos \
-             CODE_SIGNING_ALLOWED=NO \
-             DEVELOPMENT_TEAM="" \
-             COMPILER_INDEX_STORE_ENABLE=NO \
-             build)
+          flutter build ios --release --no-codesign
 
       - name: Package unsigned IPA for LiveContainer
         run: |
