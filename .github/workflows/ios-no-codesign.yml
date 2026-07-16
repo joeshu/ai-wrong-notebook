@@ -1,5 +1,8 @@
 name: iOS Unsigned IPA (LiveContainer)
 
+# This workflow builds an unsigned IPA by manually packaging the unsigned Runner.app.
+# Intended for LiveContainer-style import/testing workflows, not normal signed iOS distribution.
+
 on:
   workflow_dispatch:
   push:
