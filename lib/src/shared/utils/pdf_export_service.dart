@@ -15,7 +15,6 @@ class PdfExportService {
   static Future<File> generatePdf(List<QuestionRecord> questions) async {
     final pdf = pw.Document();
 
-    // 按学科分组并排序
     final grouped = <Subject, List<QuestionRecord>>{};
     for (final q in questions) {
       grouped.putIfAbsent(q.subject, () => []).add(q);
@@ -25,7 +24,7 @@ class PdfExportService {
 
     final dateStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
 
-    // 封面/标题页
+    // 封面页
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -38,7 +37,7 @@ class PdfExportService {
               style: pw.TextStyle(
                 fontSize: 28,
                 fontWeight: pw.FontWeight.bold,
-                color: PdfColor.fromInt(0xFF6366F1),
+                color: PdfColor.fromInt(0x6366F1),
               ),
             ),
           ),
@@ -46,7 +45,7 @@ class PdfExportService {
           pw.Center(
             child: pw.Text(
               'AI Wrong Notebook',
-              style: pw.TextStyle(
+              style: const pw.TextStyle(
                 fontSize: 14,
                 color: PdfColors.grey600,
               ),
@@ -65,14 +64,14 @@ class PdfExportService {
           pw.Center(
             child: pw.Text(
               '导出时间：$dateStr',
-              style: pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
+              style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey600),
             ),
           ),
           pw.SizedBox(height: 12),
           pw.Center(
             child: pw.Text(
               '涵盖 ${sortedSubjects.length} 个学科',
-              style: pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
+              style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700),
             ),
           ),
         ],
@@ -102,11 +101,11 @@ class PdfExportService {
                 children: [
                   pw.Text(
                     '${subject.label}（${list.length} 题）',
-                    style: pw.TextStyle(fontSize: 14),
+                    style: const pw.TextStyle(fontSize: 14),
                   ),
                   pw.Text(
                     '第 ${_subjectPageLabel(sortedSubjects, subject)} 页',
-                    style: pw.TextStyle(
+                    style: const pw.TextStyle(
                       fontSize: 12,
                       color: PdfColors.grey500,
                     ),
@@ -120,11 +119,11 @@ class PdfExportService {
           pw.SizedBox(height: 12),
           pw.Text(
             '掌握程度说明：● 待学习（New）  ● 复习中（Reviewing）  ● 已掌握（Mastered）',
-            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
           ),
           pw.Text(
             '内容状态说明：● 处理中（Processing）  ● 已完成（Ready）  ● 失败（Failed）',
-            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
           ),
         ],
       ),
@@ -134,6 +133,7 @@ class PdfExportService {
     int globalIndex = 0;
     for (final subject in sortedSubjects) {
       final list = grouped[subject]!;
+      final subjectColor = _subjectPdfColor(subject);
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
@@ -143,7 +143,7 @@ class PdfExportService {
             margin: const pw.EdgeInsets.only(bottom: 8),
             child: pw.Text(
               subject.label,
-              style: pw.TextStyle(
+              style: const pw.TextStyle(
                 fontSize: 10,
                 color: PdfColors.grey400,
               ),
@@ -154,7 +154,7 @@ class PdfExportService {
             margin: const pw.EdgeInsets.only(top: 8),
             child: pw.Text(
               '— $pageCount —',
-              style: pw.TextStyle(
+              style: const pw.TextStyle(
                 fontSize: 10,
                 color: PdfColors.grey400,
               ),
@@ -167,7 +167,7 @@ class PdfExportService {
                   pw.Container(
                     width: 4,
                     height: 24,
-                    color: PdfColor.fromInt(subject.color.value),
+                    color: subjectColor,
                   ),
                   pw.SizedBox(width: 12),
                   pw.Text(
@@ -209,18 +209,22 @@ class PdfExportService {
     return file;
   }
 
+  static PdfColor _subjectPdfColor(Subject subject) {
+    final c = subject.color;
+    return PdfColor.fromInt(c.r.toInt() << 16 | c.g.toInt() << 8 | c.b.toInt());
+  }
+
   static List<pw.Widget> _buildQuestionEntry(
       int index, QuestionRecord q) {
     final widgets = <pw.Widget>[];
 
-    // 题号 + 标签
     final labelParts = <pw.InlineSpan>[];
     labelParts.add(pw.TextSpan(
       text: '#$index  ',
       style: pw.TextStyle(
         fontSize: 16,
         fontWeight: pw.FontWeight.bold,
-        color: PdfColor.fromInt(0xFF6366F1),
+        color: PdfColor.fromInt(0x6366F1),
       ),
     ));
 
@@ -229,12 +233,11 @@ class PdfExportService {
         text: '★ ',
         style: pw.TextStyle(
           fontSize: 14,
-          color: PdfColor.fromInt(0xFFD97706),
+          color: PdfColor.fromInt(0xD97706),
         ),
       ));
     }
 
-    // 掌握程度标签
     final masterLabel = _masteryLabel(q.masteryLevel);
     final masterColor = _masteryColor(q.masteryLevel);
     labelParts.add(pw.TextSpan(
@@ -245,28 +248,25 @@ class PdfExportService {
       ),
     ));
 
-    // 内容状态标签
     if (q.contentStatus.name != 'ready') {
       final statusLabel = _statusLabel(q.contentStatus);
       labelParts.add(pw.TextSpan(
         text: '[$statusLabel] ',
-        style: pw.TextStyle(fontSize: 11, color: PdfColors.grey500),
+        style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey500),
       ));
     }
 
-    // 复习次数
     if (q.reviewCount > 0) {
       labelParts.add(pw.TextSpan(
         text: '已复习 ${q.reviewCount} 次 ',
-        style: pw.TextStyle(fontSize: 11, color: PdfColors.grey500),
+        style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey500),
       ));
     }
 
-    // 创建时间
     final createDateStr = DateFormat('MM/dd').format(q.createdAt);
     labelParts.add(pw.TextSpan(
       text: createDateStr,
-      style: pw.TextStyle(fontSize: 11, color: PdfColors.grey400),
+      style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey400),
     ));
 
     widgets.add(pw.RichText(
@@ -277,7 +277,6 @@ class PdfExportService {
 
     widgets.add(pw.SizedBox(height: 8));
 
-    // 题目内容
     final questionText = q.normalizedQuestionText.isNotEmpty
         ? q.normalizedQuestionText
         : q.extractedQuestionText;
@@ -285,7 +284,7 @@ class PdfExportService {
       widgets.add(pw.Container(
         padding: const pw.EdgeInsets.all(12),
         decoration: pw.BoxDecoration(
-          color: PdfColor.fromInt(0xFFF5F3FF),
+          color: PdfColor.fromInt(0xF5F3FF),
           borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
         ),
         child: pw.Text(
@@ -296,10 +295,8 @@ class PdfExportService {
       widgets.add(pw.SizedBox(height: 6));
     }
 
-    // 错题分析
     final analysis = q.analysisResult;
     if (analysis != null) {
-      // 知识点标签
       if (analysis.knowledgePoints.isNotEmpty || analysis.aiTags.isNotEmpty) {
         final kps = [
           ...analysis.knowledgePoints,
@@ -311,14 +308,13 @@ class PdfExportService {
             '📌 知识点：$kps',
             style: pw.TextStyle(
               fontSize: 11,
-              color: PdfColor.fromInt(0xFF7C3AED),
+              color: PdfColor.fromInt(0x7C3AED),
             ),
           ),
         ));
         widgets.add(pw.SizedBox(height: 4));
       }
 
-      // 错因
       if (analysis.mistakeReason.isNotEmpty) {
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
@@ -330,7 +326,6 @@ class PdfExportService {
         widgets.add(pw.SizedBox(height: 4));
       }
 
-      // 正确答案
       if (analysis.finalAnswer.isNotEmpty) {
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
@@ -338,14 +333,13 @@ class PdfExportService {
             '✅ 正确答案：${analysis.finalAnswer}',
             style: pw.TextStyle(
               fontSize: 11,
-              color: PdfColor.fromInt(0xFF16A34A),
+              color: PdfColor.fromInt(0x16A34A),
             ),
           ),
         ));
         widgets.add(pw.SizedBox(height: 4));
       }
 
-      // 解答步骤
       if (analysis.steps.isNotEmpty) {
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.all(8),
@@ -353,7 +347,7 @@ class PdfExportService {
           decoration: pw.BoxDecoration(
             border: pw.Border(
               left: pw.BorderSide(
-                color: PdfColor.fromInt(0xFF6366F1),
+                color: PdfColor.fromInt(0x6366F1),
                 width: 2,
               ),
             ),
@@ -384,7 +378,6 @@ class PdfExportService {
         widgets.add(pw.SizedBox(height: 4));
       }
 
-      // 学习建议
       if (analysis.studyAdvice.isNotEmpty) {
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
@@ -392,19 +385,18 @@ class PdfExportService {
             '💡 学习建议：${analysis.studyAdvice}',
             style: pw.TextStyle(
               fontSize: 11,
-              color: PdfColor.fromInt(0xFFD97706),
+              color: PdfColor.fromInt(0xD97706),
             ),
           ),
         ));
       }
     }
 
-    // 分隔线
     widgets.add(pw.Divider(color: PdfColors.grey200));
     return widgets;
   }
 
-  static String _masteryLabel(masteryLevel) {
+  static String _masteryLabel(dynamic masteryLevel) {
     switch (masteryLevel.name) {
       case 'newQuestion':
         return '待学习';
@@ -417,20 +409,20 @@ class PdfExportService {
     }
   }
 
-  static int _masteryColor(masteryLevel) {
+  static int _masteryColor(dynamic masteryLevel) {
     switch (masteryLevel.name) {
       case 'newQuestion':
-        return 0xFFDC2626;
+        return 0xDC2626;
       case 'reviewing':
-        return 0xFFD97706;
+        return 0xD97706;
       case 'mastered':
-        return 0xFF16A34A;
+        return 0x16A34A;
       default:
-        return 0xFF6366F1;
+        return 0x6366F1;
     }
   }
 
-  static String _statusLabel(contentStatus) {
+  static String _statusLabel(dynamic contentStatus) {
     switch (contentStatus.name) {
       case 'processing':
         return '处理中';
@@ -445,7 +437,6 @@ class PdfExportService {
 
   static String _subjectPageLabel(
       List<Subject> subjects, Subject target) {
-    // 目录占1页，封面1页，所以每个学科起始页 = 2 + 被索引在列表中的位置
     final idx = subjects.indexOf(target);
     return '${idx + 3}';
   }
