@@ -414,7 +414,10 @@ class PdfExportService {
   }
 
   static String _masteryLabel(dynamic masteryLevel) {
-    switch (masteryLevel.name) {
+    final name = masteryLevel is String
+        ? masteryLevel
+        : '${masteryLevel}'.split('.').last;
+    switch (name) {
       case 'newQuestion':
         return '待学习';
       case 'reviewing':
@@ -427,7 +430,10 @@ class PdfExportService {
   }
 
   static int _masteryColor(dynamic masteryLevel) {
-    switch (masteryLevel.name) {
+    final name = masteryLevel is String
+        ? masteryLevel
+        : '${masteryLevel}'.split('.').last;
+    switch (name) {
       case 'newQuestion':
         return 0xDC2626;
       case 'reviewing':
@@ -440,7 +446,10 @@ class PdfExportService {
   }
 
   static String _statusLabel(dynamic contentStatus) {
-    switch (contentStatus.name) {
+    final name = contentStatus is String
+        ? contentStatus
+        : '${contentStatus}'.split('.').last;
+    switch (name) {
       case 'processing':
         return '处理中';
       case 'ready':
