@@ -52,4 +52,4 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - assets/fonts/ZCOOLKuaiLe-Regular.ttf
+    - assets/fonts/MaShanZheng-Regular.ttf
