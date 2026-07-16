@@ -31,6 +31,7 @@ class PdfExportService {
   /// 清理 LaTeX 标记，保留可读的纯文本
   static String _cleanLatex(String input) {
     var text = input
+        // LaTeX 公式标记
         .replaceAll(r'\(', '')
         .replaceAll(r'\)', '')
         .replaceAllMapped(RegExp(r'\\mathrm\{([^}]*)\}'), (m) => m[1] ?? '')
@@ -51,7 +52,12 @@ class PdfExportService {
         .replaceAll(r'\neq', '≠')
         .replaceAll(r'\cdots', '...')
         .replaceAll(r'\dots', '...')
+        // 未知 LaTeX 命令：去掉反斜杠
         .replaceAllMapped(RegExp(r'\\([a-zA-Z]+)'), (m) => m[1] ?? '')
+        // 替换字面量 \n 为真正的换行符
+        .replaceAll(r'\n', '\n')
+        // 替换字面量 \t 为空格
+        .replaceAll(r'\t', ' ')
         .replaceAll('  ', ' ')
         .trim();
     return text;
@@ -373,7 +379,7 @@ class PdfExportService {
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
           child: pw.Text(
-            '📌 知识点：$kps',
+            '[知识点] $kps',
             style: pw.TextStyle(
               fontSize: 11,
               color: PdfColor.fromInt(0x7C3AED),
@@ -388,7 +394,7 @@ class PdfExportService {
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
           child: pw.Text(
-            '❌ 错因分析：$text',
+            '错因分析：$text',
             style: pw.TextStyle(fontSize: 11),
           ),
         ));
@@ -400,7 +406,7 @@ class PdfExportService {
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
           child: pw.Text(
-            '✅ 正确答案：$text',
+            '正确答案：$text',
             style: pw.TextStyle(
               fontSize: 11,
               color: PdfColor.fromInt(0x16A34A),
@@ -454,7 +460,7 @@ class PdfExportService {
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
           child: pw.Text(
-            '💡 学习建议：$text',
+            '学习建议：$text',
             style: pw.TextStyle(
               fontSize: 11,
               color: PdfColor.fromInt(0xD97706),
