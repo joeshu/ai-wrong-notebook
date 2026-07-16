@@ -43,11 +43,24 @@ jobs:
 
       - name: Build unsigned .app
         run: |
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign || \
+          (echo "Fallback: signing check failed, using xcodebuild..." && \
+           cd ios && \
+           xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos \
+             -configuration Release \
+             CODE_SIGNING_ALLOWED=NO \
+             COMPILER_INDEX_STORE_ENABLE=NO \
+             build)
 
       - name: Package unsigned IPA for LiveContainer
         run: |
-          cd build/ios/Release-iphoneos
+          # 尝试 flutter 输出目录，失败则用 xcodebuild 输出目录
+          APP_DIR="build/ios/Release-iphoneos"
+          if [ ! -d "$APP_DIR/Runner.app" ]; then
+            APP_DIR="ios/build/Release-iphoneos"
+          fi
+          echo "Using app dir: $(pwd)/$APP_DIR"
+          cd "$APP_DIR"
           rm -rf Payload Runner.ipa
           mkdir -p Payload
           cp -R Runner.app Payload/
