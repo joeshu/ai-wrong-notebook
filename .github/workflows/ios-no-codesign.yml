@@ -1,4 +1,4 @@
-name: iOS No Codesign IPA
+name: iOS No Codesign Archive
 
 on:
   workflow_dispatch:
@@ -38,15 +38,23 @@ jobs:
           cd ios
           pod install
 
-      - name: Build release IPA without codesign
+      - name: Build release archive without codesign
         run: flutter build ipa --release --no-codesign
 
-      - name: Upload no-codesign IPA artifacts
+      - name: Build experimental LiveContainer candidate IPA
+        run: |
+          rm -rf build/ios/livecontainer-candidate
+          mkdir -p build/ios/livecontainer-candidate/Payload
+          cp -R build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app build/ios/livecontainer-candidate/Payload/
+          cd build/ios/livecontainer-candidate
+          /usr/bin/zip -qry ../ai-wrong-notebook-livecontainer-candidate.ipa Payload
+
+      - name: Upload no-codesign archive artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ai-wrong-notebook-ios-no-codesign-ipa
+          name: ai-wrong-notebook-ios-no-codesign-archive
           path: |
-            build/ios/ipa/*.ipa
+            build/ios/ai-wrong-notebook-livecontainer-candidate.ipa
             build/ios/archive/*.xcarchive
           if-no-files-found: error
           retention-days: 30
