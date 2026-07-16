@@ -47,3 +47,33 @@ jobs:
           name: ai-wrong-notebook-release
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+
+  build-ios-no-codesign:
+    runs-on: macos-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.41.0
+
+      - name: Install CocoaPods dependencies
+        run: |
+          flutter pub get
+          cd ios
+          pod install
+
+      - name: Build release IPA without codesign
+        run: flutter build ipa --release --no-codesign
+
+      - name: Upload no-codesign IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-wrong-notebook-ios-no-codesign-ipa
+          path: |
+            build/ios/ipa/*.ipa
+            build/ios/archive/*.xcarchive
+          if-no-files-found: error
+          retention-days: 30
