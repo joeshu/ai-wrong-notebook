@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -11,9 +12,19 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 
 class PdfExportService {
   PdfExportService._();
+  static pw.Font? _baseFont;
+
+  static Future<pw.Font> _getFont() async {
+    if (_baseFont != null) return _baseFont!;
+    final data = await rootBundle.load('assets/fonts/ZCOOLKuaiLe-Regular.ttf');
+    _baseFont = pw.Font.ttf(data.buffer.asUint8List());
+    return _baseFont!;
+  }
 
   static Future<File> generatePdf(List<QuestionRecord> questions) async {
     final pdf = pw.Document();
+    final font = await _getFont();
+    final theme = pw.ThemeData.withFont(base: font);
 
     final grouped = <Subject, List<QuestionRecord>>{};
     for (final q in questions) {
@@ -27,6 +38,7 @@ class PdfExportService {
     // 封面页
     pdf.addPage(
       pw.MultiPage(
+        theme: theme,
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
         build: (ctx) {
@@ -83,6 +95,7 @@ class PdfExportService {
     // 目录页
     pdf.addPage(
       pw.MultiPage(
+        theme: theme,
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(40),
         build: (ctx) {
@@ -145,6 +158,7 @@ class PdfExportService {
       final subjectColor = _subjectPdfColor(subject);
       pdf.addPage(
         pw.MultiPage(
+          theme: theme,
           pageFormat: PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(40),
           header: (pw.Context ctx) {
