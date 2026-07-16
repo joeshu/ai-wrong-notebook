@@ -28,6 +28,35 @@ class PdfExportService {
     return _baseFont!;
   }
 
+  /// 清理 LaTeX 标记，保留可读的纯文本
+  static String _cleanLatex(String input) {
+    var text = input
+        .replaceAll(r'\(', '')
+        .replaceAll(r'\)', '')
+        .replaceAllMapped(RegExp(r'\\mathrm\{([^}]*)\}'), (m) => m[1] ?? '')
+        .replaceAllMapped(RegExp(r'\\text\{([^}]*)\}'), (m) => m[1] ?? '')
+        .replaceAllMapped(RegExp(r'\\frac\{([^}]*)\}\{([^}]*)\}'),
+            (m) => '${m[1]}/${m[2]}')
+        .replaceAll(r'\cdot', '·')
+        .replaceAll(r'\times', '×')
+        .replaceAll(r'\div', '÷')
+        .replaceAll(r'\rightarrow', '→')
+        .replaceAll(r'\Rightarrow', '⇒')
+        .replaceAll(r'\Longrightarrow', '⇒')
+        .replaceAll(r'\ge', '≥')
+        .replaceAll(r'\geq', '≥')
+        .replaceAll(r'\le', '≤')
+        .replaceAll(r'\leq', '≤')
+        .replaceAll(r'\ne', '≠')
+        .replaceAll(r'\neq', '≠')
+        .replaceAll(r'\cdots', '...')
+        .replaceAll(r'\dots', '...')
+        .replaceAllMapped(RegExp(r'\\([a-zA-Z]+)'), (m) => m[1] ?? '')
+        .replaceAll('  ', ' ')
+        .trim();
+    return text;
+  }
+
   static Future<File> generatePdf(List<QuestionRecord> questions) async {
     final pdf = pw.Document();
     final font = await _getFont();
@@ -316,9 +345,9 @@ class PdfExportService {
 
     widgets.add(pw.SizedBox(height: 8));
 
-    final questionText = q.normalizedQuestionText.isNotEmpty
+    final questionText = _cleanLatex(q.normalizedQuestionText.isNotEmpty
         ? q.normalizedQuestionText
-        : q.extractedQuestionText;
+        : q.extractedQuestionText);
     if (questionText.isNotEmpty) {
       widgets.add(pw.Container(
         padding: const pw.EdgeInsets.all(12),
@@ -338,8 +367,8 @@ class PdfExportService {
     if (analysis != null) {
       if (analysis.knowledgePoints.isNotEmpty || analysis.aiTags.isNotEmpty) {
         final kps = [
-          ...analysis.knowledgePoints,
-          ...analysis.aiTags,
+          ...analysis.knowledgePoints.map(_cleanLatex),
+          ...analysis.aiTags.map(_cleanLatex),
         ].take(5).join('  ·  ');
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -355,10 +384,11 @@ class PdfExportService {
       }
 
       if (analysis.mistakeReason.isNotEmpty) {
+        final text = _cleanLatex(analysis.mistakeReason);
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
           child: pw.Text(
-            '❌ 错因分析：${analysis.mistakeReason}',
+            '❌ 错因分析：$text',
             style: pw.TextStyle(fontSize: 11),
           ),
         ));
@@ -366,10 +396,11 @@ class PdfExportService {
       }
 
       if (analysis.finalAnswer.isNotEmpty) {
+        final text = _cleanLatex(analysis.finalAnswer);
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
           child: pw.Text(
-            '✅ 正确答案：${analysis.finalAnswer}',
+            '✅ 正确答案：$text',
             style: pw.TextStyle(
               fontSize: 11,
               color: PdfColor.fromInt(0x16A34A),
@@ -403,10 +434,11 @@ class PdfExportService {
               ),
               pw.SizedBox(height: 4),
               ...analysis.steps.asMap().entries.map((entry) {
+                final stepText = _cleanLatex(entry.value);
                 return pw.Padding(
                   padding: const pw.EdgeInsets.symmetric(vertical: 2),
                   child: pw.Text(
-                    '${entry.key + 1}. ${entry.value}',
+                    '${entry.key + 1}. $stepText',
                     style: pw.TextStyle(fontSize: 11),
                   ),
                 );
@@ -418,10 +450,11 @@ class PdfExportService {
       }
 
       if (analysis.studyAdvice.isNotEmpty) {
+        final text = _cleanLatex(analysis.studyAdvice);
         widgets.add(pw.Container(
           padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 8),
           child: pw.Text(
-            '💡 学习建议：${analysis.studyAdvice}',
+            '💡 学习建议：$text',
             style: pw.TextStyle(
               fontSize: 11,
               color: PdfColor.fromInt(0xD97706),
