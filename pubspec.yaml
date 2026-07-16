@@ -52,4 +52,4 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - assets/fonts/MaShanZheng-Regular.ttf
+    - assets/fonts/NotoSansSC.ttf
