@@ -55,13 +55,16 @@ class PdfExportService {
       final ch = text[i];
       final code = text.codeUnitAt(i);
       // 跳过反斜杠+字母序列（残余 LaTeX 命令）
-      if (ch == r'\' && i + 1 < text.length) {
-        final next = text[i + 1];
-        if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z')) {
+      if (ch == r'\\' && i + 1 < text.length) {
+        final nextCode = text.codeUnitAt(i + 1);
+        final a = 'a'.codeUnitAt(0), z = 'z'.codeUnitAt(0);
+        final A = 'A'.codeUnitAt(0), Z = 'Z'.codeUnitAt(0);
+        if ((nextCode >= a && nextCode <= z) || (nextCode >= A && nextCode <= Z)) {
           i++; // 跳过反斜杠后的首字母
           while (i + 1 < text.length) {
-            final c = text[i + 1];
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '*') {
+            final cCode = text.codeUnitAt(i + 1);
+            if ((cCode >= a && cCode <= z) || (cCode >= A && cCode <= Z) ||
+                cCode == '*'.codeUnitAt(0)) {
               i++;
             } else {
               break;
