@@ -50,7 +50,7 @@ class PdfExportService {
         .replaceAll(r'\t', ' ')
         .replaceAll('  ', ' ');
     // 逐字符过滤：移除残余 LaTeX 命令（反斜杠+字母）和 pdf 不允许的字符
-    final buf = StringBuffer();
+    final codes = <int>[];
     for (var i = 0; i < text.length; i++) {
       final ch = text[i];
       final code = text.codeUnitAt(i);
@@ -73,23 +73,25 @@ class PdfExportService {
           continue;
         }
       }
-      // 只保留 pdf 允许的字符
-      if (code == 0x09 || code == 0x0A || code == 0x0D) {
-        buf.write(ch);
-      } else if (code >= 0x20 && code <= 0xD7FF) {
-        buf.write(ch);
-      } else if (code >= 0xE000 && code <= 0xFFFD) {
-        buf.write(ch);
-      } else if (code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length) {
+      // 先处理 surrogate pair：高代理元必须配低代理元，避免留下孤立代理元
+      if (code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length) {
         final next = text.codeUnitAt(i + 1);
         if (next >= 0xDC00 && next <= 0xDFFF) {
-          buf.write(ch);
+          codes.add(code);
+          codes.add(next);
           i++;
-          buf.write(text[i]);
         }
+        // 无配对的孤立代理元：丢弃
+        continue;
+      }
+      // 只保留 pdf 允许的字符
+      if (code == 0x09 || code == 0x0A || code == 0x0D ||
+          code >= 0x20 && code <= 0xD7FF ||
+          code >= 0xE000 && code <= 0xFFFD) {
+        codes.add(code);
       }
     }
-    return buf.toString().trim();
+    return String.fromCharCodes(codes).trim();
   }
 
   static Future<File> generatePdf(List<QuestionRecord> questions) async {
