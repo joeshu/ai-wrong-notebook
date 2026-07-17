@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 
 class DataManagementScreen extends ConsumerWidget {
   const DataManagementScreen({super.key});
@@ -75,6 +76,17 @@ class DataManagementScreen extends ConsumerWidget {
                 onTap: questions.isEmpty
                     ? null
                     : () => PdfExportService.sharePdf(cardContext, questions),
+              );
+            }),
+            const SizedBox(height: 8),
+            Builder(builder: (cardContext) {
+              return _DataCard(
+                icon: CupertinoIcons.doc_richtext,
+                title: '导出为可打印文档 (HTML)',
+                subtitle: '按学科整理，浏览器中打开可直接打印',
+                onTap: questions.isEmpty
+                    ? null
+                    : () => HtmlExportService.shareHtml(cardContext, questions),
               );
             }),
             const SizedBox(height: 8),
