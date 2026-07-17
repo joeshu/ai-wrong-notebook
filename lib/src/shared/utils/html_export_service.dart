@@ -13,6 +13,7 @@ class HtmlExportService {
   /// 清理 LaTeX 标记为可读文本（与 PdfExportService 共享同一逻辑）
   static String _cleanLatex(String input) {
     // 移除 LaTeX 标记和花括号
+    // 注意：长命令名必须排在短命令名前，避免前缀误匹配
     var text = input
         .replaceAll(r'\(', '')
         .replaceAll(r'\)', '')
@@ -27,15 +28,15 @@ class HtmlExportService {
         .replaceAll(r'\rightarrow', '→')
         .replaceAll(r'\Rightarrow', '⇒')
         .replaceAll(r'\Longrightarrow', '⇒')
-        .replaceAll(r'\ge', '≥')
         .replaceAll(r'\geq', '≥')
-        .replaceAll(r'\le', '≤')
+        .replaceAll(r'\geq', '≥')
         .replaceAll(r'\leq', '≤')
-        .replaceAll(r'\ne', '≠')
+        .replaceAll(r'\leq', '≤')
         .replaceAll(r'\neq', '≠')
+        .replaceAll(r'\ne', '≠')
         .replaceAll(r'\cdots', '...')
         .replaceAll(r'\dots', '...')
-        .replaceAll(r'\n', '\\n')
+        .replaceAll(r'\n', '\\\\n')
         .replaceAll(r'\t', ' ')
         .replaceAll('  ', ' ');
     // 逐字符过滤：移除残余 LaTeX 命令和不可见字符
@@ -82,6 +83,39 @@ class HtmlExportService {
       }
     }
     return String.fromCharCodes(codes).trim();
+  }
+
+  /// 将选择题文本中的选项段分行，添加 A. B. C. D. 前缀
+  static String _formatOptions(String text) {
+    // 匹配 "（ ）" 或 "（\s*）" 后的选项序列
+    // 选项序列特征：被 ". " 或 ".(" 分隔的短文本段
+    final escaped = _escapeHtml(text);
+    final regex = RegExp(r'（\s*）\.');
+    final match = regex.firstMatch(escaped);
+    if (match == null) return escaped;
+
+    final after = escaped.substring(match.end);
+    final parts = after.split(RegExp(r'\.\s+'));
+    if (parts.length < 2) return escaped;
+
+    final options = parts.where((s) => s.trim().isNotEmpty).toList();
+    if (options.length < 2) return escaped;
+
+    final prefix = escaped.substring(0, match.end);
+    final letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    final buf = StringBuffer();
+    buf.write(prefix);
+    for (var i = 0; i < options.length && i < letters.length; i++) {
+      final opt = options[i].trim();
+      if (opt.isEmpty) continue;
+      // 如果选项本身已有字母前缀（如 "A. 选项"），不再重复加
+      if (opt.startsWith(RegExp(r'[A-Z]\.\s'))) {
+        buf.write('<br> $opt');
+      } else {
+        buf.write('<br> <b>${letters[i]}.</b> $opt');
+      }
+    }
+    return buf.toString();
   }
 
   static String _masteryLabel(dynamic masteryLevel) {
@@ -250,8 +284,9 @@ class HtmlExportService {
 
   .question-text {
     background: #f5f3ff; border-radius: 6px; padding: 10px 14px;
-    margin-bottom: 8px; font-size: 11.5pt; line-height: 1.7;
+    margin-bottom: 8px; font-size: 11.5pt; line-height: 1.8;
   }
+  .question-text .opt { display: block; padding-left: 0.5em; }
   .meta-row {
     font-size: 10pt; color: #888; margin-bottom: 4px;
   }
@@ -338,6 +373,8 @@ class HtmlExportService {
               ? q.normalizedQuestionText
               : q.extractedQuestionText,
         );
+        // 选择题选项格式化（返回已含 HTML 标签的内容，不再过 _escapeHtml）
+        final questionHtml = _formatOptions(questionText);
         final createDateStr = DateFormat('MM/dd').format(q.createdAt);
 
         buf.writeln('    <div class="question-block">');
@@ -360,9 +397,9 @@ class HtmlExportService {
             '        <span class="meta-row" style="margin-left:auto">$createDateStr</span>');
         buf.writeln('      </div>');
 
-        if (questionText.isNotEmpty) {
+        if (questionHtml.isNotEmpty) {
           buf.writeln(
-              '      <div class="question-text">${_escapeHtml(questionText)}</div>');
+              '      <div class="question-text">$questionHtml</div>');
         }
 
         final analysis = q.analysisResult;
