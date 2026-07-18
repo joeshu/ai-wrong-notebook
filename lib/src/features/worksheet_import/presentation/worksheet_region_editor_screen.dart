@@ -410,6 +410,7 @@ class _ResizableRegionState extends State<_ResizableRegion> {
 
   @override
   Widget build(BuildContext context) {
+    final qualityColor = _qualityColor();
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: qualityColor, width: 2),
