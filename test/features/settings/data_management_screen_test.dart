@@ -66,7 +66,8 @@ void main() {
     expect(find.text('删除所有错题和复习记录，不可恢复'), findsOneWidget);
 
     final clearData = find.text('清空所有数据');
-    await tester.scrollUntilVisible(clearData, 200);
+    await tester.ensureVisible(clearData);
+    await tester.pumpAndSettle();
     await tester.tap(clearData);
     await tester.pumpAndSettle();
     expect(find.text('确定要删除全部 1 道错题及其复习记录吗？此操作不可恢复。'), findsOneWidget);
