@@ -33,6 +33,9 @@ class _WorksheetRegionEditorScreenState
   bool _isCropping = false;
   bool _isDetecting = false;
   String? _detectionMessage;
+  String? _detectionProvider;
+  String? _detectionWarning;
+  Duration? _detectionDuration;
 
   @override
   Widget build(BuildContext context) {
@@ -55,18 +58,27 @@ class _WorksheetRegionEditorScreenState
       body: SafeArea(
         child: Column(children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
-            child: FilledButton.tonalIcon(
-              onPressed: _isCropping || _isDetecting
-                  ? null
-                  : () => _detectRegions(page),
-              icon: _isDetecting
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(CupertinoIcons.sparkles, size: 18),
-              label: Text(_isDetecting ? '正在识别候选题框...' : '使用当前 AI 识别候选题框'),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+            child: _DetectionActionCard(
+              isDetecting: _isDetecting,
+              selectedType: _selectedStrategyLabel(),
+              onAuto: _isCropping || _isDetecting ? null : () => _detectRegions(page),
+              onPaddle: _isCropping || _isDetecting ? null : () => _detectRegions(page, override: LayoutProviderType.paddleCloud),
+              onMineru: _isCropping || _isDetecting ? null : () => _detectRegions(page, override: LayoutProviderType.mineruCloud),
+              onManual: _isCropping || _isDetecting ? null : _clearForManual,
             ),
           ),
-          if (_detectionMessage != null)
+          if (_detectionProvider != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: _DetectionResultCard(
+                provider: _detectionProvider!,
+                regions: _regions,
+                duration: _detectionDuration,
+                warning: _detectionWarning,
+              ),
+            )
+          else if (_detectionMessage != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
               child: Text(_detectionMessage!, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
@@ -128,38 +140,71 @@ class _WorksheetRegionEditorScreenState
     );
   }
 
-  Future<void> _detectRegions(QuestionRecord page) async {
+  String _selectedStrategyLabel() => '当前设置的识别策略';
+
+  void _clearForManual() {
+    setState(() {
+      _regions.clear();
+      _detectionProvider = null;
+      _detectionWarning = null;
+      _detectionDuration = null;
+      _detectionMessage = '已切换为手动框选：点击试卷空白处可新增题框。';
+    });
+  }
+
+  Future<void> _detectRegions(QuestionRecord page, {LayoutProviderType? override}) async {
+    final startedAt = DateTime.now();
     setState(() {
       _isDetecting = true;
-      _detectionMessage = null;
+      _detectionMessage = override == LayoutProviderType.paddleCloud
+          ? '正在使用 PaddleOCR 快速识别…'
+          : override == LayoutProviderType.mineruCloud
+              ? '正在使用 MinerU VLM 深度解析…'
+              : '正在准备识别试卷版面…';
+      _detectionProvider = null;
+      _detectionWarning = null;
+      _detectionDuration = null;
     });
     try {
       final config = await restoreLayoutProviderConfig(ref);
-      if (config.type == LayoutProviderType.manualOnly) {
+      final type = override ?? config.type;
+      final effectiveConfig = override == null
+          ? config
+          : LayoutProviderConfig(
+              type: type,
+              apiKey: type == LayoutProviderType.mineruCloud
+                  ? (config.type == LayoutProviderType.autoCloud ? config.secondaryApiKey : config.apiKey)
+                  : config.apiKey,
+              secondaryApiKey: config.secondaryApiKey,
+            );
+      if (type == LayoutProviderType.manualOnly) {
         if (mounted) setState(() => _detectionMessage = '当前设置为仅手动框选；可直接点击页面新增题框。');
         return;
       }
-      final result = config.type == LayoutProviderType.customHttp
-          ? await CustomHttpDocumentLayoutService(config)
+      final result = type == LayoutProviderType.customHttp
+          ? await CustomHttpDocumentLayoutService(effectiveConfig)
               .detectQuestionRegions(imagePath: page.imagePath)
-          : config.type == LayoutProviderType.paddleCloud
-              ? await PaddleCloudDocumentLayoutService(config)
+          : type == LayoutProviderType.paddleCloud
+              ? await PaddleCloudDocumentLayoutService(effectiveConfig)
                   .detectQuestionRegions(imagePath: page.imagePath)
-              : config.type == LayoutProviderType.mineruCloud
-                  ? await MineruDocumentLayoutService(config)
+              : type == LayoutProviderType.mineruCloud
+                  ? await MineruDocumentLayoutService(effectiveConfig)
                       .detectQuestionRegions(imagePath: page.imagePath)
-                  : config.type == LayoutProviderType.autoCloud
-                      ? await AutoDocumentLayoutService(config)
+                  : type == LayoutProviderType.autoCloud
+                      ? await AutoDocumentLayoutService(effectiveConfig)
                           .detectQuestionRegions(imagePath: page.imagePath)
                   : await ref
-                  .read(visionDocumentLayoutServiceProvider)
-                  .detectQuestionRegions(imagePath: page.imagePath);
+                      .read(visionDocumentLayoutServiceProvider)
+                      .detectQuestionRegions(imagePath: page.imagePath);
       if (!mounted) return;
       setState(() {
         _regions
           ..clear()
           ..addAll(result.regions);
-        _detectionMessage = '已由${result.providerLabel}生成 ${result.regions.length} 个候选框，请逐一检查后确认裁切。';
+        _detectionProvider = result.providerLabel;
+        _detectionWarning = result.warning;
+        _detectionDuration = DateTime.now().difference(startedAt);
+        _detectionMessage = '已生成候选框，请逐一检查后确认裁切。';
       });
     } catch (e) {
       if (!mounted) return;
@@ -228,6 +273,9 @@ class _RegionOverlay extends StatelessWidget {
         region: r,
         canvasSize: canvasSize,
         number: number,
+        source: region.source,
+        confidence: region.confidence,
+        detectedNumber: region.detectedNumber,
         onDelete: onDelete,
         onChanged: onChanged,
       ),
@@ -241,6 +289,9 @@ class _ResizableRegion extends StatefulWidget {
     required this.region,
     required this.canvasSize,
     required this.number,
+    required this.source,
+    required this.confidence,
+    required this.detectedNumber,
     required this.onDelete,
     required this.onChanged,
   });
@@ -248,6 +299,9 @@ class _ResizableRegion extends StatefulWidget {
   final Rect region;
   final Size canvasSize;
   final int number;
+  final QuestionRegionSource source;
+  final double confidence;
+  final String? detectedNumber;
   final VoidCallback onDelete;
   final ValueChanged<Rect> onChanged;
 
@@ -317,7 +371,9 @@ class _ResizableRegionState extends State<_ResizableRegion> {
             Container(
               color: const Color(0xFF2563EB),
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              child: Text('题 ${widget.number}',
+              child: Text(widget.source == QuestionRegionSource.manual
+                  ? '手动 · 题 ${widget.number}'
+                  : '${widget.detectedNumber ?? widget.number}题 · ${(widget.confidence * 100).round()}%',
                   style: const TextStyle(color: Colors.white, fontSize: 12)),
             ),
             Material(
@@ -354,4 +410,73 @@ class _ResizableRegionState extends State<_ResizableRegion> {
       ]),
     );
   }
+}
+
+
+class _DetectionActionCard extends StatelessWidget {
+  const _DetectionActionCard({
+    required this.isDetecting,
+    required this.selectedType,
+    required this.onAuto,
+    required this.onPaddle,
+    required this.onMineru,
+    required this.onManual,
+  });
+  final bool isDetecting;
+  final String selectedType;
+  final VoidCallback? onAuto;
+  final VoidCallback? onPaddle;
+  final VoidCallback? onMineru;
+  final VoidCallback? onManual;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    color: const Color(0xFFF0F9FF),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+        Row(children: <Widget>[
+          const Icon(CupertinoIcons.viewfinder_circle, color: Color(0xFF0369A1)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(isDetecting ? selectedType : '识别策略：$selectedType', style: const TextStyle(fontWeight: FontWeight.w700))),
+          if (isDetecting) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+        ]),
+        const SizedBox(height: 6),
+        Text(isDetecting ? '请保持页面打开；会显示最终采用的服务与耗时。' : '自动策略会先快速识别，结果不足才升级深度解析。', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 6, children: <Widget>[
+          FilledButton.tonalIcon(onPressed: onAuto, icon: const Icon(CupertinoIcons.sparkles, size: 16), label: const Text('按当前策略识别')),
+          OutlinedButton(onPressed: onPaddle, child: const Text('快速 PaddleOCR')),
+          OutlinedButton(onPressed: onMineru, child: const Text('深度 MinerU')),
+          TextButton(onPressed: onManual, child: const Text('仅手动框选')),
+        ]),
+      ]),
+    ),
+  );
+}
+
+class _DetectionResultCard extends StatelessWidget {
+  const _DetectionResultCard({required this.provider, required this.regions, required this.duration, required this.warning});
+  final String provider;
+  final List<QuestionRegion> regions;
+  final Duration? duration;
+  final String? warning;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: EdgeInsets.zero,
+    color: const Color(0xFFF0FDF4),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+        const Row(children: <Widget>[Icon(CupertinoIcons.check_mark_circled_solid, color: Color(0xFF16A34A)), SizedBox(width: 8), Text('候选题框已生成', style: TextStyle(fontWeight: FontWeight.w700))]),
+        const SizedBox(height: 7),
+        Text('最终服务：$provider', style: const TextStyle(fontSize: 12)),
+        Text('识别结果：${regions.length} 道候选题${duration == null ? '' : ' · 耗时 ${duration!.inSeconds}s'}', style: const TextStyle(fontSize: 12)),
+        if (warning != null && warning!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 5), child: Text('提示：$warning', style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412)))),
+        const Padding(padding: EdgeInsets.only(top: 5), child: Text('请检查蓝框边界；可拖动、缩放、删除，或点击试卷增加题框。', style: TextStyle(fontSize: 12, color: Color(0xFF475569)))),
+      ]),
+    ),
+  );
 }
