@@ -66,45 +66,105 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
     }
   }
 
+  static final _questionStart = RegExp(r'^\s*(?:第\s*)?(\d{1,3})\s*(?:[\.．、:：]|[（(])');
+
   List<QuestionRegion> _extractRegions(String jsonl) {
-    final regions = <QuestionRegion>[];
-    var index = 0;
+    final blocks = <_PaddleBlock>[];
     for (final line in const LineSplitter().convert(jsonl)) {
       try {
-        final root = jsonDecode(line);
-        _walk(root, (map) {
-          final label = (map['label'] ?? map['block_label'] ?? map['type'] ?? '').toString().toLowerCase();
-          if (label.contains('header') || label.contains('footer') || label.contains('image')) return;
-          final box = _box(map['bbox'] ?? map['box'] ?? map['coordinate'] ?? map['poly']);
-          if (box == null) return;
-          // Paddle commonly emits pixel coordinates; normalized coordinates are
-          // accepted as well when a gateway has already normalized them.
-          final pageSize = _size(map);
-          if (pageSize == null && (box.right > 1 || box.bottom > 1)) return;
-          final rect = pageSize == null ? box : Rect.fromLTWH(box.left / pageSize.width, box.top / pageSize.height, box.width / pageSize.width, box.height / pageSize.height);
-          final clipped = Rect.fromLTWH(rect.left.clamp(0, 1).toDouble(), rect.top.clamp(0, 1).toDouble(), rect.width.clamp(0, 1 - rect.left.clamp(0, 1)).toDouble(), rect.height.clamp(0, 1 - rect.top.clamp(0, 1)).toDouble());
-          if (clipped.width < .10 || clipped.height < .06) return;
-          final text = (map['text'] ?? map['content'] ?? map['text_content'] ?? '').toString().trim();
-          regions.add(QuestionRegion(
-            id: 'paddle-${index++}',
-            normalizedRect: clipped,
-            recognizedText: text.isEmpty ? null : text,
-            contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
-            confidence: .70,
-            source: QuestionRegionSource.layoutModel,
-          ));
-        });
-      } catch (_) { /* Skip malformed JSONL rows. */ }
+        _collectBlocks(jsonDecode(line), blocks, null);
+      } catch (_) {
+        // Skip malformed JSONL rows; other result rows remain usable.
+      }
     }
-    return regions;
+    final unique = <String, _PaddleBlock>{};
+    for (final block in blocks) {
+      final rect = block.rect;
+      if (rect.width >= .10 && rect.height >= .025) {
+        unique['${rect.left.toStringAsFixed(3)},${rect.top.toStringAsFixed(3)},${rect.right.toStringAsFixed(3)},${rect.bottom.toStringAsFixed(3)}'] = block;
+      }
+    }
+    final ordered = unique.values.toList()
+      ..sort((a, b) {
+        final row = (a.rect.top - b.rect.top).abs() < .015
+            ? a.rect.left.compareTo(b.rect.left)
+            : a.rect.top.compareTo(b.rect.top);
+        return row;
+      });
+    final starts = <int>[];
+    for (var index = 0; index < ordered.length; index++) {
+      if (_questionStart.hasMatch(ordered[index].text)) starts.add(index);
+    }
+    if (starts.isEmpty) return _fallbackBlockRegions(ordered);
+
+    final regions = <QuestionRegion>[];
+    for (var group = 0; group < starts.length; group++) {
+      final from = starts[group];
+      final to = group + 1 < starts.length ? starts[group + 1] : ordered.length;
+      final questionBlocks = ordered.sublist(from, to);
+      final rect = questionBlocks.map((block) => block.rect).reduce((a, b) => a.expandToInclude(b));
+      final text = questionBlocks.map((block) => block.text.trim()).where((text) => text.isNotEmpty).join('\n');
+      if (rect.width < .10 || rect.height < .06) continue;
+      regions.add(QuestionRegion(
+        id: 'paddle-question-$group',
+        normalizedRect: rect,
+        detectedNumber: _questionStart.firstMatch(ordered[from].text)?.group(1),
+        recognizedText: text.isEmpty ? null : text,
+        contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
+        confidence: .76,
+        source: QuestionRegionSource.layoutModel,
+      ));
+    }
+    return regions.isEmpty ? _fallbackBlockRegions(ordered) : regions;
   }
 
-  void _walk(dynamic value, void Function(Map<String, dynamic>) visit) {
-    if (value is Map) { final map = Map<String, dynamic>.from(value); visit(map); for (final child in map.values) { _walk(child, visit); } }
-    if (value is List) { for (final child in value) { _walk(child, visit); } }
+  List<QuestionRegion> _fallbackBlockRegions(List<_PaddleBlock> blocks) => blocks
+      .where((block) => block.rect.width >= .10 && block.rect.height >= .06)
+      .take(30)
+      .toList()
+      .asMap()
+      .entries
+      .map((entry) => QuestionRegion(
+            id: 'paddle-block-${entry.key}',
+            normalizedRect: entry.value.rect,
+            recognizedText: entry.value.text.isEmpty ? null : entry.value.text,
+            contentFormatHint: entry.value.text.contains(r'$') || entry.value.text.contains(r'\\') ? 'latexMixed' : 'plain',
+            confidence: .55,
+            source: QuestionRegionSource.layoutModel,
+          ))
+      .toList();
+
+  void _collectBlocks(dynamic value, List<_PaddleBlock> out, Size? inheritedSize) {
+    if (value is Map) {
+      final map = Map<String, dynamic>.from(value);
+      final pageSize = _size(map) ?? inheritedSize;
+      final label = (map['label'] ?? map['block_label'] ?? map['type'] ?? '').toString().toLowerCase();
+      final box = _box(map['bbox'] ?? map['box'] ?? map['coordinate'] ?? map['poly']);
+      final text = (map['text'] ?? map['content'] ?? map['text_content'] ?? '').toString().trim();
+      if (box != null && text.isNotEmpty && !label.contains('header') && !label.contains('footer') && !label.contains('image')) {
+        final raw = pageSize == null ? box : Rect.fromLTWH(box.left / pageSize.width, box.top / pageSize.height, box.width / pageSize.width, box.height / pageSize.height);
+        final rect = Rect.fromLTRB(raw.left.clamp(0, 1).toDouble(), raw.top.clamp(0, 1).toDouble(), raw.right.clamp(0, 1).toDouble(), raw.bottom.clamp(0, 1).toDouble());
+        if (!rect.isEmpty) out.add(_PaddleBlock(rect, text));
+      }
+      for (final child in map.values) {
+        _collectBlocks(child, out, pageSize);
+      }
+    } else if (value is List) {
+      for (final child in value) {
+        _collectBlocks(child, out, inheritedSize);
+      }
+    }
   }
+
   Map<String, dynamic>? _map(dynamic value) => value is Map ? Map<String, dynamic>.from(value) : null;
   Size? _size(Map<String, dynamic> map) { final width = _number(map['pageWidth'] ?? map['width']); final height = _number(map['pageHeight'] ?? map['height']); return width != null && height != null && width > 1 && height > 1 ? Size(width, height) : null; }
   double? _number(dynamic value) => value is num ? value.toDouble() : double.tryParse('$value');
   Rect? _box(dynamic value) { if (value is! List || value.isEmpty) return null; final n = value.map(_number).toList(); if (n.length >= 4 && n.take(4).every((x) => x != null)) return Rect.fromLTRB(n[0]!, n[1]!, n[2]!, n[3]!); if (value.first is List) { final points = value.whereType<List>().map((p) => p.length >= 2 ? Offset(_number(p[0]) ?? 0, _number(p[1]) ?? 0) : null).whereType<Offset>().toList(); if (points.isNotEmpty) return Rect.fromPoints(Offset(points.map((p) => p.dx).reduce((a,b) => a < b ? a : b), points.map((p) => p.dy).reduce((a,b) => a < b ? a : b)), Offset(points.map((p) => p.dx).reduce((a,b) => a > b ? a : b), points.map((p) => p.dy).reduce((a,b) => a > b ? a : b))); } return null; }
+}
+
+
+class _PaddleBlock {
+  const _PaddleBlock(this.rect, this.text);
+  final Rect rect;
+  final String text;
 }
