@@ -11,6 +11,7 @@ import 'package:smart_wrong_notebook/src/domain/repositories/review_log_reposito
 import 'package:smart_wrong_notebook/src/data/services/capture_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/notification_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/ocr_service.dart';
+import 'package:smart_wrong_notebook/src/data/services/question_region_crop_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
@@ -57,6 +58,12 @@ final Provider<ImageStorageService> imageStorageServiceProvider =
 
 final Provider<OcrService> ocrServiceProvider = Provider<OcrService>((ref) {
   return OcrService();
+});
+
+final Provider<QuestionRegionCropService> questionRegionCropServiceProvider =
+    Provider<QuestionRegionCropService>((ref) {
+  return QuestionRegionCropService(
+      storage: ref.read(imageStorageServiceProvider));
 });
 
 final Provider<QuestionSplitService> questionSplitServiceProvider =

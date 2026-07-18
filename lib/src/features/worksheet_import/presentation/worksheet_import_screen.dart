@@ -104,6 +104,14 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                   onTap: () => _startPage(entry.value),
                 )),
             const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () => _startRegionEditor(pages),
+              icon: const Icon(CupertinoIcons.square_on_square),
+              label: Text('整页框选多题（${_selected.length} 页）'),
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48)),
+            ),
+            const SizedBox(height: 8),
             FilledButton.icon(
               onPressed: _selected.isEmpty ? null : () => _startFirstSelected(pages),
               icon: const Icon(CupertinoIcons.crop),
@@ -119,6 +127,13 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         ),
       ),
     );
+  }
+
+  void _startRegionEditor(List<QuestionRecord> pages) {
+    if (_selected.isEmpty) return;
+    final index = _selected.reduce((a, b) => a < b ? a : b);
+    ref.read(currentQuestionProvider.notifier).state = pages[index];
+    context.go('/worksheet/regions');
   }
 
   void _startFirstSelected(List<QuestionRecord> pages) {
