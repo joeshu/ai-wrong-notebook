@@ -16,7 +16,6 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final questionsAsync = ref.watch(questionListProvider);
-    final dueAsync = ref.watch(dueReviewProvider);
     final todayPlanAsync = ref.watch(todayReviewPlanProvider);
     final mistakeStatsAsync = ref.watch(mistakeCategoryStatsProvider);
 
@@ -24,42 +23,57 @@ class HomeScreen extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         children: <Widget>[
-          Text(
-            '开始拍错题',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: () => showModalBottomSheet<void>(
-              context: context,
-              builder: (_) => const CaptureEntrySheet(),
-            ),
-            icon: const Icon(CupertinoIcons.camera),
-            label: const Text('拍照录题'),
-            style: FilledButton.styleFrom(
-                minimumSize: const Size(double.infinity, 52)),
-          ),
-          const SizedBox(height: 20),
-          dueAsync.when(
-            data: (due) => due.isNotEmpty
-                ? _ReviewBanner(
-                    count: due.length, onTap: () => context.go('/review'))
-                : const SizedBox.shrink(),
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text('今天，开始学习',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    Text('先完成计划，再记录新的错题',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              Material(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    builder: (_) => const CaptureEntrySheet(),
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  child: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Icon(CupertinoIcons.camera),
+                  ),
+                ),
+              ),
+            ],
           ),
           todayPlanAsync.when(
             data: (plan) => Padding(
-              padding: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.only(top: 16),
               child: _TodayPlanCard(
                 plan: plan,
                 onOpenReview: () => context.go('/review'),
+                onCapture: () => showModalBottomSheet<void>(
+                  context: context,
+                  builder: (_) => const CaptureEntrySheet(),
+                ),
               ),
             ),
-            loading: () => const SizedBox.shrink(),
+            loading: () => const SizedBox(height: 156),
             error: (_, __) => const SizedBox.shrink(),
           ),
           const SizedBox(height: 20),
@@ -77,7 +91,15 @@ class HomeScreen extends ConsumerWidget {
                 ? const SizedBox.shrink()
                 : Padding(
                     padding: const EdgeInsets.only(top: 16),
-                    child: _MistakeCategorySummary(stats: stats),
+                    child: _MistakeCategorySummary(
+                      stats: stats,
+                      onSelect: (category) {
+                        ref
+                            .read(selectedMistakeCategoryFilterProvider.notifier)
+                            .state = category;
+                        context.go('/notebook');
+                      },
+                    ),
                   ),
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
@@ -247,10 +269,15 @@ class _StatCardSkeleton extends StatelessWidget {
 }
 
 class _TodayPlanCard extends StatelessWidget {
-  const _TodayPlanCard({required this.plan, required this.onOpenReview});
+  const _TodayPlanCard({
+    required this.plan,
+    required this.onOpenReview,
+    required this.onCapture,
+  });
 
   final TodayReviewPlan plan;
   final VoidCallback onOpenReview;
+  final VoidCallback onCapture;
 
   @override
   Widget build(BuildContext context) {
@@ -306,6 +333,25 @@ class _TodayPlanCard extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 12, color: colorScheme.onPrimaryContainer)),
             ],
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: target == 0 ? onCapture : onOpenReview,
+                    icon: Icon(target == 0
+                        ? CupertinoIcons.camera
+                        : CupertinoIcons.play_fill),
+                    label: Text(target == 0 ? '拍照录题' : '开始今日复习'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                OutlinedButton(
+                  onPressed: target == 0 ? null : onCapture,
+                  child: const Text('录入错题'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -314,9 +360,13 @@ class _TodayPlanCard extends StatelessWidget {
 }
 
 class _MistakeCategorySummary extends StatelessWidget {
-  const _MistakeCategorySummary({required this.stats});
+  const _MistakeCategorySummary({
+    required this.stats,
+    required this.onSelect,
+  });
 
   final Map<MistakeCategory, int> stats;
+  final ValueChanged<MistakeCategory> onSelect;
 
   @override
   Widget build(BuildContext context) {
@@ -341,8 +391,9 @@ class _MistakeCategorySummary extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: top
-                .map((entry) => Chip(
+                .map((entry) => ActionChip(
                       label: Text('${entry.key.label} ${entry.value} 题'),
+                      onPressed: () => onSelect(entry.key),
                     ))
                 .toList(),
           ),
@@ -493,79 +544,6 @@ class _RecentQuestionCard extends StatelessWidget {
             trailing: Icon(CupertinoIcons.chevron_right,
                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65)),
             onTap: onTap,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReviewBanner extends StatelessWidget {
-  const _ReviewBanner({required this.count, required this.onTap});
-
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    const orange = Color(0xFFF97316);
-
-    return Semantics(
-      button: true,
-      label: '待复习 $count 道错题，点击进入复习',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark
-                ? orange.withValues(alpha: 0.12)
-                : const Color(0xFFFFF7ED),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-                color: isDark
-                    ? orange.withValues(alpha: 0.35)
-                    : const Color(0xFFFED7AA)),
-          ),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? orange.withValues(alpha: 0.18)
-                      : const Color(0xFFFFEDD5),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: const Icon(CupertinoIcons.arrow_2_circlepath,
-                    color: Color(0xFFF97316), size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text('待复习',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onSurface)),
-                    Text('$count 道错题等待巩固',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: isDark
-                                ? colorScheme.onSurfaceVariant
-                                : const Color(0xFFC2410C))),
-                  ],
-                ),
-              ),
-              const Icon(CupertinoIcons.chevron_right,
-                  color: Color(0xFFF97316), size: 22),
-            ],
           ),
         ),
       ),

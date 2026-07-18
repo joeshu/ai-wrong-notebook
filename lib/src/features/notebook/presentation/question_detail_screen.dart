@@ -219,6 +219,12 @@ class QuestionDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          _LearningProfileCard(
+            question: current,
+            onToggleFavorite: () => _toggleFavorite(context, ref, current),
+            onEditSource: () => _editSource(context, ref, current),
+          ),
           if (batchGroup != null) ...<Widget>[
             const SizedBox(height: 12),
             _BatchSiblingCard(
@@ -891,6 +897,134 @@ class QuestionDetailScreen extends ConsumerWidget {
     };
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+class _LearningProfileCard extends StatelessWidget {
+  const _LearningProfileCard({
+    required this.question,
+    required this.onToggleFavorite,
+    required this.onEditSource,
+  });
+
+  final QuestionRecord question;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback onEditSource;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final category = question.mistakeCategory?.label ?? '未分类';
+    final nextReview = question.nextReviewAt == null
+        ? '待安排'
+        : _formatProfileDate(question.nextReviewAt!);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('学习档案',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: <Widget>[
+              _ProfileItem(
+                  icon: CupertinoIcons.exclamationmark_triangle,
+                  label: '错因',
+                  value: category),
+              _ProfileItem(
+                  icon: CupertinoIcons.clock,
+                  label: '下次复习',
+                  value: nextReview),
+              _ProfileAction(
+                icon: question.isFavorite
+                    ? CupertinoIcons.star_fill
+                    : CupertinoIcons.star,
+                label: question.isFavorite ? '已收藏' : '收藏',
+                onTap: onToggleFavorite,
+              ),
+              _ProfileAction(
+                icon: CupertinoIcons.folder,
+                label: question.source ?? '设置来源',
+                onTap: onEditSource,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatProfileDate(DateTime value) {
+  final date = value.toLocal();
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '$month-$day ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+}
+
+class _ProfileItem extends StatelessWidget {
+  const _ProfileItem({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
+          Icon(icon, size: 15),
+          const SizedBox(width: 5),
+          Text('$label：$value', style: const TextStyle(fontSize: 12)),
+        ]),
+      );
+}
+
+class _ProfileAction extends StatelessWidget {
+  const _ProfileAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
+            Icon(icon, size: 15),
+            const SizedBox(width: 5),
+            Text(label, style: const TextStyle(fontSize: 12)),
+          ]),
+        ),
+      );
 }
 
 class _MistakeCategoryCard extends StatelessWidget {

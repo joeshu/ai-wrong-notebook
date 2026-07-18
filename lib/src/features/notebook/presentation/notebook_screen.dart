@@ -283,6 +283,31 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                   },
                 ),
                 const SizedBox(width: 8),
+                _Chip(
+                  label: '待复习',
+                  selected: dueOnly,
+                  onTap: () => ref.read(dueOnlyFilterProvider.notifier).state =
+                      !dueOnly,
+                ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: '收藏',
+                  selected: favoritesOnly,
+                  onTap: () => ref
+                      .read(favoritesOnlyFilterProvider.notifier)
+                      .state = !favoritesOnly,
+                ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: '近7天',
+                  selected: dateRange == QuestionDateRange.last7Days,
+                  onTap: () => ref
+                      .read(questionDateRangeProvider.notifier)
+                      .state = dateRange == QuestionDateRange.last7Days
+                      ? QuestionDateRange.all
+                      : QuestionDateRange.last7Days,
+                ),
+                const SizedBox(width: 8),
                 ...Subject.values.map((s) => Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: _Chip(
