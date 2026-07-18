@@ -243,10 +243,10 @@ class _QuestionSaveConfirmationScreenState
                     final remaining = worksheet.pages
                         .where((page) => page.id != current.id)
                         .toList();
-                    ref.read(currentWorksheetImportProvider.notifier).state =
-                        remaining.isEmpty
-                            ? null
-                            : worksheet.copyWith(pages: remaining);
+                    await persistWorksheetImport(
+                      ref,
+                      remaining.isEmpty ? null : worksheet.copyWith(pages: remaining),
+                    );
                   }
                   ref.read(currentQuestionProvider.notifier).state = null;
                   if (!mounted) return;

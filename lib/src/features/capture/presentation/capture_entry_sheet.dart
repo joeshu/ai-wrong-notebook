@@ -156,12 +156,14 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (pages.isEmpty) return;
-      ref.read(currentWorksheetImportProvider.notifier).state =
-          WorksheetImportSession(
-        id: const Uuid().v4(),
-        pages: pages,
-        sourcePageIds: pages.map((page) => page.id).toSet(),
-        createdAt: DateTime.now(),
+      await persistWorksheetImport(
+        ref,
+        WorksheetImportSession(
+          id: const Uuid().v4(),
+          pages: pages,
+          sourcePageIds: pages.map((page) => page.id).toSet(),
+          createdAt: DateTime.now(),
+        ),
       );
       Navigator.pop(context);
       router.go('/worksheet/import');

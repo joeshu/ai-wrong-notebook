@@ -123,7 +123,7 @@ class _WorksheetRegionEditorScreenState
       if (worksheet != null) {
         final next = worksheet.pages.where((item) => item.id != source.id).toList()
           ..addAll(candidates);
-        ref.read(currentWorksheetImportProvider.notifier).state = worksheet.copyWith(pages: next);
+        await persistWorksheetImport(ref, worksheet.copyWith(pages: next));
       }
       ref.read(currentQuestionProvider.notifier).state = candidates.first;
       if (mounted) context.go('/analysis/loading');

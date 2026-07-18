@@ -25,6 +25,16 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
   bool _selectionInitialized = false;
 
   @override
+  void initState() {
+    super.initState();
+    Future<void>(() async {
+      if (ref.read(currentWorksheetImportProvider) == null) {
+        await restoreWorksheetImport(ref);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final session = ref.watch(currentWorksheetImportProvider);
     final autoAnalyzing = ref.watch(worksheetAutoAnalyzeProvider);
@@ -57,8 +67,8 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         title: const Text('试卷批量导入'),
         leading: IconButton(
           icon: const Icon(CupertinoIcons.chevron_left),
-          onPressed: () {
-            ref.read(currentWorksheetImportProvider.notifier).state = null;
+          onPressed: () async {
+            await persistWorksheetImport(ref, null);
             ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
             context.go('/');
           },
@@ -176,10 +186,12 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
       invalidateQuestionList(ref);
       final worksheet = ref.read(currentWorksheetImportProvider);
       if (worksheet != null) {
-        ref.read(currentWorksheetImportProvider.notifier).state =
-            worksheet.copyWith(pages: worksheet.pages
-                .where((page) => !ready.any((item) => item.id == page.id))
-                .toList());
+        await persistWorksheetImport(
+          ref,
+          worksheet.copyWith(pages: worksheet.pages
+              .where((page) => !ready.any((item) => item.id == page.id))
+              .toList()),
+        );
       }
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('已批量保存 ${ready.length} 道题到错题本')));

@@ -6,6 +6,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_settings_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/repositories/review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/data/services/capture_service.dart';
@@ -31,6 +32,9 @@ final Provider<QuestionRepository> questionRepositoryProvider =
     Provider<QuestionRepository>((ref) {
   return SharedPrefsQuestionRepository();
 });
+
+final Provider<WorksheetImportRepository> worksheetImportRepositoryProvider =
+    Provider<WorksheetImportRepository>((ref) => WorksheetImportRepository());
 
 final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((ref) {
@@ -114,6 +118,23 @@ final StateProvider<QuestionSplitSession?> currentQuestionSplitSessionProvider =
 /// Persistence/queueing is intentionally added in the next import slice.
 final StateProvider<WorksheetImportSession?> currentWorksheetImportProvider =
     StateProvider<WorksheetImportSession?>((ref) => null);
+
+Future<WorksheetImportSession?> restoreWorksheetImport(Ref ref) async {
+  final restored = await ref.read(worksheetImportRepositoryProvider).load();
+  ref.read(currentWorksheetImportProvider.notifier).state = restored;
+  return restored;
+}
+
+Future<void> persistWorksheetImport(
+    Ref ref, WorksheetImportSession? session) async {
+  final repository = ref.read(worksheetImportRepositoryProvider);
+  if (session == null) {
+    await repository.clear();
+  } else {
+    await repository.save(session);
+  }
+  ref.read(currentWorksheetImportProvider.notifier).state = session;
+}
 
 /// Whether the worksheet importer should continue through remaining question
 /// candidates without opening a result page after every successful analysis.
