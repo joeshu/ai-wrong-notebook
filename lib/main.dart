@@ -16,9 +16,13 @@ import 'package:smart_wrong_notebook/src/features/settings/presentation/settings
 import 'package:smart_wrong_notebook/src/features/settings/presentation/provider_config_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/prompt_settings_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/layout_provider_config_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/data_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/question_correction_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/image_crop_screen.dart';
+import 'package:smart_wrong_notebook/src/features/notebook/presentation/worksheet_workbench_screen.dart';
+import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_import_screen.dart';
+import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_region_editor_screen.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/question_save_confirmation_screen.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/question_split_confirmation_screen.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_loading_screen.dart';
@@ -73,6 +77,9 @@ void main() async {
                     path: 'prompts',
                     builder: (_, __) => const PromptSettingsScreen()),
                 GoRoute(
+                    path: 'layout',
+                    builder: (_, __) => const LayoutProviderConfigScreen()),
+                GoRoute(
                     path: 'data',
                     builder: (_, __) => const DataManagementScreen()),
               ],
@@ -80,6 +87,15 @@ void main() async {
           ]),
         ],
       ),
+      GoRoute(
+          path: '/worksheet/import',
+          builder: (context, state) => const WorksheetImportScreen()),
+      GoRoute(
+          path: '/worksheet/regions',
+          builder: (context, state) => const WorksheetRegionEditorScreen()),
+      GoRoute(
+          path: '/worksheet',
+          builder: (context, state) => const WorksheetWorkbenchScreen()),
       GoRoute(
           path: '/capture/crop',
           builder: (context, state) => const ImageCropScreen()),
