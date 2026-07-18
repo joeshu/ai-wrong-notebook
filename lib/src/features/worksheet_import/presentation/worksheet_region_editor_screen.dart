@@ -1114,6 +1114,7 @@ class _RecognizedQuestionWorkbenchState
               child: const Text('查看原文'),
             ),
             TextButton(
+              onPressed: () => widget.onUpdate(index, region.copyWith(
                 questionStem: original,
                 formulas: const <String>[],
                 tables: const <String>[],
