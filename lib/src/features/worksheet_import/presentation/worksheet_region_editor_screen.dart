@@ -764,6 +764,8 @@ class _RecognizedQuestionWorkbenchState
   ];
   int _selectedIndex = 0;
   _QuestionListFilter _filter = _QuestionListFilter.all;
+  final Set<String> _batchSelectedIds = <String>{};
+  Map<int, QuestionRegion>? _lastBatchBefore;
 
   @override
   void didUpdateWidget(covariant _RecognizedQuestionWorkbench oldWidget) {
@@ -813,6 +815,7 @@ class _RecognizedQuestionWorkbenchState
             _filterChip('已忽略 $ignoredCount', _QuestionListFilter.ignored),
           ]),
         ),
+        if (_batchSelectedIds.isNotEmpty || _lastBatchBefore != null) _batchActionBar(),
         const Divider(height: 1),
         Expanded(
           child: LayoutBuilder(builder: (context, constraints) {
@@ -866,6 +869,54 @@ class _RecognizedQuestionWorkbenchState
     }
     return risks;
   }
+
+  void _toggleBatchSelection(String id) => setState(() {
+    if (!_batchSelectedIds.add(id)) _batchSelectedIds.remove(id);
+  });
+
+  void _applyBatch(QuestionRegion Function(QuestionRegion region) transform) {
+    if (_batchSelectedIds.isEmpty) return;
+    setState(() {
+      _lastBatchBefore = <int, QuestionRegion>{
+        for (var index = 0; index < widget.regions.length; index++)
+          if (_batchSelectedIds.contains(widget.regions[index].id)) index: widget.regions[index],
+      };
+      for (final entry in _lastBatchBefore!.entries) {
+        widget.onUpdate(entry.key, transform(entry.value));
+      }
+      _batchSelectedIds.clear();
+    });
+  }
+
+  void _undoBatch() {
+    final before = _lastBatchBefore;
+    if (before == null) return;
+    setState(() {
+      for (final entry in before.entries) widget.onUpdate(entry.key, entry.value);
+      _lastBatchBefore = null;
+    });
+  }
+
+  Widget _batchActionBar() => Container(
+      padding: const EdgeInsets.fromLTRB(12, 5, 12, 7),
+      color: const Color(0xFFF0F9FF),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: <Widget>[
+          Text('已选 ${_batchSelectedIds.length} 题', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 8),
+          OutlinedButton(onPressed: () => _applyBatch((item) => item.copyWith(analyzeWithAi: true, reviewStatus: QuestionRegionReviewStatus.accepted)), child: const Text('采用 + AI')),
+          const SizedBox(width: 6),
+          OutlinedButton(onPressed: () => _applyBatch((item) => item.copyWith(analyzeWithAi: false, reviewStatus: QuestionRegionReviewStatus.accepted)), child: const Text('仅 OCR')),
+          const SizedBox(width: 6),
+          OutlinedButton(onPressed: () => _applyBatch((item) => item.copyWith(reviewStatus: QuestionRegionReviewStatus.ignored)), child: const Text('批量忽略')),
+          if (_lastBatchBefore != null) ...<Widget>[
+            const SizedBox(width: 6),
+            TextButton.icon(onPressed: _undoBatch, icon: const Icon(CupertinoIcons.arrow_uturn_left, size: 15), label: const Text('撤销本次')),
+          ],
+        ]),
+      ),
+    );
 
   Widget _filterChip(String label, _QuestionListFilter filter, {bool warning = false}) =>
       Padding(
@@ -934,6 +985,17 @@ class _RecognizedQuestionWorkbenchState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Row(children: <Widget>[
+                        GestureDetector(
+                          onTap: () => _toggleBatchSelection(item.id),
+                          child: Icon(_batchSelectedIds.contains(item.id)
+                              ? CupertinoIcons.checkmark_square_fill
+                              : CupertinoIcons.square,
+                              size: 16,
+                              color: _batchSelectedIds.contains(item.id)
+                                  ? Theme.of(context).colorScheme.primary
+                                  : const Color(0xFF64748B)),
+                        ),
+                        const SizedBox(width: 4),
                         Expanded(child: Text('第 ${item.detectedNumber ?? itemIndex + 1} 题', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
                         Icon(ignored ? CupertinoIcons.minus_circle_fill : item.analyzeWithAi ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.doc_text, size: 14, color: ignored ? const Color(0xFF64748B) : item.analyzeWithAi ? const Color(0xFF16A34A) : const Color(0xFF2563EB)),
                       ]),
