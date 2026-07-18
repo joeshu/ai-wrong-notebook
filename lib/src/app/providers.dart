@@ -115,6 +115,11 @@ final StateProvider<QuestionSplitSession?> currentQuestionSplitSessionProvider =
 final StateProvider<WorksheetImportSession?> currentWorksheetImportProvider =
     StateProvider<WorksheetImportSession?>((ref) => null);
 
+/// Whether the worksheet importer should continue through remaining question
+/// candidates without opening a result page after every successful analysis.
+final StateProvider<bool> worksheetAutoAnalyzeProvider =
+    StateProvider<bool>((ref) => false);
+
 Future<QuestionSplitSession> buildQuestionSplitSession(
   QuestionRecord source, {
   QuestionSplitService splitter = const QuestionSplitService(),

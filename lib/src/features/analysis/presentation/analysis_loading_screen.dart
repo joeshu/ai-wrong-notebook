@@ -249,6 +249,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
 
       if (mounted) {
         _stepTimer?.cancel();
+        if (_continueWorksheetQueue(updated)) return;
         context.go('/analysis/result');
       }
     } on AiAnalysisException catch (e) {
@@ -264,12 +265,33 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         // 持久化异常不能掩盖原始 AI 错误；错误页仍保留重试入口。
       }
       if (mounted) {
+        if (_continueWorksheetQueue(failedDraft)) return;
         setState(() {
           _errorMessage = '${e.toString()}\n\n原图和已校对题干已保存到错题本，可稍后重试或手动补充。';
           _debugInfo = debugInfo;
         });
       }
     }
+  }
+
+  bool _continueWorksheetQueue(QuestionRecord completed) {
+    if (!ref.read(worksheetAutoAnalyzeProvider)) return false;
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet == null || worksheet.sourcePageIds.contains(completed.id)) {
+      ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
+      return false;
+    }
+    final next = worksheet.pages.where((item) =>
+        !worksheet.sourcePageIds.contains(item.id) &&
+        item.contentStatus == ContentStatus.processing &&
+        item.id != completed.id).toList();
+    if (next.isEmpty) {
+      ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
+      return false;
+    }
+    ref.read(currentQuestionProvider.notifier).state = next.first;
+    context.go('/analysis/loading');
+    return true;
   }
 
   void _replaceWorksheetQueueItem(QuestionRecord record) {

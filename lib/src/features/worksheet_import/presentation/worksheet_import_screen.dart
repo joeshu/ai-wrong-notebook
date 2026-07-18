@@ -27,6 +27,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(currentWorksheetImportProvider);
+    final autoAnalyzing = ref.watch(worksheetAutoAnalyzeProvider);
     if (session == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('试卷批量导入')),
@@ -58,6 +59,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
           icon: const Icon(CupertinoIcons.chevron_left),
           onPressed: () {
             ref.read(currentWorksheetImportProvider.notifier).state = null;
+            ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
             context.go('/');
           },
         ),
@@ -123,16 +125,41 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                   color: const Color(0xFFEEF2FF),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(children: <Widget>[
-                  const Icon(CupertinoIcons.clock, color: Color(0xFF4F46E5)),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text('待分析 ${queuedQuestions.length} 道 · 已完成 $readyCount 道${failedCount > 0 ? ' · 失败 $failedCount 道（已保留草稿）' : ''}。')),
-                  TextButton(
-                    onPressed: () => _startQueuedQuestion(queuedQuestions
-                        .firstWhere((item) => item.contentStatus != ContentStatus.ready,
-                            orElse: () => queuedQuestions.first)),
-                    child: Text(readyCount == queuedQuestions.length ? '查看' : '开始'),
-                  ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                  Row(children: <Widget>[
+                    const Icon(CupertinoIcons.clock, color: Color(0xFF4F46E5)),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text('待分析 ${queuedQuestions.length} 道 · 已完成 $readyCount 道${failedCount > 0 ? ' · 失败 $failedCount 道（已保留草稿）' : ''}。')),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(children: <Widget>[
+                    TextButton(
+                      onPressed: autoAnalyzing
+                          ? null
+                          : () => _startQueuedQuestion(queuedQuestions
+                              .firstWhere((item) => item.contentStatus != ContentStatus.ready,
+                                  orElse: () => queuedQuestions.first)),
+                      child: Text(readyCount == queuedQuestions.length ? '查看结果' : '单题开始'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: autoAnalyzing || readyCount == queuedQuestions.length
+                          ? null
+                          : () => _startAllQueuedQuestions(queuedQuestions),
+                      icon: Icon(autoAnalyzing
+                          ? CupertinoIcons.pause_circle
+                          : CupertinoIcons.play_circle),
+                      label: Text(autoAnalyzing ? '正在自动处理' : '开始全部'),
+                    ),
+                    if (autoAnalyzing) ...<Widget>[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        tooltip: '停止自动处理',
+                        onPressed: () => ref.read(worksheetAutoAnalyzeProvider.notifier).state = false,
+                        icon: const Icon(CupertinoIcons.stop_circle),
+                      ),
+                    ],
+                  ]),
                 ]),
               ),
             if (queuedQuestions.isNotEmpty) const SizedBox(height: 12),
@@ -159,6 +186,19 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         ),
       ),
     );
+  }
+
+  void _startAllQueuedQuestions(List<QuestionRecord> queuedQuestions) {
+    final next = queuedQuestions.firstWhere(
+      (item) => item.contentStatus != ContentStatus.ready &&
+          item.contentStatus != ContentStatus.failed,
+      orElse: () => queuedQuestions.firstWhere(
+        (item) => item.contentStatus != ContentStatus.ready,
+        orElse: () => queuedQuestions.first,
+      ),
+    );
+    ref.read(worksheetAutoAnalyzeProvider.notifier).state = true;
+    _startQueuedQuestion(next);
   }
 
   void _startQueuedQuestion(QuestionRecord question) {
