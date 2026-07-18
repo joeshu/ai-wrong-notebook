@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 
 /// Phase 1 worksheet importer: imports multiple pages and deliberately routes
@@ -32,7 +33,18 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         body: const Center(child: Text('未找到待导入的试卷页面')),
       );
     }
-    final pages = session.pages;
+    final pages = session.pages
+        .where((page) => session.sourcePageIds.contains(page.id))
+        .toList();
+    final queuedQuestions = session.pages
+        .where((page) => !session.sourcePageIds.contains(page.id))
+        .toList();
+    final readyCount = queuedQuestions
+        .where((item) => item.contentStatus == ContentStatus.ready)
+        .length;
+    final failedCount = queuedQuestions
+        .where((item) => item.contentStatus == ContentStatus.failed)
+        .length;
     if (!_selectionInitialized && pages.isNotEmpty) {
       _selected.addAll(List<int>.generate(pages.length, (i) => i));
       _selectionInitialized = true;
@@ -104,6 +116,26 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                   onTap: () => _startPage(entry.value),
                 )),
             const SizedBox(height: 16),
+            if (queuedQuestions.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(children: <Widget>[
+                  const Icon(CupertinoIcons.clock, color: Color(0xFF4F46E5)),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text('待分析 ${queuedQuestions.length} 道 · 已完成 $readyCount 道${failedCount > 0 ? ' · 失败 $failedCount 道（已保留草稿）' : ''}。')),
+                  TextButton(
+                    onPressed: () => _startQueuedQuestion(queuedQuestions
+                        .firstWhere((item) => item.contentStatus != ContentStatus.ready,
+                            orElse: () => queuedQuestions.first)),
+                    child: Text(readyCount == queuedQuestions.length ? '查看' : '开始'),
+                  ),
+                ]),
+              ),
+            if (queuedQuestions.isNotEmpty) const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () => _startRegionEditor(pages),
               icon: const Icon(CupertinoIcons.square_on_square),
@@ -127,6 +159,11 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         ),
       ),
     );
+  }
+
+  void _startQueuedQuestion(QuestionRecord question) {
+    ref.read(currentQuestionProvider.notifier).state = question;
+    context.go('/analysis/loading');
   }
 
   void _startRegionEditor(List<QuestionRecord> pages) {

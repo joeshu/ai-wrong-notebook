@@ -160,6 +160,7 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
           WorksheetImportSession(
         id: const Uuid().v4(),
         pages: pages,
+        sourcePageIds: pages.map((page) => page.id).toSet(),
         createdAt: DateTime.now(),
       );
       Navigator.pop(context);

@@ -245,6 +245,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         }).toList(),
       );
       ref.read(currentQuestionProvider.notifier).state = updated;
+      _replaceWorksheetQueueItem(updated);
 
       if (mounted) {
         _stepTimer?.cancel();
@@ -257,6 +258,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       try {
         await ref.read(questionRepositoryProvider).saveDraft(failedDraft);
         ref.read(currentQuestionProvider.notifier).state = failedDraft;
+        _replaceWorksheetQueueItem(failedDraft);
         invalidateQuestionList(ref);
       } catch (_) {
         // 持久化异常不能掩盖原始 AI 错误；错误页仍保留重试入口。
@@ -268,6 +270,18 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         });
       }
     }
+  }
+
+  void _replaceWorksheetQueueItem(QuestionRecord record) {
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet == null || worksheet.sourcePageIds.contains(record.id)) {
+      return;
+    }
+    final next = worksheet.pages
+        .map((item) => item.id == record.id ? record : item)
+        .toList();
+    ref.read(currentWorksheetImportProvider.notifier).state =
+        worksheet.copyWith(pages: next);
   }
 
   Future<QuestionRecord?> _findReusableLocalAnalysis(QuestionRecord current) async {
