@@ -99,6 +99,15 @@ class _WorksheetRegionEditorScreenState
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
           ),
+          if (_regions.any((region) => (region.recognizedText ?? '').trim().isNotEmpty))
+            SizedBox(
+              height: 112,
+              child: _RecognizedQuestionStrip(
+                regions: _regions,
+                onEdit: _editRecognizedText,
+                onIgnore: (index) => setState(() => _regions.removeAt(index)),
+              ),
+            ),
           Expanded(
             child: LayoutBuilder(builder: (context, constraints) {
               final size = Size(constraints.maxWidth, constraints.maxHeight);
@@ -256,6 +265,43 @@ class _WorksheetRegionEditorScreenState
     } finally {
       if (mounted) setState(() => _isDetecting = false);
     }
+  }
+
+  Future<void> _editRecognizedText(int index) async {
+    final region = _regions[index];
+    final controller = TextEditingController(text: region.recognizedText ?? '');
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('编辑第 ${region.detectedNumber ?? index + 1} 题文字'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: controller,
+            minLines: 5,
+            maxLines: 10,
+            decoration: const InputDecoration(
+              hintText: '可校对文字、公式 LaTex 与表格 Markdown',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('采用文字')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (saved == null || !mounted) return;
+    setState(() {
+      _regions[index] = region.copyWith(
+        recognizedText: saved,
+        contentFormatHint: saved.contains(r'$') || saved.contains(r'\\')
+            ? 'latexMixed'
+            : 'plain',
+      );
+    });
   }
 
   Future<void> _cropAndQueue(QuestionRecord source) async {
@@ -586,4 +632,81 @@ class _RegionQuality {
     final union = a.width * a.height + b.width * b.height - intersection;
     return union <= 0 ? 0 : intersection / union;
   }
+}
+
+
+class _RecognizedQuestionStrip extends StatelessWidget {
+  const _RecognizedQuestionStrip({
+    required this.regions,
+    required this.onEdit,
+    required this.onIgnore,
+  });
+  final List<QuestionRegion> regions;
+  final ValueChanged<int> onEdit;
+  final ValueChanged<int> onIgnore;
+
+  @override
+  Widget build(BuildContext context) {
+    final recognizable = regions.asMap().entries
+        .where((entry) => (entry.value.recognizedText ?? '').trim().isNotEmpty)
+        .toList();
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      itemCount: recognizable.length,
+      separatorBuilder: (_, __) => const SizedBox(width: 8),
+      itemBuilder: (context, position) {
+        final entry = recognizable[position];
+        final index = entry.key;
+        final region = entry.value;
+        final text = region.recognizedText!.replaceAll(RegExp(r'\s+'), ' ');
+        return SizedBox(
+          width: 255,
+          child: Card(
+            margin: EdgeInsets.zero,
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 8, 8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                Row(children: <Widget>[
+                  Text('第 ${region.detectedNumber ?? index + 1} 题', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 6),
+                  if (region.contentFormatHint == 'latexMixed') const _MiniTypeTag('公式'),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: '忽略此题',
+                    onPressed: () => onIgnore(index),
+                    icon: const Icon(CupertinoIcons.xmark_circle, size: 19),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+                  ),
+                ]),
+                const SizedBox(height: 4),
+                Expanded(child: Text(text, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, height: 1.25))),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => onEdit(index),
+                    icon: const Icon(CupertinoIcons.pencil, size: 15),
+                    label: const Text('校对文字'),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MiniTypeTag extends StatelessWidget {
+  const _MiniTypeTag(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+    decoration: BoxDecoration(color: const Color(0xFFF5F3FF), borderRadius: BorderRadius.circular(4)),
+    child: Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6D28D9))),
+  );
 }
