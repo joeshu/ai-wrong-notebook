@@ -1141,6 +1141,44 @@ class _RecognizedQuestionWorkbenchState
     return lines.isEmpty ? const <String>[] : <String>[lines.join('\n')];
   }
 
+  void _applyBlocks(int index, QuestionRegion region, List<DocumentBlock> blocks) {
+    final text = blocks.where((block) => block.type == DocumentBlockType.text)
+        .map((block) => block.content).where((value) => value.trim().isNotEmpty).join('\n\n');
+    final formulas = blocks.where((block) => block.type == DocumentBlockType.formula)
+        .map((block) => block.content).where((value) => value.trim().isNotEmpty).toList();
+    final tables = blocks.where((block) => block.type == DocumentBlockType.table)
+        .map((block) => block.content).where((value) => value.trim().isNotEmpty).toList();
+    final combined = blocks.map((block) => block.content).where((value) => value.trim().isNotEmpty).join('\n\n');
+    widget.onUpdate(index, region.copyWith(
+      questionStem: text,
+      formulas: formulas,
+      tables: tables,
+      documentBlocks: blocks,
+      recognizedText: combined,
+      contentFormatHint: formulas.isEmpty ? 'plain' : 'latexMixed',
+    ));
+  }
+
+  void _openBlockEditor(BuildContext context, int index, QuestionRegion region) {
+    final blocks = region.documentBlocks.isEmpty
+        ? _orderedBlocks(region, _stemFor(region), _formulasFor(region), _tablesFor(region))
+        : region.documentBlocks;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (dialogContext) => FractionallySizedBox(
+        heightFactor: .88,
+        child: _DocumentBlockEditor(
+          initialBlocks: blocks,
+          onApply: (next) {
+            _applyBlocks(index, region, next);
+            Navigator.pop(dialogContext);
+          },
+        ),
+      ),
+    );
+  }
+
   List<DocumentBlock> _orderedBlocks(QuestionRegion region, String stem,
       List<String> formulas, List<String> tables) {
     if (region.documentBlocks.isEmpty) return <DocumentBlock>[
@@ -1290,6 +1328,15 @@ class _RecognizedQuestionWorkbenchState
               child: const Text('恢复识别原文'),
             ),
           ]),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => _openBlockEditor(context, index, region),
+            icon: const Icon(CupertinoIcons.list_bullet_indent, size: 16),
+            label: Text('按原始顺序编辑 ${region.documentBlocks.isEmpty ? '内容块' : '${region.documentBlocks.length} 个内容块'}'),
+          ),
+        ),
+        const SizedBox(height: 6),
         TextFormField(
           key: ValueKey('${region.id}-stem-$stem'),
           initialValue: stem,
@@ -1374,6 +1421,99 @@ class _RecognizedQuestionWorkbenchState
       ],
     );
   }
+}
+
+class _DocumentBlockEditor extends StatefulWidget {
+  const _DocumentBlockEditor({required this.initialBlocks, required this.onApply});
+  final List<DocumentBlock> initialBlocks;
+  final ValueChanged<List<DocumentBlock>> onApply;
+
+  @override
+  State<_DocumentBlockEditor> createState() => _DocumentBlockEditorState();
+}
+
+class _DocumentBlockEditorState extends State<_DocumentBlockEditor> {
+  late List<DocumentBlock> _blocks;
+
+  @override
+  void initState() {
+    super.initState();
+    _blocks = List<DocumentBlock>.from(widget.initialBlocks);
+  }
+
+  String _label(DocumentBlockType type) => switch (type) {
+    DocumentBlockType.text => '文字块',
+    DocumentBlockType.formula => '公式块',
+    DocumentBlockType.table => '表格块',
+  };
+
+  void _move(int index, int offset) => setState(() {
+    final target = index + offset;
+    if (target < 0 || target >= _blocks.length) return;
+    final block = _blocks.removeAt(index);
+    _blocks.insert(target, block);
+  });
+
+  void _add(DocumentBlockType type) => setState(() => _blocks.add(DocumentBlock(
+    type: type,
+    content: type == DocumentBlockType.formula ? r'$ $' : type == DocumentBlockType.table ? '|列1|列2|\n|---|---|\n|||': '',
+  )));
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('按原始顺序编辑内容块'),
+      actions: <Widget>[TextButton(onPressed: () => widget.onApply(_blocks), child: const Text('完成'))],
+    ),
+    body: Column(children: <Widget>[
+      const Padding(
+        padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Text('拖动顺序可通过上下按钮调整；删除空块或 OCR 误识别块。完成后会按这里的顺序重组题目。', style: TextStyle(fontSize: 12, color: Color(0xFF475569))),
+      ),
+      Expanded(child: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: _blocks.length,
+        itemBuilder: (context, index) {
+          final block = _blocks[index];
+          return Card(child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+              Row(children: <Widget>[
+                _MiniTypeTag(_label(block.type)),
+                const Spacer(),
+                IconButton(onPressed: index == 0 ? null : () => _move(index, -1), icon: const Icon(CupertinoIcons.arrow_up, size: 18)),
+                IconButton(onPressed: index == _blocks.length - 1 ? null : () => _move(index, 1), icon: const Icon(CupertinoIcons.arrow_down, size: 18)),
+                IconButton(onPressed: () => setState(() => _blocks.removeAt(index)), icon: const Icon(CupertinoIcons.trash, size: 18)),
+              ]),
+              TextFormField(
+                key: ValueKey('${block.type}-${index}-${block.content}'),
+                initialValue: block.content,
+                minLines: block.type == DocumentBlockType.table ? 3 : 2,
+                maxLines: 8,
+                onChanged: (value) => _blocks[index] = block.copyWith(content: value),
+                decoration: InputDecoration(
+                  isDense: true,
+                  labelText: _label(block.type),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              if (block.type == DocumentBlockType.table && block.content.trim().isNotEmpty) ...<Widget>[
+                const SizedBox(height: 6), _MarkdownTablePreview(block.content),
+              ],
+            ]),
+          ));
+        },
+      )),
+      SafeArea(child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Wrap(spacing: 8, runSpacing: 6, children: <Widget>[
+          OutlinedButton.icon(onPressed: () => _add(DocumentBlockType.text), icon: const Icon(CupertinoIcons.textformat, size: 16), label: const Text('添加文字')),
+          OutlinedButton.icon(onPressed: () => _add(DocumentBlockType.formula), icon: const Icon(CupertinoIcons.function, size: 16), label: const Text('添加公式')),
+          OutlinedButton.icon(onPressed: () => _add(DocumentBlockType.table), icon: const Icon(CupertinoIcons.table, size: 16), label: const Text('添加表格')),
+        ]),
+      )),
+    ]),
+  );
 }
 
 class _MarkdownTablePreview extends StatelessWidget {
