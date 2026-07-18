@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/data/services/custom_http_document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/data/services/mineru_document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/data/services/paddle_cloud_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
@@ -139,9 +141,15 @@ class _WorksheetRegionEditorScreenState
       final result = config.type == LayoutProviderType.customHttp
           ? await CustomHttpDocumentLayoutService(config)
               .detectQuestionRegions(imagePath: page.imagePath)
-          : await ref
-              .read(visionDocumentLayoutServiceProvider)
-              .detectQuestionRegions(imagePath: page.imagePath);
+          : config.type == LayoutProviderType.paddleCloud
+              ? await PaddleCloudDocumentLayoutService(config)
+                  .detectQuestionRegions(imagePath: page.imagePath)
+              : config.type == LayoutProviderType.mineruCloud
+                  ? await MineruDocumentLayoutService(config)
+                      .detectQuestionRegions(imagePath: page.imagePath)
+              : await ref
+                  .read(visionDocumentLayoutServiceProvider)
+                  .detectQuestionRegions(imagePath: page.imagePath);
       if (!mounted) return;
       setState(() {
         _regions

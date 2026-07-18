@@ -44,6 +44,18 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
           subtitle: const Text('零额外配置；复用 AI 服务商配置生成候选框。'),
         ),
         RadioListTile<LayoutProviderType>(
+          value: LayoutProviderType.paddleCloud, groupValue: _type,
+          onChanged: (v) => setState(() => _type = v!),
+          title: const Text('PaddleOCR AI Studio（PP-StructureV3）'),
+          subtitle: const Text('云端异步识别；Token 安全存储，不写入备份或日志。'),
+        ),
+        RadioListTile<LayoutProviderType>(
+          value: LayoutProviderType.mineruCloud, groupValue: _type,
+          onChanged: (v) => setState(() => _type = v!),
+          title: const Text('MinerU 精准解析（VLM）'),
+          subtitle: const Text('适合公式、多栏和复杂扫描试卷；按题号聚合为候选题框。'),
+        ),
+        RadioListTile<LayoutProviderType>(
           value: LayoutProviderType.customHttp, groupValue: _type,
           onChanged: (v) => setState(() => _type = v!),
           title: const Text('NAS / MinerU / 自定义 HTTP 服务'),
@@ -55,15 +67,21 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
           title: const Text('仅手动框选'),
           subtitle: const Text('不上传整页试卷到任何版面识别服务。'),
         ),
-        if (_type == LayoutProviderType.customHttp) ...<Widget>[
+        if (_type == LayoutProviderType.customHttp || _type == LayoutProviderType.paddleCloud || _type == LayoutProviderType.mineruCloud) ...<Widget>[
           const SizedBox(height: 16),
-          TextField(controller: _url, keyboardType: TextInputType.url,
-              decoration: const InputDecoration(labelText: '服务地址', hintText: 'http://nas.local:8000')),
-          const SizedBox(height: 12),
+          if (_type == LayoutProviderType.customHttp)
+            TextField(controller: _url, keyboardType: TextInputType.url,
+                decoration: const InputDecoration(labelText: '服务地址', hintText: 'http://nas.local:8000')),
+          if (_type == LayoutProviderType.customHttp) const SizedBox(height: 12),
           TextField(controller: _key, obscureText: true,
-              decoration: const InputDecoration(labelText: '访问令牌（可选）', hintText: 'Bearer Token 将安全存储')),
+              decoration: InputDecoration(
+                labelText: _type == LayoutProviderType.paddleCloud ? 'AI Studio Token' : _type == LayoutProviderType.mineruCloud ? 'MinerU Token' : '访问令牌（可选）',
+                hintText: _type == LayoutProviderType.paddleCloud ? 'PaddleOCR AI Studio Token 将安全存储' : _type == LayoutProviderType.mineruCloud ? '在 MinerU API 管理页面创建的 Token 将安全存储' : 'Bearer Token 将安全存储',
+              )),
           const SizedBox(height: 12),
-          const _ProtocolCard(),
+          if (_type == LayoutProviderType.customHttp) const _ProtocolCard()
+          else if (_type == LayoutProviderType.paddleCloud) const _PaddleCloudCard()
+          else const _MineruCloudCard(),
         ],
         const SizedBox(height: 24),
         FilledButton(
@@ -79,6 +97,10 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请填写 NAS 或云 API 服务地址')));
       return;
     }
+    if ((_type == LayoutProviderType.paddleCloud || _type == LayoutProviderType.mineruCloud) && _key.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_type == LayoutProviderType.mineruCloud ? '请填写 MinerU Token' : '请填写 PaddleOCR AI Studio Token')));
+      return;
+    }
     setState(() => _saving = true);
     await persistLayoutProviderConfig(ref, LayoutProviderConfig(type: _type, baseUrl: _url.text.trim(), apiKey: _key.text.trim()));
     if (!mounted) return;
@@ -87,7 +109,25 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
   }
 }
 
-class _ProtocolCard extends StatelessWidget {
+class _MineruCloudCard extends StatelessWidget {
+  const _MineruCloudCard();
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: const Color(0xFFF0FDFA), borderRadius: BorderRadius.circular(10)),
+    child: const Text('服务：MinerU 精准解析 API（VLM）\n应用会申请临时上传地址、上传当前整页图片并轮询解析任务，然后从结果 ZIP 的版面块按题号聚合候选题框。Token 仅使用系统安全存储；整页会上传至 MinerU。候选框必须由你确认后才会裁切入库。', style: TextStyle(fontSize: 12)),
+  );
+}
+
+  const _PaddleCloudCard();
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: const Color(0xFFF0FDFA), borderRadius: BorderRadius.circular(10)),
+    child: const Text('服务：PaddleOCR AI Studio · PP-StructureV3\n应用会上传当前整页图片并轮询异步任务；仅将候选框保留在本地。Token 使用系统安全存储，不会写入导出文件、备份或诊断日志。识别结果仍须人工确认后才能裁切入库。', style: TextStyle(fontSize: 12)),
+  );
+}
+
   const _ProtocolCard();
   @override
   Widget build(BuildContext context) => Container(
