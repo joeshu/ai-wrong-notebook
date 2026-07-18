@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -10,6 +11,7 @@ import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
 
@@ -252,6 +254,77 @@ class AiAnalysisService {
       debugPrint('[AiAnalysisService] Exception: $e');
       throw AiAnalysisException('测试失败: $e');
     }
+  }
+
+  /// Uses the configured vision-capable model to suggest question regions on
+  /// one worksheet page. The caller must still show them for user confirmation.
+  Future<List<QuestionRegion>> detectWorksheetQuestionRegions(
+      {required String imagePath}) async {
+    final config = await _requireConfig();
+    final bytes = await File(imagePath).readAsBytes();
+    final content = await _requestAiContentWithImage(
+      config: config,
+      systemPrompt: '你是试卷版面分析器。只返回 JSON，不要 Markdown。',
+      prompt: '''识别这张试卷图片中彼此独立的“大题”区域。返回格式：
+{"regions":[{"number":"1","x":0.05,"y":0.08,"width":0.9,"height":0.18,"confidence":0.9}],"warning":"可选提示"}
+规则：x/y/width/height 必须为 0~1 的归一化数字；每框包含题号、题干、选项及必要图形；共享材料和其子问尽量保留在同一框；不确定时降低 confidence；不要给答案或题目文字。''',
+      imageBytes: bytes,
+      maxTokens: 1800,
+      imageDetail: 'high',
+      temperature: 0.1,
+    );
+    return _parseWorksheetRegions(content);
+  }
+
+  List<QuestionRegion> _parseWorksheetRegions(String content) {
+    final raw = _extractJsonObject(content);
+    if (raw == null) throw AiAnalysisException('版面服务未返回可识别的 JSON 候选框');
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final items = decoded['regions'] as List? ?? const <dynamic>[];
+      final regions = <QuestionRegion>[];
+      for (var index = 0; index < items.length; index++) {
+        final item = items[index];
+        if (item is! Map) continue;
+        final x = _layoutNumber(item['x']);
+        final y = _layoutNumber(item['y']);
+        final width = _layoutNumber(item['width']);
+        final height = _layoutNumber(item['height']);
+        if (x == null || y == null || width == null || height == null) continue;
+        final left = x.clamp(0.0, 1.0).toDouble();
+        final top = y.clamp(0.0, 1.0).toDouble();
+        final safeWidth = width.clamp(0.0, 1.0 - left).toDouble();
+        final safeHeight = height.clamp(0.0, 1.0 - top).toDouble();
+        if (safeWidth < .10 || safeHeight < .06) continue;
+        regions.add(QuestionRegion(
+          id: 'vision-$index-${DateTime.now().microsecondsSinceEpoch}',
+          normalizedRect: Rect.fromLTWH(left, top, safeWidth, safeHeight),
+          detectedNumber: item['number']?.toString(),
+          confidence: (_layoutNumber(item['confidence']) ?? .5)
+              .clamp(0.0, 1.0).toDouble(),
+          source: QuestionRegionSource.layoutModel,
+        ));
+      }
+      if (regions.isEmpty) throw AiAnalysisException('未识别到有效题目框，请改为手动框选');
+      return regions;
+    } catch (e) {
+      if (e is AiAnalysisException) rethrow;
+      throw AiAnalysisException('候选题框解析失败：$e');
+    }
+  }
+
+  String? _extractJsonObject(String text) {
+    final fenced = RegExp(r'```(?:json)?\s*([\s\S]*?)```', caseSensitive: false)
+        .firstMatch(text);
+    final candidate = (fenced?.group(1) ?? text).trim();
+    final start = candidate.indexOf('{');
+    final end = candidate.lastIndexOf('}');
+    return start >= 0 && end > start ? candidate.substring(start, end + 1) : null;
+  }
+
+  double? _layoutNumber(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
   }
 
   /// 分析题目 - 图形题先直接读图解题，其他带图题保持先提取结构再分析。

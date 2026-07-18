@@ -26,6 +26,8 @@ class _WorksheetRegionEditorScreenState
     extends ConsumerState<WorksheetRegionEditorScreen> {
   final List<QuestionRegion> _regions = <QuestionRegion>[];
   bool _isCropping = false;
+  bool _isDetecting = false;
+  String? _detectionMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +50,23 @@ class _WorksheetRegionEditorScreenState
       body: SafeArea(
         child: Column(children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+            child: FilledButton.tonalIcon(
+              onPressed: _isCropping || _isDetecting
+                  ? null
+                  : () => _detectRegions(page),
+              icon: _isDetecting
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(CupertinoIcons.sparkles, size: 18),
+              label: Text(_isDetecting ? '正在识别候选题框...' : '使用当前 AI 识别候选题框'),
+            ),
+          ),
+          if (_detectionMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              child: Text(_detectionMessage!, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            ),
+          Padding(
             child: Text('拖动蓝色题框调整位置；拖动右下角圆点缩放；点击红色 × 删除。每个蓝框会裁成一张独立题图。自动识别题框将在后续版面服务接入后作为候选框提供。',
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
           ),
@@ -100,6 +118,30 @@ class _WorksheetRegionEditorScreenState
         ]),
       ),
     );
+  }
+
+  Future<void> _detectRegions(QuestionRecord page) async {
+    setState(() {
+      _isDetecting = true;
+      _detectionMessage = null;
+    });
+    try {
+      final result = await ref
+          .read(visionDocumentLayoutServiceProvider)
+          .detectQuestionRegions(imagePath: page.imagePath);
+      if (!mounted) return;
+      setState(() {
+        _regions
+          ..clear()
+          ..addAll(result.regions);
+        _detectionMessage = '已由${result.providerLabel}生成 ${result.regions.length} 个候选框，请逐一检查后确认裁切。';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _detectionMessage = '自动识别失败：$e。你仍可手动点击页面新增题框。');
+    } finally {
+      if (mounted) setState(() => _isDetecting = false);
+    }
   }
 
   Future<void> _cropAndQueue(QuestionRecord source) async {
