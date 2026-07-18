@@ -167,12 +167,31 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
           ? working.extractedQuestionText
           : working.correctedText;
 
-      final analysis = firstSuccessfulCandidate?.analysisResult ??
-          await service.analyzeExtractedQuestion(
+      AnalysisResult analysis;
+      if (firstSuccessfulCandidate != null) {
+        analysis = firstSuccessfulCandidate.analysisResult!;
+      } else {
+        try {
+          analysis = await service.analyzeExtractedQuestion(
             correctedText: textForAnalysis,
             subjectName: working.subject.name,
             imagePath: shouldUseImageForAnalysis ? working.imagePath : null,
           );
+        } on AiAnalysisException {
+          // 视觉模型失败时，已校对的文字题仍有可用价值。退回文本分析，
+          // 既减少一次失败阻断，也避免为纯文本题反复发送原图。
+          final fallbackText = working.correctedText.trim();
+          if (!shouldUseImageForAnalysis || fallbackText.isEmpty) rethrow;
+          if (mounted) {
+            setState(() => _progressText = '图片分析失败，正在改用文字解析...');
+          }
+          analysis = await service.analyzeExtractedQuestion(
+            correctedText: fallbackText,
+            subjectName: working.subject.name,
+            imagePath: null,
+          );
+        }
+      }
 
       if (firstSuccessfulCandidate == null &&
           analysis.reconstructedQuestionText.trim().isNotEmpty) {
