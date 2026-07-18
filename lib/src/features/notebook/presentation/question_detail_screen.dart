@@ -66,7 +66,7 @@ class QuestionDetailScreen extends ConsumerWidget {
                 value: 'learningContext',
                 child: Row(
                   children: [
-                    Icon(CupertinoIcons.person_text_rectangle, size: 20),
+                    Icon(CupertinoIcons.person_crop_circle, size: 20),
                     SizedBox(width: 8),
                     Text('编辑学习档案'),
                   ],
@@ -1068,7 +1068,7 @@ class _LearningProfileCard extends StatelessWidget {
                 onTap: onEditSource,
               ),
               _ProfileAction(
-                icon: CupertinoIcons.person_text_rectangle,
+                icon: CupertinoIcons.person_crop_circle,
                 label: question.learningStage ?? '学习档案',
                 onTap: onEditLearningContext,
               ),

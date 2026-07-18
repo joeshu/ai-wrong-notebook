@@ -19,7 +19,7 @@ class LearningContextCodec {
   static QuestionDifficulty? difficulty(Iterable<String> tags) =>
       _readEnum(tags, _difficultyPrefix, QuestionDifficulty.values);
 
-  static AttemptStatus attemptStatus(Iterable<String> tags) =>
+  static AttemptStatus? attemptStatus(Iterable<String> tags) =>
       _readEnum(tags, _attemptPrefix, AttemptStatus.values);
 
   static String? studentWork(Iterable<String> tags) =>
