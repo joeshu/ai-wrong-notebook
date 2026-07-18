@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
+import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
@@ -134,6 +135,10 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     final dateRange = ref.watch(questionDateRangeProvider);
     final selectedSource = ref.watch(selectedSourceFilterProvider);
     final sources = ref.watch(allSourcesProvider).valueOrNull ?? const <String>[];
+    final stages = ref.watch(allLearningStagesProvider).valueOrNull ?? const <String>[];
+    final selectedStage = ref.watch(selectedLearningStageFilterProvider);
+    final selectedDifficulty = ref.watch(selectedDifficultyFilterProvider);
+    final selectedAttemptStatus = ref.watch(selectedAttemptStatusFilterProvider);
     final sort = ref.watch(questionSortProvider);
     final selectedKnowledgePoint =
         ref.watch(selectedKnowledgePointFilterProvider);
@@ -259,6 +264,9 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                       !favoritesOnly &&
                       dateRange == QuestionDateRange.all &&
                       selectedSource == null &&
+                      selectedStage == null &&
+                      selectedDifficulty == null &&
+                      selectedAttemptStatus == null &&
                       sort == QuestionSort.newest &&
                       selectedKnowledgePoint == null,
                   onTap: () {
@@ -278,6 +286,9 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                     ref.read(questionDateRangeProvider.notifier).state =
                         QuestionDateRange.all;
                     ref.read(selectedSourceFilterProvider.notifier).state = null;
+                    ref.read(selectedLearningStageFilterProvider.notifier).state = null;
+                    ref.read(selectedDifficultyFilterProvider.notifier).state = null;
+                    ref.read(selectedAttemptStatusFilterProvider.notifier).state = null;
                     ref.read(questionSortProvider.notifier).state =
                         QuestionSort.newest;
                   },
@@ -344,6 +355,33 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                           ref.read(selectedSourceFilterProvider.notifier).state =
                               selectedSource == source ? null : source;
                         },
+                      ),
+                    )),
+                ...stages.map((stage) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _Chip(
+                        label: '年级：$stage',
+                        selected: selectedStage == stage,
+                        onTap: () => ref.read(selectedLearningStageFilterProvider.notifier).state =
+                            selectedStage == stage ? null : stage,
+                      ),
+                    )),
+                ...QuestionDifficulty.values.map((difficulty) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _Chip(
+                        label: _difficultyFilterLabel(difficulty),
+                        selected: selectedDifficulty == difficulty,
+                        onTap: () => ref.read(selectedDifficultyFilterProvider.notifier).state =
+                            selectedDifficulty == difficulty ? null : difficulty,
+                      ),
+                    )),
+                ...AttemptStatus.values.map((status) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _Chip(
+                        label: _attemptFilterLabel(status),
+                        selected: selectedAttemptStatus == status,
+                        onTap: () => ref.read(selectedAttemptStatusFilterProvider.notifier).state =
+                            selectedAttemptStatus == status ? null : status,
                       ),
                     )),
                 // AI 知识点过滤
@@ -780,3 +818,17 @@ class _QuestionCard extends StatelessWidget {
     return order == null ? '来自同一拍照批次' : '来自同一拍照批次 · 第 $order 题';
   }
 }
+
+String _difficultyFilterLabel(QuestionDifficulty value) => switch (value) {
+      QuestionDifficulty.foundation => '基础题',
+      QuestionDifficulty.advanced => '提高题',
+      QuestionDifficulty.challenge => '压轴题',
+      QuestionDifficulty.custom => '自定义层级',
+    };
+
+String _attemptFilterLabel(AttemptStatus value) => switch (value) {
+      AttemptStatus.notAttempted => '不会做',
+      AttemptStatus.wrongAttempt => '做错了',
+      AttemptStatus.incomplete => '未完成',
+      AttemptStatus.unknown => '作答未判断',
+    };

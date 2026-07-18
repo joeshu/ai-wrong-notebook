@@ -16,6 +16,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dar
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
+import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
@@ -392,6 +393,15 @@ final StateProvider<QuestionSort> questionSortProvider =
 final StateProvider<String?> selectedSourceFilterProvider =
     StateProvider<String?>((ref) => null);
 
+final StateProvider<String?> selectedLearningStageFilterProvider =
+    StateProvider<String?>((ref) => null);
+
+final StateProvider<QuestionDifficulty?> selectedDifficultyFilterProvider =
+    StateProvider<QuestionDifficulty?>((ref) => null);
+
+final StateProvider<AttemptStatus?> selectedAttemptStatusFilterProvider =
+    StateProvider<AttemptStatus?>((ref) => null);
+
 final StateProvider<String> searchQueryProvider =
     StateProvider<String>((ref) => '');
 
@@ -401,6 +411,14 @@ final StateProvider<String?> selectedKnowledgePointFilterProvider =
 // 多选标签过滤
 final StateProvider<List<String>> selectedTagsFilterProvider =
     StateProvider<List<String>>((ref) => []);
+
+final FutureProvider<List<String>> allLearningStagesProvider =
+    FutureProvider<List<String>>((ref) async {
+  ref.watch(_listVersionProvider);
+  final all = await ref.read(questionRepositoryProvider).listAll();
+  return all.map((question) => question.learningStage)
+      .whereType<String>().toSet().toList()..sort();
+});
 
 final FutureProvider<List<String>> allSourcesProvider =
     FutureProvider<List<String>>((ref) async {
@@ -441,6 +459,9 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
   final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
   final dateRange = ref.watch(questionDateRangeProvider);
   final source = ref.watch(selectedSourceFilterProvider);
+  final learningStage = ref.watch(selectedLearningStageFilterProvider);
+  final difficulty = ref.watch(selectedDifficultyFilterProvider);
+  final attemptStatus = ref.watch(selectedAttemptStatusFilterProvider);
   final sort = ref.watch(questionSortProvider);
   final query = ref.watch(searchQueryProvider).toLowerCase();
   final knowledgePoint = ref.watch(selectedKnowledgePointFilterProvider);
@@ -458,6 +479,9 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
     if (favoritesOnly && !q.isFavorite) return false;
     if (!_isWithinDateRange(q.createdAt, dateRange, now)) return false;
     if (source != null && q.source != source) return false;
+    if (learningStage != null && q.learningStage != learningStage) return false;
+    if (difficulty != null && q.difficulty != difficulty) return false;
+    if (attemptStatus != null && q.attemptStatus != attemptStatus) return false;
     if (query.isNotEmpty &&
         !q.normalizedQuestionText.toLowerCase().contains(query)) {
       return false;
