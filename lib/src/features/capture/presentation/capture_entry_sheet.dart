@@ -133,7 +133,8 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Future<void> _pickWorksheetPages() async {
