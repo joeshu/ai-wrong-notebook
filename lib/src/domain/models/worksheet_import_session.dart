@@ -14,4 +14,12 @@ class WorksheetImportSession {
   final DateTime createdAt;
 
   int get pageCount => pages.length;
+
+  WorksheetImportSession copyWith({List<QuestionRecord>? pages}) {
+    return WorksheetImportSession(
+      id: id,
+      pages: pages ?? this.pages,
+      createdAt: createdAt,
+    );
+  }
 }

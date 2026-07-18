@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 const _mathPreviewFormat = QuestionContentFormat.latexMixed;
@@ -550,6 +551,14 @@ class _QuestionSplitConfirmationScreenState
       final router = GoRouter.of(context);
       await ref.read(questionRepositoryProvider).saveDrafts(records);
       invalidateQuestionList(ref);
+      final worksheet = ref.read(currentWorksheetImportProvider);
+      if (worksheet != null) {
+        final remaining = worksheet.pages
+            .where((page) => page.id != session.source.id)
+            .toList();
+        ref.read(currentWorksheetImportProvider.notifier).state =
+            remaining.isEmpty ? null : worksheet.copyWith(pages: remaining);
+      }
       ref.read(currentQuestionProvider.notifier).state = records.first;
       ref.read(currentQuestionSplitSessionProvider.notifier).state = null;
       if (!mounted) return;
@@ -559,7 +568,9 @@ class _QuestionSplitConfirmationScreenState
           duration: const Duration(seconds: 2),
         ),
       );
-      router.go('/notebook/question/${records.first.id}');
+      router.go(worksheet == null || worksheet.pages.length <= 1
+          ? '/notebook/question/${records.first.id}'
+          : '/worksheet/import');
     } catch (e) {
       if (!mounted) return;
       setState(() {

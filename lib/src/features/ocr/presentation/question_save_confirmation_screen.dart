@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 class QuestionSaveConfirmationScreen extends ConsumerStatefulWidget {
@@ -237,6 +238,16 @@ class _QuestionSaveConfirmationScreenState
                   final router = GoRouter.of(context);
                   await ref.read(questionRepositoryProvider).saveDraft(updated);
                   invalidateQuestionList(ref);
+                  final worksheet = ref.read(currentWorksheetImportProvider);
+                  if (worksheet != null) {
+                    final remaining = worksheet.pages
+                        .where((page) => page.id != current.id)
+                        .toList();
+                    ref.read(currentWorksheetImportProvider.notifier).state =
+                        remaining.isEmpty
+                            ? null
+                            : worksheet.copyWith(pages: remaining);
+                  }
                   ref.read(currentQuestionProvider.notifier).state = null;
                   if (!mounted) return;
                   messenger.showSnackBar(
@@ -245,7 +256,9 @@ class _QuestionSaveConfirmationScreenState
                       duration: Duration(seconds: 2),
                     ),
                   );
-                  router.go('/notebook');
+                  router.go(worksheet == null || worksheet.pages.length <= 1
+                      ? '/notebook'
+                      : '/worksheet/import');
                 },
                 icon: const Icon(CupertinoIcons.checkmark_alt, size: 18),
                 label: const Text('确认并保存到错题本'),
