@@ -5,6 +5,7 @@ import 'package:smart_wrong_notebook/src/data/files/backup_attachment_integrity.
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
@@ -70,6 +71,13 @@ class DataManagementScreen extends ConsumerWidget {
                     : () => _exportQuestions(cardContext, questions),
               );
             }),
+            const SizedBox(height: 8),
+            _DataCard(
+              icon: CupertinoIcons.rectangle_stack,
+              title: '组卷与打印工作台',
+              subtitle: '筛选、选题、调整顺序后导出打印',
+              onTap: questions.isEmpty ? null : () => context.push('/worksheet'),
+            ),
             const SizedBox(height: 8),
             Builder(builder: (cardContext) {
               return _DataCard(
