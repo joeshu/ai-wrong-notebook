@@ -62,8 +62,8 @@ class _WorksheetRegionEditorScreenState
                   setState(() => _regions.add(QuestionRegion(
                         id: const Uuid().v4(),
                         normalizedRect: Rect.fromLTWH(
-                          (x - .40).clamp(0.0, .80),
-                          (y - .10).clamp(0.0, .80),
+                          (x - .40).clamp(0.0, .80).toDouble(),
+                          (y - .10).clamp(0.0, .80).toDouble(),
                           .80,
                           .20,
                         ),
