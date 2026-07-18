@@ -127,9 +127,9 @@ class _WorksheetWorkbenchScreenState
                     child: FilledButton.icon(
                       onPressed: selected.isEmpty
                           ? null
-                          : () => PdfExportService.sharePdf(context, selected),
+                          : () => _choosePdfMode(context, selected),
                       icon: const Icon(CupertinoIcons.doc_text),
-                      label: const Text('导出答案卷 PDF'),
+                      label: const Text('选择试卷 PDF'),
                     ),
                   ),
                 ]),
@@ -139,6 +139,37 @@ class _WorksheetWorkbenchScreenState
         },
       ),
     );
+  }
+  Future<void> _choosePdfMode(
+    BuildContext context,
+    List<QuestionRecord> questions,
+  ) async {
+    final mode = await showModalBottomSheet<WorksheetExportMode>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(title: Text('选择 PDF 试卷类型')),
+          for (final item in WorksheetExportMode.values)
+            ListTile(
+              leading: Icon(switch (item) {
+                WorksheetExportMode.practice => CupertinoIcons.pencil,
+                WorksheetExportMode.answer => CupertinoIcons.checkmark_circle,
+                WorksheetExportMode.correction => CupertinoIcons.arrow_2_circlepath,
+              }),
+              title: Text(item.label),
+              subtitle: Text(switch (item) {
+                WorksheetExportMode.practice => '仅题目与答题留白',
+                WorksheetExportMode.answer => '题目、答案与完整解析',
+                WorksheetExportMode.correction => '题目、错因、订正提示与留白',
+              }),
+              onTap: () => Navigator.pop(sheetContext, item),
+            ),
+        ]),
+      ),
+    );
+    if (mode != null && context.mounted) {
+      await PdfExportService.sharePdf(context, questions, mode: mode);
+    }
   }
 }
 

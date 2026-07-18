@@ -10,6 +10,16 @@ import 'package:flutter/material.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 
+enum WorksheetExportMode { practice, answer, correction }
+
+extension WorksheetExportModeLabel on WorksheetExportMode {
+  String get label => switch (this) {
+        WorksheetExportMode.practice => '练习卷',
+        WorksheetExportMode.answer => '答案卷',
+        WorksheetExportMode.correction => '订正卷',
+      };
+}
+
 class PdfExportService {
   PdfExportService._();
   static pw.Font? _baseFont;
@@ -85,7 +95,10 @@ class PdfExportService {
     return String.fromCharCodes(codes);
   }
 
-  static Future<File> generatePdf(List<QuestionRecord> questions) async {
+  static Future<File> generatePdf(
+    List<QuestionRecord> questions, {
+    WorksheetExportMode mode = WorksheetExportMode.answer,
+  }) async {
     final pdf = pw.Document();
     final font = await _getFont();
     final theme = pw.ThemeData.withFont(
@@ -115,7 +128,7 @@ class PdfExportService {
             pw.SizedBox(height: 120),
             pw.Center(
               child: pw.Text(
-                '错题本整理报告',
+                '${mode.label} · 错题本',
                 style: pw.TextStyle(
                   fontSize: 28,
                   fontWeight: pw.FontWeight.bold,
@@ -280,7 +293,7 @@ class PdfExportService {
 
             for (final q in list) {
               globalIndex++;
-              widgets.addAll(_buildQuestionEntry(globalIndex, q));
+              widgets.addAll(_buildQuestionEntry(globalIndex, q, mode));
               widgets.add(pw.SizedBox(height: 12));
             }
 
@@ -315,7 +328,10 @@ class PdfExportService {
   }
 
   static List<pw.Widget> _buildQuestionEntry(
-      int index, QuestionRecord q) {
+    int index,
+    QuestionRecord q,
+    WorksheetExportMode mode,
+  ) {
     final widgets = <pw.Widget>[];
 
     final labelParts = <pw.InlineSpan>[];
@@ -393,6 +409,49 @@ class PdfExportService {
         ),
       ));
       widgets.add(pw.SizedBox(height: 6));
+    }
+
+    if (mode == WorksheetExportMode.practice) {
+      widgets.add(pw.Container(
+        height: 126,
+        margin: const pw.EdgeInsets.only(top: 8),
+        padding: const pw.EdgeInsets.all(8),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.grey300),
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+        ),
+        child: pw.Text('答题区',
+            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey400)),
+      ));
+      widgets.add(pw.Divider(color: PdfColors.grey200));
+      return widgets;
+    }
+
+    if (mode == WorksheetExportMode.correction) {
+      final category = q.mistakeCategory?.label ?? '待分类';
+      widgets.add(pw.Text('错因：$category',
+          style: pw.TextStyle(fontSize: 11, color: PdfColor.fromInt(0xD97706))));
+      if (q.studentWork?.isNotEmpty == true) {
+        widgets.add(pw.SizedBox(height: 4));
+        widgets.add(pw.Text('我的作答：${_cleanLatex(q.studentWork!)}',
+            style: pw.TextStyle(fontSize: 11)));
+      }
+      final advice = q.analysisResult?.studyAdvice ?? '';
+      if (advice.isNotEmpty) {
+        widgets.add(pw.SizedBox(height: 4));
+        widgets.add(pw.Text('订正提示：${_cleanLatex(advice)}',
+            style: pw.TextStyle(fontSize: 11, color: PdfColor.fromInt(0x16A34A))));
+      }
+      widgets.add(pw.Container(
+        height: 100,
+        margin: const pw.EdgeInsets.only(top: 8),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.grey300),
+          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+        ),
+      ));
+      widgets.add(pw.Divider(color: PdfColors.grey200));
+      return widgets;
     }
 
     final analysis = q.analysisResult;
@@ -555,9 +614,12 @@ class PdfExportService {
   }
 
   static Future<void> sharePdf(
-      BuildContext context, List<QuestionRecord> questions) async {
+    BuildContext context,
+    List<QuestionRecord> questions, {
+    WorksheetExportMode mode = WorksheetExportMode.answer,
+  }) async {
     try {
-      final file = await generatePdf(questions);
+      final file = await generatePdf(questions, mode: mode);
 
       if (!context.mounted) return;
       final box = context.findRenderObject() as RenderBox?;
