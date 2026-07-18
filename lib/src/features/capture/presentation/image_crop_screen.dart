@@ -41,6 +41,8 @@ class _ImageCropScreenState extends ConsumerState<ImageCropScreen> {
         sourcePath: current.imagePath,
         compressFormat: ImageCompressFormat.jpg,
         compressQuality: 82,
+        maxWidth: 2048,
+        maxHeight: 2048,
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: '框选题目',

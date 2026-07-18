@@ -38,6 +38,8 @@ class CaptureService {
       debugPrint('[CaptureService] Opening camera...');
       final XFile? file = await _picker.pickImage(
         source: ImageSource.camera,
+        maxWidth: 2560,
+        maxHeight: 2560,
         imageQuality: 85,
       );
       debugPrint('[CaptureService] Camera result: ${file?.path ?? "cancelled"}');
@@ -60,6 +62,8 @@ class CaptureService {
       debugPrint('[CaptureService] Opening gallery...');
       final XFile? file = await _picker.pickImage(
         source: ImageSource.gallery,
+        maxWidth: 2560,
+        maxHeight: 2560,
         imageQuality: 85,
       );
       debugPrint('[CaptureService] Gallery result: ${file?.path ?? "cancelled"}');
