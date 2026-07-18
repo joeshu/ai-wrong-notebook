@@ -1,6 +1,7 @@
 import 'analysis_result.dart';
 import 'content_status.dart';
 import 'generated_exercise.dart';
+import 'learning_context.dart';
 import 'mastery_level.dart';
 import 'mistake_category.dart';
 import 'question_split_result.dart';
@@ -400,6 +401,29 @@ class QuestionRecord {
       );
 
   MistakeCategory? get mistakeCategory => MistakeCategoryCodec.read(tags);
+
+  String? get learningStage => LearningContextCodec.learningStage(tags);
+
+  QuestionDifficulty? get difficulty => LearningContextCodec.difficulty(tags);
+
+  AttemptStatus? get attemptStatus => LearningContextCodec.attemptStatus(tags);
+
+  String? get studentWork => LearningContextCodec.studentWork(tags);
+
+  QuestionRecord withLearningContext({
+    String? learningStage,
+    QuestionDifficulty? difficulty,
+    AttemptStatus? attemptStatus,
+    String? studentWork,
+  }) => copyWith(
+        tags: LearningContextCodec.write(
+          tags: tags,
+          learningStage: learningStage ?? this.learningStage,
+          difficulty: difficulty ?? this.difficulty,
+          attemptStatus: attemptStatus ?? this.attemptStatus,
+          studentWork: studentWork ?? this.studentWork,
+        ),
+      );
 
   QuestionRecord withMistakeCategory(MistakeCategory? category) => copyWith(
         tags: MistakeCategoryCodec.write(tags, category),
