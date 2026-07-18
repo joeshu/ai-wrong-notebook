@@ -17,13 +17,18 @@ class QuestionRegion {
   final double confidence;
   final QuestionRegionSource source;
 
-  QuestionRegion copyWith({Rect? normalizedRect, String? detectedNumber}) {
+  QuestionRegion copyWith({
+    Rect? normalizedRect,
+    String? detectedNumber,
+    double? confidence,
+    QuestionRegionSource? source,
+  }) {
     return QuestionRegion(
       id: id,
       normalizedRect: normalizedRect ?? this.normalizedRect,
       detectedNumber: detectedNumber ?? this.detectedNumber,
-      confidence: confidence,
-      source: source,
+      confidence: confidence ?? this.confidence,
+      source: source ?? this.source,
     );
   }
 }

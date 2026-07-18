@@ -118,15 +118,21 @@ class _WorksheetRegionEditorScreenState
                 },
                 child: Stack(fit: StackFit.expand, children: <Widget>[
                   Image.file(File(page.imagePath), fit: BoxFit.fill),
-                  ..._regions.asMap().entries.map((entry) => _RegionOverlay(
-                        region: entry.value,
-                        number: entry.key + 1,
-                        canvasSize: size,
-                        onDelete: () => setState(() => _regions.removeAt(entry.key)),
-                        onChanged: (rect) => setState(() =>
-                            _regions[entry.key] = entry.value.copyWith(
-                                normalizedRect: rect)),
-                      )),
+                  ..._regions.asMap().entries.map((entry) {
+                    final quality = _RegionQuality.evaluate(_regions, entry.key);
+                    return _RegionOverlay(
+                      region: entry.value.copyWith(confidence: quality),
+                      number: entry.key + 1,
+                      canvasSize: size,
+                      onDelete: () => setState(() => _regions.removeAt(entry.key)),
+                      onChanged: (rect) => setState(() {
+                        _regions[entry.key] = entry.value.copyWith(
+                          normalizedRect: rect,
+                          confidence: entry.value.source == QuestionRegionSource.manual ? 1 : .90,
+                        );
+                      }),
+                    );
+                  }),
                 ]),
               );
             }),
@@ -388,12 +394,26 @@ class _ResizableRegionState extends State<_ResizableRegion> {
     widget.onChanged(next);
   }
 
+  Color _qualityColor() {
+    if (widget.source == QuestionRegionSource.manual) return const Color(0xFF64748B);
+    if (widget.confidence >= .80) return const Color(0xFF16A34A);
+    if (widget.confidence >= .60) return const Color(0xFF2563EB);
+    return const Color(0xFFEA580C);
+  }
+
+  String _qualityLabel() {
+    if (widget.source == QuestionRegionSource.manual) return '手动';
+    if (widget.confidence >= .80) return '较可靠';
+    if (widget.confidence >= .60) return '建议检查';
+    return '建议调整';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final qualityColor = _qualityColor();
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFF2563EB), width: 2),
-        color: const Color(0xFF2563EB).withValues(alpha: .06),
+        border: Border.all(color: qualityColor, width: 2),
+        color: qualityColor.withValues(alpha: .08),
       ),
       child: Stack(children: <Widget>[
         Positioned.fill(
@@ -407,11 +427,11 @@ class _ResizableRegionState extends State<_ResizableRegion> {
           left: 0,
           child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
             Container(
-              color: const Color(0xFF2563EB),
+              color: qualityColor,
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
               child: Text(widget.source == QuestionRegionSource.manual
                   ? '手动 · 题 ${widget.number}'
-                  : '${widget.detectedNumber ?? widget.number}题 · ${(widget.confidence * 100).round()}%',
+                  : '${widget.detectedNumber ?? widget.number}题 · ${_qualityLabel()} ${(widget.confidence * 100).round()}%',
                   style: const TextStyle(color: Colors.white, fontSize: 12)),
             ),
             Material(
@@ -437,11 +457,11 @@ class _ResizableRegionState extends State<_ResizableRegion> {
               height: 24,
               decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border.all(color: const Color(0xFF2563EB), width: 2),
+                border: Border.all(color: qualityColor, width: 2),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(CupertinoIcons.arrow_down_right,
-                  size: 14, color: Color(0xFF2563EB)),
+              child: Icon(CupertinoIcons.arrow_down_right,
+                  size: 14, color: qualityColor),
             ),
           ),
         ),
@@ -525,4 +545,32 @@ class _DetectionResultCard extends StatelessWidget {
       ]),
     ),
   );
+}
+
+
+class _RegionQuality {
+  static double evaluate(List<QuestionRegion> regions, int index) {
+    final region = regions[index];
+    if (region.source == QuestionRegionSource.manual) return 1;
+    var score = region.confidence.clamp(0.0, 1.0).toDouble();
+    for (var i = 0; i < regions.length; i++) {
+      if (i == index) continue;
+      if (_iou(region.normalizedRect, regions[i].normalizedRect) > .35) {
+        score = (score * .65).clamp(0.0, 1.0).toDouble();
+      }
+    }
+    if (region.normalizedRect.left < .01 || region.normalizedRect.top < .01 ||
+        region.normalizedRect.right > .99 || region.normalizedRect.bottom > .99) {
+      score = (score * .8).clamp(0.0, 1.0).toDouble();
+    }
+    return score;
+  }
+
+  static double _iou(Rect a, Rect b) {
+    final overlap = a.intersect(b);
+    if (overlap.isEmpty) return 0;
+    final intersection = overlap.width * overlap.height;
+    final union = a.width * a.height + b.width * b.height - intersection;
+    return union <= 0 ? 0 : intersection / union;
+  }
 }
