@@ -19,6 +19,7 @@ import 'package:smart_wrong_notebook/src/features/capture/presentation/image_cro
 import 'package:smart_wrong_notebook/src/features/capture/presentation/question_correction_screen.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_import_screen.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_region_editor_screen.dart';
+import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_review_summary_screen.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/question_save_confirmation_screen.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/question_split_confirmation_screen.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_loading_screen.dart';
@@ -90,6 +91,9 @@ GoRouter buildRouter(SettingsRepository settingsRepo) {
       GoRoute(
           path: '/worksheet/import',
           pageBuilder: (_, __) => _buildPage(const WorksheetImportScreen())),
+      GoRoute(
+          path: '/worksheet/review-summary',
+          pageBuilder: (_, __) => _buildPage(const WorksheetReviewSummaryScreen())),
       GoRoute(
           path: '/worksheet/regions',
           pageBuilder: (_, __) => _buildPage(const WorksheetRegionEditorScreen())),

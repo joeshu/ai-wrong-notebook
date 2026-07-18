@@ -25,6 +25,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 
@@ -162,6 +163,9 @@ Future<void> persistWorksheetImport(
   }
   ref.read(currentWorksheetImportProvider.notifier).state = session;
 }
+
+final StateProvider<WorksheetReviewSummary?> currentWorksheetReviewSummaryProvider =
+    StateProvider<WorksheetReviewSummary?>((ref) => null);
 
 /// Whether the worksheet importer should continue through remaining question
 /// candidates without opening a result page after every successful analysis.

@@ -16,6 +16,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/worksheet_review_draf
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:uuid/uuid.dart';
@@ -465,12 +466,14 @@ class _WorksheetRegionEditorScreenState
         orElse: () => candidates.first,
       );
       ref.read(currentQuestionProvider.notifier).state = nextForAnalysis;
+      final aiCount = candidates.where((item) => item.contentStatus == ContentStatus.processing).length;
+      final ocrCount = candidates.length - aiCount;
+      final ignoredCount = _regions.where((item) => item.reviewStatus == QuestionRegionReviewStatus.ignored).length;
+      ref.read(currentWorksheetReviewSummaryProvider.notifier).state = WorksheetReviewSummary(
+        sourcePageId: source.id, aiCount: aiCount, ocrCount: ocrCount, ignoredCount: ignoredCount,
+      );
       if (!mounted) return;
-      if (nextForAnalysis.contentStatus == ContentStatus.ready) {
-        context.go('/worksheet/import');
-      } else {
-        context.go('/analysis/loading');
-      }
+      context.go('/worksheet/review-summary');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('生成题图失败: $e')));
     } finally {
