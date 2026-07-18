@@ -37,7 +37,9 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
           'useChartRecognition': false,
         }),
       }));
-      final jobId = _map(submit.data)?['data'] is Map ? _map(_map(submit.data)!['data'])?['jobId']?.toString() : null;
+      final submittedRoot = _map(submit.data);
+      final submittedData = _map(submittedRoot?['data']);
+      final jobId = submittedData?['jobId']?.toString();
       if (jobId == null || jobId.isEmpty) throw StateError('PaddleOCR 未返回任务编号');
 
       Map<String, dynamic>? job;
