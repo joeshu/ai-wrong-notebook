@@ -567,9 +567,13 @@ class PdfExportService {
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
       final origin = box.localToGlobal(Offset.zero) & box.size;
+      // iOS 的部分分享目标会把附带文字误当成 URI 解析；中文内容
+      // （例如“共 9 题”）会因此抛出 FormatException。PDF 本身已含标题和题数，
+      // 所以只分享文件，并显式使用 ASCII 文件名，避免路径/标题编码问题。
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: '错题本整理报告（共 ${questions.length} 题）',
+        subject: 'Wrong notebook PDF',
+        fileNameOverrides: ['wrong-notebook-report.pdf'],
         sharePositionOrigin: origin,
       );
     } catch (e) {
