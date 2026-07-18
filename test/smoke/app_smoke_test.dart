@@ -49,7 +49,8 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('开始拍错题'), findsOneWidget);
+      expect(find.text('今天，开始学习'), findsOneWidget);
+      expect(find.text('今日复习计划'), findsOneWidget);
       expect(find.text('最近新增'), findsOneWidget);
     });
 
@@ -61,7 +62,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('拍照录题'));
+      await tester.tap(find.byIcon(CupertinoIcons.camera).first);
       await tester.pumpAndSettle();
 
       expect(find.text('拍照'), findsOneWidget);

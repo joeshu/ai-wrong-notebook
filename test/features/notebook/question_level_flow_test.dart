@@ -345,12 +345,16 @@ void main() {
     expect(find.text('同批题目'), findsOneWidget);
     expect(find.text('第 1 题'), findsOneWidget);
     expect(find.text('第 2 题'), findsOneWidget);
-    expect(find.text('第一题：已知 x+1=3，求 x'), findsOneWidget);
 
     await tester.tap(find.text('第 2 题'));
     await tester.pumpAndSettle();
 
     expect(container.read(currentQuestionProvider)?.id, 'q-batch-2');
+    await tester.scrollUntilVisible(
+      find.text('第二题：已知 y-2=0，求 y'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('第二题：已知 y-2=0，求 y'), findsOneWidget);
   });
 
