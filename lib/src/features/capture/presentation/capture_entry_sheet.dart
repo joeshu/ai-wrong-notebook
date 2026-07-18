@@ -25,8 +25,9 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        child: Column(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             Container(
@@ -128,7 +129,7 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                 ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
