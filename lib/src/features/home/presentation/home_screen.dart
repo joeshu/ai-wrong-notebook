@@ -292,7 +292,7 @@ class _TodayPlanCard extends StatelessWidget {
         onTap: onOpenReview,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-        padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: colorScheme.primaryContainer,
           borderRadius: BorderRadius.circular(12),
@@ -361,6 +361,7 @@ class _TodayPlanCard extends StatelessWidget {
       ),
     ),
   );
+  }
 }
 
 class _MistakeCategorySummary extends StatelessWidget {
