@@ -174,7 +174,7 @@ class _WorksheetRegionEditorScreenState
             child: FilledButton.icon(
               onPressed: _isCropping || _regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).isEmpty
                   ? null
-                  : () => _cropAndQueue(page),
+                  : () => _confirmAndCrop(page),
               icon: _isCropping
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(CupertinoIcons.crop),
@@ -322,6 +322,41 @@ class _WorksheetRegionEditorScreenState
             : 'plain',
       );
     });
+  }
+
+  Future<void> _confirmAndCrop(QuestionRecord source) async {
+    final accepted = _regions.where((item) => item.reviewStatus == QuestionRegionReviewStatus.accepted).toList();
+    final aiCount = accepted.where((item) => item.analyzeWithAi).length;
+    final ocrCount = accepted.length - aiCount;
+    final ignoredCount = _regions.length - accepted.length;
+    final risky = accepted.where((item) {
+      final edge = item.normalizedRect.left < .01 || item.normalizedRect.top < .01 ||
+          item.normalizedRect.right > .99 || item.normalizedRect.bottom > .99;
+      return (item.recognizedText ?? '').trim().isEmpty ||
+          (item.source == QuestionRegionSource.layoutModel && item.confidence < .60) || edge;
+    }).length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('确认本页处理方式'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+          Text('本页共 ${_regions.length} 道候选题：'),
+          const SizedBox(height: 8),
+          Text('✓ $aiCount 题：裁切后交给普通 AI 深度分析'),
+          Text('✓ $ocrCount 题：仅保存 OCR / 文档结果'),
+          if (ignoredCount > 0) Text('⊘ $ignoredCount 题：忽略，不裁切也不保存'),
+          if (risky > 0) Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text('⚠ $risky 题存在空题干、低可信度或贴边题框；建议返回继续校对。', style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412))),
+          ),
+        ]),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('返回继续校对')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('确认生成')),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _cropAndQueue(source);
   }
 
   Future<void> _cropAndQueue(QuestionRecord source) async {
@@ -740,6 +775,8 @@ class _RecognizedQuestionWorkbenchState
     final subject = region.subject ?? widget.defaultSubject;
     final type = region.questionType ?? '未指定';
     final risks = _riskMessages(index);
+    final acceptedCount = widget.regions.where((item) => item.reviewStatus == QuestionRegionReviewStatus.accepted).length;
+    final ignoredCount = widget.regions.length - acceptedCount;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       decoration: BoxDecoration(
@@ -748,11 +785,11 @@ class _RecognizedQuestionWorkbenchState
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Column(children: <Widget>[
-        const ListTile(
+        ListTile(
           dense: true,
-          leading: Icon(CupertinoIcons.doc_text_search),
-          title: Text('逐题确认工作台'),
-          subtitle: Text('左侧选题，右侧完整校对与采用方式', style: TextStyle(fontSize: 11)),
+          leading: const Icon(CupertinoIcons.doc_text_search),
+          title: Text('逐题确认工作台 · 第 ${index + 1}/${widget.regions.length} 题'),
+          subtitle: Text('已采用 $acceptedCount 题${ignoredCount > 0 ? ' · 已忽略 $ignoredCount 题' : ''}；可切换题目完整校对', style: const TextStyle(fontSize: 11)),
         ),
         const Divider(height: 1),
         Expanded(
@@ -877,6 +914,25 @@ class _RecognizedQuestionWorkbenchState
                 ? CupertinoIcons.arrow_counterclockwise
                 : CupertinoIcons.minus_circle, size: 16),
             label: Text(region.reviewStatus == QuestionRegionReviewStatus.ignored ? '恢复采用' : '忽略'),
+          ),
+        ]),
+        Row(children: <Widget>[
+          TextButton.icon(
+            onPressed: index == 0 ? null : () {
+              setState(() => _selectedIndex = index - 1);
+              widget.onSelect(widget.regions[index - 1]);
+            },
+            icon: const Icon(CupertinoIcons.chevron_left, size: 15),
+            label: const Text('上一题'),
+          ),
+          Text('${index + 1} / ${widget.regions.length}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          TextButton.icon(
+            onPressed: index >= widget.regions.length - 1 ? null : () {
+              setState(() => _selectedIndex = index + 1);
+              widget.onSelect(widget.regions[index + 1]);
+            },
+            icon: const Icon(CupertinoIcons.chevron_right, size: 15),
+            label: const Text('下一题'),
           ),
         ]),
         if (region.reviewStatus == QuestionRegionReviewStatus.ignored)
