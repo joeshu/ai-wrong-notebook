@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:smart_wrong_notebook/src/data/local/app_database.dart';
+import 'package:smart_wrong_notebook/src/data/local/app_database.dart' hide ReviewLog;
 import 'package:smart_wrong_notebook/src/data/repositories/drift_review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
