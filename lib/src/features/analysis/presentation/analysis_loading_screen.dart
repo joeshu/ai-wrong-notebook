@@ -167,6 +167,13 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       final textForAnalysis = shouldUseImageForAnalysis
           ? working.extractedQuestionText
           : working.correctedText;
+      if (mounted && firstSuccessfulCandidate == null) {
+        setState(() {
+          _progressText = shouldUseImageForAnalysis
+              ? '正在使用视觉模型理解题图...'
+              : '正在使用文字模型分析题目...';
+        });
+      }
 
       AnalysisResult analysis;
       if (firstSuccessfulCandidate != null) {
