@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
@@ -11,6 +12,7 @@ import 'package:smart_wrong_notebook/src/data/services/custom_http_document_layo
 import 'package:smart_wrong_notebook/src/data/services/auto_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/mineru_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/paddle_cloud_document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/worksheet_review_draft_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
@@ -37,12 +39,59 @@ class _WorksheetRegionEditorScreenState
   String? _detectionProvider;
   String? _detectionWarning;
   Duration? _detectionDuration;
+  final WorksheetReviewDraftRepository _draftRepository = WorksheetReviewDraftRepository();
+  Timer? _draftSaveTimer;
+  bool _didCheckDraft = false;
+  String? _draftStatus;
   String? _selectedRegionId;
 
   @override
   void initState() {
     super.initState();
     Future<void>.microtask(() => restoreLayoutProviderConfig(ref));
+  }
+
+  @override
+  void dispose() {
+    _draftSaveTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleDraftSave(String pageId) {
+    _draftSaveTimer?.cancel();
+    _draftSaveTimer = Timer(const Duration(milliseconds: 600), () async {
+      if (_regions.isEmpty) return;
+      await _draftRepository.save(pageId, _regions);
+      if (mounted) setState(() => _draftStatus = '已自动保存');
+    });
+  }
+
+  Future<void> _restoreDraftIfNeeded(QuestionRecord page) async {
+    if (_didCheckDraft) return;
+    _didCheckDraft = true;
+    final saved = await _draftRepository.load(page.id);
+    if (saved == null || saved.isEmpty || !mounted) return;
+    final resume = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('恢复未完成逐题校对？'),
+        content: Text('检测到 ${saved.length} 道题目的本地草稿，包括题框、文字校对和采用状态。'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('放弃草稿并重新识别')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('继续校对')),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (resume == true) {
+      setState(() {
+        _regions..clear()..addAll(saved);
+        _selectedRegionId = saved.first.id;
+        _draftStatus = '已恢复本地草稿';
+      });
+    } else {
+      await _draftRepository.clear(page.id);
+    }
   }
 
   @override
@@ -54,6 +103,7 @@ class _WorksheetRegionEditorScreenState
         body: const Center(child: Text('未找到可框选的试卷页面')),
       );
     }
+    Future<void>.microtask(() => _restoreDraftIfNeeded(page));
     final scheme = Theme.of(context).colorScheme;
     final layoutConfig = ref.watch(layoutProviderConfigProvider);
     final oneShotType = ref.watch(oneShotLayoutProviderTypeProvider);
@@ -99,6 +149,11 @@ class _WorksheetRegionEditorScreenState
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
               child: Text(_detectionMessage!, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             ),
+          if (_draftStatus != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              child: Text('草稿：$_draftStatus', style: const TextStyle(fontSize: 11, color: Color(0xFF166534))),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
             child: Text(
@@ -117,6 +172,7 @@ class _WorksheetRegionEditorScreenState
                   _regions[index] = next.copyWith(
                     originalRecognizedText: previous.originalRecognizedText ?? previous.recognizedText,
                   );
+                  _scheduleDraftSave(page.id);
                 }),
                 onIgnore: (index) => setState(() {
                   final region = _regions[index];
@@ -400,6 +456,8 @@ class _WorksheetRegionEditorScreenState
           ..addAll(candidates);
         await persistWorksheetImport(ref, worksheet.copyWith(pages: next));
       }
+      await _draftRepository.clear(source.id);
+      _draftSaveTimer?.cancel();
       final nextForAnalysis = candidates.firstWhere(
         (candidate) => candidate.contentStatus == ContentStatus.processing,
         orElse: () => candidates.first,
