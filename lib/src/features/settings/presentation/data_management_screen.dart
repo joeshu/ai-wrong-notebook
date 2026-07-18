@@ -75,8 +75,8 @@ class DataManagementScreen extends ConsumerWidget {
             _DataCard(
               icon: CupertinoIcons.rectangle_stack,
               title: '组卷与打印工作台',
-              subtitle: '筛选、选题、调整顺序后导出打印',
-              onTap: questions.isEmpty ? null : () => context.push('/worksheet'),
+              subtitle: questions.isEmpty ? '题库为空，进入查看添加错题说明' : '筛选、选题、调整顺序后导出打印',
+              onTap: () => context.push('/worksheet'),
             ),
             const SizedBox(height: 8),
             Builder(builder: (cardContext) {

@@ -97,6 +97,14 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            _ImportOverviewCard(
+              pageCount: pages.length,
+              selectedPageCount: _selected.length,
+              questionCount: queuedQuestions.length,
+              readyCount: readyCount,
+              pendingCount: queuedQuestions.length - readyCount - failedCount,
+              failedCount: failedCount,
+            ),
             Row(
               children: <Widget>[
                 Text('已选 ${_selected.length}/${pages.length} 页',
@@ -420,4 +428,58 @@ class _QueueQuestionTile extends StatelessWidget {
       ),
     );
   }
+}
+
+
+class _ImportOverviewCard extends StatelessWidget {
+  const _ImportOverviewCard({required this.pageCount, required this.selectedPageCount, required this.questionCount, required this.readyCount, required this.pendingCount, required this.failedCount});
+  final int pageCount;
+  final int selectedPageCount;
+  final int questionCount;
+  final int readyCount;
+  final int pendingCount;
+  final int failedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = readyCount + pendingCount + failedCount;
+    return Card(
+      margin: EdgeInsets.zero,
+      color: const Color(0xFFF8FAFC),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+          Row(children: <Widget>[
+            const Icon(CupertinoIcons.chart_bar_square, color: Color(0xFF4F46E5)),
+            const SizedBox(width: 8),
+            Expanded(child: Text('本次导入总览 · $pageCount 页 / $questionCount 道题', style: const TextStyle(fontWeight: FontWeight.w700))),
+            Text('已选 $selectedPageCount 页', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: <Widget>[
+            _OverviewMetric(label: '已分析', value: readyCount, color: const Color(0xFF16A34A)),
+            _OverviewMetric(label: '待处理', value: pendingCount, color: const Color(0xFF2563EB)),
+            _OverviewMetric(label: '失败/需重试', value: failedCount, color: const Color(0xFFEA580C)),
+          ]),
+          if (total > 0) ...<Widget>[
+            const SizedBox(height: 10),
+            ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: readyCount / total, minHeight: 7, backgroundColor: const Color(0xFFE2E8F0), color: const Color(0xFF16A34A))),
+          ] else
+            const Padding(padding: EdgeInsets.only(top: 6), child: Text('确认题框后，题目会出现在这里并显示分析进度。', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),),
+        ]),
+      ),
+    );
+  }
+}
+
+class _OverviewMetric extends StatelessWidget {
+  const _OverviewMetric({required this.label, required this.value, required this.color});
+  final String label;
+  final int value;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Expanded(child: Column(children: <Widget>[
+    Text('$value', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color)),
+    Text(label, style: const TextStyle(fontSize: 11)),
+  ]));
 }
