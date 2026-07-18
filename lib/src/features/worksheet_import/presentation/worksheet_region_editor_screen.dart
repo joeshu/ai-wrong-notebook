@@ -13,6 +13,7 @@ import 'package:smart_wrong_notebook/src/data/services/mineru_document_layout_se
 import 'package:smart_wrong_notebook/src/data/services/paddle_cloud_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:uuid/uuid.dart';
