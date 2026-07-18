@@ -387,6 +387,9 @@ final StateProvider<bool> dueOnlyFilterProvider =
 final StateProvider<bool> favoritesOnlyFilterProvider =
     StateProvider<bool>((ref) => false);
 
+final StateProvider<bool> failedOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
 final StateProvider<QuestionSort> questionSortProvider =
     StateProvider<QuestionSort>((ref) => QuestionSort.newest);
 
@@ -457,6 +460,7 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
   final mistakeCategory = ref.watch(selectedMistakeCategoryFilterProvider);
   final dueOnly = ref.watch(dueOnlyFilterProvider);
   final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
+  final failedOnly = ref.watch(failedOnlyFilterProvider);
   final dateRange = ref.watch(questionDateRangeProvider);
   final source = ref.watch(selectedSourceFilterProvider);
   final learningStage = ref.watch(selectedLearningStageFilterProvider);
@@ -477,6 +481,7 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
     }
     if (dueOnly && !scheduler.isDue(q)) return false;
     if (favoritesOnly && !q.isFavorite) return false;
+    if (failedOnly && q.contentStatus.name != 'failed') return false;
     if (!_isWithinDateRange(q.createdAt, dateRange, now)) return false;
     if (source != null && q.source != source) return false;
     if (learningStage != null && q.learningStage != learningStage) return false;

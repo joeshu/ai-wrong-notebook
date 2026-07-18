@@ -97,6 +97,10 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
         final current = ref.read(favoritesOnlyFilterProvider);
         ref.read(favoritesOnlyFilterProvider.notifier).state = !current;
         break;
+      case _NotebookMenuAction.failedOnly:
+        final current = ref.read(failedOnlyFilterProvider);
+        ref.read(failedOnlyFilterProvider.notifier).state = !current;
+        break;
       case _NotebookMenuAction.allDates:
         ref.read(questionDateRangeProvider.notifier).state =
             QuestionDateRange.all;
@@ -132,6 +136,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     final selectedTags = ref.watch(selectedTagsFilterProvider);
     final dueOnly = ref.watch(dueOnlyFilterProvider);
     final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
+    final failedOnly = ref.watch(failedOnlyFilterProvider);
     final dateRange = ref.watch(questionDateRangeProvider);
     final selectedSource = ref.watch(selectedSourceFilterProvider);
     final sources = ref.watch(allSourcesProvider).valueOrNull ?? const <String>[];
@@ -169,6 +174,11 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 value: _NotebookMenuAction.favoritesOnly,
                 checked: favoritesOnly,
                 child: const Text('仅看收藏'),
+              ),
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.failedOnly,
+                checked: failedOnly,
+                child: const Text('仅看待处理草稿'),
               ),
               const PopupMenuDivider(),
               CheckedPopupMenuItem<_NotebookMenuAction>(
@@ -262,6 +272,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                       selectedTags.isEmpty &&
                       !dueOnly &&
                       !favoritesOnly &&
+                      !failedOnly &&
                       dateRange == QuestionDateRange.all &&
                       selectedSource == null &&
                       selectedStage == null &&
@@ -283,6 +294,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                     ref.read(selectedTagsFilterProvider.notifier).state = const <String>[];
                     ref.read(dueOnlyFilterProvider.notifier).state = false;
                     ref.read(favoritesOnlyFilterProvider.notifier).state = false;
+                    ref.read(failedOnlyFilterProvider.notifier).state = false;
                     ref.read(questionDateRangeProvider.notifier).state =
                         QuestionDateRange.all;
                     ref.read(selectedSourceFilterProvider.notifier).state = null;
@@ -489,6 +501,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
 enum _NotebookMenuAction {
   dueOnly,
   favoritesOnly,
+  failedOnly,
   allDates,
   last7Days,
   last30Days,
