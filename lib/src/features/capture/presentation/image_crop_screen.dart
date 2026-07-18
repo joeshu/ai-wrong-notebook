@@ -7,6 +7,7 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 
 class ImageCropScreen extends ConsumerStatefulWidget {
   const ImageCropScreen({super.key});
@@ -63,14 +64,21 @@ class _ImageCropScreenState extends ConsumerState<ImageCropScreen> {
         // Save cropped image
         final storage = ref.read(imageStorageServiceProvider);
         final savedPath = await storage.saveImage(File(croppedFile.path));
+        final fingerprint =
+            await ImageFingerprintCodec.fromFile(File(savedPath));
 
-        // Create new question with cropped image path
+        // Create new question with cropped image path. The original capture
+        // fingerprint is intentionally replaced: model reuse must match the
+        // final cropped region, not merely the full camera photo.
         final newRecord = QuestionRecord.draft(
           id: current.id,
           imagePath: savedPath,
           subject: current.subject,
           recognizedText: '',
-        ).copyWith(contentStatus: ContentStatus.processing);
+        ).copyWith(
+          contentStatus: ContentStatus.processing,
+          tags: ImageFingerprintCodec.write(current.tags, fingerprint),
+        );
         ref.read(currentQuestionProvider.notifier).state = newRecord;
       }
 
