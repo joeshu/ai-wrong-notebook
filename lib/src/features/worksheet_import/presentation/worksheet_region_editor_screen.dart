@@ -37,6 +37,7 @@ class _WorksheetRegionEditorScreenState
   String? _detectionProvider;
   String? _detectionWarning;
   Duration? _detectionDuration;
+  String? _selectedRegionId;
 
   @override
   void initState() {
@@ -112,7 +113,16 @@ class _WorksheetRegionEditorScreenState
                 regions: _regions,
                 defaultSubject: page.subject,
                 onUpdate: (index, next) => setState(() => _regions[index] = next),
-                onIgnore: (index) => setState(() => _regions.removeAt(index)),
+                onIgnore: (index) => setState(() {
+                  final region = _regions[index];
+                  _regions[index] = region.copyWith(
+                    reviewStatus: region.reviewStatus == QuestionRegionReviewStatus.ignored
+                        ? QuestionRegionReviewStatus.accepted
+                        : QuestionRegionReviewStatus.ignored,
+                  );
+                }),
+                selectedRegionId: _selectedRegionId,
+                onSelect: (region) => setState(() => _selectedRegionId = region.id),
               ),
             ),
           Expanded(
@@ -122,15 +132,19 @@ class _WorksheetRegionEditorScreenState
                 onTapDown: _isCropping ? null : (details) {
                   final x = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
                   final y = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
-                  setState(() => _regions.add(QuestionRegion(
-                        id: const Uuid().v4(),
-                        normalizedRect: Rect.fromLTWH(
-                          (x - .40).clamp(0.0, .80).toDouble(),
-                          (y - .10).clamp(0.0, .80).toDouble(),
-                          .80,
-                          .20,
-                        ),
-                      )));
+                  setState(() {
+                    final region = QuestionRegion(
+                      id: const Uuid().v4(),
+                      normalizedRect: Rect.fromLTWH(
+                        (x - .40).clamp(0.0, .80).toDouble(),
+                        (y - .10).clamp(0.0, .80).toDouble(),
+                        .80,
+                        .20,
+                      ),
+                    );
+                    _regions.add(region);
+                    _selectedRegionId = region.id;
+                  });
                 },
                 child: Stack(fit: StackFit.expand, children: <Widget>[
                   Image.file(File(page.imagePath), fit: BoxFit.fill),
@@ -141,6 +155,8 @@ class _WorksheetRegionEditorScreenState
                       number: entry.key + 1,
                       canvasSize: size,
                       onDelete: () => setState(() => _regions.removeAt(entry.key)),
+                      selected: entry.value.id == _selectedRegionId,
+                      onSelect: () => setState(() => _selectedRegionId = entry.value.id),
                       onChanged: (rect) => setState(() {
                         _regions[entry.key] = entry.value.copyWith(
                           normalizedRect: rect,
@@ -156,7 +172,7 @@ class _WorksheetRegionEditorScreenState
           Padding(
             padding: const EdgeInsets.all(20),
             child: FilledButton.icon(
-              onPressed: _isCropping || _regions.isEmpty
+              onPressed: _isCropping || _regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).isEmpty
                   ? null
                   : () => _cropAndQueue(page),
               icon: _isCropping
@@ -164,7 +180,7 @@ class _WorksheetRegionEditorScreenState
                   : const Icon(CupertinoIcons.crop),
               label: Text(_isCropping
                   ? '正在生成独立题图...'
-                  : '确认 ${_regions.length} 题：${_regions.where((region) => region.analyzeWithAi).length} 题深度分析 / ${_regions.where((region) => !region.analyzeWithAi).length} 题仅保存 OCR'),
+                  : '确认 ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).length} 题：${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted && region.analyzeWithAi).length} 题深度分析 / ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted && !region.analyzeWithAi).length} 题仅保存 OCR${_regions.any((region) => region.reviewStatus == QuestionRegionReviewStatus.ignored) ? ' / ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.ignored).length} 题忽略' : ''}'),
               style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
             ),
           ),
@@ -257,6 +273,7 @@ class _WorksheetRegionEditorScreenState
         _regions
           ..clear()
           ..addAll(result.regions);
+        _selectedRegionId = _regions.isEmpty ? null : _regions.first.id;
         _detectionProvider = result.providerLabel;
         _detectionWarning = result.warning;
         _detectionDuration = DateTime.now().difference(startedAt);
@@ -312,7 +329,7 @@ class _WorksheetRegionEditorScreenState
     try {
       final cropper = ref.read(questionRegionCropServiceProvider);
       final candidates = <QuestionRecord>[];
-      for (final region in _regions) {
+      for (final region in _regions.where((item) => item.reviewStatus == QuestionRegionReviewStatus.accepted)) {
         final path = await cropper.cropToStoredImage(sourcePath: source.imagePath, region: region);
         final fingerprint = await ImageFingerprintCodec.fromFile(File(path));
         candidates.add(QuestionRecord.draft(
@@ -367,12 +384,16 @@ class _RegionOverlay extends StatelessWidget {
     required this.number,
     required this.canvasSize,
     required this.onDelete,
+    required this.selected,
+    required this.onSelect,
     required this.onChanged,
   });
   final QuestionRegion region;
   final int number;
   final Size canvasSize;
   final VoidCallback onDelete;
+  final bool selected;
+  final VoidCallback onSelect;
   final ValueChanged<Rect> onChanged;
 
   @override
@@ -390,6 +411,8 @@ class _RegionOverlay extends StatelessWidget {
         source: region.source,
         confidence: region.confidence,
         detectedNumber: region.detectedNumber,
+        selected: selected,
+        onSelect: onSelect,
         onDelete: onDelete,
         onChanged: onChanged,
       ),
@@ -406,6 +429,8 @@ class _ResizableRegion extends StatefulWidget {
     required this.source,
     required this.confidence,
     required this.detectedNumber,
+    required this.selected,
+    required this.onSelect,
     required this.onDelete,
     required this.onChanged,
   });
@@ -416,6 +441,8 @@ class _ResizableRegion extends StatefulWidget {
   final QuestionRegionSource source;
   final double confidence;
   final String? detectedNumber;
+  final bool selected;
+  final VoidCallback onSelect;
   final VoidCallback onDelete;
   final ValueChanged<Rect> onChanged;
 
@@ -481,14 +508,16 @@ class _ResizableRegionState extends State<_ResizableRegion> {
   @override
   Widget build(BuildContext context) {
     final qualityColor = _qualityColor();
+    final borderColor = widget.selected ? const Color(0xFF7C3AED) : qualityColor;
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: qualityColor, width: 2),
-        color: qualityColor.withValues(alpha: .08),
+        border: Border.all(color: borderColor, width: widget.selected ? 4 : 2),
+        color: borderColor.withValues(alpha: widget.selected ? .18 : .08),
       ),
       child: Stack(children: <Widget>[
         Positioned.fill(
           child: GestureDetector(
+            onTap: widget.onSelect,
             onPanUpdate: (details) => _move(details.delta),
             child: const SizedBox.expand(),
           ),
@@ -669,11 +698,15 @@ class _RecognizedQuestionWorkbench extends StatefulWidget {
     required this.defaultSubject,
     required this.onUpdate,
     required this.onIgnore,
+    required this.selectedRegionId,
+    required this.onSelect,
   });
   final List<QuestionRegion> regions;
   final Subject defaultSubject;
   final void Function(int index, QuestionRegion region) onUpdate;
   final ValueChanged<int> onIgnore;
+  final String? selectedRegionId;
+  final ValueChanged<QuestionRegion> onSelect;
 
   @override
   State<_RecognizedQuestionWorkbench> createState() =>
@@ -698,10 +731,15 @@ class _RecognizedQuestionWorkbenchState
   @override
   Widget build(BuildContext context) {
     if (widget.regions.isEmpty) return const SizedBox.shrink();
-    final index = _selectedIndex.clamp(0, widget.regions.length - 1);
+    final selectedById = widget.selectedRegionId == null
+        ? -1
+        : widget.regions.indexWhere((item) => item.id == widget.selectedRegionId);
+    final index = (selectedById >= 0 ? selectedById : _selectedIndex)
+        .clamp(0, widget.regions.length - 1);
     final region = widget.regions[index];
     final subject = region.subject ?? widget.defaultSubject;
     final type = region.questionType ?? '未指定';
+    final risks = _riskMessages(index);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       decoration: BoxDecoration(
@@ -721,7 +759,7 @@ class _RecognizedQuestionWorkbenchState
           child: LayoutBuilder(builder: (context, constraints) {
             final compact = constraints.maxWidth < 600;
             final list = _buildQuestionList(context, index, horizontal: compact);
-            final detail = _buildDetail(context, index, region, subject, type);
+            final detail = _buildDetail(context, index, region, subject, type, risks);
             if (compact) {
               return Column(children: <Widget>[
                 SizedBox(height: 78, child: list),
@@ -738,6 +776,38 @@ class _RecognizedQuestionWorkbenchState
         ),
       ]),
     );
+  }
+
+  List<String> _riskMessages(int index) {
+    final region = widget.regions[index];
+    final risks = <String>[];
+    if ((region.recognizedText ?? '').trim().isEmpty) {
+      risks.add('未识别到题干文字');
+    }
+    if (region.source == QuestionRegionSource.layoutModel && region.confidence < .60) {
+      risks.add('识别可信度较低，建议校对');
+    }
+    if (region.normalizedRect.left < .01 || region.normalizedRect.top < .01 ||
+        region.normalizedRect.right > .99 || region.normalizedRect.bottom > .99) {
+      risks.add('题框贴近页面边缘，可能被截断');
+    }
+    for (var i = 0; i < widget.regions.length; i++) {
+      if (i == index) continue;
+      final overlap = region.normalizedRect.intersect(widget.regions[i].normalizedRect);
+      final union = region.normalizedRect.width * region.normalizedRect.height +
+          widget.regions[i].normalizedRect.width * widget.regions[i].normalizedRect.height -
+          overlap.width * overlap.height;
+      if (!overlap.isEmpty && union > 0 && overlap.width * overlap.height / union > .35) {
+        risks.add('与第 ${widget.regions[i].detectedNumber ?? i + 1} 题题框重叠');
+        break;
+      }
+    }
+    if (region.recognizedBlockTypes.any((item) => item == '公式' || item == '表格')) {
+      risks.add('含公式或表格，建议核对格式');
+    }
+    return risks;
+  }
+
   Widget _buildQuestionList(BuildContext context, int selectedIndex,
       {required bool horizontal}) {
     return ListView.builder(
@@ -747,6 +817,7 @@ class _RecognizedQuestionWorkbenchState
       itemBuilder: (context, itemIndex) {
         final item = widget.regions[itemIndex];
         final selected = itemIndex == selectedIndex;
+        final ignored = item.reviewStatus == QuestionRegionReviewStatus.ignored;
         return Padding(
           padding: horizontal
               ? const EdgeInsets.only(right: 6)
@@ -754,13 +825,18 @@ class _RecognizedQuestionWorkbenchState
           child: SizedBox(
             width: horizontal ? 112 : double.infinity,
             child: Material(
-              color: selected
-                  ? Theme.of(context).colorScheme.primaryContainer
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: ignored
+                  ? Theme.of(context).colorScheme.surfaceContainerLow
+                  : selected
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
               child: InkWell(
                 borderRadius: BorderRadius.circular(8),
-                onTap: () => setState(() => _selectedIndex = itemIndex),
+                onTap: () {
+                  setState(() => _selectedIndex = itemIndex);
+                  widget.onSelect(item);
+                },
                 child: Padding(
                   padding: const EdgeInsets.all(7),
                   child: Column(
@@ -769,12 +845,12 @@ class _RecognizedQuestionWorkbenchState
                     children: <Widget>[
                       Row(children: <Widget>[
                         Expanded(child: Text('第 ${item.detectedNumber ?? itemIndex + 1} 题', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
-                        Icon(item.analyzeWithAi ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.doc_text, size: 14, color: item.analyzeWithAi ? const Color(0xFF16A34A) : const Color(0xFF2563EB)),
+                        Icon(ignored ? CupertinoIcons.minus_circle_fill : item.analyzeWithAi ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.doc_text, size: 14, color: ignored ? const Color(0xFF64748B) : item.analyzeWithAi ? const Color(0xFF16A34A) : const Color(0xFF2563EB)),
                       ]),
                       const SizedBox(height: 3),
                       Wrap(spacing: 2, runSpacing: 2, children: item.recognizedBlockTypes.where((block) => block != '文字').take(2).map(_MiniTypeTag.new).toList()),
                       const SizedBox(height: 3),
-                      Text(item.analyzeWithAi ? '✓ 采用 + AI' : '✓ 采用 · 仅 OCR', style: const TextStyle(fontSize: 9)),
+                      Text(ignored ? '⊘ 已忽略' : item.analyzeWithAi ? '✓ 采用 + AI' : '✓ 采用 · 仅 OCR', style: const TextStyle(fontSize: 9)),
                     ],
                   ),
                 ),
@@ -787,7 +863,7 @@ class _RecognizedQuestionWorkbenchState
   }
 
   Widget _buildDetail(BuildContext context, int index, QuestionRegion region,
-      Subject subject, String type) {
+      Subject subject, String type, List<String> risks) {
     return ListView(
       key: ValueKey(region.id),
       padding: const EdgeInsets.all(10),
@@ -797,10 +873,24 @@ class _RecognizedQuestionWorkbenchState
           ...region.recognizedBlockTypes.where((block) => block != '文字').map(_MiniTypeTag.new),
           TextButton.icon(
             onPressed: () => widget.onIgnore(index),
-            icon: const Icon(CupertinoIcons.xmark_circle, size: 16),
-            label: const Text('忽略'),
+            icon: Icon(region.reviewStatus == QuestionRegionReviewStatus.ignored
+                ? CupertinoIcons.arrow_counterclockwise
+                : CupertinoIcons.minus_circle, size: 16),
+            label: Text(region.reviewStatus == QuestionRegionReviewStatus.ignored ? '恢复采用' : '忽略'),
           ),
         ]),
+        if (region.reviewStatus == QuestionRegionReviewStatus.ignored)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 6),
+            child: Text('⊘ 此题已忽略，不会被裁切、保存或交给 AI；可点击“恢复采用”撤销。', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          ),
+        if (risks.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 7),
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(6)),
+            child: Text('⚠ ${risks.join('；')}', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
+          ),
         Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
         const SizedBox(height: 8),
         TextFormField(

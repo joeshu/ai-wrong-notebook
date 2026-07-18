@@ -15,6 +15,7 @@ class QuestionRegion {
     this.subject,
     this.questionType,
     this.analyzeWithAi = true,
+    this.reviewStatus = QuestionRegionReviewStatus.accepted,
     this.confidence = 1,
     this.source = QuestionRegionSource.manual,
   });
@@ -35,6 +36,8 @@ class QuestionRegion {
   final String? questionType;
   /// False means keep OCR/document text as a ready local draft without AI analysis.
   final bool analyzeWithAi;
+  /// Ignored regions stay visible and can be restored before batch confirmation.
+  final QuestionRegionReviewStatus reviewStatus;
   final double confidence;
   final QuestionRegionSource source;
 
@@ -47,6 +50,7 @@ class QuestionRegion {
     Subject? subject,
     String? questionType,
     bool? analyzeWithAi,
+    QuestionRegionReviewStatus? reviewStatus,
     double? confidence,
     QuestionRegionSource? source,
   }) {
@@ -60,10 +64,13 @@ class QuestionRegion {
       subject: subject ?? this.subject,
       questionType: questionType ?? this.questionType,
       analyzeWithAi: analyzeWithAi ?? this.analyzeWithAi,
+      reviewStatus: reviewStatus ?? this.reviewStatus,
       confidence: confidence ?? this.confidence,
       source: source ?? this.source,
     );
   }
 }
+
+enum QuestionRegionReviewStatus { accepted, ignored }
 
 enum QuestionRegionSource { manual, layoutModel }
