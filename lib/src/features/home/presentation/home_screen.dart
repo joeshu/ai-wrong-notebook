@@ -284,10 +284,14 @@ class _TodayPlanCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final target = plan.targetCount;
     final progress = target == 0 ? 0.0 : plan.completedCount / target;
-    return InkWell(
-      onTap: onOpenReview,
+    return Material(
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
-      child: Container(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpenReview,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: colorScheme.primaryContainer,
@@ -355,8 +359,8 @@ class _TodayPlanCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _MistakeCategorySummary extends StatelessWidget {
