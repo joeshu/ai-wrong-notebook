@@ -49,7 +49,7 @@ class _WorksheetRegionEditorScreenState
         child: Column(children: <Widget>[
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-            child: Text('点击试卷空白处新增题框；每个蓝框会裁成一张独立题图。自动识别题框将在后续版面服务接入后作为候选框提供。',
+            child: Text('拖动蓝色题框调整位置；拖动右下角圆点缩放；点击红色 × 删除。每个蓝框会裁成一张独立题图。自动识别题框将在后续版面服务接入后作为候选框提供。',
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
           ),
           Expanded(
@@ -70,12 +70,15 @@ class _WorksheetRegionEditorScreenState
                       )));
                 },
                 child: Stack(fit: StackFit.expand, children: <Widget>[
-                  Image.file(File(page.imagePath), fit: BoxFit.contain),
+                  Image.file(File(page.imagePath), fit: BoxFit.fill),
                   ..._regions.asMap().entries.map((entry) => _RegionOverlay(
                         region: entry.value,
                         number: entry.key + 1,
                         canvasSize: size,
                         onDelete: () => setState(() => _regions.removeAt(entry.key)),
+                        onChanged: (rect) => setState(() =>
+                            _regions[entry.key] = entry.value.copyWith(
+                                normalizedRect: rect)),
                       )),
                 ]),
               );
@@ -138,11 +141,13 @@ class _RegionOverlay extends StatelessWidget {
     required this.number,
     required this.canvasSize,
     required this.onDelete,
+    required this.onChanged,
   });
   final QuestionRegion region;
   final int number;
   final Size canvasSize;
   final VoidCallback onDelete;
+  final ValueChanged<Rect> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -152,21 +157,134 @@ class _RegionOverlay extends StatelessWidget {
       top: r.top * canvasSize.height,
       width: r.width * canvasSize.width,
       height: r.height * canvasSize.height,
-      child: IgnorePointer(
-        ignoring: false,
-        child: Container(
-          decoration: BoxDecoration(border: Border.all(color: const Color(0xFF2563EB), width: 2)),
-          alignment: Alignment.topLeft,
+      child: _ResizableRegion(
+        region: r,
+        canvasSize: canvasSize,
+        number: number,
+        onDelete: onDelete,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+
+class _ResizableRegion extends StatefulWidget {
+  const _ResizableRegion({
+    required this.region,
+    required this.canvasSize,
+    required this.number,
+    required this.onDelete,
+    required this.onChanged,
+  });
+
+  final Rect region;
+  final Size canvasSize;
+  final int number;
+  final VoidCallback onDelete;
+  final ValueChanged<Rect> onChanged;
+
+  @override
+  State<_ResizableRegion> createState() => _ResizableRegionState();
+}
+
+class _ResizableRegionState extends State<_ResizableRegion> {
+  late Rect _region;
+
+  @override
+  void initState() {
+    super.initState();
+    _region = widget.region;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ResizableRegion oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.region != widget.region) _region = widget.region;
+  }
+
+  void _move(Offset delta) {
+    final dx = delta.dx / widget.canvasSize.width;
+    final dy = delta.dy / widget.canvasSize.height;
+    _update(Rect.fromLTWH(
+      (_region.left + dx).clamp(0.0, 1 - _region.width).toDouble(),
+      (_region.top + dy).clamp(0.0, 1 - _region.height).toDouble(),
+      _region.width,
+      _region.height,
+    ));
+  }
+
+  void _resize(Offset delta) {
+    final width = (_region.width + delta.dx / widget.canvasSize.width)
+        .clamp(.10, 1 - _region.left)
+        .toDouble();
+    final height = (_region.height + delta.dy / widget.canvasSize.height)
+        .clamp(.06, 1 - _region.top)
+        .toDouble();
+    _update(Rect.fromLTWH(_region.left, _region.top, width, height));
+  }
+
+  void _update(Rect next) {
+    setState(() => _region = next);
+    widget.onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFF2563EB), width: 2),
+        color: const Color(0xFF2563EB).withValues(alpha: .06),
+      ),
+      child: Stack(children: <Widget>[
+        Positioned.fill(
           child: GestureDetector(
-            onTap: onDelete,
-            child: Container(
+            onPanUpdate: (details) => _move(details.delta),
+            child: const SizedBox.expand(),
+          ),
+        ),
+        Positioned(
+          top: 0,
+          left: 0,
+          child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[
+            Container(
               color: const Color(0xFF2563EB),
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              child: Text('$number ×', style: const TextStyle(color: Colors.white, fontSize: 12)),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              child: Text('题 ${widget.number}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12)),
+            ),
+            Material(
+              color: const Color(0xFFDC2626),
+              child: InkWell(
+                onTap: widget.onDelete,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  child: Icon(CupertinoIcons.xmark,
+                      color: Colors.white, size: 14),
+                ),
+              ),
+            ),
+          ]),
+        ),
+        Positioned(
+          right: -8,
+          bottom: -8,
+          child: GestureDetector(
+            onPanUpdate: (details) => _resize(details.delta),
+            child: Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: const Color(0xFF2563EB), width: 2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(CupertinoIcons.arrow_down_right,
+                  size: 14, color: Color(0xFF2563EB)),
             ),
           ),
         ),
-      ),
+      ]),
     );
   }
 }
