@@ -6,6 +6,7 @@ import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.da
 class LayoutProviderRepository {
   static const _configKey = 'layout_provider_config_v1';
   static const _apiKey = 'layout_provider_api_key_v1';
+  static const _secondaryApiKey = 'layout_provider_secondary_api_key_v1';
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   Future<LayoutProviderConfig> load() async {
@@ -21,6 +22,7 @@ class LayoutProviderRepository {
         type: type,
         baseUrl: json['baseUrl'] as String? ?? '',
         apiKey: await _secureStorage.read(key: _apiKey) ?? '',
+        secondaryApiKey: await _secureStorage.read(key: _secondaryApiKey) ?? '',
       );
     } catch (_) {
       return const LayoutProviderConfig(type: LayoutProviderType.currentVision);
@@ -29,6 +31,7 @@ class LayoutProviderRepository {
 
   Future<void> save(LayoutProviderConfig config) async {
     await _secureStorage.write(key: _apiKey, value: config.apiKey);
+    await _secureStorage.write(key: _secondaryApiKey, value: config.secondaryApiKey);
     await (await SharedPreferences.getInstance()).setString(_configKey, jsonEncode({
       'type': config.type.name,
       'baseUrl': config.baseUrl,

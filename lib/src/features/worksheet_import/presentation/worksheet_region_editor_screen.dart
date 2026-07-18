@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/data/services/custom_http_document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/data/services/auto_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/mineru_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/paddle_cloud_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
@@ -147,7 +148,10 @@ class _WorksheetRegionEditorScreenState
               : config.type == LayoutProviderType.mineruCloud
                   ? await MineruDocumentLayoutService(config)
                       .detectQuestionRegions(imagePath: page.imagePath)
-              : await ref
+                  : config.type == LayoutProviderType.autoCloud
+                      ? await AutoDocumentLayoutService(config)
+                          .detectQuestionRegions(imagePath: page.imagePath)
+                  : await ref
                   .read(visionDocumentLayoutServiceProvider)
                   .detectQuestionRegions(imagePath: page.imagePath);
       if (!mounted) return;
