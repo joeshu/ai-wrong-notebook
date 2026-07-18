@@ -146,7 +146,7 @@ class HtmlExportService {
       case 'failed':
         return '识别失败';
       default:
-        return contentStatus.name;
+        return contentStatus.toString().split('.').last;
     }
   }
 
@@ -385,7 +385,7 @@ class HtmlExportService {
           buf.writeln('        <span style="color:#d97706">★</span>');
         }
         buf.writeln('        ${_masteryBadge(q.masteryLevel)}');
-        if (q.contentStatus.name != 'ready') {
+        if (q.contentStatus.toString().split('.').last != 'ready') {
           buf.writeln(
               '        <span class="badge" style="background:#eee;color:#888">${_statusLabel(q.contentStatus)}</span>');
         }

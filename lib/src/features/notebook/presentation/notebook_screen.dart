@@ -718,7 +718,7 @@ class _QuestionCard extends StatelessWidget {
                                     fontWeight: FontWeight.w500),
                               ),
                             ),
-                            if (question.contentStatus.name == 'failed') ...[
+                            if (question.contentStatus.toString().split('.').last == 'failed') ...[
                               const SizedBox(width: 6),
                               Container(
                                 padding: const EdgeInsets.symmetric(

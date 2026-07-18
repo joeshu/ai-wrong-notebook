@@ -481,7 +481,7 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
     }
     if (dueOnly && !scheduler.isDue(q)) return false;
     if (favoritesOnly && !q.isFavorite) return false;
-    if (failedOnly && q.contentStatus.name != 'failed') return false;
+    if (failedOnly && q.contentStatus.toString().split('.').last != 'failed') return false;
     if (!_isWithinDateRange(q.createdAt, dateRange, now)) return false;
     if (source != null && q.source != source) return false;
     if (learningStage != null && q.learningStage != learningStage) return false;

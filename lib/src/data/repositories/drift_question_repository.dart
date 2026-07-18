@@ -42,7 +42,7 @@ class DriftQuestionRepository implements QuestionRepository {
             originalText: Value(record.extractedQuestionText),
             correctedText: Value(record.normalizedQuestionText),
             masteryLevel: Value(record.masteryLevel.name),
-            contentStatus: Value(record.contentStatus.name),
+            contentStatus: Value(record.contentStatus.toString().split('.').last),
             reviewCount: Value(record.reviewCount),
             nextReviewAt: Value(record.nextReviewAt),
             createdAt: Value(record.createdAt),

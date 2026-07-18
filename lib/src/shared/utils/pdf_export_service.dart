@@ -365,7 +365,7 @@ class PdfExportService {
       ),
     ));
 
-    if (q.contentStatus.name != 'ready') {
+    if (q.contentStatus.toString().split('.').last != 'ready') {
       final statusLabel = _statusLabel(q.contentStatus);
       labelParts.add(pw.TextSpan(
         text: '[$statusLabel] ',
@@ -604,7 +604,7 @@ class PdfExportService {
       case 'failed':
         return '识别失败';
       default:
-        return contentStatus.name;
+        return contentStatus.toString().split('.').last;
     }
   }
 

@@ -328,7 +328,7 @@ class QuestionRecord {
       'nextReviewAt': nextReviewAt?.toIso8601String(),
       'reviewCount': reviewCount,
       'isFavorite': isFavorite,
-      'contentStatus': contentStatus.name,
+      'contentStatus': contentStatus.toString().split('.').last,
       'masteryLevel': masteryLevel.name,
       'analysisResult': analysisResult?.toJson(),
       'savedExercises':
