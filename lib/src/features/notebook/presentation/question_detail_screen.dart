@@ -7,6 +7,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
+import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
@@ -56,8 +57,21 @@ class QuestionDetailScreen extends ConsumerWidget {
             onSelected: (value) {
               if (value == 'delete') _confirmDelete(context, ref, current);
               if (value == 'source') _editSource(context, ref, current);
+              if (value == 'learningContext') {
+                _editLearningContext(context, ref, current);
+              }
             },
             itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'learningContext',
+                child: Row(
+                  children: [
+                    Icon(CupertinoIcons.person_text_rectangle, size: 20),
+                    SizedBox(width: 8),
+                    Text('编辑学习档案'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'source',
                 child: Row(
@@ -224,6 +238,7 @@ class QuestionDetailScreen extends ConsumerWidget {
             question: current,
             onToggleFavorite: () => _toggleFavorite(context, ref, current),
             onEditSource: () => _editSource(context, ref, current),
+            onEditLearningContext: () => _editLearningContext(context, ref, current),
           ),
           if (batchGroup != null) ...<Widget>[
             const SizedBox(height: 12),
@@ -643,6 +658,100 @@ class QuestionDetailScreen extends ConsumerWidget {
     return order == null ? '拍照批次' : '拍照批次 · 第 $order 题';
   }
 
+  void _editLearningContext(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) {
+    final stageController = TextEditingController(text: question.learningStage ?? '');
+    final workController = TextEditingController(text: question.studentWork ?? '');
+    var difficulty = question.difficulty;
+    var attemptStatus = question.attemptStatus;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('学习档案'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: stageController,
+                  maxLength: 30,
+                  decoration: const InputDecoration(
+                    labelText: '年级 / 教材阶段',
+                    hintText: '例如：七年级上、人教版必修一',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<QuestionDifficulty?>(
+                  value: difficulty,
+                  decoration: const InputDecoration(
+                    labelText: '题目层级', border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('未设置')),
+                    DropdownMenuItem(value: QuestionDifficulty.foundation, child: Text('基础')),
+                    DropdownMenuItem(value: QuestionDifficulty.advanced, child: Text('提高')),
+                    DropdownMenuItem(value: QuestionDifficulty.challenge, child: Text('压轴 / 挑战')),
+                    DropdownMenuItem(value: QuestionDifficulty.custom, child: Text('自定义')),
+                  ],
+                  onChanged: (value) => setState(() => difficulty = value),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<AttemptStatus?>(
+                  value: attemptStatus,
+                  decoration: const InputDecoration(
+                    labelText: '作答状态', border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('未判断')),
+                    DropdownMenuItem(value: AttemptStatus.notAttempted, child: Text('不会做')),
+                    DropdownMenuItem(value: AttemptStatus.wrongAttempt, child: Text('做错了')),
+                    DropdownMenuItem(value: AttemptStatus.incomplete, child: Text('未完成')),
+                    DropdownMenuItem(value: AttemptStatus.unknown, child: Text('未判断（已标记）')),
+                  ],
+                  onChanged: (value) => setState(() => attemptStatus = value),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: workController,
+                  maxLines: 3,
+                  maxLength: 240,
+                  decoration: const InputDecoration(
+                    labelText: '我的作答 / 订正过程',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+            FilledButton(
+              onPressed: () async {
+                final updated = question.withLearningContext(
+                  learningStage: stageController.text,
+                  difficulty: difficulty,
+                  attemptStatus: attemptStatus,
+                  studentWork: workController.text,
+                );
+                await ref.read(questionRepositoryProvider).update(updated);
+                ref.read(currentQuestionProvider.notifier).state = updated;
+                invalidateQuestionList(ref);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _editSource(
     BuildContext context,
     WidgetRef ref,
@@ -904,11 +1013,13 @@ class _LearningProfileCard extends StatelessWidget {
     required this.question,
     required this.onToggleFavorite,
     required this.onEditSource,
+    required this.onEditLearningContext,
   });
 
   final QuestionRecord question;
   final VoidCallback onToggleFavorite;
   final VoidCallback onEditSource;
+  final VoidCallback onEditLearningContext;
 
   @override
   Widget build(BuildContext context) {
@@ -956,6 +1067,23 @@ class _LearningProfileCard extends StatelessWidget {
                 label: question.source ?? '设置来源',
                 onTap: onEditSource,
               ),
+              _ProfileAction(
+                icon: CupertinoIcons.person_text_rectangle,
+                label: question.learningStage ?? '学习档案',
+                onTap: onEditLearningContext,
+              ),
+              if (question.difficulty != null)
+                _ProfileItem(
+                  icon: CupertinoIcons.chart_bar,
+                  label: '层级',
+                  value: _difficultyLabel(question.difficulty!),
+                ),
+              if (question.attemptStatus != null)
+                _ProfileItem(
+                  icon: CupertinoIcons.pencil_ellipsis_rectangle,
+                  label: '作答',
+                  value: _attemptStatusLabel(question.attemptStatus!),
+                ),
             ],
           ),
         ],
@@ -963,6 +1091,20 @@ class _LearningProfileCard extends StatelessWidget {
     );
   }
 }
+
+String _difficultyLabel(QuestionDifficulty value) => switch (value) {
+      QuestionDifficulty.foundation => '基础',
+      QuestionDifficulty.advanced => '提高',
+      QuestionDifficulty.challenge => '压轴 / 挑战',
+      QuestionDifficulty.custom => '自定义',
+    };
+
+String _attemptStatusLabel(AttemptStatus value) => switch (value) {
+      AttemptStatus.notAttempted => '不会做',
+      AttemptStatus.wrongAttempt => '做错了',
+      AttemptStatus.incomplete => '未完成',
+      AttemptStatus.unknown => '未判断',
+    };
 
 String _formatProfileDate(DateTime value) {
   final date = value.toLocal();
