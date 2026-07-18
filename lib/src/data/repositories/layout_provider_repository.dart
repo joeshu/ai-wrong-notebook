@@ -50,6 +50,18 @@ class LayoutProviderRepository {
     }
   }
 
+  Future<LayoutProviderConfig> loadForType(LayoutProviderType type) async {
+    final selected = await load();
+    final paddle = await readPaddleToken();
+    final mineru = await readMineruToken();
+    return LayoutProviderConfig(
+      type: type,
+      baseUrl: selected.baseUrl,
+      apiKey: type == LayoutProviderType.mineruCloud ? mineru : paddle,
+      secondaryApiKey: type == LayoutProviderType.autoCloud ? mineru : '',
+    );
+  }
+
   Future<void> save(LayoutProviderConfig config) async {
     if (config.type == LayoutProviderType.mineruCloud) {
       await _secureStorage.write(key: _mineruApiKey, value: config.apiKey);

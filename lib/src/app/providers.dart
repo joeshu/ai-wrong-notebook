@@ -128,6 +128,9 @@ final StateProvider<LayoutProviderConfig> layoutProviderConfigProvider =
     StateProvider<LayoutProviderConfig>((ref) =>
         const LayoutProviderConfig(type: LayoutProviderType.currentVision));
 
+final StateProvider<LayoutProviderType?> oneShotLayoutProviderTypeProvider =
+    StateProvider<LayoutProviderType?>((ref) => null);
+
 Future<LayoutProviderConfig> restoreLayoutProviderConfig(WidgetRef ref) async {
   final config = await ref.read(layoutProviderRepositoryProvider).load();
   ref.read(layoutProviderConfigProvider.notifier).state = config;

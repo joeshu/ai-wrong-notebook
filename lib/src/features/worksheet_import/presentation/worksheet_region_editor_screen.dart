@@ -54,6 +54,7 @@ class _WorksheetRegionEditorScreenState
     }
     final scheme = Theme.of(context).colorScheme;
     final layoutConfig = ref.watch(layoutProviderConfigProvider);
+    final oneShotType = ref.watch(oneShotLayoutProviderTypeProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('整页框选切题'),
@@ -68,8 +69,12 @@ class _WorksheetRegionEditorScreenState
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
             child: _DetectionActionCard(
               isDetecting: _isDetecting,
-              selectedType: _selectedStrategyLabel(layoutConfig),
-              onAuto: _isCropping || _isDetecting ? null : () => _detectRegions(page),
+              selectedType: _selectedStrategyLabel(
+                oneShotType == null
+                    ? layoutConfig
+                    : LayoutProviderConfig(type: oneShotType),
+              ),
+              onAuto: _isCropping || _isDetecting ? null : () => _detectRegions(page, override: oneShotType),
               onPaddle: _isCropping || _isDetecting || !_hasPaddleToken(layoutConfig) ? null : () => _detectRegions(page, override: LayoutProviderType.paddleCloud),
               onMineru: _isCropping || _isDetecting || !_hasMineruToken(layoutConfig) ? null : () => _detectRegions(page, override: LayoutProviderType.mineruCloud),
               onManual: _isCropping || _isDetecting ? null : _clearForManual,
@@ -215,17 +220,11 @@ class _WorksheetRegionEditorScreenState
       _detectionDuration = null;
     });
     try {
-      final config = await restoreLayoutProviderConfig(ref);
+      final config = override == null
+          ? await restoreLayoutProviderConfig(ref)
+          : await ref.read(layoutProviderRepositoryProvider).loadForType(override);
       final type = override ?? config.type;
-      final effectiveConfig = override == null
-          ? config
-          : LayoutProviderConfig(
-              type: type,
-              apiKey: type == LayoutProviderType.mineruCloud
-                  ? (config.type == LayoutProviderType.autoCloud ? config.secondaryApiKey : config.apiKey)
-                  : config.apiKey,
-              secondaryApiKey: config.secondaryApiKey,
-            );
+      final effectiveConfig = config;
       if (type == LayoutProviderType.manualOnly) {
         if (mounted) setState(() => _detectionMessage = '当前设置为仅手动框选；可直接点击页面新增题框。');
         return;

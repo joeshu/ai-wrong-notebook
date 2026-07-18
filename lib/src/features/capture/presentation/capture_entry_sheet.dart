@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
+import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
+import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:uuid/uuid.dart';
 
 class CaptureEntrySheet extends ConsumerStatefulWidget {
@@ -16,6 +18,7 @@ class CaptureEntrySheet extends ConsumerStatefulWidget {
 class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
   bool _isLoading = false;
   String? _errorMessage;
+  _RecognitionChoice _choice = _RecognitionChoice.ai;
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +50,18 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
+            _RecognitionChoiceSelector(
+              selected: _choice,
+              onChanged: (choice) => setState(() => _choice = choice),
+            ),
+            const SizedBox(height: 12),
+            if (_choice != _RecognitionChoice.ai)
+              Text(
+                '${_choice.label} 会先识别题目、文字、公式、表格与选项，再进入逐题校对；普通 AI 只在你确认后做解析。',
+                style: TextStyle(fontSize: 11, height: 1.4, color: colorScheme.onSurfaceVariant),
+              ),
+            if (_choice != _RecognitionChoice.ai) const SizedBox(height: 10),
             if (_isLoading)
               Container(
                 padding: const EdgeInsets.all(40),
@@ -69,7 +83,7 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                     : const Color(0xFFEEF2FF),
                 label: '拍照',
                 description: '使用相机拍摄错题',
-                onTap: () => _pickAndNavigate(fromCamera: true),
+                onTap: () => _pickWithChoice(fromCamera: true),
               ),
               const SizedBox(height: 10),
               _EntryOption(
@@ -80,7 +94,7 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                     : const Color(0xFFFFFBEB),
                 label: '相册',
                 description: '从相册选择图片',
-                onTap: () => _pickAndNavigate(fromCamera: false),
+                onTap: () => _pickWithChoice(fromCamera: false),
               ),
               const SizedBox(height: 10),
               _EntryOption(
@@ -142,7 +156,55 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
   );
   }
 
+  Future<void> _pickWithChoice({required bool fromCamera}) async {
+    if (_choice == _RecognitionChoice.ai) {
+      await _pickAndNavigate(fromCamera: fromCamera);
+      return;
+    }
+    await _pickForDocumentUnderstanding(fromCamera: fromCamera);
+  }
+
+  Future<void> _pickForDocumentUnderstanding({required bool fromCamera}) async {
+    final router = GoRouter.of(context);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final capture = ref.read(captureServiceProvider);
+      final result = fromCamera ? await capture.pickFromCamera() : await capture.pickFromGallery();
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (result.isCancelled) return;
+      if (result.errorMessage != null || result.record == null) {
+        setState(() => _errorMessage = '获取图片失败：${result.errorMessage ?? '未返回图片'}');
+        return;
+      }
+      final providerType = _choice == _RecognitionChoice.paddle
+          ? LayoutProviderType.paddleCloud
+          : LayoutProviderType.mineruCloud;
+      ref.read(oneShotLayoutProviderTypeProvider.notifier).state = providerType;
+      await persistWorksheetImport(ref, WorksheetImportSession(
+        id: const Uuid().v4(),
+        pages: <QuestionRecord>[result.record!],
+        sourcePageIds: <String>{result.record!.id},
+        createdAt: DateTime.now(),
+      ));
+      ref.read(currentQuestionProvider.notifier).state = result.record!;
+      if (!mounted) return;
+      Navigator.pop(context);
+      router.go('/worksheet/regions');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '打开文档识别流程失败：$e';
+      });
+    }
+  }
+
   Future<void> _pickWorksheetPages() async {
+    ref.read(oneShotLayoutProviderTypeProvider.notifier).state = null;
     final router = GoRouter.of(context);
 
     setState(() {
@@ -310,4 +372,52 @@ class _EntryOption extends StatelessWidget {
       ),
     );
   }
+}
+
+
+enum _RecognitionChoice {
+  ai('普通 AI', '直接识别并分析单题'),
+  paddle('PaddleOCR', '文档识别：文字、公式、表格、选项'),
+  mineru('MinerU', 'VLM 文档理解：复杂公式、多栏试卷');
+
+  const _RecognitionChoice(this.label, this.description);
+  final String label;
+  final String description;
+}
+
+class _RecognitionChoiceSelector extends StatelessWidget {
+  const _RecognitionChoiceSelector({required this.selected, required this.onChanged});
+  final _RecognitionChoice selected;
+  final ValueChanged<_RecognitionChoice> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      const Text('本次采用哪种识别？', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _RecognitionChoice.values.map((choice) {
+          final active = choice == selected;
+          return ChoiceChip(
+            label: Text(choice.label),
+            selected: active,
+            onSelected: (_) => onChanged(choice),
+            avatar: Icon(
+              choice == _RecognitionChoice.ai
+                  ? CupertinoIcons.sparkles
+                  : choice == _RecognitionChoice.paddle
+                      ? CupertinoIcons.doc_text_search
+                      : CupertinoIcons.doc_richtext,
+              size: 16,
+            ),
+          );
+        }).toList(),
+      ),
+      const SizedBox(height: 5),
+      Text(selected.description, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+    ],
+  );
 }
