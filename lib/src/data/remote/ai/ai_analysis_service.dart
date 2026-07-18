@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_response_contract.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
@@ -2093,7 +2094,7 @@ class AiAnalysisService {
   }
 
   AnalysisResult _parseAnalysisResponse(String content) {
-    final map = _parseResponseJson(content);
+    final map = AiAnalysisResponseContract.normalize(_parseResponseJson(content));
 
     Subject? subject;
     final subjectStr = map['subject'] as String?;
