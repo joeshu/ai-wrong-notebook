@@ -126,20 +126,7 @@ GoRouter buildRouter(SettingsRepository settingsRepo) {
   );
 }
 
-CustomTransitionPage _buildPage(Widget child) {
-  return CustomTransitionPage(
-    child: child,
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(1, 0),
-          end: Offset.zero,
-        ).animate(
-            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-      );
-    },
-  );
-}
+Page<void> _buildPage(Widget child) => MaterialPage<void>(child: child);
 
 class ScaffoldWithNavBar extends StatelessWidget {
   const ScaffoldWithNavBar({required this.navigationShell, super.key});

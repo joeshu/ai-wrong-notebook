@@ -23,8 +23,10 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const orange = Color(0xFFEA580C);
 
-    return SafeArea(
-      child: SingleChildScrollView(
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: SafeArea(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
