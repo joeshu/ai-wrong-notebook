@@ -974,18 +974,44 @@ class _RecognizedQuestionWorkbenchState
     return lines.isEmpty ? const <String>[] : <String>[lines.join('\n')];
   }
 
+  List<DocumentBlock> _orderedBlocks(QuestionRegion region, String stem,
+      List<String> formulas, List<String> tables) {
+    if (region.documentBlocks.isEmpty) return <DocumentBlock>[
+      if (stem.trim().isNotEmpty) DocumentBlock(type: DocumentBlockType.text, content: stem),
+      ...formulas.map((item) => DocumentBlock(type: DocumentBlockType.formula, content: item)),
+      ...tables.map((item) => DocumentBlock(type: DocumentBlockType.table, content: item)),
+    ];
+    final remaining = <DocumentBlockType, List<String>>{
+      DocumentBlockType.text: <String>[stem],
+      DocumentBlockType.formula: List<String>.from(formulas),
+      DocumentBlockType.table: List<String>.from(tables),
+    };
+    final next = <DocumentBlock>[];
+    for (final block in region.documentBlocks) {
+      final values = remaining[block.type]!;
+      if (values.isNotEmpty) next.add(DocumentBlock(type: block.type, content: values.removeAt(0)));
+    }
+    for (final type in DocumentBlockType.values) {
+      next.addAll(remaining[type]!.where((item) => item.trim().isNotEmpty)
+          .map((item) => DocumentBlock(type: type, content: item)));
+    }
+    return next;
+  }
+
   void _updateStructured(int index, QuestionRegion region, {
     String? stem, List<String>? formulas, List<String>? tables,
   }) {
     final nextStem = stem ?? _stemFor(region);
     final nextFormulas = formulas ?? _formulasFor(region);
     final nextTables = tables ?? _tablesFor(region);
-    final combined = <String>[nextStem, ...nextFormulas, ...nextTables]
-        .where((item) => item.trim().isNotEmpty).join('\n\n');
+    final blocks = _orderedBlocks(region, nextStem, nextFormulas, nextTables);
+    final combined = blocks.where((block) => block.content.trim().isNotEmpty)
+        .map((block) => block.content).join('\n\n');
     widget.onUpdate(index, region.copyWith(
       questionStem: nextStem,
       formulas: nextFormulas,
       tables: nextTables,
+      documentBlocks: blocks,
       recognizedText: combined,
       contentFormatHint: nextFormulas.isEmpty ? 'plain' : 'latexMixed',
     ));

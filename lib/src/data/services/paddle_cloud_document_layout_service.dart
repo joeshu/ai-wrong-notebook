@@ -110,6 +110,8 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
         normalizedRect: rect,
         detectedNumber: _questionStart.firstMatch(ordered[from].text)?.group(1),
         recognizedText: text.isEmpty ? null : text,
+        documentBlocks: questionBlocks.where((block) => block.text.trim().isNotEmpty).map((block) =>
+            DocumentBlock(type: _blockType(block.text), content: block.text.trim())).toList(),
         contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
         recognizedBlockTypes: _classifyText(text),
         confidence: .76,
@@ -117,6 +119,16 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
       ));
     }
     return regions.isEmpty ? _fallbackBlockRegions(ordered) : regions;
+  }
+
+  DocumentBlockType _blockType(String text) {
+    if (text.contains('|') && text.split('\n').where((line) => line.contains('|')).length >= 2) {
+      return DocumentBlockType.table;
+    }
+    if (text.contains(r'$') || text.contains(r'\\') || RegExp(r'[∑√∫≠≤≥]').hasMatch(text)) {
+      return DocumentBlockType.formula;
+    }
+    return DocumentBlockType.text;
   }
 
   List<QuestionRegion> _fallbackBlockRegions(List<_PaddleBlock> blocks) => blocks

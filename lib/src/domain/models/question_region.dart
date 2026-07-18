@@ -14,6 +14,7 @@ class QuestionRegion {
     this.questionStem,
     this.formulas = const <String>[],
     this.tables = const <String>[],
+    this.documentBlocks = const <DocumentBlock>[],
     this.contentFormatHint,
     this.recognizedBlockTypes = const <String>[],
     this.subject,
@@ -37,6 +38,8 @@ class QuestionRegion {
   final String? questionStem;
   final List<String> formulas;
   final List<String> tables;
+  /// Ordered source blocks, preserving the reading order of text/formulas/tables.
+  final List<DocumentBlock> documentBlocks;
   final String? contentFormatHint;
   /// Detected content categories: text, formula, table, option, diagram.
   final List<String> recognizedBlockTypes;
@@ -59,6 +62,7 @@ class QuestionRegion {
     String? questionStem,
     List<String>? formulas,
     List<String>? tables,
+    List<DocumentBlock>? documentBlocks,
     String? contentFormatHint,
     List<String>? recognizedBlockTypes,
     Subject? subject,
@@ -77,6 +81,7 @@ class QuestionRegion {
       questionStem: questionStem ?? this.questionStem,
       formulas: formulas ?? this.formulas,
       tables: tables ?? this.tables,
+      documentBlocks: documentBlocks ?? this.documentBlocks,
       contentFormatHint: contentFormatHint ?? this.contentFormatHint,
       recognizedBlockTypes: recognizedBlockTypes ?? this.recognizedBlockTypes,
       subject: subject ?? this.subject,
@@ -87,6 +92,17 @@ class QuestionRegion {
       source: source ?? this.source,
     );
   }
+}
+
+enum DocumentBlockType { text, formula, table }
+
+class DocumentBlock {
+  const DocumentBlock({required this.type, required this.content});
+  final DocumentBlockType type;
+  final String content;
+
+  DocumentBlock copyWith({DocumentBlockType? type, String? content}) =>
+      DocumentBlock(type: type ?? this.type, content: content ?? this.content);
 }
 
 enum QuestionRegionReviewStatus { accepted, ignored }

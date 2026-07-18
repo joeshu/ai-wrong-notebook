@@ -111,6 +111,8 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
         normalizedRect: clip,
         detectedNumber: _questionStart.firstMatch(sorted[from].text)?.group(1),
         recognizedText: questionText.isEmpty ? null : questionText,
+        documentBlocks: groupBlocks.where((block) => block.text.trim().isNotEmpty).map((block) =>
+            DocumentBlock(type: _blockType(block.text), content: block.text.trim())).toList(),
         contentFormatHint: questionText.contains(r'$') || questionText.contains(r'\\') ? 'latexMixed' : 'plain',
         recognizedBlockTypes: _classifyText(questionText),
         confidence: .75,
@@ -118,6 +120,16 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
       ));
     }
     return regions;
+  }
+
+  DocumentBlockType _blockType(String text) {
+    if (text.contains('|') && text.split('\n').where((line) => line.contains('|')).length >= 2) {
+      return DocumentBlockType.table;
+    }
+    if (text.contains(r'$') || text.contains(r'\\') || RegExp(r'[∑√∫≠≤≥]').hasMatch(text)) {
+      return DocumentBlockType.formula;
+    }
+    return DocumentBlockType.text;
   }
 
   List<String> _classifyText(String text) {
