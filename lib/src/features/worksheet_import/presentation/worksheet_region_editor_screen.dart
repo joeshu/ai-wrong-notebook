@@ -584,6 +584,16 @@ class _DetectionResultCard extends StatelessWidget {
   final Duration? duration;
   final String? warning;
 
+  String _structureSummary(List<QuestionRegion> regions) {
+    final counts = <String, int>{};
+    for (final region in regions) {
+      for (final type in region.recognizedBlockTypes.where((type) => type != '文字')) {
+        counts[type] = (counts[type] ?? 0) + 1;
+      }
+    }
+    return counts.entries.map((entry) => '${entry.key} ${entry.value}').join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
@@ -598,6 +608,8 @@ class _DetectionResultCard extends StatelessWidget {
         if (regions.any((region) => (region.recognizedText ?? '').trim().isNotEmpty)) ...<Widget>[
           const SizedBox(height: 6),
           Text('已同时提取题目文字/公式：${regions.where((region) => (region.recognizedText ?? '').trim().isNotEmpty).length} 道。确认题框后会带入下一步校对，不会丢弃。', style: const TextStyle(fontSize: 12, color: Color(0xFF166534))),
+          if (_structureSummary(regions).isNotEmpty)
+            Text('结构识别：${_structureSummary(regions)}', style: const TextStyle(fontSize: 12, color: Color(0xFF166534))),
         ],
         if (warning != null && warning!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 5), child: Text('提示：$warning', style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412)))),
         const Padding(padding: EdgeInsets.only(top: 5), child: Text('请检查蓝框边界；可拖动、缩放、删除，或点击试卷增加题框。', style: TextStyle(fontSize: 12, color: Color(0xFF475569)))),
@@ -671,7 +683,13 @@ class _RecognizedQuestionStrip extends StatelessWidget {
                 Row(children: <Widget>[
                   Text('第 ${region.detectedNumber ?? index + 1} 题', style: const TextStyle(fontWeight: FontWeight.w700)),
                   const SizedBox(width: 6),
-                  if (region.contentFormatHint == 'latexMixed') const _MiniTypeTag('公式'),
+                  Wrap(
+                    spacing: 5,
+                    children: region.recognizedBlockTypes
+                        .where((type) => type != '文字')
+                        .map((type) => _MiniTypeTag(type))
+                        .toList(),
+                  ),
                   const Spacer(),
                   IconButton(
                     tooltip: '忽略此题',

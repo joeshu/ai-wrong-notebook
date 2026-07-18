@@ -112,11 +112,20 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
         detectedNumber: _questionStart.firstMatch(sorted[from].text)?.group(1),
         recognizedText: questionText.isEmpty ? null : questionText,
         contentFormatHint: questionText.contains(r'$') || questionText.contains(r'\\') ? 'latexMixed' : 'plain',
+        recognizedBlockTypes: _classifyText(questionText),
         confidence: .75,
         source: QuestionRegionSource.layoutModel,
       ));
     }
     return regions;
+  }
+
+  List<String> _classifyText(String text) {
+    final types = <String>['文字'];
+    if (text.contains(r'$') || text.contains(r'\\') || RegExp(r'[∑√∫≠≤≥]').hasMatch(text)) types.add('公式');
+    if (text.contains('|') && text.split('\n').where((line) => line.contains('|')).length >= 2) types.add('表格');
+    if (RegExp(r'(?:^|\n)\s*[A-DＡ-Ｄ][\.．、]').hasMatch(text)) types.add('选项');
+    return types;
   }
 
   void _collect(dynamic value, List<_Block> out) {

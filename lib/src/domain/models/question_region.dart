@@ -9,6 +9,7 @@ class QuestionRegion {
     this.detectedNumber,
     this.recognizedText,
     this.contentFormatHint,
+    this.recognizedBlockTypes = const <String>[],
     this.confidence = 1,
     this.source = QuestionRegionSource.manual,
   });
@@ -21,6 +22,8 @@ class QuestionRegion {
   /// It may contain Markdown/LaTex and is always user-reviewable.
   final String? recognizedText;
   final String? contentFormatHint;
+  /// Detected content categories: text, formula, table, option, diagram.
+  final List<String> recognizedBlockTypes;
   final double confidence;
   final QuestionRegionSource source;
 
@@ -29,6 +32,7 @@ class QuestionRegion {
     String? detectedNumber,
     String? recognizedText,
     String? contentFormatHint,
+    List<String>? recognizedBlockTypes,
     double? confidence,
     QuestionRegionSource? source,
   }) {
@@ -38,6 +42,7 @@ class QuestionRegion {
       detectedNumber: detectedNumber ?? this.detectedNumber,
       recognizedText: recognizedText ?? this.recognizedText,
       contentFormatHint: contentFormatHint ?? this.contentFormatHint,
+      recognizedBlockTypes: recognizedBlockTypes ?? this.recognizedBlockTypes,
       confidence: confidence ?? this.confidence,
       source: source ?? this.source,
     );

@@ -111,6 +111,7 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
         detectedNumber: _questionStart.firstMatch(ordered[from].text)?.group(1),
         recognizedText: text.isEmpty ? null : text,
         contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
+        recognizedBlockTypes: _classifyText(text),
         confidence: .76,
         source: QuestionRegionSource.layoutModel,
       ));
@@ -129,10 +130,19 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
             normalizedRect: entry.value.rect,
             recognizedText: entry.value.text.isEmpty ? null : entry.value.text,
             contentFormatHint: entry.value.text.contains(r'$') || entry.value.text.contains(r'\\') ? 'latexMixed' : 'plain',
+            recognizedBlockTypes: _classifyText(entry.value.text),
             confidence: .55,
             source: QuestionRegionSource.layoutModel,
           ))
       .toList();
+
+  List<String> _classifyText(String text) {
+    final types = <String>['文字'];
+    if (text.contains(r'$') || text.contains(r'\\') || RegExp(r'[∑√∫≠≤≥]').hasMatch(text)) types.add('公式');
+    if (text.contains('|') && text.split('\n').where((line) => line.contains('|')).length >= 2) types.add('表格');
+    if (RegExp(r'(?:^|\n)\s*[A-DＡ-Ｄ][\.．、]').hasMatch(text)) types.add('选项');
+    return types;
+  }
 
   void _collectBlocks(dynamic value, List<_PaddleBlock> out, Size? inheritedSize) {
     if (value is Map) {
