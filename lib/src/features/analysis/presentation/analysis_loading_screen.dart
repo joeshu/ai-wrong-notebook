@@ -385,18 +385,35 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            FilledButton(
-              onPressed: () {
-                setState(() {
-                  _errorMessage = null;
-                  _progressText = null;
-                  _step = 0;
-                });
-                _runAnalysis();
-                _animateSteps();
-              },
-              style: FilledButton.styleFrom(minimumSize: const Size(120, 40)),
-              child: const Text('重试'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/capture/correction'),
+                  icon: const Icon(CupertinoIcons.pencil),
+                  label: const Text('返回校对'),
+                ),
+                const SizedBox(width: 12),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _errorMessage = null;
+                      _progressText = null;
+                      _step = 0;
+                    });
+                    _runAnalysis();
+                    _animateSteps();
+                  },
+                  style: FilledButton.styleFrom(minimumSize: const Size(120, 40)),
+                  child: const Text('重试'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: () => context.go('/notebook'),
+              icon: const Icon(CupertinoIcons.book),
+              label: const Text('查看已保存草稿'),
             ),
           ],
         ),
