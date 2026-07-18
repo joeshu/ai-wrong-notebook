@@ -16,7 +16,7 @@ class PdfExportService {
 
   static Future<pw.Font> _getFont() async {
     if (_baseFont != null) return _baseFont!;
-    final data = await rootBundle.load('assets/fonts/NotoSansCJKsc-Regular.otf');
+    final data = await rootBundle.load('assets/fonts/NotoSansSC-Regular.ttf');
     _baseFont = pw.Font.ttf(data);
     return _baseFont!;
   }
