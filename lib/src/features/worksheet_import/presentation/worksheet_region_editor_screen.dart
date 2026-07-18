@@ -181,6 +181,7 @@ class _WorksheetRegionEditorScreenState
                         ? QuestionRegionReviewStatus.accepted
                         : QuestionRegionReviewStatus.ignored,
                   );
+                  _scheduleDraftSave(page.id);
                 }),
                 selectedRegionId: _selectedRegionId,
                 sourceImagePath: page.imagePath,
@@ -224,6 +225,7 @@ class _WorksheetRegionEditorScreenState
                           normalizedRect: rect,
                           confidence: entry.value.source == QuestionRegionSource.manual ? 1 : .90,
                         );
+                        _scheduleDraftSave(page.id);
                       }),
                     );
                   }),
