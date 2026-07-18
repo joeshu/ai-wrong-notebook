@@ -249,7 +249,12 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
 
       if (mounted) {
         _stepTimer?.cancel();
+        final wasAutoQueue = ref.read(worksheetAutoAnalyzeProvider);
         if (_continueWorksheetQueue(updated)) return;
+        if (wasAutoQueue) {
+          context.go('/worksheet/import');
+          return;
+        }
         context.go('/analysis/result');
       }
     } on AiAnalysisException catch (e) {
