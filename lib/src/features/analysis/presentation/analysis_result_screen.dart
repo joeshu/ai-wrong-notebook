@@ -75,6 +75,10 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
         : null;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final layoutProvider = record.tags
+        .where((tag) => tag.startsWith('layout_provider:'))
+        .map((tag) => tag.substring('layout_provider:'.length))
+        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
     return Scaffold(
       appBar: AppBar(
         title: const Text('AI 解析结果'),
@@ -82,6 +86,13 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
           icon: const Icon(CupertinoIcons.chevron_left),
           onPressed: () => context.go('/capture/save-confirmation'),
         ),
+        actions: <Widget>[
+          TextButton.icon(
+            onPressed: () => _confirmDiscard(record),
+            icon: const Icon(CupertinoIcons.trash, size: 18),
+            label: const Text('放弃'),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -121,6 +132,14 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                           .withValues(alpha: 0.1),
                       textColor: _masteryColor(record.masteryLevel),
                     ),
+                    if (layoutProvider.isNotEmpty) ...<Widget>[
+                      const SizedBox(width: 8),
+                      _TagChip(
+                        label: '切题：$layoutProvider',
+                        bgColor: const Color(0xFFE0F2FE),
+                        textColor: const Color(0xFF0369A1),
+                      ),
+                    ],
                   ],
                 ),
                 if (record.splitResult != null) ...<Widget>[
@@ -678,6 +697,38 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDiscard(QuestionRecord record) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('放弃这次识别？'),
+        content: const Text('题图、识别结果和本次分析都不会加入错题本。此操作不可恢复。'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('继续查看')),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('放弃并删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet != null && !worksheet.sourcePageIds.contains(record.id)) {
+      await persistWorksheetImport(
+        ref,
+        worksheet.copyWith(pages: worksheet.pages.where((item) => item.id != record.id).toList()),
+      );
+    }
+    await ref.read(questionRepositoryProvider).delete(record.id);
+    await ref.read(imageStorageServiceProvider).deleteImage(record.imagePath);
+    ref.read(currentQuestionProvider.notifier).state = null;
+    invalidateQuestionList(ref);
+    if (!mounted) return;
+    context.go(worksheet == null ? '/' : '/worksheet/import');
   }
 
   void _startPractice(

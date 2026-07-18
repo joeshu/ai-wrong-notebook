@@ -93,6 +93,11 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                 description: '一次选择多页，逐页确认切题',
                 onTap: _pickWorksheetPages,
               ),
+              const SizedBox(height: 10),
+              Text(
+                '说明：拍照/相册的单题会使用“AI 服务”中的当前模型解析；PaddleOCR 与 MinerU 仅用于“试卷批量导入 → 整页框选切题”的候选题框识别，识别后会显示实际服务名称。',
+                style: TextStyle(fontSize: 11, height: 1.4, color: colorScheme.onSurfaceVariant),
+              ),
             ],
             if (_errorMessage != null) ...<Widget>[
               const SizedBox(height: 12),

@@ -270,7 +270,9 @@ class _WorksheetRegionEditorScreenState
           id: const Uuid().v4(), imagePath: path, subject: source.subject, recognizedText: '',
         ).copyWith(
           contentStatus: ContentStatus.processing,
-          tags: ImageFingerprintCodec.write(source.tags, fingerprint),
+          tags: (ImageFingerprintCodec.write(source.tags, fingerprint)
+            ..removeWhere((tag) => tag.startsWith('layout_provider:'))
+            ..add('layout_provider:${_detectionProvider ?? '手动框选'}')),
           parentQuestionId: source.id,
           rootQuestionId: source.rootQuestionId ?? source.id,
         ));

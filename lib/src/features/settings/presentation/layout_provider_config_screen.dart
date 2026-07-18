@@ -74,6 +74,7 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
           title: const Text('仅手动框选'),
           subtitle: const Text('不上传整页试卷到任何版面识别服务。'),
         ),
+        _ConfigurationStatusCard(type: _type, apiKey: _key.text, secondaryApiKey: _secondaryKey.text, loaded: _loaded),
         if (_type == LayoutProviderType.customHttp || _type == LayoutProviderType.paddleCloud || _type == LayoutProviderType.mineruCloud || _type == LayoutProviderType.autoCloud) ...<Widget>[
           const SizedBox(height: 16),
           if (_type == LayoutProviderType.customHttp)
@@ -167,4 +168,39 @@ class _InfoCard extends StatelessWidget {
     decoration: BoxDecoration(color: const Color(0xFFF0FDFA), borderRadius: BorderRadius.circular(10)),
     child: Text(text, style: const TextStyle(fontSize: 12)),
   );
+}
+
+
+class _ConfigurationStatusCard extends StatelessWidget {
+  const _ConfigurationStatusCard({required this.type, required this.apiKey, required this.secondaryApiKey, required this.loaded});
+  final LayoutProviderType type;
+  final String apiKey;
+  final String secondaryApiKey;
+  final bool loaded;
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = type == LayoutProviderType.currentVision ||
+        type == LayoutProviderType.manualOnly ||
+        (type == LayoutProviderType.customHttp) ||
+        (type == LayoutProviderType.paddleCloud && apiKey.trim().isNotEmpty) ||
+        (type == LayoutProviderType.mineruCloud && apiKey.trim().isNotEmpty) ||
+        (type == LayoutProviderType.autoCloud && apiKey.trim().isNotEmpty && secondaryApiKey.trim().isNotEmpty);
+    final text = !loaded
+        ? '正在读取已保存的配置…'
+        : ready
+            ? '配置可用：导入整页试卷后，在“整页框选切题”页面点击识别即可看到实际服务名称和耗时。'
+            : '配置不完整：已选择服务，但安全存储中未读到所需 Token。请重新填写并保存。';
+    final color = ready ? const Color(0xFF166534) : const Color(0xFFB45309);
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: color.withValues(alpha: .08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: .3))),
+      child: Row(children: <Widget>[
+        Icon(ready ? CupertinoIcons.checkmark_shield : CupertinoIcons.exclamationmark_triangle, color: color, size: 20),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: color))),
+      ]),
+    );
+  }
 }

@@ -11,18 +11,29 @@ class LayoutProviderRepository {
 
   Future<LayoutProviderConfig> load() async {
     final raw = (await SharedPreferences.getInstance()).getString(_configKey);
-    if (raw == null || raw.isEmpty) return const LayoutProviderConfig(type: LayoutProviderType.currentVision);
+    if (raw == null || raw.isEmpty) {
+      return const LayoutProviderConfig(type: LayoutProviderType.currentVision);
+    }
     try {
       final json = jsonDecode(raw) as Map<String, dynamic>;
       final type = LayoutProviderType.values.firstWhere(
         (item) => item.name == json['type'],
         orElse: () => LayoutProviderType.currentVision,
       );
+      String apiKey = '';
+      String secondaryApiKey = '';
+      try {
+        apiKey = await _secureStorage.read(key: _apiKey) ?? '';
+        secondaryApiKey = await _secureStorage.read(key: _secondaryApiKey) ?? '';
+      } catch (_) {
+        // Do not erase the selected service merely because Keychain is
+        // temporarily unavailable. The UI can now report that re-entry is needed.
+      }
       return LayoutProviderConfig(
         type: type,
         baseUrl: json['baseUrl'] as String? ?? '',
-        apiKey: await _secureStorage.read(key: _apiKey) ?? '',
-        secondaryApiKey: await _secureStorage.read(key: _secondaryApiKey) ?? '',
+        apiKey: apiKey,
+        secondaryApiKey: secondaryApiKey,
       );
     } catch (_) {
       return const LayoutProviderConfig(type: LayoutProviderType.currentVision);
