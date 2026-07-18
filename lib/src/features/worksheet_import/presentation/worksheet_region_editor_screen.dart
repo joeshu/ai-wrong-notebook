@@ -662,7 +662,7 @@ class _RegionQuality {
 }
 
 
-class _RecognizedQuestionWorkbench extends StatelessWidget {
+class _RecognizedQuestionWorkbench extends StatefulWidget {
   const _RecognizedQuestionWorkbench({
     required this.regions,
     required this.defaultSubject,
@@ -674,59 +674,110 @@ class _RecognizedQuestionWorkbench extends StatelessWidget {
   final void Function(int index, QuestionRegion region) onUpdate;
   final ValueChanged<int> onIgnore;
 
-  static const _questionTypes = <String>['未指定', '选择题', '填空题', '计算题', '证明题', '应用题'];
+  @override
+  State<_RecognizedQuestionWorkbench> createState() =>
+      _RecognizedQuestionWorkbenchState();
+}
+
+class _RecognizedQuestionWorkbenchState
+    extends State<_RecognizedQuestionWorkbench> {
+  static const _questionTypes = <String>[
+    '未指定', '选择题', '填空题', '计算题', '证明题', '应用题',
+  ];
+  int _selectedIndex = 0;
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-    ),
-    child: Column(children: <Widget>[
-      const ListTile(
-        dense: true,
-        leading: Icon(CupertinoIcons.doc_text_search),
-        title: Text('逐题确认工作台'),
-        subtitle: Text('编辑文字/公式/表格，选择学科与题型，并决定是否深度分析', style: TextStyle(fontSize: 11)),
+  void didUpdateWidget(covariant _RecognizedQuestionWorkbench oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_selectedIndex >= widget.regions.length) {
+      _selectedIndex = widget.regions.isEmpty ? 0 : widget.regions.length - 1;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.regions.isEmpty) return const SizedBox.shrink();
+    final index = _selectedIndex.clamp(0, widget.regions.length - 1);
+    final region = widget.regions[index];
+    final subject = region.subject ?? widget.defaultSubject;
+    final type = region.questionType ?? '未指定';
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
-      const Divider(height: 1),
-      Expanded(
-        child: ListView.builder(
-          padding: const EdgeInsets.all(8),
-          itemCount: regions.length,
-          itemBuilder: (context, index) {
-            final region = regions[index];
-            final subject = region.subject ?? defaultSubject;
-            final type = region.questionType ?? '未指定';
-            return Card(
-              key: ValueKey(region.id),
-              margin: const EdgeInsets.only(bottom: 8),
-              child: Padding(
+      child: Column(children: <Widget>[
+        const ListTile(
+          dense: true,
+          leading: Icon(CupertinoIcons.doc_text_search),
+          title: Text('逐题确认工作台'),
+          subtitle: Text('左侧选题，右侧完整校对与采用方式', style: TextStyle(fontSize: 11)),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: Row(children: <Widget>[
+            SizedBox(
+              width: 96,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(6),
+                itemCount: widget.regions.length,
+                itemBuilder: (context, itemIndex) {
+                  final item = widget.regions[itemIndex];
+                  final selected = itemIndex == index;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Material(
+                      color: selected
+                          ? Theme.of(context).colorScheme.primaryContainer
+                          : Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => setState(() => _selectedIndex = itemIndex),
+                        child: Padding(
+                          padding: const EdgeInsets.all(7),
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                            Row(children: <Widget>[
+                              Expanded(child: Text('第 ${item.detectedNumber ?? itemIndex + 1}题', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                              Icon(item.analyzeWithAi ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.doc_text, size: 13, color: item.analyzeWithAi ? const Color(0xFF16A34A) : const Color(0xFF2563EB)),
+                            ]),
+                            Wrap(spacing: 2, runSpacing: 2, children: item.recognizedBlockTypes.where((block) => block != '文字').take(2).map(_MiniTypeTag.new).toList()),
+                            const SizedBox(height: 2),
+                            Text(item.analyzeWithAi ? '采用+AI' : '仅 OCR', style: const TextStyle(fontSize: 9)),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: ListView(
+                key: ValueKey(region.id),
                 padding: const EdgeInsets.all(10),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                children: <Widget>[
                   Row(children: <Widget>[
-                    Text('第 ${region.detectedNumber ?? index + 1} 题', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text('第 ${region.detectedNumber ?? index + 1} 题详情', style: const TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(width: 6),
-                    ...region.recognizedBlockTypes.where((item) => item != '文字').map(_MiniTypeTag.new),
+                    ...region.recognizedBlockTypes.where((block) => block != '文字').map(_MiniTypeTag.new),
                     const Spacer(),
-                    IconButton(
-                      tooltip: '忽略此题',
-                      onPressed: () => onIgnore(index),
-                      icon: const Icon(CupertinoIcons.xmark_circle, size: 20),
-                      constraints: const BoxConstraints.tightFor(width: 30, height: 30),
-                      padding: EdgeInsets.zero,
+                    TextButton.icon(
+                      onPressed: () => widget.onIgnore(index),
+                      icon: const Icon(CupertinoIcons.xmark_circle, size: 16),
+                      label: const Text('忽略'),
                     ),
                   ]),
-                  Text('题框：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-                  const SizedBox(height: 7),
+                  Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                  const SizedBox(height: 8),
                   TextFormField(
-                    key: ValueKey('${region.id}-${region.recognizedText}'),
                     initialValue: region.recognizedText ?? '',
-                    minLines: 3,
-                    maxLines: 7,
-                    onChanged: (text) => onUpdate(index, region.copyWith(
+                    minLines: 4,
+                    maxLines: 9,
+                    onChanged: (text) => widget.onUpdate(index, region.copyWith(
                       recognizedText: text,
                       contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
                     )),
@@ -739,43 +790,39 @@ class _RecognizedQuestionWorkbench extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Row(children: <Widget>[
-                    Expanded(
-                      child: DropdownButtonFormField<Subject>(
-                        value: subject,
-                        isDense: true,
-                        decoration: const InputDecoration(labelText: '学科', border: OutlineInputBorder()),
-                        items: Subject.values.map((item) => DropdownMenuItem(value: item, child: Text(item.label))).toList(),
-                        onChanged: (value) { if (value != null) onUpdate(index, region.copyWith(subject: value)); },
-                      ),
-                    ),
+                    Expanded(child: DropdownButtonFormField<Subject>(
+                      value: subject,
+                      isDense: true,
+                      decoration: const InputDecoration(labelText: '学科', border: OutlineInputBorder()),
+                      items: Subject.values.map((item) => DropdownMenuItem(value: item, child: Text(item.label))).toList(),
+                      onChanged: (value) { if (value != null) widget.onUpdate(index, region.copyWith(subject: value)); },
+                    )),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: _questionTypes.contains(type) ? type : '未指定',
-                        isDense: true,
-                        decoration: const InputDecoration(labelText: '题型', border: OutlineInputBorder()),
-                        items: _questionTypes.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
-                        onChanged: (value) => onUpdate(index, region.copyWith(questionType: value == '未指定' ? '' : value)),
-                      ),
-                    ),
+                    Expanded(child: DropdownButtonFormField<String>(
+                      value: _questionTypes.contains(type) ? type : '未指定',
+                      isDense: true,
+                      decoration: const InputDecoration(labelText: '题目类型', border: OutlineInputBorder()),
+                      items: _questionTypes.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+                      onChanged: (value) => widget.onUpdate(index, region.copyWith(questionType: value == '未指定' ? '' : value)),
+                    )),
                   ]),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 6),
                   SwitchListTile.adaptive(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
                     value: region.analyzeWithAi,
-                    onChanged: (value) => onUpdate(index, region.copyWith(analyzeWithAi: value)),
-                    title: Text(region.analyzeWithAi ? '保存后交给普通 AI 深度分析' : '仅保存 OCR / 文档识别结果', style: const TextStyle(fontSize: 12)),
-                    subtitle: Text(region.analyzeWithAi ? '生成讲解、错因、知识点和练习' : '不调用普通 AI，直接保存为本地可编辑草稿', style: const TextStyle(fontSize: 10)),
+                    onChanged: (value) => widget.onUpdate(index, region.copyWith(analyzeWithAi: value)),
+                    title: Text(region.analyzeWithAi ? '✓ 采用，并交给普通 AI 深度分析' : '✓ 采用，仅保存 OCR / 文档结果', style: const TextStyle(fontSize: 12)),
+                    subtitle: Text(region.analyzeWithAi ? '生成讲解、错因、知识点与练习' : '不调用普通 AI，可稍后在错题本中分析', style: const TextStyle(fontSize: 10)),
                   ),
-                ]),
+                ],
               ),
-            );
-          },
+            ),
+          ]),
         ),
-      ),
-    ]),
-  );
+      ]),
+    );
+  }
 }
 
 class _MiniTypeTag extends StatelessWidget {
