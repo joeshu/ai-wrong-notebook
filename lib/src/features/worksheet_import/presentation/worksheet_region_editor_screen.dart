@@ -1062,6 +1062,10 @@ class _RecognizedQuestionWorkbenchState
               border: OutlineInputBorder(),
             ),
           ),
+          if (tables.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 6),
+            _MarkdownTablePreview(tables.first),
+          ],
         ],
         const SizedBox(height: 8),
         Row(children: <Widget>[
@@ -1091,6 +1095,47 @@ class _RecognizedQuestionWorkbenchState
           subtitle: Text(region.analyzeWithAi ? '生成讲解、错因、知识点与练习' : '不调用普通 AI，可稍后在错题本中分析', style: const TextStyle(fontSize: 10)),
         ),
       ],
+    );
+  }
+}
+
+class _MarkdownTablePreview extends StatelessWidget {
+  const _MarkdownTablePreview(this.markdown);
+  final String markdown;
+
+  List<List<String>> get _rows => markdown.split('\n')
+      .where((line) => line.trim().startsWith('|'))
+      .map((line) => line.trim().replaceFirst(RegExp(r'^\|'), '')
+          .replaceFirst(RegExp(r'\|$'), '').split('|')
+          .map((cell) => cell.trim()).toList())
+      .where((cells) => !cells.every((cell) => RegExp(r'^:?-{2,}:?$').hasMatch(cell)))
+      .toList();
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _rows;
+    if (rows.isEmpty) return const SizedBox.shrink();
+    final header = rows.first;
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        border: Border.all(color: const Color(0xFFCBD5E1)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowHeight: 28,
+          dataRowMinHeight: 28,
+          dataRowMaxHeight: 40,
+          columns: header.map((cell) => DataColumn(label: Text(cell, style: const TextStyle(fontSize: 11)))).toList(),
+          rows: rows.skip(1).map((row) => DataRow(cells: List<DataCell>.generate(
+            header.length,
+            (index) => DataCell(Text(index < row.length ? row[index] : '', style: const TextStyle(fontSize: 11))),
+          ))).toList(),
+        ),
+      ),
     );
   }
 }
