@@ -23,7 +23,7 @@ class NotificationService {
         AndroidFlutterLocalNotificationsPlugin>();
     final androidAllowed = await androidPlugin?.requestNotificationsPermission();
     final iosPlugin = _plugin.resolvePlatformSpecificImplementation<
-        DarwinFlutterLocalNotificationsPlugin>();
+        IOSFlutterLocalNotificationsPlugin>();
     final iosAllowed = await iosPlugin?.requestPermissions(
       alert: true,
       badge: true,
