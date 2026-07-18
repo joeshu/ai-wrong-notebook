@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question_repository.dart';
-import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_settings_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/layout_provider_repository.dart';
@@ -47,11 +46,9 @@ final Provider<SettingsRepository> settingsRepositoryProvider =
   return SharedPrefsSettingsRepository.instance;
 });
 
-// ReviewLogRepository - stored in SharedPreferences
+// Production overrides this with DriftReviewLogRepository in main().
 final Provider<ReviewLogRepository> reviewLogRepositoryProvider =
-    Provider<ReviewLogRepository>((ref) {
-  return SharedPrefsReviewLogRepository();
-});
+    Provider<ReviewLogRepository>((ref) => InMemoryReviewLogRepository());
 
 // --- Service providers ---
 

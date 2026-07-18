@@ -6,6 +6,8 @@ import 'package:smart_wrong_notebook/src/app/router.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/drift_settings_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/drift_question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_review_log_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/drift_review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/data/local/app_database.dart';
 import 'package:smart_wrong_notebook/src/app/theme/app_theme.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
@@ -18,7 +20,9 @@ void main() async {
   final db = AppDatabase();
   final settingsRepo = DriftSettingsRepository(db);
   final questionRepo = DriftQuestionRepository(db);
+  final reviewLogRepo = DriftReviewLogRepository(db);
   await _migrateLegacyQuestionBankIfNeeded(settingsRepo, questionRepo);
+  await _migrateLegacyReviewLogsIfNeeded(settingsRepo, reviewLogRepo);
 
   final router = buildRouter(settingsRepo);
 
@@ -37,6 +41,7 @@ void main() async {
       overrides: [
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
         questionRepositoryProvider.overrideWithValue(questionRepo),
+        reviewLogRepositoryProvider.overrideWithValue(reviewLogRepo),
         // 注意：不要 override aiAnalysisServiceProvider，让它使用 settingsRepo
         imageStorageServiceProvider.overrideWithValue(ImageStorageService()),
       ],
@@ -74,5 +79,29 @@ Future<void> _migrateLegacyQuestionBankIfNeeded(
     await settings.setString(migrationKey, 'done');
   } catch (_) {
     // Keep the marker unset. The next launch retries rather than risking loss.
+  }
+}
+
+
+/// Moves review history from the legacy preferences blob into the Drift table.
+/// The old copy is deliberately retained as a rollback source.
+Future<void> _migrateLegacyReviewLogsIfNeeded(
+  DriftSettingsRepository settings,
+  DriftReviewLogRepository reviewLogs,
+) async {
+  const migrationKey = 'legacy_review_logs_to_drift_v1';
+  if (await settings.getString(migrationKey) == 'done') return;
+
+  try {
+    final existing = await reviewLogs.listAll();
+    if (existing.isEmpty) {
+      final legacy = await SharedPrefsReviewLogRepository().listAll();
+      for (final log in legacy) {
+        await reviewLogs.insert(log);
+      }
+    }
+    await settings.setString(migrationKey, 'done');
+  } catch (_) {
+    // Do not set the marker: the complete import can retry on next launch.
   }
 }
