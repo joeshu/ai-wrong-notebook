@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
+import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:uuid/uuid.dart';
@@ -78,11 +79,12 @@ class CaptureService {
 
   Future<QuestionRecord> _saveToDraft(XFile file) async {
     final savedPath = await _storage.saveImage(File(file.path));
+    final fingerprint = await ImageFingerprintCodec.fromFile(File(savedPath));
     return QuestionRecord.draft(
       id: const Uuid().v4(),
       imagePath: savedPath,
       subject: Subject.math,
       recognizedText: '',
-    );
+    ).copyWith(tags: ImageFingerprintCodec.write(const <String>[], fingerprint));
   }
 }

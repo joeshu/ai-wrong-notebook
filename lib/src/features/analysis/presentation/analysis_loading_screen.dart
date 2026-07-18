@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
+import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
@@ -59,6 +60,16 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     final current = ref.read(currentQuestionProvider);
     if (current == null) {
       if (mounted) context.go('/');
+      return;
+    }
+
+    final reusable = await _findReusableLocalAnalysis(current);
+    if (reusable != null) {
+      ref.read(currentQuestionProvider.notifier).state = reusable;
+      if (mounted) {
+        _stepTimer?.cancel();
+        context.go('/analysis/result');
+      }
       return;
     }
 
@@ -230,6 +241,35 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         });
       }
     }
+  }
+
+  Future<QuestionRecord?> _findReusableLocalAnalysis(QuestionRecord current) async {
+    final fingerprint = ImageFingerprintCodec.read(current.tags);
+    if (fingerprint == null || fingerprint.isEmpty) return null;
+    final existing = await ref.read(questionRepositoryProvider).listAll();
+    for (final item in existing) {
+      if (item.id == current.id || item.contentStatus != ContentStatus.ready ||
+          item.analysisResult == null ||
+          ImageFingerprintCodec.read(item.tags) != fingerprint) {
+        continue;
+      }
+      // Do not overwrite a user-corrected text variant with analysis from an
+      // earlier version of the same image.
+      if (current.correctedText.isNotEmpty &&
+          current.correctedText != item.correctedText) {
+        continue;
+      }
+      return current.copyWith(
+        contentStatus: ContentStatus.ready,
+        analysisResult: item.analysisResult,
+        savedExercises: item.savedExercises,
+        subject: item.subject,
+        aiTags: item.aiTags,
+        aiKnowledgePoints: item.aiKnowledgePoints,
+        candidateAnalyses: item.candidateAnalyses,
+      );
+    }
+    return null;
   }
 
   bool _shouldAnalyzeImageDirectly(QuestionRecord question) {
