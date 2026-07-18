@@ -81,6 +81,28 @@ class CaptureService {
     }
   }
 
+  Future<List<QuestionRecord>> pickMultipleFromGallery() async {
+    try {
+      debugPrint('[CaptureService] Opening gallery for worksheet pages...');
+      final files = await _picker.pickMultiImage(
+        maxWidth: 2560,
+        maxHeight: 2560,
+        imageQuality: 85,
+      );
+      if (files.isEmpty) return const <QuestionRecord>[];
+
+      final records = <QuestionRecord>[];
+      for (final file in files) {
+        records.add(await _saveToDraft(file));
+      }
+      debugPrint('[CaptureService] Saved ${records.length} worksheet pages');
+      return records;
+    } catch (e) {
+      debugPrint('[CaptureService] Worksheet gallery error: $e');
+      rethrow;
+    }
+  }
+
   Future<QuestionRecord> _saveToDraft(XFile file) async {
     final savedPath = await _storage.saveImage(File(file.path));
     final fingerprint = await ImageFingerprintCodec.fromFile(File(savedPath));

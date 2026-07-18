@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
+import 'package:uuid/uuid.dart';
 
 class CaptureEntrySheet extends ConsumerStatefulWidget {
   const CaptureEntrySheet({super.key});
@@ -78,6 +80,17 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                 description: '从相册选择图片',
                 onTap: () => _pickAndNavigate(fromCamera: false),
               ),
+              const SizedBox(height: 10),
+              _EntryOption(
+                icon: CupertinoIcons.doc_on_photos,
+                iconColor: const Color(0xFF0F766E),
+                iconBg: isDark
+                    ? const Color(0xFF0F766E).withValues(alpha: 0.18)
+                    : const Color(0xFFF0FDFA),
+                label: '试卷批量导入',
+                description: '一次选择多页，逐页确认切题',
+                onTap: _pickWorksheetPages,
+              ),
             ],
             if (_errorMessage != null) ...<Widget>[
               const SizedBox(height: 12),
@@ -119,6 +132,45 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
         ),
       ),
     );
+  }
+
+  Future<void> _pickWorksheetPages() async {
+    final router = GoRouter.of(context);
+    final config =
+        await ref.read(settingsRepositoryProvider).getAiProviderConfig();
+    if (config == null ||
+        config.baseUrl.isEmpty ||
+        config.apiKey.isEmpty ||
+        config.model.isEmpty) {
+      setState(() => _errorMessage = '请先在设置中配置 AI 服务');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final pages =
+          await ref.read(captureServiceProvider).pickMultipleFromGallery();
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (pages.isEmpty) return;
+      ref.read(currentWorksheetImportProvider.notifier).state =
+          WorksheetImportSession(
+        id: const Uuid().v4(),
+        pages: pages,
+        createdAt: DateTime.now(),
+      );
+      Navigator.pop(context);
+      router.go('/worksheet/import');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '导入试卷页面失败: $e';
+      });
+    }
   }
 
   Future<void> _pickAndNavigate({required bool fromCamera}) async {

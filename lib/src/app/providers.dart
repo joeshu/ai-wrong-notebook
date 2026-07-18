@@ -20,6 +20,7 @@ import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 
@@ -101,6 +102,11 @@ final StateProvider<PracticeContext?> currentPracticeContextProvider =
 
 final StateProvider<QuestionSplitSession?> currentQuestionSplitSessionProvider =
     StateProvider<QuestionSplitSession?>((ref) => null);
+
+/// Holds selected worksheet pages while the user processes them one by one.
+/// Persistence/queueing is intentionally added in the next import slice.
+final StateProvider<WorksheetImportSession?> currentWorksheetImportProvider =
+    StateProvider<WorksheetImportSession?>((ref) => null);
 
 Future<QuestionSplitSession> buildQuestionSplitSession(
   QuestionRecord source, {
