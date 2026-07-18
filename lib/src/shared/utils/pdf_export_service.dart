@@ -21,83 +21,79 @@ class PdfExportService {
     return _baseFont!;
   }
 
-  /// 清理 LaTeX 标记，保留可读的纯文本
+  /// 清理 LaTeX 标记为 PDF 中可读的纯文本。
+  ///
+  /// PDF 导出不渲染数学公式，因此这里采用保守转换：保留公式含义，
+  /// 但不把 LaTeX 控制字符直接输出。替换顺序必须让 `\\left` 等长命令
+  /// 先于 `\\le` 处理，否则会产生 `≤ft` 之类的残片。
   static String _cleanLatex(String input) {
-    // 移除 LaTeX 标记和花括号
     var text = input
+        .replaceAll(r'\[', '')
+        .replaceAll(r'\]', '')
         .replaceAll(r'\(', '')
         .replaceAll(r'\)', '')
-        .replaceAll(r'\mathrm', ' ')
-        .replaceAll(r'\text', ' ')
-        .replaceAll(r'\frac', '/')
-        .replaceAll('{', '')
-        .replaceAll('}', '')
-        .replaceAll(r'\cdot', '·')
-        .replaceAll(r'\times', '×')
-        .replaceAll(r'\div', '÷')
-        .replaceAll(r'\rightarrow', '→')
-        .replaceAll(r'\Rightarrow', '⇒')
+        .replaceAll(r'\left', '')
+        .replaceAll(r'\right', '')
         .replaceAll(r'\Longrightarrow', '⇒')
-        .replaceAll(r'\ge', '≥')
+        .replaceAll(r'\Rightarrow', '⇒')
+        .replaceAll(r'\rightarrow', '→')
+        .replaceAll(r'\cdots', '…')
+        .replaceAll(r'\dots', '…')
+        .replaceAll(r'\times', '×')
+        .replaceAll(r'\cdot', '·')
+        .replaceAll(r'\div', '÷')
         .replaceAll(r'\geq', '≥')
-        .replaceAll(r'\le', '≤')
+        .replaceAll(r'\ge', '≥')
         .replaceAll(r'\leq', '≤')
+        .replaceAll(r'\le', '≤')
         .replaceAll(r'\neq', '≠')
         .replaceAll(r'\ne', '≠')
-        .replaceAll(r'\cdots', '...')
-        .replaceAll(r'\dots', '...')
+        .replaceAll(r'\pm', '±')
+        .replaceAll(r'\mathrm', '')
+        .replaceAll(r'\text', '')
+        .replaceAll(r'\sqrt', '√')
+        .replaceAll(r'\,', ' ')
+        .replaceAll(r'\!', '')
+        .replaceAll(r'\;', ' ')
+        .replaceAll(r'\:', ' ')
         .replaceAll(r'\n', '\n')
-        .replaceAll(r'\t', ' ')
-        .replaceAll('  ', ' ');
-    // 逐字符过滤：移除残余 LaTeX 命令（反斜杠+字母）和 pdf 不允许的字符
+        .replaceAll(r'\t', ' ');
+
+    // 常见分式：\\frac{a+b}{ab} → (a+b)/(ab)。循环可处理相邻分式；
+    // 更深的嵌套仍会退化为可读文本，而不会留下 LaTex 命令。
+    final fraction = RegExp(r'\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}');
+    while (fraction.hasMatch(text)) {
+      text = text.replaceAllMapped(
+        fraction,
+        (match) => '(${match.group(1)})/(${match.group(2)})',
+      );
+    }
+
+    text = text.replaceAll('{', '').replaceAll('}', '');
+    // 移除任何剩余的 LaTex 命令。注意这里必须匹配单个反斜杠。
+    text = text.replaceAll(RegExp(r'\\[a-zA-Z]+\*?'), '');
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // PDF/TTF 不接受孤立 UTF-16 代理项；保留合法 Unicode 字符。
     final codes = <int>[];
-    for (var i = 0; i < text.length; i++) {
-      final ch = text[i];
-      final code = text.codeUnitAt(i);
-      // 跳过反斜杠+字母序列（残余 LaTeX 命令）
-      if (ch == r'\\' && i + 1 < text.length) {
-        final nextCode = text.codeUnitAt(i + 1);
-        final a = 'a'.codeUnitAt(0), z = 'z'.codeUnitAt(0);
-        final A = 'A'.codeUnitAt(0), Z = 'Z'.codeUnitAt(0);
-        if ((nextCode >= a && nextCode <= z) || (nextCode >= A && nextCode <= Z)) {
-          i++; // 跳过反斜杠后的首字母
-          while (i + 1 < text.length) {
-            final cCode = text.codeUnitAt(i + 1);
-            if ((cCode >= a && cCode <= z) || (cCode >= A && cCode <= Z) ||
-                cCode == '*'.codeUnitAt(0)) {
-              i++;
-            } else {
-              break;
-            }
-          }
-          continue;
-        }
-      }
-      // 先处理 surrogate pair：高代理元必须配低代理元，避免留下孤立代理元
-      if (code >= 0xD800 && code <= 0xDBFF && i + 1 < text.length) {
-        final next = text.codeUnitAt(i + 1);
-        if (next >= 0xDC00 && next <= 0xDFFF) {
-          codes.add(code);
-          codes.add(next);
-          i++;
-        }
-        // 无配对的孤立代理元：丢弃
-        continue;
-      }
-      // 只保留 pdf 允许的字符
-      if (code == 0x09 || code == 0x0A || code == 0x0D ||
-          code >= 0x20 && code <= 0xD7FF ||
-          code >= 0xE000 && code <= 0xFFFD) {
-        codes.add(code);
+    for (final rune in text.runes) {
+      if (rune == 0x09 || rune == 0x0a || rune == 0x0d ||
+          rune >= 0x20 && rune <= 0x10ffff) {
+        codes.add(rune);
       }
     }
-    return String.fromCharCodes(codes).trim();
+    return String.fromCharCodes(codes);
   }
 
   static Future<File> generatePdf(List<QuestionRecord> questions) async {
     final pdf = pw.Document();
     final font = await _getFont();
-    final theme = pw.ThemeData.withFont(base: font);
+    final theme = pw.ThemeData.withFont(
+      base: font,
+      bold: font,
+      italic: font,
+      boldItalic: font,
+    );
 
     final grouped = <Subject, List<QuestionRecord>>{};
     for (final q in questions) {
