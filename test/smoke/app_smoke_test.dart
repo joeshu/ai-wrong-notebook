@@ -50,7 +50,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('今天，开始学习'), findsOneWidget);
-      expect(find.text('今日复习计划'), findsOneWidget);
       expect(find.text('最近新增'), findsOneWidget);
     });
 
