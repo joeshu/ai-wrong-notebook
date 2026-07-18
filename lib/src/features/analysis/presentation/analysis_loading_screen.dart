@@ -213,9 +213,19 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         context.go('/analysis/result');
       }
     } on AiAnalysisException catch (e) {
+      // AI 不可用时也必须保留原图和用户已校对的题干。saveDraft 是幂等
+      // upsert，既覆盖同 ID 的处理中草稿，也兼容首次保存。
+      final failedDraft = current.copyWith(contentStatus: ContentStatus.failed);
+      try {
+        await ref.read(questionRepositoryProvider).saveDraft(failedDraft);
+        ref.read(currentQuestionProvider.notifier).state = failedDraft;
+        invalidateQuestionList(ref);
+      } catch (_) {
+        // 持久化异常不能掩盖原始 AI 错误；错误页仍保留重试入口。
+      }
       if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          _errorMessage = '${e.toString()}\n\n原图和已校对题干已保存到错题本，可稍后重试或手动补充。';
           _debugInfo = debugInfo;
         });
       }
