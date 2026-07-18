@@ -38,6 +38,12 @@ class _WorksheetRegionEditorScreenState
   Duration? _detectionDuration;
 
   @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(() => restoreLayoutProviderConfig(ref));
+  }
+
+  @override
   Widget build(BuildContext context) {
     final page = ref.watch(currentQuestionProvider);
     if (page == null || !File(page.imagePath).existsSync()) {
@@ -47,6 +53,7 @@ class _WorksheetRegionEditorScreenState
       );
     }
     final scheme = Theme.of(context).colorScheme;
+    final layoutConfig = ref.watch(layoutProviderConfigProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('整页框选切题'),
@@ -61,11 +68,13 @@ class _WorksheetRegionEditorScreenState
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
             child: _DetectionActionCard(
               isDetecting: _isDetecting,
-              selectedType: _selectedStrategyLabel(),
+              selectedType: _selectedStrategyLabel(layoutConfig),
               onAuto: _isCropping || _isDetecting ? null : () => _detectRegions(page),
-              onPaddle: _isCropping || _isDetecting ? null : () => _detectRegions(page, override: LayoutProviderType.paddleCloud),
-              onMineru: _isCropping || _isDetecting ? null : () => _detectRegions(page, override: LayoutProviderType.mineruCloud),
+              onPaddle: _isCropping || _isDetecting || !_hasPaddleToken(layoutConfig) ? null : () => _detectRegions(page, override: LayoutProviderType.paddleCloud),
+              onMineru: _isCropping || _isDetecting || !_hasMineruToken(layoutConfig) ? null : () => _detectRegions(page, override: LayoutProviderType.mineruCloud),
               onManual: _isCropping || _isDetecting ? null : _clearForManual,
+              paddleReady: _hasPaddleToken(layoutConfig),
+              mineruReady: _hasMineruToken(layoutConfig),
             ),
           ),
           if (_detectionProvider != null)
@@ -140,7 +149,32 @@ class _WorksheetRegionEditorScreenState
     );
   }
 
-  String _selectedStrategyLabel() => '当前设置的识别策略';
+  bool _hasPaddleToken(LayoutProviderConfig config) =>
+      config.type == LayoutProviderType.autoCloud ? config.apiKey.isNotEmpty :
+      config.type == LayoutProviderType.paddleCloud && config.apiKey.isNotEmpty;
+
+  bool _hasMineruToken(LayoutProviderConfig config) =>
+      config.type == LayoutProviderType.autoCloud ? config.secondaryApiKey.isNotEmpty :
+      config.type == LayoutProviderType.mineruCloud && config.apiKey.isNotEmpty;
+
+  String _selectedStrategyLabel(LayoutProviderConfig? config) {
+    switch (config?.type) {
+      case LayoutProviderType.autoCloud:
+        return '自动智能识别 · PaddleOCR → MinerU 兜底';
+      case LayoutProviderType.paddleCloud:
+        return 'PaddleOCR AI Studio · 快速识别';
+      case LayoutProviderType.mineruCloud:
+        return 'MinerU VLM · 深度解析';
+      case LayoutProviderType.currentVision:
+        return '当前 AI 视觉模型';
+      case LayoutProviderType.customHttp:
+        return '自定义 HTTP 版面服务';
+      case LayoutProviderType.manualOnly:
+        return '仅手动框选';
+      case null:
+        return '正在读取识别设置…';
+    }
+  }
 
   void _clearForManual() {
     setState(() {
@@ -191,8 +225,12 @@ class _WorksheetRegionEditorScreenState
                   ? await MineruDocumentLayoutService(effectiveConfig)
                       .detectQuestionRegions(imagePath: page.imagePath)
                   : type == LayoutProviderType.autoCloud
-                      ? await AutoDocumentLayoutService(effectiveConfig)
-                          .detectQuestionRegions(imagePath: page.imagePath)
+                      ? await AutoDocumentLayoutService(
+                          effectiveConfig,
+                          onProgress: (message) {
+                            if (mounted) setState(() => _detectionMessage = message);
+                          },
+                        ).detectQuestionRegions(imagePath: page.imagePath)
                   : await ref
                       .read(visionDocumentLayoutServiceProvider)
                       .detectQuestionRegions(imagePath: page.imagePath);
@@ -421,6 +459,8 @@ class _DetectionActionCard extends StatelessWidget {
     required this.onPaddle,
     required this.onMineru,
     required this.onManual,
+    required this.paddleReady,
+    required this.mineruReady,
   });
   final bool isDetecting;
   final String selectedType;
@@ -428,6 +468,8 @@ class _DetectionActionCard extends StatelessWidget {
   final VoidCallback? onPaddle;
   final VoidCallback? onMineru;
   final VoidCallback? onManual;
+  final bool paddleReady;
+  final bool mineruReady;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -447,10 +489,14 @@ class _DetectionActionCard extends StatelessWidget {
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 6, children: <Widget>[
           FilledButton.tonalIcon(onPressed: onAuto, icon: const Icon(CupertinoIcons.sparkles, size: 16), label: const Text('按当前策略识别')),
-          OutlinedButton(onPressed: onPaddle, child: const Text('快速 PaddleOCR')),
-          OutlinedButton(onPressed: onMineru, child: const Text('深度 MinerU')),
+          OutlinedButton(onPressed: onPaddle, child: Text(paddleReady ? '快速 PaddleOCR' : 'PaddleOCR · 未配置')),
+          OutlinedButton(onPressed: onMineru, child: Text(mineruReady ? '深度 MinerU' : 'MinerU · 未配置')),
           TextButton(onPressed: onManual, child: const Text('仅手动框选')),
         ]),
+        if (!paddleReady || !mineruReady) Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text('未配置的服务不可用；请到「设置 → 试卷版面识别」填写 Token。', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
+        ),
       ]),
     ),
   );
