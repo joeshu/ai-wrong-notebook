@@ -127,6 +127,7 @@ class _WorksheetRegionEditorScreenState
                   );
                 }),
                 selectedRegionId: _selectedRegionId,
+                sourceImagePath: page.imagePath,
                 onSelect: (region) => setState(() => _selectedRegionId = region.id),
               ),
             ),
@@ -739,6 +740,7 @@ class _RecognizedQuestionWorkbench extends StatefulWidget {
     required this.onUpdate,
     required this.onIgnore,
     required this.selectedRegionId,
+    required this.sourceImagePath,
     required this.onSelect,
   });
   final List<QuestionRegion> regions;
@@ -746,6 +748,7 @@ class _RecognizedQuestionWorkbench extends StatefulWidget {
   final void Function(int index, QuestionRegion region) onUpdate;
   final ValueChanged<int> onIgnore;
   final String? selectedRegionId;
+  final String sourceImagePath;
   final ValueChanged<QuestionRegion> onSelect;
 
   @override
@@ -801,7 +804,7 @@ class _RecognizedQuestionWorkbenchState
           child: LayoutBuilder(builder: (context, constraints) {
             final compact = constraints.maxWidth < 600;
             final list = _buildQuestionList(context, index, horizontal: compact);
-            final detail = _buildDetail(context, index, region, subject, type, risks);
+            final detail = _buildDetail(context, index, region, subject, type, risks, widget.sourceImagePath);
             if (compact) {
               return Column(children: <Widget>[
                 SizedBox(height: 78, child: list),
@@ -904,6 +907,52 @@ class _RecognizedQuestionWorkbenchState
     );
   }
 
+  int? _nextRiskIndex(int current) {
+    for (var step = 1; step <= widget.regions.length; step++) {
+      final index = (current + step) % widget.regions.length;
+      if (_riskMessages(index).isNotEmpty) return index;
+    }
+    return null;
+  }
+
+  Future<Size> _sourceImageSize(String imagePath) async {
+    final image = await decodeImageFromList(await File(imagePath).readAsBytes());
+    return Size(image.width.toDouble(), image.height.toDouble());
+  }
+
+  Future<void> _showCropPreview(BuildContext context, QuestionRegion region, String imagePath) async {
+    final sourceSize = await _sourceImageSize(imagePath);
+    if (!context.mounted) return;
+    final cropAspect = sourceSize.width * region.normalizedRect.width /
+        (sourceSize.height * region.normalizedRect.height);
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('最终裁切预览'),
+        content: AspectRatio(
+          aspectRatio: cropAspect,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LayoutBuilder(builder: (context, constraints) {
+              final scale = constraints.maxWidth / region.normalizedRect.width;
+              return Stack(children: <Widget>[
+                Positioned(
+                  left: -region.normalizedRect.left * scale,
+                  top: -region.normalizedRect.top * scale,
+                  width: scale,
+                  child: Image.file(File(imagePath), fit: BoxFit.fitWidth),
+                ),
+              ]);
+            }),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('返回调整题框')),
+        ],
+      ),
+    );
+  }
+
   String _stemFor(QuestionRegion region) {
     if (region.questionStem != null) return region.questionStem!;
     final formula = RegExp(r'\$[^$]+\$');
@@ -943,7 +992,7 @@ class _RecognizedQuestionWorkbenchState
   }
 
   Widget _buildDetail(BuildContext context, int index, QuestionRegion region,
-      Subject subject, String type, List<String> risks) {
+      Subject subject, String type, List<String> risks, String sourceImagePath) {
     final stem = _stemFor(region);
     final formulas = _formulasFor(region);
     final tables = _tablesFor(region);
@@ -983,6 +1032,20 @@ class _RecognizedQuestionWorkbenchState
             label: const Text('下一题'),
           ),
         ]),
+        if (risks.isNotEmpty)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () {
+                final next = _nextRiskIndex(index);
+                if (next == null || next == index) return;
+                setState(() => _selectedIndex = next);
+                widget.onSelect(widget.regions[next]);
+              },
+              icon: const Icon(CupertinoIcons.exclamationmark_triangle, size: 15),
+              label: const Text('下一道风险题'),
+            ),
+          ),
         if (region.reviewStatus == QuestionRegionReviewStatus.ignored)
           const Padding(
             padding: EdgeInsets.only(bottom: 6),
@@ -996,6 +1059,14 @@ class _RecognizedQuestionWorkbenchState
             child: Text('⚠ ${risks.join('；')}', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
           ),
         Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => _showCropPreview(context, region, sourceImagePath),
+            icon: const Icon(CupertinoIcons.crop, size: 15),
+            label: const Text('查看最终裁切预览'),
+          ),
+        ),
         const SizedBox(height: 8),
         if (modified)
           Row(children: <Widget>[
@@ -1004,7 +1075,19 @@ class _RecognizedQuestionWorkbenchState
             const Text('已修改识别结果', style: TextStyle(fontSize: 11, color: Color(0xFF2563EB))),
             const Spacer(),
             TextButton(
-              onPressed: () => widget.onUpdate(index, region.copyWith(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('识别原文对照'),
+                  content: SingleChildScrollView(
+                    child: SelectableText(original.isEmpty ? '没有可用的识别原文。' : original),
+                  ),
+                  actions: <Widget>[TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('关闭'))],
+                ),
+              ),
+              child: const Text('查看原文'),
+            ),
+            TextButton(
                 questionStem: original,
                 formulas: const <String>[],
                 tables: const <String>[],
