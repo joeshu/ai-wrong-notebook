@@ -144,15 +144,6 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
 
   Future<void> _pickWorksheetPages() async {
     final router = GoRouter.of(context);
-    final config =
-        await ref.read(settingsRepositoryProvider).getAiProviderConfig();
-    if (config == null ||
-        config.baseUrl.isEmpty ||
-        config.apiKey.isEmpty ||
-        config.model.isEmpty) {
-      setState(() => _errorMessage = '请先在设置中配置 AI 服务');
-      return;
-    }
 
     setState(() {
       _isLoading = true;
