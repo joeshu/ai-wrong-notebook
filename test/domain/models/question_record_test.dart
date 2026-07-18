@@ -97,3 +97,4 @@ void main() {
     expect(restored.tags, contains('代数'));
     expect(restored.allTags.any((tag) => tag.startsWith('__system_')), isFalse);
   });
+}
