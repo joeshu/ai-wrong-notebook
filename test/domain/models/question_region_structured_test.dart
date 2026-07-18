@@ -42,4 +42,21 @@ void main() {
     expect(restored.formulas, isEmpty);
     expect(restored.tables, isEmpty);
   });
+
+  test('copyWith preserves ordered document blocks', () {
+    final ordered = region().copyWith(documentBlocks: const <DocumentBlock>[
+      DocumentBlock(type: DocumentBlockType.text, content: '题干第一段'),
+      DocumentBlock(type: DocumentBlockType.formula, content: r'$a^2+b^2$'),
+      DocumentBlock(type: DocumentBlockType.text, content: '解释文字'),
+      DocumentBlock(type: DocumentBlockType.table, content: '|A|B|'),
+    ]);
+
+    expect(ordered.documentBlocks.map((block) => block.type), <DocumentBlockType>[
+      DocumentBlockType.text,
+      DocumentBlockType.formula,
+      DocumentBlockType.text,
+      DocumentBlockType.table,
+    ]);
+    expect(ordered.documentBlocks[2].content, '解释文字');
+  });
 }
