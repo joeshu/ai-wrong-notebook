@@ -132,14 +132,14 @@ final StateProvider<LayoutProviderConfig> layoutProviderConfigProvider =
     StateProvider<LayoutProviderConfig>((ref) =>
         const LayoutProviderConfig(type: LayoutProviderType.currentVision));
 
-Future<LayoutProviderConfig> restoreLayoutProviderConfig(Ref ref) async {
+Future<LayoutProviderConfig> restoreLayoutProviderConfig(WidgetRef ref) async {
   final config = await ref.read(layoutProviderRepositoryProvider).load();
   ref.read(layoutProviderConfigProvider.notifier).state = config;
   return config;
 }
 
 Future<void> persistLayoutProviderConfig(
-    Ref ref, LayoutProviderConfig config) async {
+    WidgetRef ref, LayoutProviderConfig config) async {
   await ref.read(layoutProviderRepositoryProvider).save(config);
   ref.read(layoutProviderConfigProvider.notifier).state = config;
 }
@@ -147,14 +147,14 @@ Future<void> persistLayoutProviderConfig(
 final StateProvider<WorksheetImportSession?> currentWorksheetImportProvider =
     StateProvider<WorksheetImportSession?>((ref) => null);
 
-Future<WorksheetImportSession?> restoreWorksheetImport(Ref ref) async {
+Future<WorksheetImportSession?> restoreWorksheetImport(WidgetRef ref) async {
   final restored = await ref.read(worksheetImportRepositoryProvider).load();
   ref.read(currentWorksheetImportProvider.notifier).state = restored;
   return restored;
 }
 
 Future<void> persistWorksheetImport(
-    Ref ref, WorksheetImportSession? session) async {
+    WidgetRef ref, WorksheetImportSession? session) async {
   final repository = ref.read(worksheetImportRepositoryProvider);
   if (session == null) {
     await repository.clear();

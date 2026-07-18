@@ -69,7 +69,7 @@ class _WorksheetRegionEditorScreenState
               child: Text(_detectionMessage!, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             ),
           Padding(
-            child: Text('拖动蓝色题框调整位置；拖动右下角圆点缩放；点击红色 × 删除。每个蓝框会裁成一张独立题图。自动识别题框将在后续版面服务接入后作为候选框提供。',
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
           ),
           Expanded(

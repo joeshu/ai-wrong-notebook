@@ -82,7 +82,7 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
               ),
               const SizedBox(height: 10),
               _EntryOption(
-                icon: CupertinoIcons.doc_on_photos,
+                icon: CupertinoIcons.photo_on_rectangle,
                 iconColor: const Color(0xFF0F766E),
                 iconBg: isDark
                     ? const Color(0xFF0F766E).withValues(alpha: 0.18)
