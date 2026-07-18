@@ -705,6 +705,23 @@ class _QuestionCard extends StatelessWidget {
                                     fontWeight: FontWeight.w500),
                               ),
                             ),
+                            if (question.contentStatus.name == 'failed') ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEA580C)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text('待处理',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF9A3412),
+                                        fontWeight: FontWeight.w500)),
+                              ),
+                            ],
                           ],
                         ),
                         if (_batchLabel(question) != null) ...<Widget>[

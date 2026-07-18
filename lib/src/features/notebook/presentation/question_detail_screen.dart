@@ -274,12 +274,17 @@ class QuestionDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   FilledButton.icon(
                     onPressed: () {
-                      ref.read(currentQuestionProvider.notifier).state =
-                          current;
-                      context.go('/capture/correction');
+                      ref.read(currentQuestionProvider.notifier).state = current;
+                      context.go(current.contentStatus.name == 'failed'
+                          ? '/analysis/loading'
+                          : '/capture/correction');
                     },
-                    icon: const Icon(CupertinoIcons.camera),
-                    label: const Text('去添加'),
+                    icon: Icon(current.contentStatus.name == 'failed'
+                        ? CupertinoIcons.arrow_2_circlepath
+                        : CupertinoIcons.camera),
+                    label: Text(current.contentStatus.name == 'failed'
+                        ? '重试 AI 解析'
+                        : '去添加'),
                   ),
                 ],
               ),
