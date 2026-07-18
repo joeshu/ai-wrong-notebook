@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
+import 'package:smart_wrong_notebook/src/data/services/provider_connection_test_service.dart';
 
 class LayoutProviderConfigScreen extends ConsumerStatefulWidget {
   const LayoutProviderConfigScreen({super.key});
@@ -17,6 +18,8 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
   LayoutProviderType _type = LayoutProviderType.currentVision;
   bool _loaded = false;
   bool _saving = false;
+  bool _testing = false;
+  ConnectionTestResult? _testResult;
 
   @override
   void initState() { super.initState(); _url = TextEditingController(); _key = TextEditingController(); _secondaryKey = TextEditingController(); }
@@ -75,6 +78,14 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
           subtitle: const Text('不上传整页试卷到任何版面识别服务。'),
         ),
         _ConfigurationStatusCard(type: _type, apiKey: _key.text, secondaryApiKey: _secondaryKey.text, loaded: _loaded),
+        const SizedBox(height: 12),
+        _ConnectionTestPanel(
+          testing: _testing,
+          result: _testResult,
+          onPaddle: () => _testConnection(_ConnectionTarget.paddle),
+          onMineru: () => _testConnection(_ConnectionTarget.mineru),
+          onAi: () => _testConnection(_ConnectionTarget.ai),
+        ),
         if (_type == LayoutProviderType.customHttp || _type == LayoutProviderType.paddleCloud || _type == LayoutProviderType.mineruCloud || _type == LayoutProviderType.autoCloud) ...<Widget>[
           const SizedBox(height: 16),
           if (_type == LayoutProviderType.customHttp)
@@ -104,6 +115,36 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
         ),
       ]),
     );
+  }
+
+  Future<void> _testConnection(_ConnectionTarget target) async {
+    setState(() {
+      _testing = true;
+      _testResult = null;
+    });
+    final service = ProviderConnectionTestService();
+    final layoutRepository = ref.read(layoutProviderRepositoryProvider);
+    final paddleToken = _type == LayoutProviderType.paddleCloud ||
+            _type == LayoutProviderType.autoCloud
+        ? _key.text.trim()
+        : await layoutRepository.readPaddleToken();
+    final mineruToken = _type == LayoutProviderType.mineruCloud
+        ? _key.text.trim()
+        : _type == LayoutProviderType.autoCloud
+            ? _secondaryKey.text.trim()
+            : await layoutRepository.readMineruToken();
+    final result = switch (target) {
+      _ConnectionTarget.paddle => await service.testPaddle(paddleToken),
+      _ConnectionTarget.mineru => await service.testMineru(mineruToken),
+      _ConnectionTarget.ai => await service.testAi(
+          await ref.read(settingsRepositoryProvider).getAiProviderConfig(),
+        ),
+    };
+    if (!mounted) return;
+    setState(() {
+      _testing = false;
+      _testResult = result;
+    });
   }
 
   Future<void> _save() async {
@@ -200,6 +241,69 @@ class _ConfigurationStatusCard extends StatelessWidget {
         Icon(ready ? CupertinoIcons.checkmark_shield : CupertinoIcons.exclamationmark_triangle, color: color, size: 20),
         const SizedBox(width: 8),
         Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: color))),
+      ]),
+    );
+  }
+}
+
+
+enum _ConnectionTarget { paddle, mineru, ai }
+
+class _ConnectionTestPanel extends StatelessWidget {
+  const _ConnectionTestPanel({
+    required this.testing,
+    required this.result,
+    required this.onPaddle,
+    required this.onMineru,
+    required this.onAi,
+  });
+  final bool testing;
+  final ConnectionTestResult? result;
+  final VoidCallback onPaddle;
+  final VoidCallback onMineru;
+  final VoidCallback onAi;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = result == null
+        ? const Color(0xFF475569)
+        : result!.ok
+            ? const Color(0xFF166534)
+            : const Color(0xFFB91C1C);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+        const Text('测试连接', style: TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        const Text('测试会验证实际接口：PaddleOCR 提交最小任务、MinerU 创建上传任务、普通 AI 发起最小文本请求；不会上传你的试卷。', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+        const SizedBox(height: 10),
+        Wrap(spacing: 8, runSpacing: 8, children: <Widget>[
+          OutlinedButton.icon(onPressed: testing ? null : onPaddle, icon: const Icon(CupertinoIcons.checkmark_shield, size: 16), label: const Text('测试 PaddleOCR')),
+          OutlinedButton.icon(onPressed: testing ? null : onMineru, icon: const Icon(CupertinoIcons.doc_text_search, size: 16), label: const Text('测试 MinerU')),
+          OutlinedButton.icon(onPressed: testing ? null : onAi, icon: const Icon(CupertinoIcons.sparkles, size: 16), label: const Text('测试普通 AI')),
+        ]),
+        if (testing) const Padding(
+          padding: EdgeInsets.only(top: 12),
+          child: Row(children: <Widget>[SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('正在发起真实服务测试…', style: TextStyle(fontSize: 12))]),
+        ),
+        if (result != null) Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: color.withValues(alpha: .08), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withValues(alpha: .28))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+              Row(children: <Widget>[Icon(result!.ok ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.exclamationmark_triangle_fill, size: 18, color: color), const SizedBox(width: 6), Expanded(child: Text(result!.title, style: TextStyle(fontWeight: FontWeight.w700, color: color))), Text('${result!.elapsed.inMilliseconds}ms', style: TextStyle(fontSize: 11, color: color))]),
+              const SizedBox(height: 4),
+              Text(result!.detail, style: const TextStyle(fontSize: 12, height: 1.35)),
+            ]),
+          ),
+        ),
       ]),
     );
   }

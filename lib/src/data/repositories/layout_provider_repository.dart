@@ -5,8 +5,10 @@ import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.da
 
 class LayoutProviderRepository {
   static const _configKey = 'layout_provider_config_v1';
-  static const _apiKey = 'layout_provider_api_key_v1';
-  static const _secondaryApiKey = 'layout_provider_secondary_api_key_v1';
+  static const _legacyApiKey = 'layout_provider_api_key_v1';
+  static const _legacySecondaryApiKey = 'layout_provider_secondary_api_key_v1';
+  static const _paddleApiKey = 'layout_provider_paddle_api_key_v2';
+  static const _mineruApiKey = 'layout_provider_mineru_api_key_v2';
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   Future<LayoutProviderConfig> load() async {
@@ -23,8 +25,16 @@ class LayoutProviderRepository {
       String apiKey = '';
       String secondaryApiKey = '';
       try {
-        apiKey = await _secureStorage.read(key: _apiKey) ?? '';
-        secondaryApiKey = await _secureStorage.read(key: _secondaryApiKey) ?? '';
+        final paddle = await readPaddleToken();
+        final mineru = await readMineruToken();
+        if (type == LayoutProviderType.mineruCloud) {
+          apiKey = mineru.isNotEmpty ? mineru : paddle;
+        } else if (type == LayoutProviderType.autoCloud) {
+          apiKey = paddle;
+          secondaryApiKey = mineru;
+        } else {
+          apiKey = paddle;
+        }
       } catch (_) {
         // Do not erase the selected service merely because Keychain is
         // temporarily unavailable. The UI can now report that re-entry is needed.
@@ -41,11 +51,27 @@ class LayoutProviderRepository {
   }
 
   Future<void> save(LayoutProviderConfig config) async {
-    await _secureStorage.write(key: _apiKey, value: config.apiKey);
-    await _secureStorage.write(key: _secondaryApiKey, value: config.secondaryApiKey);
+    if (config.type == LayoutProviderType.mineruCloud) {
+      await _secureStorage.write(key: _mineruApiKey, value: config.apiKey);
+    } else if (config.type == LayoutProviderType.autoCloud) {
+      await _secureStorage.write(key: _paddleApiKey, value: config.apiKey);
+      await _secureStorage.write(key: _mineruApiKey, value: config.secondaryApiKey);
+    } else if (config.type == LayoutProviderType.paddleCloud) {
+      await _secureStorage.write(key: _paddleApiKey, value: config.apiKey);
+    }
     await (await SharedPreferences.getInstance()).setString(_configKey, jsonEncode({
       'type': config.type.name,
       'baseUrl': config.baseUrl,
     }));
+  }
+
+  Future<String> readPaddleToken() async {
+    final current = await _secureStorage.read(key: _paddleApiKey);
+    return current ?? await _secureStorage.read(key: _legacyApiKey) ?? '';
+  }
+
+  Future<String> readMineruToken() async {
+    final current = await _secureStorage.read(key: _mineruApiKey);
+    return current ?? await _secureStorage.read(key: _legacySecondaryApiKey) ?? '';
   }
 }
