@@ -10,13 +10,15 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
+import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 
 class DataManagementScreen extends ConsumerWidget {
   const DataManagementScreen({super.key});
 
-  static const _backupSchemaVersion = 3;
+  static const _backupSchemaVersion = 4;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,7 +70,7 @@ class DataManagementScreen extends ConsumerWidget {
                 subtitle: '导出含题图的版本化 JSON 备份，可在新设备恢复',
                 onTap: questions.isEmpty
                     ? null
-                    : () => _exportQuestions(cardContext, questions),
+                    : () => _exportQuestions(cardContext, ref, questions),
               );
             }),
             const SizedBox(height: 8),
@@ -118,8 +120,9 @@ class DataManagementScreen extends ConsumerWidget {
   }
 
   Future<void> _exportQuestions(
-      BuildContext context, List<QuestionRecord> questions) async {
+      BuildContext context, WidgetRef ref, List<QuestionRecord> questions) async {
     try {
+      final reviewLogs = await ref.read(reviewLogRepositoryProvider).listAll();
       final dir = await getApplicationDocumentsDirectory();
       final exportDir = Directory('${dir.path}/exports');
       if (!exportDir.existsSync()) {
@@ -135,8 +138,10 @@ class DataManagementScreen extends ConsumerWidget {
         'schemaVersion': _backupSchemaVersion,
         'generatedAt': now.toIso8601String(),
         'questionCount': questions.length,
+        'reviewLogCount': reviewLogs.length,
         'attachments': await _buildAttachmentBackup(questions),
         'questions': questions.map(_questionToJson).toList(),
+        'reviewLogs': reviewLogs.map(_reviewLogToJson).toList(),
       };
       file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(backup));
 
@@ -182,6 +187,14 @@ class DataManagementScreen extends ConsumerWidget {
 
   Map<String, dynamic> _questionToJson(QuestionRecord q) => q.toJson();
 
+  Map<String, dynamic> _reviewLogToJson(ReviewLog log) => <String, dynamic>{
+        'id': log.id,
+        'questionRecordId': log.questionRecordId,
+        'reviewedAt': log.reviewedAt.toIso8601String(),
+        'result': log.result,
+        'masteryAfter': log.masteryAfter.name,
+      };
+
   Future<void> _importQuestions(BuildContext context, WidgetRef ref) async {
     try {
       final result = await FilePicker.platform
@@ -204,6 +217,7 @@ class DataManagementScreen extends ConsumerWidget {
           await _restoreAttachments(decoded, allowedIds: importableIds);
       int imported = 0;
       int skipped = 0;
+      final importedIds = <String>{};
 
       for (final item in list) {
         if (item is! Map) {
@@ -219,14 +233,20 @@ class DataManagementScreen extends ConsumerWidget {
         await repo.saveDraft(restoredPath == null
             ? record
             : record.copyWith(imagePath: restoredPath));
+        importedIds.add(record.id);
         imported++;
       }
 
+      final restoredReviewLogs = await _restoreReviewLogs(
+        decoded,
+        ref,
+        allowedQuestionIds: importedIds,
+      );
       invalidateQuestionList(ref);
 
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('成功导入 $imported 道错题，跳过 $skipped 条重复或无效记录')),
+        SnackBar(content: Text('成功导入 $imported 道错题、恢复 $restoredReviewLogs 条复习记录，跳过 $skipped 条重复或无效记录')),
       );
     } catch (e) {
       if (context.mounted) {
@@ -283,6 +303,57 @@ class DataManagementScreen extends ConsumerWidget {
       }
     }
     return restored;
+  }
+
+  Future<int> _restoreReviewLogs(
+    dynamic decoded,
+    WidgetRef ref, {
+    required Set<String> allowedQuestionIds,
+  }) async {
+    if (decoded is! Map || decoded['reviewLogs'] is! List) return 0;
+    final repository = ref.read(reviewLogRepositoryProvider);
+    final existingIds = (await repository.listAll()).map((log) => log.id).toSet();
+    var restored = 0;
+    for (final raw in decoded['reviewLogs'] as List) {
+      if (raw is! Map) continue;
+      final log = _jsonToReviewLog(Map<String, dynamic>.from(raw));
+      if (log == null ||
+          !allowedQuestionIds.contains(log.questionRecordId) ||
+          !existingIds.add(log.id)) {
+        continue;
+      }
+      await repository.insert(log);
+      restored++;
+    }
+    return restored;
+  }
+
+  ReviewLog? _jsonToReviewLog(Map<String, dynamic> json) {
+    final id = json['id'];
+    final questionId = json['questionRecordId'];
+    final reviewedAt = json['reviewedAt'];
+    final result = json['result'];
+    final masteryName = json['masteryAfter'];
+    if (id is! String ||
+        id.isEmpty ||
+        questionId is! String ||
+        questionId.isEmpty ||
+        reviewedAt is! String ||
+        result is! String ||
+        masteryName is! String) {
+      return null;
+    }
+    final timestamp = DateTime.tryParse(reviewedAt);
+    if (timestamp == null) return null;
+    final mastery = MasteryLevel.values.where((level) => level.name == masteryName);
+    if (mastery.isEmpty) return null;
+    return ReviewLog(
+      id: id,
+      questionRecordId: questionId,
+      reviewedAt: timestamp,
+      result: result,
+      masteryAfter: mastery.first,
+    );
   }
 
   List<dynamic> _questionsFromBackup(dynamic decoded) {
