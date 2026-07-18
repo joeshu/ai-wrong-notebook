@@ -112,7 +112,7 @@ class SettingsScreen extends ConsumerWidget {
                 Divider(
                     height: 1, indent: 56, color: colorScheme.outlineVariant),
                 _SettingsListItem(
-                  icon: CupertinoIcons.doc_viewfinder,
+                  icon: CupertinoIcons.doc_text,
                   iconColor: const Color(0xFF0F766E),
                   lightIconBg: const Color(0xFFF0FDFA),
                   title: '试卷版面识别',
