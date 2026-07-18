@@ -107,7 +107,7 @@ class _WorksheetRegionEditorScreenState
           ),
           if (_regions.isNotEmpty)
             SizedBox(
-              height: 248,
+              height: MediaQuery.sizeOf(context).width < 600 ? 402 : 330,
               child: _RecognizedQuestionWorkbench(
                 regions: _regions,
                 defaultSubject: page.subject,
@@ -718,110 +718,135 @@ class _RecognizedQuestionWorkbenchState
         ),
         const Divider(height: 1),
         Expanded(
-          child: Row(children: <Widget>[
-            SizedBox(
-              width: 96,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(6),
-                itemCount: widget.regions.length,
-                itemBuilder: (context, itemIndex) {
-                  final item = widget.regions[itemIndex];
-                  final selected = itemIndex == index;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 5),
-                    child: Material(
-                      color: selected
-                          ? Theme.of(context).colorScheme.primaryContainer
-                          : Theme.of(context).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(8),
-                        onTap: () => setState(() => _selectedIndex = itemIndex),
-                        child: Padding(
-                          padding: const EdgeInsets.all(7),
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-                            Row(children: <Widget>[
-                              Expanded(child: Text('第 ${item.detectedNumber ?? itemIndex + 1}题', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
-                              Icon(item.analyzeWithAi ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.doc_text, size: 13, color: item.analyzeWithAi ? const Color(0xFF16A34A) : const Color(0xFF2563EB)),
-                            ]),
-                            Wrap(spacing: 2, runSpacing: 2, children: item.recognizedBlockTypes.where((block) => block != '文字').take(2).map(_MiniTypeTag.new).toList()),
-                            const SizedBox(height: 2),
-                            Text(item.analyzeWithAi ? '采用+AI' : '仅 OCR', style: const TextStyle(fontSize: 9)),
-                          ]),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: ListView(
-                key: ValueKey(region.id),
-                padding: const EdgeInsets.all(10),
-                children: <Widget>[
-                  Row(children: <Widget>[
-                    Text('第 ${region.detectedNumber ?? index + 1} 题详情', style: const TextStyle(fontWeight: FontWeight.w700)),
-                    const SizedBox(width: 6),
-                    ...region.recognizedBlockTypes.where((block) => block != '文字').map(_MiniTypeTag.new),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: () => widget.onIgnore(index),
-                      icon: const Icon(CupertinoIcons.xmark_circle, size: 16),
-                      label: const Text('忽略'),
-                    ),
-                  ]),
-                  Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    initialValue: region.recognizedText ?? '',
-                    minLines: 4,
-                    maxLines: 9,
-                    onChanged: (text) => widget.onUpdate(index, region.copyWith(
-                      recognizedText: text,
-                      contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
-                    )),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      labelText: '题干 / LaTex 公式 / 表格 Markdown',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(children: <Widget>[
-                    Expanded(child: DropdownButtonFormField<Subject>(
-                      value: subject,
-                      isDense: true,
-                      decoration: const InputDecoration(labelText: '学科', border: OutlineInputBorder()),
-                      items: Subject.values.map((item) => DropdownMenuItem(value: item, child: Text(item.label))).toList(),
-                      onChanged: (value) { if (value != null) widget.onUpdate(index, region.copyWith(subject: value)); },
-                    )),
-                    const SizedBox(width: 8),
-                    Expanded(child: DropdownButtonFormField<String>(
-                      value: _questionTypes.contains(type) ? type : '未指定',
-                      isDense: true,
-                      decoration: const InputDecoration(labelText: '题目类型', border: OutlineInputBorder()),
-                      items: _questionTypes.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
-                      onChanged: (value) => widget.onUpdate(index, region.copyWith(questionType: value == '未指定' ? '' : value)),
-                    )),
-                  ]),
-                  const SizedBox(height: 6),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    value: region.analyzeWithAi,
-                    onChanged: (value) => widget.onUpdate(index, region.copyWith(analyzeWithAi: value)),
-                    title: Text(region.analyzeWithAi ? '✓ 采用，并交给普通 AI 深度分析' : '✓ 采用，仅保存 OCR / 文档结果', style: const TextStyle(fontSize: 12)),
-                    subtitle: Text(region.analyzeWithAi ? '生成讲解、错因、知识点与练习' : '不调用普通 AI，可稍后在错题本中分析', style: const TextStyle(fontSize: 10)),
-                  ),
-                ],
-              ),
-            ),
-          ]),
+          child: LayoutBuilder(builder: (context, constraints) {
+            final compact = constraints.maxWidth < 600;
+            final list = _buildQuestionList(context, index, horizontal: compact);
+            final detail = _buildDetail(context, index, region, subject, type);
+            if (compact) {
+              return Column(children: <Widget>[
+                SizedBox(height: 78, child: list),
+                const Divider(height: 1),
+                Expanded(child: detail),
+              ]);
+            }
+            return Row(children: <Widget>[
+              SizedBox(width: 132, child: list),
+              const VerticalDivider(width: 1),
+              Expanded(child: detail),
+            ]);
+          }),
         ),
       ]),
+    );
+  Widget _buildQuestionList(BuildContext context, int selectedIndex,
+      {required bool horizontal}) {
+    return ListView.builder(
+      scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
+      padding: const EdgeInsets.all(6),
+      itemCount: widget.regions.length,
+      itemBuilder: (context, itemIndex) {
+        final item = widget.regions[itemIndex];
+        final selected = itemIndex == selectedIndex;
+        return Padding(
+          padding: horizontal
+              ? const EdgeInsets.only(right: 6)
+              : const EdgeInsets.only(bottom: 6),
+          child: SizedBox(
+            width: horizontal ? 112 : double.infinity,
+            child: Material(
+              color: selected
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => setState(() => _selectedIndex = itemIndex),
+                child: Padding(
+                  padding: const EdgeInsets.all(7),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(children: <Widget>[
+                        Expanded(child: Text('第 ${item.detectedNumber ?? itemIndex + 1} 题', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                        Icon(item.analyzeWithAi ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.doc_text, size: 14, color: item.analyzeWithAi ? const Color(0xFF16A34A) : const Color(0xFF2563EB)),
+                      ]),
+                      const SizedBox(height: 3),
+                      Wrap(spacing: 2, runSpacing: 2, children: item.recognizedBlockTypes.where((block) => block != '文字').take(2).map(_MiniTypeTag.new).toList()),
+                      const SizedBox(height: 3),
+                      Text(item.analyzeWithAi ? '✓ 采用 + AI' : '✓ 采用 · 仅 OCR', style: const TextStyle(fontSize: 9)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetail(BuildContext context, int index, QuestionRegion region,
+      Subject subject, String type) {
+    return ListView(
+      key: ValueKey(region.id),
+      padding: const EdgeInsets.all(10),
+      children: <Widget>[
+        Row(children: <Widget>[
+          Expanded(child: Text('第 ${region.detectedNumber ?? index + 1} 题详情', style: const TextStyle(fontWeight: FontWeight.w700))),
+          ...region.recognizedBlockTypes.where((block) => block != '文字').map(_MiniTypeTag.new),
+          TextButton.icon(
+            onPressed: () => widget.onIgnore(index),
+            icon: const Icon(CupertinoIcons.xmark_circle, size: 16),
+            label: const Text('忽略'),
+          ),
+        ]),
+        Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+        const SizedBox(height: 8),
+        TextFormField(
+          initialValue: region.recognizedText ?? '',
+          minLines: 4,
+          maxLines: 9,
+          onChanged: (text) => widget.onUpdate(index, region.copyWith(
+            recognizedText: text,
+            contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
+          )),
+          decoration: const InputDecoration(
+            isDense: true,
+            labelText: '题干 / LaTex 公式 / 表格 Markdown',
+            helperText: '可直接校对题干、公式与表格；原格式会随文本保存。',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(children: <Widget>[
+          Expanded(child: DropdownButtonFormField<Subject>(
+            value: subject,
+            isDense: true,
+            decoration: const InputDecoration(labelText: '学科', border: OutlineInputBorder()),
+            items: Subject.values.map((item) => DropdownMenuItem(value: item, child: Text(item.label))).toList(),
+            onChanged: (value) { if (value != null) widget.onUpdate(index, region.copyWith(subject: value)); },
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: DropdownButtonFormField<String>(
+            value: _questionTypes.contains(type) ? type : '未指定',
+            isDense: true,
+            decoration: const InputDecoration(labelText: '题目类型', border: OutlineInputBorder()),
+            items: _questionTypes.map((item) => DropdownMenuItem(value: item, child: Text(item))).toList(),
+            onChanged: (value) => widget.onUpdate(index, region.copyWith(questionType: value == '未指定' ? '' : value)),
+          )),
+        ]),
+        const SizedBox(height: 6),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          value: region.analyzeWithAi,
+          onChanged: (value) => widget.onUpdate(index, region.copyWith(analyzeWithAi: value)),
+          title: Text(region.analyzeWithAi ? '✓ 采用，并交给普通 AI 深度分析' : '✓ 采用，仅保存 OCR / 文档结果', style: const TextStyle(fontSize: 12)),
+          subtitle: Text(region.analyzeWithAi ? '生成讲解、错因、知识点与练习' : '不调用普通 AI，可稍后在错题本中分析', style: const TextStyle(fontSize: 10)),
+        ),
+      ],
     );
   }
 }
