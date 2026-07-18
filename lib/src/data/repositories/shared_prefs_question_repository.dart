@@ -19,9 +19,11 @@ class SharedPrefsQuestionRepository implements QuestionRepository {
     if (json == null || json.isEmpty) return [];
     try {
       final list = jsonDecode(json) as List;
-      return list.map((e) => QuestionRecord.fromJson(e as Map<String, dynamic>)).toList();
+      return list
+          .map((e) => QuestionRecord.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e) {
-      return [];
+      throw FormatException('本地题库数据损坏，无法读取：$e');
     }
   }
 

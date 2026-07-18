@@ -32,6 +32,7 @@ dependencies:
   webview_flutter: ^4.10.0
   markdown: ^7.3.1
   pdf: ^3.11.3
+  crypto: ^3.0.5
 
 dev_dependencies:
   flutter_test:

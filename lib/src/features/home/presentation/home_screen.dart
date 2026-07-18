@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/common/widgets/stats_chart.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
+import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
@@ -16,6 +17,8 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final questionsAsync = ref.watch(questionListProvider);
     final dueAsync = ref.watch(dueReviewProvider);
+    final todayPlanAsync = ref.watch(todayReviewPlanProvider);
+    final mistakeStatsAsync = ref.watch(mistakeCategoryStatsProvider);
 
     return SafeArea(
       child: ListView(
@@ -48,6 +51,17 @@ class HomeScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
+          todayPlanAsync.when(
+            data: (plan) => Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: _TodayPlanCard(
+                plan: plan,
+                onOpenReview: () => context.go('/review'),
+              ),
+            ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
           const SizedBox(height: 20),
           Text('学习统计', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
@@ -57,6 +71,16 @@ class HomeScreen extends ConsumerWidget {
               loading: () => const _StatsGridSkeleton(),
               error: (e, _) => Text('加载失败: $e'),
             ),
+          ),
+          mistakeStatsAsync.when(
+            data: (stats) => stats.isEmpty
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: _MistakeCategorySummary(stats: stats),
+                  ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
           const SizedBox(height: 24),
           Row(
@@ -217,6 +241,112 @@ class _StatCardSkeleton extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
+      ),
+    );
+  }
+}
+
+class _TodayPlanCard extends StatelessWidget {
+  const _TodayPlanCard({required this.plan, required this.onOpenReview});
+
+  final TodayReviewPlan plan;
+  final VoidCallback onOpenReview;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final target = plan.targetCount;
+    final progress = target == 0 ? 0.0 : plan.completedCount / target;
+    return InkWell(
+      onTap: onOpenReview,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Icon(CupertinoIcons.calendar,
+                    size: 18, color: colorScheme.onPrimaryContainer),
+                const SizedBox(width: 8),
+                Text('今日复习计划',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onPrimaryContainer)),
+                const Spacer(),
+                const Icon(CupertinoIcons.chevron_right, size: 18),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              target == 0
+                  ? '今天暂无待复习题'
+                  : '${plan.dueCount} 题待复习 · 预计 ${plan.estimatedMinutes} 分钟',
+              style: TextStyle(fontSize: 13, color: colorScheme.onPrimaryContainer),
+            ),
+            if (target > 0) ...<Widget>[
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+              ),
+              const SizedBox(height: 6),
+              Text('已完成 ${plan.completedCount} / $target',
+                  style: TextStyle(
+                      fontSize: 12, color: colorScheme.onPrimaryContainer)),
+            ],
+            if (plan.streakDays > 0) ...<Widget>[
+              const SizedBox(height: 6),
+              Text('连续学习 ${plan.streakDays} 天',
+                  style: TextStyle(
+                      fontSize: 12, color: colorScheme.onPrimaryContainer)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MistakeCategorySummary extends StatelessWidget {
+  const _MistakeCategorySummary({required this.stats});
+
+  final Map<MistakeCategory, int> stats;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final ranked = stats.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = ranked.take(3).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text('常见错因', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: top
+                .map((entry) => Chip(
+                      label: Text('${entry.key.label} ${entry.value} 题'),
+                    ))
+                .toList(),
+          ),
+        ],
       ),
     );
   }

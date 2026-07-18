@@ -12,14 +12,15 @@ import 'package:smart_wrong_notebook/src/data/services/capture_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/notification_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/ocr_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
-import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
+import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 
 // --- Repository providers (default implementations) ---
 
@@ -295,11 +296,70 @@ final FutureProvider<List<QuestionRecord>> dueReviewProvider =
     FutureProvider<List<QuestionRecord>>((ref) async {
   ref.watch(_listVersionProvider);
   final all = await ref.read(questionRepositoryProvider).listAll();
-  return all
-      .where((QuestionRecord q) =>
-          q.contentStatus == ContentStatus.ready &&
-          q.masteryLevel != MasteryLevel.mastered)
-      .toList();
+  const scheduler = ReviewScheduleService();
+  return all.where((QuestionRecord q) => scheduler.isDue(q)).toList();
+});
+
+// --- Today's review plan ---
+
+class TodayReviewPlan {
+  const TodayReviewPlan({
+    required this.dueCount,
+    required this.completedCount,
+    required this.streakDays,
+  });
+
+  final int dueCount;
+  final int completedCount;
+  final int streakDays;
+
+  int get targetCount => dueCount + completedCount;
+  int get estimatedMinutes => dueCount * 3;
+}
+
+final FutureProvider<TodayReviewPlan> todayReviewPlanProvider =
+    FutureProvider<TodayReviewPlan>((ref) async {
+  ref.watch(_listVersionProvider);
+  const scheduler = ReviewScheduleService();
+  final questions = await ref.read(questionRepositoryProvider).listAll();
+  final logs = await ref.read(reviewLogRepositoryProvider).listAll();
+  final now = DateTime.now();
+  final completedIds = <String>{};
+  final reviewedDays = <DateTime>{};
+  for (final log in logs) {
+    final at = log.reviewedAt.toLocal();
+    final day = DateTime(at.year, at.month, at.day);
+    reviewedDays.add(day);
+    if (day == DateTime(now.year, now.month, now.day)) {
+      completedIds.add(log.questionRecordId);
+    }
+  }
+
+  var streak = 0;
+  var day = DateTime(now.year, now.month, now.day);
+  while (reviewedDays.contains(day)) {
+    streak++;
+    day = day.subtract(const Duration(days: 1));
+  }
+  return TodayReviewPlan(
+    dueCount: questions.where(scheduler.isDue).length,
+    completedCount: completedIds.length,
+    streakDays: streak,
+  );
+});
+
+// --- Mistake category statistics ---
+
+final FutureProvider<Map<MistakeCategory, int>> mistakeCategoryStatsProvider =
+    FutureProvider<Map<MistakeCategory, int>>((ref) async {
+  ref.watch(_listVersionProvider);
+  final all = await ref.read(questionRepositoryProvider).listAll();
+  final stats = <MistakeCategory, int>{};
+  for (final question in all) {
+    final category = question.mistakeCategory;
+    if (category != null) stats[category] = (stats[category] ?? 0) + 1;
+  }
+  return stats;
 });
 
 // --- Notebook filter state ---
@@ -310,6 +370,28 @@ final StateProvider<Subject?> selectedSubjectFilterProvider =
 final StateProvider<MasteryLevel?> selectedMasteryFilterProvider =
     StateProvider<MasteryLevel?>((ref) => null);
 
+final StateProvider<MistakeCategory?> selectedMistakeCategoryFilterProvider =
+    StateProvider<MistakeCategory?>((ref) => null);
+
+enum QuestionSort { newest, oldest, nextReview }
+
+enum QuestionDateRange { all, last7Days, last30Days }
+
+final StateProvider<QuestionDateRange> questionDateRangeProvider =
+    StateProvider<QuestionDateRange>((ref) => QuestionDateRange.all);
+
+final StateProvider<bool> dueOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
+final StateProvider<bool> favoritesOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
+final StateProvider<QuestionSort> questionSortProvider =
+    StateProvider<QuestionSort>((ref) => QuestionSort.newest);
+
+final StateProvider<String?> selectedSourceFilterProvider =
+    StateProvider<String?>((ref) => null);
+
 final StateProvider<String> searchQueryProvider =
     StateProvider<String>((ref) => '');
 
@@ -319,6 +401,14 @@ final StateProvider<String?> selectedKnowledgePointFilterProvider =
 // 多选标签过滤
 final StateProvider<List<String>> selectedTagsFilterProvider =
     StateProvider<List<String>>((ref) => []);
+
+final FutureProvider<List<String>> allSourcesProvider =
+    FutureProvider<List<String>>((ref) async {
+  ref.watch(_listVersionProvider);
+  final all = await ref.read(questionRepositoryProvider).listAll();
+  final sources = all.map((question) => question.source).whereType<String>().toSet();
+  return sources.toList()..sort();
+});
 
 // --- All tags provider ---
 final FutureProvider<List<String>> allTagsProvider =
@@ -346,13 +436,28 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
 
   final subject = ref.watch(selectedSubjectFilterProvider);
   final mastery = ref.watch(selectedMasteryFilterProvider);
+  final mistakeCategory = ref.watch(selectedMistakeCategoryFilterProvider);
+  final dueOnly = ref.watch(dueOnlyFilterProvider);
+  final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
+  final dateRange = ref.watch(questionDateRangeProvider);
+  final source = ref.watch(selectedSourceFilterProvider);
+  final sort = ref.watch(questionSortProvider);
   final query = ref.watch(searchQueryProvider).toLowerCase();
   final knowledgePoint = ref.watch(selectedKnowledgePointFilterProvider);
   final selectedTags = ref.watch(selectedTagsFilterProvider);
 
-  return all.where((QuestionRecord q) {
+  const scheduler = ReviewScheduleService();
+  final now = DateTime.now();
+  final filtered = all.where((QuestionRecord q) {
     if (subject != null && q.subject != subject) return false;
     if (mastery != null && q.masteryLevel != mastery) return false;
+    if (mistakeCategory != null && q.mistakeCategory != mistakeCategory) {
+      return false;
+    }
+    if (dueOnly && !scheduler.isDue(q)) return false;
+    if (favoritesOnly && !q.isFavorite) return false;
+    if (!_isWithinDateRange(q.createdAt, dateRange, now)) return false;
+    if (source != null && q.source != source) return false;
     if (query.isNotEmpty &&
         !q.normalizedQuestionText.toLowerCase().contains(query)) {
       return false;
@@ -371,7 +476,36 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
     }
     return true;
   }).toList();
+
+  filtered.sort((a, b) {
+    switch (sort) {
+      case QuestionSort.newest:
+        return b.createdAt.compareTo(a.createdAt);
+      case QuestionSort.oldest:
+        return a.createdAt.compareTo(b.createdAt);
+      case QuestionSort.nextReview:
+        final aAt = a.nextReviewAt ?? a.createdAt;
+        final bAt = b.nextReviewAt ?? b.createdAt;
+        return aAt.compareTo(bAt);
+    }
+  });
+  return filtered;
 });
+
+bool _isWithinDateRange(
+  DateTime createdAt,
+  QuestionDateRange range,
+  DateTime now,
+) {
+  switch (range) {
+    case QuestionDateRange.all:
+      return true;
+    case QuestionDateRange.last7Days:
+      return !createdAt.isBefore(now.subtract(const Duration(days: 7)));
+    case QuestionDateRange.last30Days:
+      return !createdAt.isBefore(now.subtract(const Duration(days: 30)));
+  }
+}
 
 // --- Theme mode ---
 

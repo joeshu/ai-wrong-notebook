@@ -63,13 +63,9 @@ class AppDatabase extends _$AppDatabase {
 
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
-    try {
-      final dbFolder = await getApplicationDocumentsDirectory()
-          .timeout(const Duration(seconds: 10));
-      final file = File(p.join(dbFolder.path, 'smart_wrong_notebook.db'));
-      return NativeDatabase.createInBackground(file);
-    } catch (e) {
-      return NativeDatabase.memory();
-    }
+    final dbFolder = await getApplicationDocumentsDirectory()
+        .timeout(const Duration(seconds: 10));
+    final file = File(p.join(dbFolder.path, 'smart_wrong_notebook.db'));
+    return NativeDatabase.createInBackground(file);
   });
 }

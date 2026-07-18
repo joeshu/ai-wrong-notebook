@@ -7,6 +7,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/question_repository.d
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/repositories/review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_screen.dart';
@@ -86,6 +87,32 @@ void main() {
 
       expect(find.text('复习记录'), findsOneWidget);
       expect(find.byIcon(CupertinoIcons.chevron_right), findsWidgets);
+    });
+
+    testWidgets('shows today progress using distinct reviewed questions',
+        (tester) async {
+      final repository = InMemoryQuestionRepository();
+      final logs = InMemoryReviewLogRepository();
+      final now = DateTime.now();
+      await repository.saveDraft(_reviewQuestion('q-1', text: '待复习题'));
+      await logs.insert(ReviewLog(
+        id: 'today-1',
+        questionRecordId: 'q-answered',
+        reviewedAt: now,
+        result: 'mastered',
+        masteryAfter: MasteryLevel.mastered,
+      ));
+      await logs.insert(ReviewLog(
+        id: 'today-2',
+        questionRecordId: 'q-answered',
+        reviewedAt: now,
+        result: 'reviewing',
+        masteryAfter: MasteryLevel.reviewing,
+      ));
+
+      await _pumpReviewScreen(tester, repository, reviewLogRepository: logs);
+
+      expect(find.text('今日已完成 1 / 2 题'), findsOneWidget);
     });
 
     testWidgets('does not show batch label for standalone due question',

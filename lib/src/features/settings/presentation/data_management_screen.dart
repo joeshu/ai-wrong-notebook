@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:smart_wrong_notebook/src/data/files/backup_attachment_integrity.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +14,8 @@ import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 
 class DataManagementScreen extends ConsumerWidget {
   const DataManagementScreen({super.key});
+
+  static const _backupSchemaVersion = 3;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,7 +56,7 @@ class DataManagementScreen extends ConsumerWidget {
             _DataCard(
               icon: CupertinoIcons.arrow_up,
               title: '导入错题',
-              subtitle: '从 JSON 文件导入错题记录',
+              subtitle: '支持旧版 JSON 与版本化备份；重复题将自动跳过',
               onTap: () => _importQuestions(context, ref),
             ),
             const SizedBox(height: 8),
@@ -61,7 +64,7 @@ class DataManagementScreen extends ConsumerWidget {
               return _DataCard(
                 icon: CupertinoIcons.arrow_down,
                 title: '导出当前题库',
-                subtitle: '导出所有错题为 JSON 文件，可分享',
+                subtitle: '导出含题图的版本化 JSON 备份，可在新设备恢复',
                 onTap: questions.isEmpty
                     ? null
                     : () => _exportQuestions(cardContext, questions),
@@ -116,12 +119,18 @@ class DataManagementScreen extends ConsumerWidget {
       }
 
       final now = DateTime.now();
-      final ms = now.millisecond;
-      final filename = 'wrong_notebook_$ms.json';
+      final filename =
+          'wrong_notebook_${now.toIso8601String().replaceAll(':', '-')}.json';
       final file = File('${exportDir.path}/$filename');
 
-      final list = questions.map(_questionToJson).toList();
-      file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(list));
+      final backup = <String, dynamic>{
+        'schemaVersion': _backupSchemaVersion,
+        'generatedAt': now.toIso8601String(),
+        'questionCount': questions.length,
+        'attachments': await _buildAttachmentBackup(questions),
+        'questions': questions.map(_questionToJson).toList(),
+      };
+      file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(backup));
 
       if (!context.mounted) return;
       final box = context.findRenderObject() as RenderBox?;
@@ -139,6 +148,30 @@ class DataManagementScreen extends ConsumerWidget {
     }
   }
 
+  Future<List<Map<String, dynamic>>> _buildAttachmentBackup(
+      List<QuestionRecord> questions) async {
+    final attachments = <Map<String, dynamic>>[];
+    for (final question in questions) {
+      if (question.imagePath.isEmpty) continue;
+      final file = File(question.imagePath);
+      if (!await file.exists()) continue;
+      try {
+        final bytes = await file.readAsBytes();
+        attachments.add(<String, dynamic>{
+          'questionId': question.id,
+          'fileName': file.uri.pathSegments.isEmpty
+              ? '${question.id}.jpg'
+              : file.uri.pathSegments.last,
+          'contentBase64': base64Encode(bytes),
+          'sha256': BackupAttachmentIntegrity.sha256Hex(bytes),
+        });
+      } catch (_) {
+        // A single unreadable original image must not block the data backup.
+      }
+    }
+    return attachments;
+  }
+
   Map<String, dynamic> _questionToJson(QuestionRecord q) => q.toJson();
 
   Future<void> _importQuestions(BuildContext context, WidgetRef ref) async {
@@ -149,24 +182,43 @@ class DataManagementScreen extends ConsumerWidget {
 
       final file = File(result.files.first.path!);
       final content = await file.readAsString();
-      final list = jsonDecode(content) as List;
+      final decoded = jsonDecode(content);
+      final list = _questionsFromBackup(decoded);
       final repo = ref.read(questionRepositoryProvider);
+      final existingIds = (await repo.listAll()).map((q) => q.id).toSet();
+      final importableIds = list
+          .whereType<Map>()
+          .map((item) => item['id'])
+          .whereType<String>()
+          .where((id) => id.isNotEmpty && !existingIds.contains(id))
+          .toSet();
+      final attachmentPaths =
+          await _restoreAttachments(decoded, allowedIds: importableIds);
       int imported = 0;
+      int skipped = 0;
 
       for (final item in list) {
-        final map = item as Map<String, dynamic>;
-        final record = _jsonToQuestion(map);
-        if (record != null) {
-          await repo.saveDraft(record);
-          imported++;
+        if (item is! Map) {
+          skipped++;
+          continue;
         }
+        final record = _jsonToQuestion(Map<String, dynamic>.from(item));
+        if (record == null || record.id.isEmpty || !existingIds.add(record.id)) {
+          skipped++;
+          continue;
+        }
+        final restoredPath = attachmentPaths[record.id];
+        await repo.saveDraft(restoredPath == null
+            ? record
+            : record.copyWith(imagePath: restoredPath));
+        imported++;
       }
 
       invalidateQuestionList(ref);
 
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('成功导入 $imported 道错题')),
+        SnackBar(content: Text('成功导入 $imported 道错题，跳过 $skipped 条重复或无效记录')),
       );
     } catch (e) {
       if (context.mounted) {
@@ -175,6 +227,69 @@ class DataManagementScreen extends ConsumerWidget {
         );
       }
     }
+  }
+
+  Future<Map<String, String>> _restoreAttachments(
+    dynamic decoded, {
+    required Set<String> allowedIds,
+  }) async {
+    if (decoded is! Map || decoded['attachments'] is! List) {
+      return const <String, String>{};
+    }
+    final documents = await getApplicationDocumentsDirectory();
+    final attachmentDir = Directory('${documents.path}/imported_images');
+    if (!await attachmentDir.exists()) {
+      await attachmentDir.create(recursive: true);
+    }
+
+    final restored = <String, String>{};
+    for (final item in decoded['attachments'] as List) {
+      if (item is! Map) continue;
+      final questionId = item['questionId'];
+      final content = item['contentBase64'];
+      if (questionId is! String ||
+          questionId.isEmpty ||
+          !allowedIds.contains(questionId) ||
+          content is! String) {
+        continue;
+      }
+      try {
+        final bytes = base64Decode(content);
+        final expectedHash = item['sha256'];
+        final hashMatches = BackupAttachmentIntegrity.matches(
+          bytes,
+          expectedHash is String ? expectedHash : null,
+        );
+        if (!hashMatches) {
+          continue;
+        }
+        final rawName = item['fileName'] is String
+            ? item['fileName'] as String
+            : 'image.jpg';
+        final safeName = rawName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+        final target = File('${attachmentDir.path}/${questionId}_$safeName');
+        await target.writeAsBytes(bytes, flush: true);
+        restored[questionId] = target.path;
+      } catch (_) {
+        // Invalid or corrupt attachment: import the question without its image.
+      }
+    }
+    return restored;
+  }
+
+  List<dynamic> _questionsFromBackup(dynamic decoded) {
+    // Version 1 exports are a bare list. Version 2+ wraps the list in an
+    // envelope so the format can evolve without breaking old user backups.
+    if (decoded is List) return decoded;
+    if (decoded is! Map) throw const FormatException('备份文件格式不正确');
+
+    final version = decoded['schemaVersion'];
+    if (version is int && version > _backupSchemaVersion) {
+      throw FormatException('备份版本 $version 高于当前应用支持的版本');
+    }
+    final questions = decoded['questions'];
+    if (questions is! List) throw const FormatException('备份中没有题目数据');
+    return questions;
   }
 
   QuestionRecord? _jsonToQuestion(Map<String, dynamic> map) {

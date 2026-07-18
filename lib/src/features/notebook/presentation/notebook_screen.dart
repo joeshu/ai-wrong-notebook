@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
+import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
+import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 class NotebookScreen extends ConsumerStatefulWidget {
@@ -18,6 +20,7 @@ class NotebookScreen extends ConsumerStatefulWidget {
 
 class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   final _searchController = TextEditingController();
+  bool _buildingKnowledgePointPractice = false;
 
   @override
   void dispose() {
@@ -47,12 +50,91 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     );
   }
 
+  Future<void> _startKnowledgePointPractice(
+    BuildContext context,
+    String knowledgePoint,
+    List<QuestionRecord> questions,
+  ) async {
+    if (_buildingKnowledgePointPractice) return;
+    setState(() => _buildingKnowledgePointPractice = true);
+    try {
+      final controller = KnowledgePointPracticeController(
+        ref.read(aiAnalysisServiceProvider),
+      );
+      final prepared = await controller.buildRound(
+        knowledgePoint: knowledgePoint,
+        questions: questions,
+      );
+      await ref.read(questionRepositoryProvider).update(prepared);
+      invalidateQuestionList(ref);
+      ref.read(currentPracticeContextProvider.notifier).state =
+          const PracticeContext(
+        source: PracticeContextSource.notebook,
+        returnRoute: '/notebook',
+      );
+      ref.read(currentQuestionProvider.notifier).state = prepared;
+      if (!mounted) return;
+      context.go('/exercise/practice');
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('专项练习准备失败：$error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _buildingKnowledgePointPractice = false);
+    }
+  }
+
+  void _applyMenuAction(WidgetRef ref, _NotebookMenuAction action) {
+    switch (action) {
+      case _NotebookMenuAction.dueOnly:
+        final current = ref.read(dueOnlyFilterProvider);
+        ref.read(dueOnlyFilterProvider.notifier).state = !current;
+        break;
+      case _NotebookMenuAction.favoritesOnly:
+        final current = ref.read(favoritesOnlyFilterProvider);
+        ref.read(favoritesOnlyFilterProvider.notifier).state = !current;
+        break;
+      case _NotebookMenuAction.allDates:
+        ref.read(questionDateRangeProvider.notifier).state =
+            QuestionDateRange.all;
+        break;
+      case _NotebookMenuAction.last7Days:
+        ref.read(questionDateRangeProvider.notifier).state =
+            QuestionDateRange.last7Days;
+        break;
+      case _NotebookMenuAction.last30Days:
+        ref.read(questionDateRangeProvider.notifier).state =
+            QuestionDateRange.last30Days;
+        break;
+      case _NotebookMenuAction.newest:
+        ref.read(questionSortProvider.notifier).state = QuestionSort.newest;
+        break;
+      case _NotebookMenuAction.oldest:
+        ref.read(questionSortProvider.notifier).state = QuestionSort.oldest;
+        break;
+      case _NotebookMenuAction.nextReview:
+        ref.read(questionSortProvider.notifier).state = QuestionSort.nextReview;
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final questionsAsync = ref.watch(filteredQuestionListProvider);
     final selectedSubject = ref.watch(selectedSubjectFilterProvider);
     final selectedMastery = ref.watch(selectedMasteryFilterProvider);
+    final selectedMistakeCategory =
+        ref.watch(selectedMistakeCategoryFilterProvider);
+    final selectedTags = ref.watch(selectedTagsFilterProvider);
+    final dueOnly = ref.watch(dueOnlyFilterProvider);
+    final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
+    final dateRange = ref.watch(questionDateRangeProvider);
+    final selectedSource = ref.watch(selectedSourceFilterProvider);
+    final sources = ref.watch(allSourcesProvider).valueOrNull ?? const <String>[];
+    final sort = ref.watch(questionSortProvider);
     final selectedKnowledgePoint =
         ref.watch(selectedKnowledgePointFilterProvider);
 
@@ -67,6 +149,55 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               builder: (_) => const CaptureEntrySheet(),
             ),
             tooltip: '添加错题',
+          ),
+          PopupMenuButton<_NotebookMenuAction>(
+            icon: const Icon(CupertinoIcons.line_horizontal_3_decrease),
+            tooltip: '筛选与排序',
+            onSelected: (action) => _applyMenuAction(ref, action),
+            itemBuilder: (_) => <PopupMenuEntry<_NotebookMenuAction>>[
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.dueOnly,
+                checked: dueOnly,
+                child: const Text('仅看待复习'),
+              ),
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.favoritesOnly,
+                checked: favoritesOnly,
+                child: const Text('仅看收藏'),
+              ),
+              const PopupMenuDivider(),
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.last7Days,
+                checked: dateRange == QuestionDateRange.last7Days,
+                child: const Text('近 7 天录入'),
+              ),
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.last30Days,
+                checked: dateRange == QuestionDateRange.last30Days,
+                child: const Text('近 30 天录入'),
+              ),
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.allDates,
+                checked: dateRange == QuestionDateRange.all,
+                child: const Text('不限录入日期'),
+              ),
+              const PopupMenuDivider(),
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.newest,
+                checked: sort == QuestionSort.newest,
+                child: const Text('按最新录入'),
+              ),
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.oldest,
+                checked: sort == QuestionSort.oldest,
+                child: const Text('按最早录入'),
+              ),
+              CheckedPopupMenuItem<_NotebookMenuAction>(
+                value: _NotebookMenuAction.nextReview,
+                checked: sort == QuestionSort.nextReview,
+                child: const Text('按下次复习'),
+              ),
+            ],
           ),
         ],
       ),
@@ -122,6 +253,13 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                   label: '全部',
                   selected: selectedSubject == null &&
                       selectedMastery == null &&
+                      selectedMistakeCategory == null &&
+                      selectedTags.isEmpty &&
+                      !dueOnly &&
+                      !favoritesOnly &&
+                      dateRange == QuestionDateRange.all &&
+                      selectedSource == null &&
+                      sort == QuestionSort.newest &&
                       selectedKnowledgePoint == null,
                   onTap: () {
                     ref.read(selectedSubjectFilterProvider.notifier).state =
@@ -129,8 +267,19 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                     ref.read(selectedMasteryFilterProvider.notifier).state =
                         null;
                     ref
+                        .read(selectedMistakeCategoryFilterProvider.notifier)
+                        .state = null;
+                    ref
                         .read(selectedKnowledgePointFilterProvider.notifier)
                         .state = null;
+                    ref.read(selectedTagsFilterProvider.notifier).state = const <String>[];
+                    ref.read(dueOnlyFilterProvider.notifier).state = false;
+                    ref.read(favoritesOnlyFilterProvider.notifier).state = false;
+                    ref.read(questionDateRangeProvider.notifier).state =
+                        QuestionDateRange.all;
+                    ref.read(selectedSourceFilterProvider.notifier).state = null;
+                    ref.read(questionSortProvider.notifier).state =
+                        QuestionSort.newest;
                   },
                 ),
                 const SizedBox(width: 8),
@@ -143,6 +292,32 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                           ref
                               .read(selectedSubjectFilterProvider.notifier)
                               .state = selectedSubject == s ? null : s;
+                        },
+                      ),
+                    )),
+                ...MistakeCategory.values.map((category) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _Chip(
+                        label: category.label,
+                        selected: selectedMistakeCategory == category,
+                        onTap: () {
+                          ref
+                              .read(selectedMistakeCategoryFilterProvider
+                                  .notifier)
+                              .state = selectedMistakeCategory == category
+                              ? null
+                              : category;
+                        },
+                      ),
+                    )),
+                ...sources.map((source) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: _Chip(
+                        label: '来源：$source',
+                        selected: selectedSource == source,
+                        onTap: () {
+                          ref.read(selectedSourceFilterProvider.notifier).state =
+                              selectedSource == source ? null : source;
                         },
                       ),
                     )),
@@ -189,6 +364,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                     ),
                   );
                 }
+                final hasPracticeAction =
+                    selectedKnowledgePoint != null && questions.isNotEmpty;
                 return RefreshIndicator(
                   onRefresh: () async {
                     ref.invalidate(questionListProvider);
@@ -196,9 +373,25 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                   child: ListView.builder(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                    itemCount: questions.length,
+                    itemCount:
+                        questions.length + (hasPracticeAction ? 1 : 0),
                     itemBuilder: (context, index) {
-                      final q = questions[index];
+                      if (hasPracticeAction && index == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _KnowledgePointPracticeCard(
+                            knowledgePoint: selectedKnowledgePoint!,
+                            isLoading: _buildingKnowledgePointPractice,
+                            onStart: () => _startKnowledgePointPractice(
+                              context,
+                              selectedKnowledgePoint!,
+                              questions,
+                            ),
+                          ),
+                        );
+                      }
+                      final questionIndex = index - (hasPracticeAction ? 1 : 0);
+                      final q = questions[questionIndex];
                       return RepaintBoundary(
                         child: _QuestionCard(
                           question: q,
@@ -224,6 +417,70 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               error: (e, _) => Center(child: Text('加载失败: $e')),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _NotebookMenuAction {
+  dueOnly,
+  favoritesOnly,
+  allDates,
+  last7Days,
+  last30Days,
+  newest,
+  oldest,
+  nextReview,
+}
+
+class _KnowledgePointPracticeCard extends StatelessWidget {
+  const _KnowledgePointPracticeCard({
+    required this.knowledgePoint,
+    required this.isLoading,
+    required this.onStart,
+  });
+
+  final String knowledgePoint;
+  final bool isLoading;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(CupertinoIcons.play_circle,
+              color: colorScheme.onPrimaryContainer, size: 28),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text('专项练习：$knowledgePoint',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: colorScheme.onPrimaryContainer)),
+                const SizedBox(height: 3),
+                Text('聚合关联错题的已有练习；没有练习时自动请求 AI 生成。',
+                    style: TextStyle(
+                        fontSize: 12, color: colorScheme.onPrimaryContainer)),
+              ],
+            ),
+          ),
+          isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : TextButton(onPressed: onStart, child: const Text('开始')),
         ],
       ),
     );

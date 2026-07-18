@@ -77,5 +77,7 @@ void main() {
     expect(loaded.aiTags, <String>['计算']);
     expect(loaded.aiKnowledgePoints, <String>['加法']);
     expect(loaded.customTags, <String>['课堂']);
+    expect(loaded.isFavorite, isTrue);
+    expect(loaded.lastReviewedAt, DateTime(2026, 4, 29));
   });
 }

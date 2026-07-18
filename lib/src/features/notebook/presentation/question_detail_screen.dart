@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
+import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
@@ -40,14 +42,33 @@ class QuestionDetailScreen extends ConsumerWidget {
         ),
         actions: <Widget>[
           IconButton(
+            icon: Icon(current.isFavorite
+                ? CupertinoIcons.star_fill
+                : CupertinoIcons.star),
+            tooltip: current.isFavorite ? '取消收藏' : '收藏',
+            onPressed: () => _toggleFavorite(context, ref, current),
+          ),
+          IconButton(
             icon: const Icon(CupertinoIcons.pencil),
             onPressed: () => _editQuestion(context, ref, current),
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'delete') _confirmDelete(context, ref, current);
+              if (value == 'source') _editSource(context, ref, current);
             },
             itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'source',
+                child: Row(
+                  children: [
+                    Icon(CupertinoIcons.folder, size: 20),
+                    SizedBox(width: 8),
+                    Text('设置题目来源'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -77,7 +98,9 @@ class QuestionDetailScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 // 第一行：科目 + AI识别 + 状态
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: <Widget>[
                     _TagChip(
                       label: current.subject.label,
@@ -104,6 +127,14 @@ class QuestionDetailScreen extends ConsumerWidget {
                         label: _batchLabel(current)!,
                         bgColor: const Color(0xFFF8FAFC),
                         textColor: const Color(0xFF64748B),
+                      ),
+                    ],
+                    if (current.source != null) ...<Widget>[
+                      const SizedBox(width: 8),
+                      _TagChip(
+                        label: current.source!,
+                        bgColor: const Color(0xFFF0FDF4),
+                        textColor: const Color(0xFF166534),
                       ),
                     ],
                   ],
@@ -394,6 +425,16 @@ class QuestionDetailScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 10),
+            _MistakeCategoryCard(
+              selected: current.mistakeCategory,
+              onChanged: (category) => _setMistakeCategory(
+                context,
+                ref,
+                current,
+                category,
+              ),
+            ),
+            const SizedBox(height: 10),
             // Study advice
             _InfoCard(
               icon: CupertinoIcons.lightbulb,
@@ -510,8 +551,9 @@ class QuestionDetailScreen extends ConsumerWidget {
             const SizedBox(height: 24),
             _MasteryActions(
               current: current,
-              onMarkReviewing: () => _markResult(context, ref, current, false),
-              onMarkMastered: () => _markResult(context, ref, current, true),
+              onForgot: () => _markResult(context, ref, current, ReviewRating.forgot),
+              onHard: () => _markResult(context, ref, current, ReviewRating.hard),
+              onEasy: () => _markResult(context, ref, current, ReviewRating.easy),
             ),
           ],
         ],
@@ -593,6 +635,45 @@ class QuestionDetailScreen extends ConsumerWidget {
     }
     final order = question.splitOrder;
     return order == null ? '拍照批次' : '拍照批次 · 第 $order 题';
+  }
+
+  void _editSource(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) {
+    final controller = TextEditingController(text: question.source ?? '');
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('题目来源'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 30,
+          decoration: const InputDecoration(
+            hintText: '例如：期中考试、课堂作业',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final updated = question.withSource(controller.text);
+              await ref.read(questionRepositoryProvider).update(updated);
+              ref.read(currentQuestionProvider.notifier).state = updated;
+              invalidateQuestionList(ref);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _editQuestion(
@@ -755,20 +836,113 @@ class QuestionDetailScreen extends ConsumerWidget {
     );
   }
 
-  void _markResult(BuildContext context, WidgetRef ref, QuestionRecord question,
-      bool mastered) async {
+  Future<void> _toggleFavorite(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) async {
+    final updated = question.withFavorite(!question.isFavorite);
+    await ref.read(questionRepositoryProvider).update(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(updated.isFavorite ? '已收藏' : '已取消收藏')),
+    );
+  }
+
+  Future<void> _setMistakeCategory(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+    MistakeCategory? category,
+  ) async {
+    final updated = question.withMistakeCategory(category);
+    await ref.read(questionRepositoryProvider).update(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
+    if (!context.mounted) return;
+    final message = category == null ? '已清除错因分类' : '错因已标记为：${category.label}';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _markResult(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+    ReviewRating rating,
+  ) async {
     final controller = ReviewController(
       repository: ref.read(questionRepositoryProvider),
       logRepository: ref.read(reviewLogRepositoryProvider),
     );
-    final updated = mastered
-        ? await controller.markMastered(question.id)
-        : await controller.markReviewing(question.id);
+    final updated = switch (rating) {
+      ReviewRating.forgot => await controller.markForgot(question.id),
+      ReviewRating.hard => await controller.markReviewing(question.id),
+      ReviewRating.easy => await controller.markMastered(question.id),
+    };
     invalidateQuestionList(ref);
     ref.read(currentQuestionProvider.notifier).state = updated;
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mastered ? '已标记为已掌握' : '已标记为待复习')),
+    final message = switch (rating) {
+      ReviewRating.forgot => '将在 1 小时后再次复习',
+      ReviewRating.hard => '已安排后续复习',
+      ReviewRating.easy => '已掌握，复习间隔已延长',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _MistakeCategoryCard extends StatelessWidget {
+  const _MistakeCategoryCard({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final MistakeCategory? selected;
+  final ValueChanged<MistakeCategory?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(CupertinoIcons.tag, size: 18),
+              const SizedBox(width: 8),
+              const Text('错因分类',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const Spacer(),
+              if (selected != null)
+                TextButton(
+                  onPressed: () => onChanged(null),
+                  child: const Text('清除'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: MistakeCategory.values.map((category) {
+              return ChoiceChip(
+                label: Text(category.label),
+                selected: selected == category,
+                onSelected: (_) => onChanged(category),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -776,40 +950,46 @@ class QuestionDetailScreen extends ConsumerWidget {
 class _MasteryActions extends StatelessWidget {
   const _MasteryActions({
     required this.current,
-    required this.onMarkReviewing,
-    required this.onMarkMastered,
+    required this.onForgot,
+    required this.onHard,
+    required this.onEasy,
   });
 
   final QuestionRecord current;
-  final VoidCallback onMarkReviewing;
-  final VoidCallback onMarkMastered;
+  final VoidCallback onForgot;
+  final VoidCallback onHard;
+  final VoidCallback onEasy;
 
   @override
   Widget build(BuildContext context) {
-    if (current.masteryLevel == MasteryLevel.mastered) {
-      return SizedBox(
-        width: double.infinity,
-        child: OutlinedButton(
-          onPressed: onMarkReviewing,
-          child: const Text('仍需复习'),
-        ),
-      );
-    }
-
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Expanded(
-          child: OutlinedButton(
-            onPressed: onMarkReviewing,
-            child: const Text('仍需复习'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: FilledButton(
-            onPressed: onMarkMastered,
-            child: const Text('已掌握'),
-          ),
+        const Text('这次复习感觉如何？', style: TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 10),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onForgot,
+                child: const Text('忘记了'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: onHard,
+                child: const Text('有点模糊'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: onEasy,
+                child: const Text('掌握了'),
+              ),
+            ),
+          ],
         ),
       ],
     );

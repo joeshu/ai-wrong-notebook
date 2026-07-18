@@ -73,6 +73,20 @@ void main() {
     expect(result.reviewCount, 4);
   });
 
+  test('markForgot schedules a retry in one hour and writes a log', () async {
+    await repo.saveDraft(_makeQuestion('q-1'));
+    final before = DateTime.now();
+    final result = await controller.markForgot('q-1');
+
+    expect(result.masteryLevel, MasteryLevel.reviewing);
+    expect(result.reviewCount, 1);
+    expect(result.lastReviewedAt, isNotNull);
+    expect(result.nextReviewAt, isNotNull);
+    expect(result.nextReviewAt!.difference(before),
+        greaterThanOrEqualTo(const Duration(minutes: 59)));
+    expect((await logRepo.getByQuestionId('q-1')).single.result, 'forgot');
+  });
+
   test('resetToNew sets mastery back to newQuestion', () async {
     await repo.saveDraft(
         _makeQuestion('q-1', mastery: MasteryLevel.mastered, reviewCount: 5));

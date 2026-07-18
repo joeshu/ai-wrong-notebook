@@ -74,10 +74,14 @@ class SettingsScreen extends ConsumerWidget {
               trailing: FilledButton.tonal(
                 onPressed: () async {
                   final svc = ref.read(notificationServiceProvider);
-                  await svc.checkAndNotify();
+                  final sent = await svc.checkAndNotify();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('已发送复习提醒')),
+                      SnackBar(
+                        content: Text(sent
+                            ? '已发送复习提醒'
+                            : '当前没有到期错题，或通知权限未开启'),
+                      ),
                     );
                   }
                 },

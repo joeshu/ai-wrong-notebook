@@ -2,7 +2,9 @@ import 'analysis_result.dart';
 import 'content_status.dart';
 import 'generated_exercise.dart';
 import 'mastery_level.dart';
+import 'mistake_category.dart';
 import 'question_split_result.dart';
+import 'question_source.dart';
 import 'subject.dart';
 
 enum QuestionContentFormat { plain, latexMixed }
@@ -154,6 +156,7 @@ class QuestionRecord {
     required this.contentStatus,
     required this.masteryLevel,
     required this.analysisResult,
+    this.nextReviewAt,
     this.savedExercises = const [],
     this.aiTags = const [],
     this.aiKnowledgePoints = const [],
@@ -164,6 +167,18 @@ class QuestionRecord {
     this.rootQuestionId,
     this.splitOrder,
   });
+
+  static const favoriteTag = '__system_favorite';
+  static const _lastReviewedAtPrefix = '__system_last_reviewed_at:';
+
+  static DateTime? lastReviewedAtFromTags(Iterable<String> tags) {
+    for (final tag in tags) {
+      if (tag.startsWith(_lastReviewedAtPrefix)) {
+        return DateTime.tryParse(tag.substring(_lastReviewedAtPrefix.length));
+      }
+    }
+    return null;
+  }
 
   factory QuestionRecord.draft({
     required String id,
@@ -183,6 +198,7 @@ class QuestionRecord {
       createdAt: now,
       updatedAt: now,
       lastReviewedAt: null,
+      nextReviewAt: now,
       reviewCount: 0,
       isFavorite: false,
       contentStatus: ContentStatus.processing,
@@ -224,6 +240,9 @@ class QuestionRecord {
             .toList();
 
     final id = json['id'] as String? ?? '';
+    final rawTags = List<String>.from(json['tags'] as List? ?? []);
+    final isFavorite = (json['isFavorite'] as bool? ?? false) ||
+        rawTags.contains(favoriteTag);
 
     return QuestionRecord(
       id: id,
@@ -238,16 +257,23 @@ class QuestionRecord {
         (format) => format.name == formatName,
         orElse: () => QuestionContentFormat.plain,
       ),
-      tags: List<String>.from(json['tags'] as List? ?? []),
+      tags: rawTags,
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.now(),
       lastReviewedAt: json['lastReviewedAt'] != null
           ? DateTime.tryParse(json['lastReviewedAt'] as String)
-          : null,
+          : lastReviewedAtFromTags(rawTags),
+      // Old scheduled records did not exist. Keep legacy mastered questions
+      // complete, while all other legacy questions enter the queue immediately.
+      nextReviewAt: json['nextReviewAt'] != null
+          ? DateTime.tryParse(json['nextReviewAt'] as String)
+          : (json['masteryLevel'] == MasteryLevel.mastered.name
+              ? null
+              : DateTime.tryParse(json['createdAt'] as String? ?? '')),
       reviewCount: json['reviewCount'] as int? ?? 0,
-      isFavorite: json['isFavorite'] as bool? ?? false,
+      isFavorite: isFavorite,
       contentStatus: ContentStatus.values.firstWhere(
         (s) => s.name == json['contentStatus'],
         orElse: () => ContentStatus.processing,
@@ -294,10 +320,11 @@ class QuestionRecord {
       'recognizedText': extractedQuestionText,
       'correctedText': normalizedQuestionText,
       'contentFormat': contentFormat.name,
-      'tags': tags,
+      'tags': persistentTags,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'lastReviewedAt': lastReviewedAt?.toIso8601String(),
+      'nextReviewAt': nextReviewAt?.toIso8601String(),
       'reviewCount': reviewCount,
       'isFavorite': isFavorite,
       'contentStatus': contentStatus.name,
@@ -327,6 +354,7 @@ class QuestionRecord {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? lastReviewedAt;
+  final DateTime? nextReviewAt;
   final int reviewCount;
   final bool isFavorite;
   final ContentStatus contentStatus;
@@ -347,9 +375,40 @@ class QuestionRecord {
 
   List<String> get allTags => [...aiTags, ...customTags];
 
+  List<String> get persistentTags {
+    final result = tags
+        .where((tag) =>
+            tag != favoriteTag && !tag.startsWith(_lastReviewedAtPrefix))
+        .toList();
+    if (isFavorite) result.add(favoriteTag);
+    if (lastReviewedAt != null) {
+      result.add('$_lastReviewedAtPrefix${lastReviewedAt!.toIso8601String()}');
+    }
+    return result;
+  }
+
+  QuestionRecord withFavorite(bool value) => copyWith(
+        isFavorite: value,
+        tags: (tags.where((tag) => tag != favoriteTag).toList()
+          ..addAll(value ? <String>[favoriteTag] : const <String>[])),
+      );
+
+  String? get source => QuestionSourceCodec.read(tags);
+
+  QuestionRecord withSource(String? value) => copyWith(
+        tags: QuestionSourceCodec.write(tags, value),
+      );
+
+  MistakeCategory? get mistakeCategory => MistakeCategoryCodec.read(tags);
+
+  QuestionRecord withMistakeCategory(MistakeCategory? category) => copyWith(
+        tags: MistakeCategoryCodec.write(tags, category),
+      );
+
   QuestionRecord copyWith({
     String? extractedQuestionText,
     String? normalizedQuestionText,
+    String? imagePath,
     QuestionContentFormat? contentFormat,
     Subject? subject,
     ContentStatus? contentStatus,
@@ -358,6 +417,7 @@ class QuestionRecord {
     MasteryLevel? masteryLevel,
     int? reviewCount,
     DateTime? lastReviewedAt,
+    DateTime? nextReviewAt,
     List<String>? tags,
     bool? isFavorite,
     List<String>? aiTags,
@@ -371,7 +431,7 @@ class QuestionRecord {
   }) {
     return QuestionRecord(
       id: id,
-      imagePath: imagePath,
+      imagePath: imagePath ?? this.imagePath,
       subject: subject ?? this.subject,
       extractedQuestionText:
           extractedQuestionText ?? this.extractedQuestionText,
@@ -382,6 +442,7 @@ class QuestionRecord {
       createdAt: createdAt,
       updatedAt: DateTime.now(),
       lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
+      nextReviewAt: nextReviewAt ?? this.nextReviewAt,
       reviewCount: reviewCount ?? this.reviewCount,
       isFavorite: isFavorite ?? this.isFavorite,
       contentStatus: contentStatus ?? this.contentStatus,

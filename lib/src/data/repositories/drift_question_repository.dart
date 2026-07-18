@@ -44,13 +44,13 @@ class DriftQuestionRepository implements QuestionRepository {
             masteryLevel: Value(record.masteryLevel.name),
             contentStatus: Value(record.contentStatus.name),
             reviewCount: Value(record.reviewCount),
-            nextReviewAt: Value(record.lastReviewedAt),
+            nextReviewAt: Value(record.nextReviewAt),
             createdAt: Value(record.createdAt),
             updatedAt: Value(record.updatedAt),
             aiAnalysisJson: Value(record.analysisResult != null
                 ? jsonEncode(record.analysisResult!.toJson())
                 : null),
-            tags: Value(record.tags.join(',')),
+            tags: Value(record.persistentTags.join(',')),
             aiTags: Value(record.aiTags.join(',')),
             aiKnowledgePoints: Value(record.aiKnowledgePoints.join(',')),
             customTags: Value(record.customTags.join(',')),
@@ -156,6 +156,8 @@ class DriftQuestionRepository implements QuestionRepository {
                 ))
             .toList();
 
+    final tags = row.tags.isNotEmpty ? row.tags.split(',') : <String>[];
+
     return domain.QuestionRecord(
       id: row.id,
       imagePath: row.originalImagePath ?? '',
@@ -164,12 +166,13 @@ class DriftQuestionRepository implements QuestionRepository {
       extractedQuestionText: row.originalText,
       normalizedQuestionText: row.correctedText,
       contentFormat: domain.QuestionContentFormat.plain,
-      tags: row.tags.isNotEmpty ? row.tags.split(',') : <String>[],
+      tags: tags,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      lastReviewedAt: row.nextReviewAt,
+      lastReviewedAt: domain.QuestionRecord.lastReviewedAtFromTags(tags),
+      nextReviewAt: row.nextReviewAt,
       reviewCount: row.reviewCount,
-      isFavorite: false,
+      isFavorite: tags.contains(domain.QuestionRecord.favoriteTag),
       contentStatus: ContentStatus.values.firstWhere(
           (c) => c.name == row.contentStatus,
           orElse: () => ContentStatus.processing),

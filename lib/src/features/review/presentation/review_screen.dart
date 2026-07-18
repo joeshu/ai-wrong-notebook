@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
+import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 class ReviewScreen extends ConsumerWidget {
@@ -13,6 +15,7 @@ class ReviewScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final questionsAsync = ref.watch(questionListProvider);
+    final reviewLogsAsync = ref.watch(reviewLogListProvider);
     final batchGroups = ref.watch(questionBatchGroupsProvider).valueOrNull;
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -20,12 +23,15 @@ class ReviewScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('复习')),
       body: questionsAsync.when(
         data: (questions) {
-          final pending = questions
-              .where((q) => q.masteryLevel != MasteryLevel.mastered)
+          const scheduler = ReviewScheduleService();
+          final pending = questions.where(scheduler.isDue).toList();
+          final scheduled = questions
+              .where((q) => !scheduler.isDue(q))
               .toList();
-          final mastered = questions
-              .where((q) => q.masteryLevel == MasteryLevel.mastered)
-              .toList();
+          final reviewedToday = _reviewedToday(
+            reviewLogsAsync.valueOrNull ?? const <ReviewLog>[],
+          );
+          final todayTarget = pending.length + reviewedToday;
 
           return DefaultTabController(
             length: 2,
@@ -35,7 +41,9 @@ class ReviewScreen extends ConsumerWidget {
                 _SummaryCard(
                   total: questions.length,
                   pending: pending.length,
-                  mastered: mastered.length,
+                  scheduled: scheduled.length,
+                  reviewedToday: reviewedToday,
+                  todayTarget: todayTarget,
                 ),
                 const SizedBox(height: 20),
                 Container(
@@ -65,7 +73,7 @@ class ReviewScreen extends ConsumerWidget {
                     ),
                     tabs: <Widget>[
                       Tab(text: '待复习 ${pending.length}'),
-                      Tab(text: '已掌握 ${mastered.length}'),
+                      Tab(text: '已安排 ${scheduled.length}'),
                     ],
                   ),
                 ),
@@ -81,8 +89,8 @@ class ReviewScreen extends ConsumerWidget {
                         ref: ref,
                       ),
                       _ReviewQuestionList(
-                        questions: mastered,
-                        emptyMessage: '暂无已掌握错题',
+                        questions: scheduled,
+                        emptyMessage: '暂无已安排复习',
                         batchGroups: batchGroups,
                         ref: ref,
                       ),
@@ -129,13 +137,32 @@ class ReviewScreen extends ConsumerWidget {
   }
 }
 
+int _reviewedToday(List<ReviewLog> logs, {DateTime? now}) {
+  final day = now ?? DateTime.now();
+  final ids = <String>{};
+  for (final log in logs) {
+    final at = log.reviewedAt.toLocal();
+    if (at.year == day.year && at.month == day.month && at.day == day.day) {
+      ids.add(log.questionRecordId);
+    }
+  }
+  return ids.length;
+}
+
 class _SummaryCard extends StatelessWidget {
-  const _SummaryCard(
-      {required this.total, required this.pending, required this.mastered});
+  const _SummaryCard({
+    required this.total,
+    required this.pending,
+    required this.scheduled,
+    required this.reviewedToday,
+    required this.todayTarget,
+  });
 
   final int total;
   final int pending;
-  final int mastered;
+  final int scheduled;
+  final int reviewedToday;
+  final int todayTarget;
 
   @override
   Widget build(BuildContext context) {
@@ -173,12 +200,24 @@ class _SummaryCard extends StatelessWidget {
                   label: '待复习',
                   color: const Color(0xFFEA580C)),
               _MiniStat(
-                  value: '$mastered',
-                  label: '已掌握',
+                  value: '$scheduled',
+                  label: '已安排',
                   color: const Color(0xFF16A34A)),
               _MiniStat(
                   value: '$total', label: '总错题', color: colorScheme.onSurface),
             ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            todayTarget == 0
+                ? '今日暂无复习计划'
+                : '今日已完成 $reviewedToday / $todayTarget 题',
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(
+            value: todayTarget == 0 ? 0 : reviewedToday / todayTarget,
+            minHeight: 7,
           ),
         ],
       ),
@@ -335,6 +374,15 @@ class _MasteryChip extends StatelessWidget {
   }
 }
 
+String _nextReviewLabel(DateTime date) {
+  final local = date.toLocal();
+  final month = local.month.toString().padLeft(2, '0');
+  final day = local.day.toString().padLeft(2, '0');
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '下次复习 $month-$day $hour:$minute';
+}
+
 class _ReviewCard extends StatelessWidget {
   const _ReviewCard({
     required this.question,
@@ -394,6 +442,14 @@ class _ReviewCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         batchLabel!,
+                        style: TextStyle(
+                            fontSize: 11, color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                    if (question.nextReviewAt != null) ...<Widget>[
+                      const SizedBox(height: 3),
+                      Text(
+                        _nextReviewLabel(question.nextReviewAt!),
                         style: TextStyle(
                             fontSize: 11, color: colorScheme.onSurfaceVariant),
                       ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
@@ -9,7 +10,11 @@ class SharedPrefsSettingsRepository implements SettingsRepository {
   static final SharedPrefsSettingsRepository _instance = SharedPrefsSettingsRepository._();
   static SharedPrefsSettingsRepository get instance => _instance;
 
+  static const _configKey = 'ai_provider_config';
+  static const _apiKeyStorageKey = 'ai_provider_api_key';
+
   SharedPreferences? _prefs;
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   Future<SharedPreferences> get _preferences async {
     _prefs ??= await SharedPreferences.getInstance();
@@ -18,30 +23,42 @@ class SharedPrefsSettingsRepository implements SettingsRepository {
 
   @override
   Future<AiProviderConfig?> getAiProviderConfig() async {
-    final json = await _getString('ai_provider_config');
+    final json = await _getString(_configKey);
     if (json == null || json.isEmpty) return null;
     try {
       final map = jsonDecode(json) as Map<String, dynamic>;
+      final secureApiKey = await _secureStorage.read(key: _apiKeyStorageKey);
+      final legacyApiKey = map['apiKey'] as String? ?? '';
+
+      // One-way upgrade for existing installs: move the old plaintext key to
+      // Keychain/Keystore, then immediately rewrite the preferences payload.
+      final apiKey = secureApiKey ?? legacyApiKey;
+      if (secureApiKey == null && legacyApiKey.isNotEmpty) {
+        await _secureStorage.write(key: _apiKeyStorageKey, value: legacyApiKey);
+        map.remove('apiKey');
+        await _setString(_configKey, jsonEncode(map));
+      }
+
       return AiProviderConfig(
         id: map['id'] as String? ?? 'default',
         displayName: map['displayName'] as String? ?? '默认',
         baseUrl: map['baseUrl'] as String? ?? '',
         model: map['model'] as String? ?? '',
-        apiKey: map['apiKey'] as String? ?? '',
+        apiKey: apiKey,
       );
-    } catch (e) {
+    } catch (_) {
       return null;
     }
   }
 
   @override
   Future<void> saveAiProviderConfig(AiProviderConfig config) async {
-    await _setString('ai_provider_config', jsonEncode({
+    await _secureStorage.write(key: _apiKeyStorageKey, value: config.apiKey);
+    await _setString(_configKey, jsonEncode({
       'id': config.id,
       'displayName': config.displayName,
       'baseUrl': config.baseUrl,
       'model': config.model,
-      'apiKey': config.apiKey,
     }));
   }
 
