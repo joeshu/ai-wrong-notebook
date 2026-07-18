@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
+import 'package:smart_wrong_notebook/src/data/services/custom_http_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
+import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:uuid/uuid.dart';
 
 /// Manual multi-region editor. A tap places a question-sized candidate box;
@@ -126,9 +128,17 @@ class _WorksheetRegionEditorScreenState
       _detectionMessage = null;
     });
     try {
-      final result = await ref
-          .read(visionDocumentLayoutServiceProvider)
-          .detectQuestionRegions(imagePath: page.imagePath);
+      final config = await restoreLayoutProviderConfig(ref);
+      if (config.type == LayoutProviderType.manualOnly) {
+        if (mounted) setState(() => _detectionMessage = '当前设置为仅手动框选；可直接点击页面新增题框。');
+        return;
+      }
+      final result = config.type == LayoutProviderType.customHttp
+          ? await CustomHttpDocumentLayoutService(config)
+              .detectQuestionRegions(imagePath: page.imagePath)
+          : await ref
+              .read(visionDocumentLayoutServiceProvider)
+              .detectQuestionRegions(imagePath: page.imagePath);
       if (!mounted) return;
       setState(() {
         _regions

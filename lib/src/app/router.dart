@@ -11,6 +11,7 @@ import 'package:smart_wrong_notebook/src/features/review/presentation/review_his
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/settings_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/provider_config_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/layout_provider_config_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/prompt_settings_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/data_management_screen.dart';
@@ -71,6 +72,9 @@ GoRouter buildRouter(SettingsRepository settingsRepo) {
                   GoRoute(
                       path: 'prompts',
                       builder: (_, __) => const PromptSettingsScreen()),
+                  GoRoute(
+                      path: 'layout',
+                      builder: (_, __) => const LayoutProviderConfigScreen()),
                   GoRoute(
                       path: 'data',
                       builder: (_, __) => const DataManagementScreen()),

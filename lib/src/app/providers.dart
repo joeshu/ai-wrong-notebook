@@ -6,6 +6,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_settings_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/layout_provider_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/repositories/review_log_repository.dart';
@@ -15,6 +16,8 @@ import 'package:smart_wrong_notebook/src/data/services/ocr_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_region_crop_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/vision_document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/data/services/custom_http_document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
@@ -33,6 +36,9 @@ final Provider<QuestionRepository> questionRepositoryProvider =
     Provider<QuestionRepository>((ref) {
   return SharedPrefsQuestionRepository();
 });
+
+final Provider<LayoutProviderRepository> layoutProviderRepositoryProvider =
+    Provider<LayoutProviderRepository>((ref) => LayoutProviderRepository());
 
 final Provider<WorksheetImportRepository> worksheetImportRepositoryProvider =
     Provider<WorksheetImportRepository>((ref) => WorksheetImportRepository());
@@ -122,6 +128,22 @@ final StateProvider<QuestionSplitSession?> currentQuestionSplitSessionProvider =
 
 /// Holds selected worksheet pages while the user processes them one by one.
 /// Persistence/queueing is intentionally added in the next import slice.
+final StateProvider<LayoutProviderConfig> layoutProviderConfigProvider =
+    StateProvider<LayoutProviderConfig>((ref) =>
+        const LayoutProviderConfig(type: LayoutProviderType.currentVision));
+
+Future<LayoutProviderConfig> restoreLayoutProviderConfig(Ref ref) async {
+  final config = await ref.read(layoutProviderRepositoryProvider).load();
+  ref.read(layoutProviderConfigProvider.notifier).state = config;
+  return config;
+}
+
+Future<void> persistLayoutProviderConfig(
+    Ref ref, LayoutProviderConfig config) async {
+  await ref.read(layoutProviderRepositoryProvider).save(config);
+  ref.read(layoutProviderConfigProvider.notifier).state = config;
+}
+
 final StateProvider<WorksheetImportSession?> currentWorksheetImportProvider =
     StateProvider<WorksheetImportSession?>((ref) => null);
 
