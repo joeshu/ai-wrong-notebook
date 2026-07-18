@@ -66,12 +66,15 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         title: const Text('试卷批量导入'),
         leading: IconButton(
           icon: const Icon(CupertinoIcons.chevron_left),
-          onPressed: () async {
-            await persistWorksheetImport(ref, null);
-            ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
-            context.go('/');
-          },
+          onPressed: autoAnalyzing ? null : _confirmCancelBatch,
         ),
+        actions: <Widget>[
+          if (queuedQuestions.isNotEmpty)
+            TextButton(
+              onPressed: autoAnalyzing ? null : _confirmCancelBatch,
+              child: const Text('取消批次'),
+            ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -173,6 +176,40 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmCancelBatch() async {
+    final session = ref.read(currentWorksheetImportProvider);
+    if (session == null) {
+      if (mounted) context.go('/');
+      return;
+    }
+    final candidates = session.pages
+        .where((item) => !session.sourcePageIds.contains(item.id))
+        .toList();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('取消本次试卷导入？'),
+        content: Text(candidates.isEmpty
+            ? '将退出导入流程。原始试卷页面不会写入错题本。'
+            : '将放弃 ${candidates.length} 道待确认题目，并清理本次裁切生成的临时题图。已经保存到错题本的题目不会受影响。'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('继续导入')),
+          FilledButton.tonal(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('取消并清理')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final storage = ref.read(imageStorageServiceProvider);
+    for (final candidate in candidates) {
+      await storage.deleteImage(candidate.imagePath);
+    }
+    await persistWorksheetImport(ref, null);
+    ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
+    ref.read(currentQuestionProvider.notifier).state = null;
+    if (!mounted) return;
+    context.go('/');
   }
 
   void _openQueuedQuestion(QuestionRecord question) {
