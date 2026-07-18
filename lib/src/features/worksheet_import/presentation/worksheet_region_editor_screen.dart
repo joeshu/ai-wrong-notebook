@@ -267,7 +267,13 @@ class _WorksheetRegionEditorScreenState
         final path = await cropper.cropToStoredImage(sourcePath: source.imagePath, region: region);
         final fingerprint = await ImageFingerprintCodec.fromFile(File(path));
         candidates.add(QuestionRecord.draft(
-          id: const Uuid().v4(), imagePath: path, subject: source.subject, recognizedText: '',
+          id: const Uuid().v4(),
+          imagePath: path,
+          subject: source.subject,
+          recognizedText: region.recognizedText ?? '',
+          contentFormat: region.contentFormatHint == 'latexMixed'
+              ? QuestionContentFormat.latexMixed
+              : QuestionContentFormat.plain,
         ).copyWith(
           contentStatus: ContentStatus.processing,
           tags: (ImageFingerprintCodec.write(source.tags, fingerprint)
@@ -543,6 +549,10 @@ class _DetectionResultCard extends StatelessWidget {
         const SizedBox(height: 7),
         Text('最终服务：$provider', style: const TextStyle(fontSize: 12)),
         Text('识别结果：${regions.length} 道候选题${duration == null ? '' : ' · 耗时 ${duration!.inSeconds}s'}', style: const TextStyle(fontSize: 12)),
+        if (regions.any((region) => (region.recognizedText ?? '').trim().isNotEmpty)) ...<Widget>[
+          const SizedBox(height: 6),
+          Text('已同时提取题目文字/公式：${regions.where((region) => (region.recognizedText ?? '').trim().isNotEmpty).length} 道。确认题框后会带入下一步校对，不会丢弃。', style: const TextStyle(fontSize: 12, color: Color(0xFF166534))),
+        ],
         if (warning != null && warning!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 5), child: Text('提示：$warning', style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412)))),
         const Padding(padding: EdgeInsets.only(top: 5), child: Text('请检查蓝框边界；可拖动、缩放、删除，或点击试卷增加题框。', style: TextStyle(fontSize: 12, color: Color(0xFF475569)))),
       ]),

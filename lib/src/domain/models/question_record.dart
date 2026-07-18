@@ -186,6 +186,7 @@ class QuestionRecord {
     required String imagePath,
     required Subject subject,
     required String recognizedText,
+    QuestionContentFormat contentFormat = QuestionContentFormat.plain,
   }) {
     final now = DateTime.now();
     return QuestionRecord(
@@ -194,7 +195,7 @@ class QuestionRecord {
       subject: subject,
       extractedQuestionText: recognizedText,
       normalizedQuestionText: recognizedText,
-      contentFormat: QuestionContentFormat.plain,
+      contentFormat: contentFormat,
       tags: const <String>[],
       createdAt: now,
       updatedAt: now,

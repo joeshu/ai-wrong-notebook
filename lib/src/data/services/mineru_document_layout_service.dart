@@ -102,7 +102,19 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
       final normalized = Rect.fromLTRB(rect.left / imageSize.width, rect.top / imageSize.height, rect.right / imageSize.width, rect.bottom / imageSize.height);
       final clip = Rect.fromLTRB(normalized.left.clamp(0, 1).toDouble(), normalized.top.clamp(0, 1).toDouble(), normalized.right.clamp(0, 1).toDouble(), normalized.bottom.clamp(0, 1).toDouble());
       if (clip.width < .10 || clip.height < .05) continue;
-      regions.add(QuestionRegion(id: 'mineru-$group', normalizedRect: clip, detectedNumber: _questionStart.firstMatch(sorted[from].text)?.group(1), confidence: .75, source: QuestionRegionSource.layoutModel));
+      final questionText = groupBlocks
+          .map((block) => block.text.trim())
+          .where((text) => text.isNotEmpty)
+          .join('\n');
+      regions.add(QuestionRegion(
+        id: 'mineru-$group',
+        normalizedRect: clip,
+        detectedNumber: _questionStart.firstMatch(sorted[from].text)?.group(1),
+        recognizedText: questionText.isEmpty ? null : questionText,
+        contentFormatHint: questionText.contains(r'$') || questionText.contains(r'\\') ? 'latexMixed' : 'plain',
+        confidence: .75,
+        source: QuestionRegionSource.layoutModel,
+      ));
     }
     return regions;
   }

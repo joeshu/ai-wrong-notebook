@@ -84,7 +84,15 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
           final rect = pageSize == null ? box : Rect.fromLTWH(box.left / pageSize.width, box.top / pageSize.height, box.width / pageSize.width, box.height / pageSize.height);
           final clipped = Rect.fromLTWH(rect.left.clamp(0, 1).toDouble(), rect.top.clamp(0, 1).toDouble(), rect.width.clamp(0, 1 - rect.left.clamp(0, 1)).toDouble(), rect.height.clamp(0, 1 - rect.top.clamp(0, 1)).toDouble());
           if (clipped.width < .10 || clipped.height < .06) return;
-          regions.add(QuestionRegion(id: 'paddle-${index++}', normalizedRect: clipped, confidence: .70, source: QuestionRegionSource.layoutModel));
+          final text = (map['text'] ?? map['content'] ?? map['text_content'] ?? '').toString().trim();
+          regions.add(QuestionRegion(
+            id: 'paddle-${index++}',
+            normalizedRect: clipped,
+            recognizedText: text.isEmpty ? null : text,
+            contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
+            confidence: .70,
+            source: QuestionRegionSource.layoutModel,
+          ));
         });
       } catch (_) { /* Skip malformed JSONL rows. */ }
     }
