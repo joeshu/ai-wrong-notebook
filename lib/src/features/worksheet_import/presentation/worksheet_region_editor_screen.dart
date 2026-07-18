@@ -108,7 +108,7 @@ class _WorksheetRegionEditorScreenState
           ),
           if (_regions.isNotEmpty)
             SizedBox(
-              height: MediaQuery.sizeOf(context).width < 600 ? 402 : 330,
+              height: MediaQuery.sizeOf(context).width < 600 ? 446 : 370,
               child: _RecognizedQuestionWorkbench(
                 regions: _regions,
                 defaultSubject: page.subject,
@@ -732,6 +732,7 @@ class _RegionQuality {
   }
 }
 
+enum _QuestionListFilter { all, risk, edited, ignored }
 
 class _RecognizedQuestionWorkbench extends StatefulWidget {
   const _RecognizedQuestionWorkbench({
@@ -762,6 +763,7 @@ class _RecognizedQuestionWorkbenchState
     '未指定', '选择题', '填空题', '计算题', '证明题', '应用题',
   ];
   int _selectedIndex = 0;
+  _QuestionListFilter _filter = _QuestionListFilter.all;
 
   @override
   void didUpdateWidget(covariant _RecognizedQuestionWorkbench oldWidget) {
@@ -785,6 +787,8 @@ class _RecognizedQuestionWorkbenchState
     final risks = _riskMessages(index);
     final acceptedCount = widget.regions.where((item) => item.reviewStatus == QuestionRegionReviewStatus.accepted).length;
     final ignoredCount = widget.regions.length - acceptedCount;
+    final riskCount = List<int>.generate(widget.regions.length, (item) => item).where((item) => _riskMessages(item).isNotEmpty).length;
+    final editedCount = widget.regions.where((item) => item.originalRecognizedText != null && item.recognizedText != item.originalRecognizedText).length;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       decoration: BoxDecoration(
@@ -798,6 +802,16 @@ class _RecognizedQuestionWorkbenchState
           leading: const Icon(CupertinoIcons.doc_text_search),
           title: Text('逐题确认工作台 · 第 ${index + 1}/${widget.regions.length} 题'),
           subtitle: Text('已采用 $acceptedCount 题${ignoredCount > 0 ? ' · 已忽略 $ignoredCount 题' : ''}；可切换题目完整校对', style: const TextStyle(fontSize: 11)),
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+          child: Row(children: <Widget>[
+            _filterChip('全部 ${widget.regions.length}', _QuestionListFilter.all),
+            _filterChip('风险 $riskCount', _QuestionListFilter.risk, warning: riskCount > 0),
+            _filterChip('已修改 $editedCount', _QuestionListFilter.edited),
+            _filterChip('已忽略 $ignoredCount', _QuestionListFilter.ignored),
+          ]),
         ),
         const Divider(height: 1),
         Expanded(
@@ -853,16 +867,47 @@ class _RecognizedQuestionWorkbenchState
     return risks;
   }
 
+  Widget _filterChip(String label, _QuestionListFilter filter, {bool warning = false}) =>
+      Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: ChoiceChip(
+          selected: _filter == filter,
+          selectedColor: warning ? const Color(0xFFFED7AA) : null,
+          label: Text(label, style: const TextStyle(fontSize: 11)),
+          onSelected: (_) => setState(() => _filter = filter),
+        ),
+      );
+
+  bool _matchesFilter(int index) {
+    final region = widget.regions[index];
+    switch (_filter) {
+      case _QuestionListFilter.all:
+        return true;
+      case _QuestionListFilter.risk:
+        return _riskMessages(index).isNotEmpty;
+      case _QuestionListFilter.edited:
+        return region.originalRecognizedText != null &&
+            region.recognizedText != region.originalRecognizedText;
+      case _QuestionListFilter.ignored:
+        return region.reviewStatus == QuestionRegionReviewStatus.ignored;
+    }
+  }
+
   Widget _buildQuestionList(BuildContext context, int selectedIndex,
       {required bool horizontal}) {
+    final indices = List<int>.generate(widget.regions.length, (index) => index)
+        .where(_matchesFilter).toList();
     return ListView.builder(
       scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
       padding: const EdgeInsets.all(6),
-      itemCount: widget.regions.length,
-      itemBuilder: (context, itemIndex) {
+      itemCount: indices.length,
+      itemBuilder: (context, visibleIndex) {
+        final itemIndex = indices[visibleIndex];
         final item = widget.regions[itemIndex];
         final selected = itemIndex == selectedIndex;
         final ignored = item.reviewStatus == QuestionRegionReviewStatus.ignored;
+        final risky = _riskMessages(itemIndex).isNotEmpty;
+        final modified = item.originalRecognizedText != null && item.recognizedText != item.originalRecognizedText;
         return Padding(
           padding: horizontal
               ? const EdgeInsets.only(right: 6)
@@ -895,7 +940,7 @@ class _RecognizedQuestionWorkbenchState
                       const SizedBox(height: 3),
                       Wrap(spacing: 2, runSpacing: 2, children: item.recognizedBlockTypes.where((block) => block != '文字').take(2).map(_MiniTypeTag.new).toList()),
                       const SizedBox(height: 3),
-                      Text(ignored ? '⊘ 已忽略' : item.analyzeWithAi ? '✓ 采用 + AI' : '✓ 采用 · 仅 OCR', style: const TextStyle(fontSize: 9)),
+                      Text(ignored ? '⊘ 已忽略' : risky ? '⚠ 待处理风险' : modified ? '✎ 已修改' : item.analyzeWithAi ? '✓ 采用 + AI' : '✓ 采用 · 仅 OCR', style: const TextStyle(fontSize: 9)),
                     ],
                   ),
                 ),
