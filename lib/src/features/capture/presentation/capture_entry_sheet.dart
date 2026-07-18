@@ -128,7 +128,7 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                 ),
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
