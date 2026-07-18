@@ -10,6 +10,10 @@ class QuestionRegion {
     required this.normalizedRect,
     this.detectedNumber,
     this.recognizedText,
+    this.originalRecognizedText,
+    this.questionStem,
+    this.formulas = const <String>[],
+    this.tables = const <String>[],
     this.contentFormatHint,
     this.recognizedBlockTypes = const <String>[],
     this.subject,
@@ -27,6 +31,12 @@ class QuestionRegion {
   /// Text reconstructed by the document service for this candidate question.
   /// It may contain Markdown/LaTex and is always user-reviewable.
   final String? recognizedText;
+  /// Immutable source text from the document service; enables comparison/reset.
+  final String? originalRecognizedText;
+  /// User-reviewed question stem, separated from formula and table blocks.
+  final String? questionStem;
+  final List<String> formulas;
+  final List<String> tables;
   final String? contentFormatHint;
   /// Detected content categories: text, formula, table, option, diagram.
   final List<String> recognizedBlockTypes;
@@ -45,6 +55,10 @@ class QuestionRegion {
     Rect? normalizedRect,
     String? detectedNumber,
     String? recognizedText,
+    String? originalRecognizedText,
+    String? questionStem,
+    List<String>? formulas,
+    List<String>? tables,
     String? contentFormatHint,
     List<String>? recognizedBlockTypes,
     Subject? subject,
@@ -59,6 +73,10 @@ class QuestionRegion {
       normalizedRect: normalizedRect ?? this.normalizedRect,
       detectedNumber: detectedNumber ?? this.detectedNumber,
       recognizedText: recognizedText ?? this.recognizedText,
+      originalRecognizedText: originalRecognizedText ?? this.originalRecognizedText,
+      questionStem: questionStem ?? this.questionStem,
+      formulas: formulas ?? this.formulas,
+      tables: tables ?? this.tables,
       contentFormatHint: contentFormatHint ?? this.contentFormatHint,
       recognizedBlockTypes: recognizedBlockTypes ?? this.recognizedBlockTypes,
       subject: subject ?? this.subject,

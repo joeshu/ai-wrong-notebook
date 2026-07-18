@@ -112,7 +112,12 @@ class _WorksheetRegionEditorScreenState
               child: _RecognizedQuestionWorkbench(
                 regions: _regions,
                 defaultSubject: page.subject,
-                onUpdate: (index, next) => setState(() => _regions[index] = next),
+                onUpdate: (index, next) => setState(() {
+                  final previous = _regions[index];
+                  _regions[index] = next.copyWith(
+                    originalRecognizedText: previous.originalRecognizedText ?? previous.recognizedText,
+                  );
+                }),
                 onIgnore: (index) => setState(() {
                   final region = _regions[index];
                   _regions[index] = region.copyWith(
@@ -899,8 +904,51 @@ class _RecognizedQuestionWorkbenchState
     );
   }
 
+  String _stemFor(QuestionRegion region) {
+    if (region.questionStem != null) return region.questionStem!;
+    final formula = RegExp(r'\$[^$]+\$');
+    return (region.recognizedText ?? '').split('\n')
+        .where((line) => !formula.hasMatch(line) && !line.trimLeft().startsWith('|'))
+        .join('\n').trim();
+  }
+
+  List<String> _formulasFor(QuestionRegion region) {
+    if (region.formulas.isNotEmpty) return region.formulas;
+    return RegExp(r'\$[^$]+\$').allMatches(region.recognizedText ?? '')
+        .map((match) => match.group(0)!).toList();
+  }
+
+  List<String> _tablesFor(QuestionRegion region) {
+    if (region.tables.isNotEmpty) return region.tables;
+    final lines = (region.recognizedText ?? '').split('\n')
+        .where((line) => line.trimLeft().startsWith('|')).toList();
+    return lines.isEmpty ? const <String>[] : <String>[lines.join('\n')];
+  }
+
+  void _updateStructured(int index, QuestionRegion region, {
+    String? stem, List<String>? formulas, List<String>? tables,
+  }) {
+    final nextStem = stem ?? _stemFor(region);
+    final nextFormulas = formulas ?? _formulasFor(region);
+    final nextTables = tables ?? _tablesFor(region);
+    final combined = <String>[nextStem, ...nextFormulas, ...nextTables]
+        .where((item) => item.trim().isNotEmpty).join('\n\n');
+    widget.onUpdate(index, region.copyWith(
+      questionStem: nextStem,
+      formulas: nextFormulas,
+      tables: nextTables,
+      recognizedText: combined,
+      contentFormatHint: nextFormulas.isEmpty ? 'plain' : 'latexMixed',
+    ));
+  }
+
   Widget _buildDetail(BuildContext context, int index, QuestionRegion region,
       Subject subject, String type, List<String> risks) {
+    final stem = _stemFor(region);
+    final formulas = _formulasFor(region);
+    final tables = _tablesFor(region);
+    final original = region.originalRecognizedText ?? region.recognizedText ?? '';
+    final modified = region.originalRecognizedText != null && region.recognizedText != original;
     return ListView(
       key: ValueKey(region.id),
       padding: const EdgeInsets.all(10),
@@ -949,22 +997,72 @@ class _RecognizedQuestionWorkbenchState
           ),
         Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
         const SizedBox(height: 8),
+        if (modified)
+          Row(children: <Widget>[
+            const Icon(CupertinoIcons.pencil_circle_fill, size: 15, color: Color(0xFF2563EB)),
+            const SizedBox(width: 4),
+            const Text('已修改识别结果', style: TextStyle(fontSize: 11, color: Color(0xFF2563EB))),
+            const Spacer(),
+            TextButton(
+              onPressed: () => widget.onUpdate(index, region.copyWith(
+                questionStem: original,
+                formulas: const <String>[],
+                tables: const <String>[],
+                recognizedText: original,
+              )),
+              child: const Text('恢复识别原文'),
+            ),
+          ]),
         TextFormField(
-          initialValue: region.recognizedText ?? '',
-          minLines: 4,
-          maxLines: 9,
-          onChanged: (text) => widget.onUpdate(index, region.copyWith(
-            recognizedText: text,
-            contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
-          )),
+          key: ValueKey('${region.id}-stem-$stem'),
+          initialValue: stem,
+          minLines: 3,
+          maxLines: 6,
+          onChanged: (value) => _updateStructured(index, region, stem: value),
           decoration: const InputDecoration(
             isDense: true,
-            labelText: '题干 / LaTex 公式 / 表格 Markdown',
-            helperText: '可直接校对题干、公式与表格；原格式会随文本保存。',
+            labelText: '题干',
+            helperText: '正文可独立校对；公式和表格在下方分别维护。',
             alignLabelWithHint: true,
             border: OutlineInputBorder(),
           ),
         ),
+        if (region.recognizedBlockTypes.contains('公式') || formulas.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          TextFormField(
+            key: ValueKey('${region.id}-formula-${formulas.join()}'),
+            initialValue: formulas.join('\n\n'),
+            minLines: 2,
+            maxLines: 5,
+            onChanged: (value) => _updateStructured(index, region,
+              formulas: value.split('\n\n').where((item) => item.trim().isNotEmpty).toList()),
+            decoration: const InputDecoration(
+              isDense: true,
+              labelText: 'LaTex 公式（每段公式以空行分隔）',
+              helperText: r'请保留 $...$ 或 \(...\) 等 LaTex 标记。',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
+        if (region.recognizedBlockTypes.contains('表格') || tables.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          TextFormField(
+            key: ValueKey('${region.id}-table-${tables.join()}'),
+            initialValue: tables.join('\n\n'),
+            minLines: 3,
+            maxLines: 7,
+            onChanged: (value) => _updateStructured(index, region,
+              tables: value.trim().isEmpty ? const <String>[] : <String>[value]),
+            decoration: const InputDecoration(
+              isDense: true,
+              labelText: '表格 Markdown',
+              helperText: '可直接编辑 | 列 | 的 Markdown 表格内容。',
+              alignLabelWithHint: true,
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ],
         const SizedBox(height: 8),
         Row(children: <Widget>[
           Expanded(child: DropdownButtonFormField<Subject>(
