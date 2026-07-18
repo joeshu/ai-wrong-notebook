@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 
 class LayoutDetectionResult {
