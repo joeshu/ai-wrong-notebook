@@ -31,7 +31,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   String? _lastBackupLabel;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final questionsAsync = ref.watch(questionListProvider);
     final reviewLogsAsync = ref.watch(reviewLogListProvider);
 
@@ -215,6 +215,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     showModalBottomSheet<void>(context: context, builder: (sheetContext) => SafeArea(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[const Text('导出错题讲义 PDF', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)), const SizedBox(height: 8), const Text('选择导出版本；当前导出全部题库。'), const SizedBox(height: 12), for (final mode in WorksheetExportMode.values) ListTile(title: Text(mode == WorksheetExportMode.practice ? '仅题目自测卷' : mode == WorksheetExportMode.answer ? '题目与答案讲义' : '错因复盘讲义'), onTap: () { Navigator.pop(sheetContext); PdfExportService.sharePdf(context, questions, mode: mode); })]))));
   }
 
+  Future<List<Map<String, dynamic>>> _buildAttachmentBackup(
       List<QuestionRecord> questions) async {
     final attachments = <Map<String, dynamic>>[];
     for (final question in questions) {
@@ -526,6 +527,7 @@ class _BackupStatusCard extends StatelessWidget {
   ])));
 }
 
+class _DataCard extends StatelessWidget {
   const _DataCard({
     required this.icon,
     required this.title,
