@@ -53,7 +53,7 @@ void main() {
       expect(find.text('最近新增'), findsOneWidget);
     });
 
-    testWidgets('user can tap camera button and see capture sheet',
+    testWidgets('user can open capture sheet from unified entry',
         (tester) async {
       await tester.pumpWidget(ProviderScope(
         overrides: [_repoOverride, _settingsOverride],
@@ -61,7 +61,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(CupertinoIcons.camera).first);
+      await tester.tap(find.text('录入错题').first);
       await tester.pumpAndSettle();
 
       expect(find.text('拍照'), findsOneWidget);
