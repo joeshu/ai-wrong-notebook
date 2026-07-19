@@ -1,30 +1,58 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:image/image.dart' as image;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
+import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/worksheet_export_mode.dart';
 
+/// 封面上的学生信息栏数据。
+class ExportStudentInfo {
+  const ExportStudentInfo({this.name, this.className, this.date});
+
+  final String? name;
+  final String? className;
+
+  /// 已格式化的日期字符串，为空时使用导出当前时间。
+  final String? date;
+}
+
 /// 生成完全自包含的 HTML 错题报告。
 ///
 /// 特点：
-/// - 内联 KaTeX 的 CSS/JS/字体，不需要网络。
-/// - 题目文本、答案、解析中的 LaTeX 会被 KaTeX 渲染。
-/// - 错题原图（如果存在）以 base64 内嵌，几何图形等可直接查看。
+/// - 内联 KaTeX 的 CSS/JS/字体（woff2），不需要网络。
+/// - 题目文本、答案、解析中的 LaTeX 会被 KaTeX 渲染，支持 `$$`、`$`、
+///   `\(...\)`、`\[...\]` 以及 `\begin{env}...\end{env}` 环境。
+/// - 错题原图（如果存在）会被缩放压缩后以 base64 内嵌，几何图形可直接查看。
 class HtmlExportService {
   static String? _cachedKatexCss;
   static String? _cachedKatexJs;
 
+  /// exports 目录最多保留的文件数，超出按时间倒序清理。
+  static const int maxKeptExports = 20;
+
+  /// 是否为桌面平台（Windows / macOS / Linux），用于 PDF 降级判断。
+  static bool get isDesktopPlatform =>
+      !kIsWeb &&
+      (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+
   /// 生成 HTML 字符串（可用于直接写入文件或转 PDF）。
+  ///
+  /// [onProgress] 在预处理图片时回调，用于显示进度。
   static Future<String> generateHtmlString(
     List<QuestionRecord> questions, {
     String title = '错题本整理报告',
     WorksheetExportMode? mode,
+    ExportStudentInfo? studentInfo,
+    void Function(int done, int total)? onProgress,
   }) async {
     final katexCss = await _loadKatexCss();
     final katexJs = await _loadKatexJs();
@@ -36,7 +64,11 @@ class HtmlExportService {
     final sortedSubjects = grouped.keys.toList()
       ..sort((a, b) => a.label.compareTo(b.label));
 
-    final dateStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+    // 预处理所有图片（并行压缩编码），避免逐题 await 阻塞。
+    final imageUris = await _preloadImages(questions, onProgress);
+
+    final dateStr = studentInfo?.date ??
+        DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     final buffer = StringBuffer();
 
     buffer.writeln('<!DOCTYPE html>');
@@ -52,6 +84,9 @@ class HtmlExportService {
     buffer.writeln('</style>');
     buffer.writeln('</head>');
     buffer.writeln('<body>');
+    // 打印时的页眉页脚（fixed 元素，支持的平台会在每页重复）。
+    buffer.writeln('  <div class="print-header">${_escapeHtml(title)}</div>');
+    buffer.writeln('  <div class="print-footer"></div>');
     buffer.writeln('<div class="page">');
 
     // 封面
@@ -60,9 +95,19 @@ class HtmlExportService {
     buffer.writeln('    <div class="subtitle">AI Wrong Notebook</div>');
     buffer.writeln('    <div class="divider"></div>');
     buffer.writeln('    <div class="info">共 ${questions.length} 道错题</div>');
-    buffer.writeln('    <div class="info">导出时间：$_escapeHtml(dateStr)</div>');
+    buffer.writeln('    <div class="info">导出时间：$dateStr</div>');
     buffer.writeln(
         '    <div class="info">涵盖 ${sortedSubjects.length} 个学科</div>');
+    buffer.writeln('    <div class="name-row">');
+    buffer.writeln(
+        '      <span>姓&emsp;名：${_escapeHtml(studentInfo?.name ?? '____________')}</span>');
+    buffer.writeln(
+        '      <span>班&emsp;级：${_escapeHtml(studentInfo?.className ?? '____________')}</span>');
+    buffer.writeln('    </div>');
+    buffer.writeln('    <div class="name-row">');
+    buffer.writeln('      <span>日&emsp;期：$dateStr</span>');
+    buffer.writeln('      <span>得&emsp;分：____________</span>');
+    buffer.writeln('    </div>');
     buffer.writeln('  </div>');
 
     // 目录
@@ -71,8 +116,7 @@ class HtmlExportService {
     for (final subject in sortedSubjects) {
       final list = grouped[subject]!;
       buffer.writeln('    <div class="toc-item">');
-      buffer.writeln(
-          '      <span>${_escapeHtml(subject.label)}</span>');
+      buffer.writeln('      <span>${_escapeHtml(subject.label)}</span>');
       buffer.writeln('      <span class="count">${list.length} 题</span>');
       buffer.writeln('    </div>');
     }
@@ -97,7 +141,8 @@ class HtmlExportService {
 
       for (final q in list) {
         globalIndex++;
-        await _writeQuestionBlock(buffer, globalIndex, q, mode: mode);
+        _writeQuestionBlock(buffer, globalIndex, q,
+            mode: mode, imageUris: imageUris);
       }
 
       buffer.writeln('  </div>');
@@ -119,8 +164,16 @@ class HtmlExportService {
     List<QuestionRecord> questions, {
     String title = '错题本整理报告',
     WorksheetExportMode? mode,
+    ExportStudentInfo? studentInfo,
+    void Function(int done, int total)? onProgress,
   }) async {
-    final html = await generateHtmlString(questions, title: title, mode: mode);
+    final html = await generateHtmlString(
+      questions,
+      title: title,
+      mode: mode,
+      studentInfo: studentInfo,
+      onProgress: onProgress,
+    );
     final dir = await getApplicationDocumentsDirectory();
     final exportDir = Directory('${dir.path}/exports');
     if (!exportDir.existsSync()) {
@@ -130,19 +183,56 @@ class HtmlExportService {
         'wrong_notebook_${DateTime.now().millisecondsSinceEpoch}.html';
     final file = File('${exportDir.path}/$filename');
     await file.writeAsString(html, flush: true);
+    await cleanupExports(exportDir);
     return file;
   }
 
-  /// 调起系统分享 HTML 文件。
+  /// 调起系统分享 HTML 文件，并在生成期间显示进度。
   static Future<void> shareHtml(
     BuildContext context,
     List<QuestionRecord> questions, {
     String title = '错题本整理报告',
     WorksheetExportMode? mode,
+    ExportStudentInfo? studentInfo,
   }) async {
+    final progress = ValueNotifier<double>(0);
+    if (!context.mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const CircularProgressIndicator(),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<double>(
+                valueListenable: progress,
+                builder: (_, v, __) => Text(
+                  v <= 0
+                      ? '正在准备导出…'
+                      : '正在处理图片 ${(v * 100).round()}%',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
     try {
-      final file = await generateHtml(questions, title: title, mode: mode);
+      final file = await generateHtml(
+        questions,
+        title: title,
+        mode: mode,
+        studentInfo: studentInfo,
+        onProgress: (done, total) {
+          progress.value = total == 0 ? 1 : done / total;
+        },
+      );
       if (!context.mounted) return;
+      Navigator.of(context).pop();
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
       final origin = box.localToGlobal(Offset.zero) & box.size;
@@ -153,6 +243,7 @@ class HtmlExportService {
       );
     } catch (e) {
       if (context.mounted) {
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('导出 HTML 失败: $e')),
         );
@@ -160,16 +251,31 @@ class HtmlExportService {
     }
   }
 
+  /// 清理 exports 目录，只保留最近 [maxKeptExports] 个文件。
+  static Future<void> cleanupExports(Directory exportDir) async {
+    try {
+      if (!exportDir.existsSync()) return;
+      final files = exportDir.listSync().whereType<File>().toList()
+        ..sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+      for (final file in files.skip(maxKeptExports)) {
+        await file.delete();
+      }
+    } catch (_) {
+      // 清理失败不影响导出。
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // 题目块
   // ─────────────────────────────────────────────────────────────────────────
 
-  static Future<void> _writeQuestionBlock(
+  static void _writeQuestionBlock(
     StringBuffer buffer,
     int index,
     QuestionRecord q, {
     WorksheetExportMode? mode,
-  }) async {
+    Map<String, String?> imageUris = const {},
+  }) {
     final createDateStr = DateFormat('MM/dd').format(q.createdAt);
     final mastery = _masteryLabel(q.masteryLevel);
 
@@ -180,8 +286,8 @@ class HtmlExportService {
       buffer.writeln('        <span style="color:#d97706">★</span>');
     }
     buffer.writeln(
-        '        <span class="badge ${_masteryBadgeClass(q.masteryLevel)}">$_escapeHtml(mastery)</span>');
-    if (q.contentStatus.toString().split('.').last != 'ready') {
+        '        <span class="badge ${_masteryBadgeClass(q.masteryLevel)}">${_escapeHtml(mastery)}</span>');
+    if (q.contentStatus != ContentStatus.ready) {
       buffer.writeln(
           '        <span class="badge badge-status">${_statusLabel(q.contentStatus)}</span>');
     }
@@ -204,27 +310,28 @@ class HtmlExportService {
     }
 
     // 原题图片（几何图、手写痕迹等）
-    final imageUri = await _imageDataUri(q.imagePath);
+    final imageUri = imageUris[q.id];
     if (imageUri != null) {
       buffer.writeln(
           '      <img class="question-image" src="$imageUri" alt="错题图片">');
     }
 
     if (mode == WorksheetExportMode.practice) {
+      final blankHeight = _practiceBlankHeight(questionText);
       buffer.writeln(
-          '      <div class="blank-area" style="height:80px"></div>');
+          '      <div class="blank-area" style="height:${blankHeight}px"></div>');
     } else {
-      await _writeAnalysisBlock(buffer, q, mode);
+      _writeAnalysisBlock(buffer, q, mode);
     }
 
     buffer.writeln('    </div>');
   }
 
-  static Future<void> _writeAnalysisBlock(
+  static void _writeAnalysisBlock(
     StringBuffer buffer,
     QuestionRecord q,
     WorksheetExportMode? mode,
-  ) async {
+  ) {
     final analysis = q.analysisResult;
     if (analysis == null) return;
 
@@ -267,9 +374,18 @@ class HtmlExportService {
         buffer.writeln(
             '      <div class="analysis-row"><span class="analysis-label orange">订正提示</span>：${_mixedTextToHtml(analysis.studyAdvice)}</div>');
       }
+      final blankHeight = _practiceBlankHeight(q.normalizedQuestionText);
       buffer.writeln(
-          '      <div class="blank-area" style="height:100px"></div>');
+          '      <div class="blank-area" style="height:${blankHeight}px"></div>');
     }
+  }
+
+  /// 练习卷/订正卷答题留白高度，按题干长度自适应。
+  static int _practiceBlankHeight(String questionText) {
+    if (questionText.isEmpty) return 80;
+    final lines = (questionText.length / 40).ceil();
+    final height = (lines + 3) * 28;
+    return height.clamp(60, 220).toInt();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -318,13 +434,17 @@ class HtmlExportService {
 
   static List<_MathSpan> _splitMathSpans(String v) {
     final spans = <_MathSpan>[];
-    final displayRe = RegExp(r'\$\$([\s\S]*?)\$\$');
+    // 同时匹配 `$$...$$` 与 `\begin{env}...\end{env}` 两种 display 数学块。
+    final displayOrEnv = RegExp(
+      r'\$\$([\s\S]*?)\$\$|\\begin\{([A-Za-z]+\*?)\}([\s\S]*?)\\end\{\2\}',
+    );
     var cursor = 0;
-    for (final m in displayRe.allMatches(v)) {
+    for (final m in displayOrEnv.allMatches(v)) {
       if (m.start > cursor) {
         spans.addAll(_splitInlineMath(v.substring(cursor, m.start)));
       }
-      spans.add(_MathSpan(m.group(1)!.trim(), isMath: true, display: true));
+      final math = m.group(1) ?? m.group(3)!;
+      spans.add(_MathSpan(math.trim(), isMath: true, display: true));
       cursor = m.end;
     }
     if (cursor < v.length) {
@@ -351,6 +471,63 @@ class HtmlExportService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // 图片预处理（并行压缩）
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static Future<Map<String, String?>> _preloadImages(
+    List<QuestionRecord> questions,
+    void Function(int done, int total)? onProgress,
+  ) async {
+    final entries = questions.where((q) => q.imagePath.isNotEmpty).toList();
+    final total = entries.length;
+    if (total == 0) {
+      if (onProgress != null) onProgress(0, 0);
+      return const {};
+    }
+    var done = 0;
+    final results = await Future.wait(entries.map((q) async {
+      final uri = await _encodeImage(q.imagePath);
+      final current = ++done;
+      if (onProgress != null) onProgress(current, total);
+      return MapEntry(q.id, uri);
+    }));
+    return {for (final e in results) e.key: e.value};
+  }
+
+  /// 读取图片文件，缩放到最大宽度 1200px 并重新编码，返回 data URI。
+  /// PNG 保留 PNG 编码（保留透明），其余转 JPEG(quality 80)，显著降低体积。
+  static Future<String?> _encodeImage(String path) async {
+    if (path.isEmpty) return null;
+    final file = File(path);
+    if (!await file.exists()) return null;
+    try {
+      final raw = await file.readAsBytes();
+      if (raw.isEmpty) return null;
+      final decoded = image.decodeImage(raw);
+      if (decoded == null) {
+        // 无法解码，回退原文件 base64。
+        final ext = path.split('.').last.toLowerCase();
+        final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
+        return 'data:$mime;base64,${base64Encode(raw)}';
+      }
+      const maxWidth = 1200;
+      image.Image scaled = decoded;
+      if (decoded.width > maxWidth) {
+        scaled = image.copyResize(decoded, width: maxWidth);
+      }
+      final ext = path.split('.').last.toLowerCase();
+      if (ext == 'png') {
+        final encoded = image.encodePng(scaled, level: 6);
+        return 'data:image/png;base64,${base64Encode(encoded)}';
+      }
+      final encoded = image.encodeJpg(scaled, quality: 80);
+      return 'data:image/jpeg;base64,${base64Encode(encoded)}';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // KaTeX 资源内联
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -369,48 +546,34 @@ class HtmlExportService {
   }
 
   static Future<String> _inlineAllFontFaces(String css) async {
-    final re = RegExp(r'''url\(['"]?fonts/([A-Za-z0-9_\-]+\.woff2)['"]?\)''');
-    final filenames = re.allMatches(css).map((m) => m.group(1)!).toSet();
+    // 1. 内联 woff2 字体为 base64。
+    final woff2Re =
+        RegExp(r'''url\(['"]?fonts/([A-Za-z0-9_\-]+\.woff2)['"]?\)''');
+    final filenames = woff2Re.allMatches(css).map((m) => m.group(1)!).toSet();
     for (final filename in filenames) {
       try {
         final data = await rootBundle.load('assets/katex/fonts/$filename');
         final base64 = base64Encode(data.buffer.asUint8List());
         final uri = "data:font/woff2;base64,$base64";
         css = css.replaceAllMapped(
-          RegExp(r'''url\(['"]?fonts/''' + RegExp.escape(filename) + r'''['"]?\)'''),
+          RegExp(
+              r'''url\(['"]?fonts/''' + RegExp.escape(filename) + r'''['"]?\)'''),
           (_) => "url('$uri')",
         );
       } catch (_) {
         // 如果某个字体未打包，保留原链接，浏览器会继续尝试加载。
       }
     }
+    // 2. 删除 woff/ttf fallback，避免离线 404（woff2 已足够现代浏览器使用）。
+    css = css.replaceAll(
+      RegExp(r''',\s*url\(fonts/[^)]+\.woff\)\s*format\("woff"\)'''),
+      '',
+    );
+    css = css.replaceAll(
+      RegExp(r''',\s*url\(fonts/[^)]+\.ttf\)\s*format\("truetype"\)'''),
+      '',
+    );
     return css;
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 图片 base64
-  // ─────────────────────────────────────────────────────────────────────────
-
-  static Future<String?> _imageDataUri(String path) async {
-    if (path.isEmpty) return null;
-    final file = File(path);
-    if (!await file.exists()) return null;
-    final ext = path.split('.').last.toLowerCase();
-    final mime = switch (ext) {
-      'png' => 'image/png',
-      'jpg' || 'jpeg' => 'image/jpeg',
-      'webp' => 'image/webp',
-      'gif' => 'image/gif',
-      _ => 'image/jpeg',
-    };
-    try {
-      final bytes = await file.readAsBytes();
-      if (bytes.isEmpty) return null;
-      final base64 = base64Encode(bytes);
-      return 'data:$mime;base64,$base64';
-    } catch (_) {
-      return null;
-    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -419,7 +582,15 @@ class HtmlExportService {
 
   static String _reportCss() {
     return '''
-@page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+@page {
+  size: A4;
+  margin: 22mm 16mm 20mm 16mm;
+  @bottom-center {
+    content: "第 " counter(page) " 页 / 共 " counter(pages) " 页";
+    font-size: 9pt;
+    color: #999;
+  }
+}
 * { box-sizing: border-box; }
 body {
   font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
@@ -431,15 +602,48 @@ body {
 }
 .page { max-width: 190mm; margin: 0 auto; }
 
+.print-header, .print-footer { display: none; }
+@media print {
+  .print-header {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9pt;
+    color: #999;
+    border-bottom: 1px solid #eee;
+    padding: 4px 0;
+  }
+  .print-footer {
+    display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9pt;
+    color: #999;
+  }
+}
+
 .cover {
   text-align: center;
-  padding-top: 70mm;
+  padding-top: 60mm;
   page-break-after: always;
 }
 .cover h1 { font-size: 26pt; font-weight: 700; color: #6366F1; margin-bottom: 12px; }
 .cover .subtitle { font-size: 13pt; color: #888; margin-bottom: 36px; }
 .cover .divider { width: 60%; height: 1px; background: #ddd; margin: 0 auto 24px; }
 .cover .info { font-size: 12pt; color: #555; margin-bottom: 6px; }
+.name-row {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 18px;
+  font-size: 12pt;
+  color: #444;
+}
 
 .toc { page-break-after: always; }
 .toc h2 { font-size: 20pt; font-weight: 700; margin-bottom: 20px; }
@@ -561,53 +765,23 @@ document.addEventListener('DOMContentLoaded', function() {
     return '#$r$g$b';
   }
 
-  static String _masteryLabel(dynamic masteryLevel) {
-    final name = masteryLevel is String
-        ? masteryLevel
-        : '$masteryLevel'.split('.').last;
-    switch (name) {
-      case 'newQuestion':
-        return '待学习';
-      case 'reviewing':
-        return '复习中';
-      case 'mastered':
-        return '已掌握';
-      default:
-        return '待学习';
-    }
-  }
+  static String _masteryLabel(MasteryLevel level) => switch (level) {
+        MasteryLevel.newQuestion => '待学习',
+        MasteryLevel.reviewing => '复习中',
+        MasteryLevel.mastered => '已掌握',
+      };
 
-  static String _masteryBadgeClass(dynamic masteryLevel) {
-    final name = masteryLevel is String
-        ? masteryLevel
-        : '$masteryLevel'.split('.').last;
-    switch (name) {
-      case 'newQuestion':
-        return 'badge-new';
-      case 'reviewing':
-        return 'badge-reviewing';
-      case 'mastered':
-        return 'badge-mastered';
-      default:
-        return 'badge-new';
-    }
-  }
+  static String _masteryBadgeClass(MasteryLevel level) => switch (level) {
+        MasteryLevel.newQuestion => 'badge-new',
+        MasteryLevel.reviewing => 'badge-reviewing',
+        MasteryLevel.mastered => 'badge-mastered',
+      };
 
-  static String _statusLabel(dynamic contentStatus) {
-    final name = contentStatus is String
-        ? contentStatus
-        : '$contentStatus'.split('.').last;
-    switch (name) {
-      case 'processing':
-        return '处理中';
-      case 'ready':
-        return '已完成';
-      case 'failed':
-        return '识别失败';
-      default:
-        return name;
-    }
-  }
+  static String _statusLabel(ContentStatus status) => switch (status) {
+        ContentStatus.processing => '处理中',
+        ContentStatus.ready => '已完成',
+        ContentStatus.failed => '识别失败',
+      };
 }
 
 class _MathSpan {

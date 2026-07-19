@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
 
@@ -69,19 +70,19 @@ class DataManagementScreen extends ConsumerWidget {
             _DataCard(
               icon: CupertinoIcons.doc_text,
               title: '导出为 HTML（精美排版）',
-              subtitle: 'KaTeX 渲染公式，内嵌原题图片，适合浏览器/打印转 PDF',
+              subtitle: '可选练习卷/答案卷/订正卷，支持按学科/掌握程度/时间筛选与预览',
               onTap: questions.isEmpty
                   ? null
-                  : () => HtmlExportService.shareHtml(context, questions),
+                  : () => _exportWithOptions(context, questions, isPdf: false),
             ),
             const SizedBox(height: 8),
             _DataCard(
               icon: CupertinoIcons.doc_richtext,
               title: '导出为 PDF',
-              subtitle: '将精美 HTML 转成 PDF，公式与几何图高保真',
+              subtitle: '可选模式与筛选，公式与几何图高保真，桌面端自动用浏览器打开',
               onTap: questions.isEmpty
                   ? null
-                  : () => PdfExportService.sharePdf(context, questions),
+                  : () => _exportWithOptions(context, questions, isPdf: true),
             ),
             const SizedBox(height: 8),
             _DataCard(
@@ -98,6 +99,30 @@ class DataManagementScreen extends ConsumerWidget {
         error: (e, _) => Center(child: Text('加载失败: $e')),
       ),
     );
+  }
+
+  Future<void> _exportWithOptions(
+    BuildContext context,
+    List<QuestionRecord> questions, {
+    required bool isPdf,
+  }) async {
+    final options = await showExportOptionsDialog(context, questions);
+    if (options == null || !context.mounted) return;
+    if (isPdf) {
+      await PdfExportService.sharePdf(
+        context,
+        options.filtered,
+        mode: options.mode,
+        studentInfo: options.studentInfo,
+      );
+    } else {
+      await HtmlExportService.shareHtml(
+        context,
+        options.filtered,
+        mode: options.mode,
+        studentInfo: options.studentInfo,
+      );
+    }
   }
 
   Future<void> _exportQuestions(

@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
-import 'package:smart_wrong_notebook/src/shared/utils/worksheet_export_mode.dart';
 
 /// Selects and orders a subset of the local question bank for export.
 /// The next slice adds per-mode PDF layouts; this screen deliberately keeps
@@ -134,7 +134,7 @@ class _WorksheetWorkbenchScreenState
                     child: OutlinedButton.icon(
                       onPressed: selected.isEmpty
                           ? null
-                          : () => HtmlExportService.shareHtml(context, selected),
+                          : () => _export(context, selected, isPdf: false),
                       icon: const Icon(CupertinoIcons.printer),
                       label: const Text('可打印 HTML'),
                     ),
@@ -144,7 +144,7 @@ class _WorksheetWorkbenchScreenState
                     child: FilledButton.icon(
                       onPressed: selected.isEmpty
                           ? null
-                          : () => _choosePdfMode(context, selected),
+                          : () => _export(context, selected, isPdf: true),
                       icon: const Icon(CupertinoIcons.doc_text),
                       label: const Text('选择试卷 PDF'),
                     ),
@@ -157,35 +157,31 @@ class _WorksheetWorkbenchScreenState
       ),
     );
   }
-  Future<void> _choosePdfMode(
+  Future<void> _export(
     BuildContext context,
-    List<QuestionRecord> questions,
-  ) async {
-    final mode = await showModalBottomSheet<WorksheetExportMode>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const ListTile(title: Text('选择 PDF 试卷类型')),
-          for (final item in WorksheetExportMode.values)
-            ListTile(
-              leading: Icon(switch (item) {
-                WorksheetExportMode.practice => CupertinoIcons.pencil,
-                WorksheetExportMode.answer => CupertinoIcons.checkmark_circle,
-                WorksheetExportMode.correction => CupertinoIcons.arrow_2_circlepath,
-              }),
-              title: Text(item.label),
-              subtitle: Text(switch (item) {
-                WorksheetExportMode.practice => '仅题目与答题留白',
-                WorksheetExportMode.answer => '题目、答案与完整解析',
-                WorksheetExportMode.correction => '题目、错因、订正提示与留白',
-              }),
-              onTap: () => Navigator.pop(sheetContext, item),
-            ),
-        ]),
-      ),
+    List<QuestionRecord> questions, {
+    required bool isPdf,
+  }) async {
+    final options = await showExportOptionsDialog(
+      context,
+      questions,
+      allowFilter: false,
     );
-    if (mode != null && context.mounted) {
-      await PdfExportService.sharePdf(context, questions, mode: mode);
+    if (options == null || !context.mounted) return;
+    if (isPdf) {
+      await PdfExportService.sharePdf(
+        context,
+        options.filtered,
+        mode: options.mode,
+        studentInfo: options.studentInfo,
+      );
+    } else {
+      await HtmlExportService.shareHtml(
+        context,
+        options.filtered,
+        mode: options.mode,
+        studentInfo: options.studentInfo,
+      );
     }
   }
 }
