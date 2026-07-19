@@ -607,5 +607,5 @@ class _OverviewMetric extends StatelessWidget {
   Widget build(BuildContext context) => Column(children: <Widget>[
     Text('$value', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color)),
     Text(label, style: const TextStyle(fontSize: 11)),
-  ]));
+  ]);
 }
