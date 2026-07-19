@@ -7,6 +7,7 @@ import 'package:smart_wrong_notebook/src/common/widgets/stats_chart.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
@@ -18,6 +19,7 @@ class HomeScreen extends ConsumerWidget {
     final questionsAsync = ref.watch(questionListProvider);
     final todayPlanAsync = ref.watch(todayReviewPlanProvider);
     final mistakeStatsAsync = ref.watch(mistakeCategoryStatsProvider);
+    final worksheetSession = ref.watch(currentWorksheetImportProvider);
 
     return SafeArea(
       child: ListView(
@@ -61,6 +63,15 @@ class HomeScreen extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          _QuickStartRow(
+            onCapture: () => showModalBottomSheet<void>(context: context, builder: (_) => const CaptureEntrySheet()),
+            onImport: () => context.go('/worksheet/import'),
+          ),
+          if (worksheetSession != null) ...<Widget>[
+            const SizedBox(height: 20),
+            _BatchActionCard(session: worksheetSession, onOpen: () => context.go('/worksheet/import')),
+          ],
           todayPlanAsync.when(
             data: (plan) => Padding(
               padding: const EdgeInsets.only(top: 16),
@@ -222,6 +233,61 @@ class HomeScreen extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _QuickStartRow extends StatelessWidget {
+  const _QuickStartRow({required this.onCapture, required this.onImport});
+  final VoidCallback onCapture;
+  final VoidCallback onImport;
+  @override
+  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+    Text('快速开始', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+    const SizedBox(height: 8),
+    Row(children: <Widget>[
+      Expanded(child: OutlinedButton.icon(onPressed: onCapture, icon: const Icon(CupertinoIcons.camera), label: const Text('拍照录题'))),
+      const SizedBox(width: 10),
+      Expanded(child: FilledButton.icon(onPressed: onImport, icon: const Icon(CupertinoIcons.doc_viewfinder), label: const Text('导入试卷'))),
+    ]),
+  ]);
+}
+
+class _BatchActionCard extends StatelessWidget {
+  const _BatchActionCard({required this.session, required this.onOpen});
+  final WorksheetImportSession session;
+  final VoidCallback onOpen;
+  @override
+  Widget build(BuildContext context) {
+    final all = session.pages;
+    final failed = all.where((item) => item.contentStatus == ContentStatus.failed).length;
+    final drafts = all.where((item) => item.contentStatus == ContentStatus.ready && item.analysisResult == null).length;
+    final pending = all.where((item) => item.contentStatus == ContentStatus.pending).length;
+    final remaining = failed + drafts + pending;
+    if (remaining == 0) return const SizedBox.shrink();
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: colorScheme.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: colorScheme.outlineVariant)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+        Row(children: <Widget>[Icon(CupertinoIcons.check_mark_circled, color: colorScheme.primary), const SizedBox(width: 8), Expanded(child: Text('待处理事项', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700))), Text('$remaining 项', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))]),
+        const SizedBox(height: 10),
+        if (failed > 0) _BatchTodoRow(icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFEA580C), text: '$failed 道分析失败题', action: '重试'),
+        if (drafts > 0) _BatchTodoRow(icon: CupertinoIcons.sparkles, color: const Color(0xFF2563EB), text: '$drafts 道 OCR 草稿待分析', action: '分析'),
+        if (pending > 0) _BatchTodoRow(icon: CupertinoIcons.clock, color: const Color(0xFF64748B), text: '$pending 道题尚未处理', action: '继续'),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerRight, child: TextButton(onPressed: onOpen, child: const Text('打开批次处理'))),
+      ]),
+    );
+  }
+}
+
+class _BatchTodoRow extends StatelessWidget {
+  const _BatchTodoRow({required this.icon, required this.color, required this.text, required this.action});
+  final IconData icon;
+  final Color color;
+  final String text;
+  final String action;
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: <Widget>[Icon(icon, size: 16, color: color), const SizedBox(width: 8), Expanded(child: Text(text, style: const TextStyle(fontSize: 13))), Text(action, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color))]));
 }
 
 class _StatsGridSkeleton extends StatelessWidget {
