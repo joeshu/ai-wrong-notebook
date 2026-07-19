@@ -83,6 +83,18 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
                   ? null
                   : () => _undoLastImport(context, ref),
             ),
+            const SizedBox(height: 8),
+            const Text('删除所有错题和复习记录，不可恢复',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+            const SizedBox(height: 8),
+            _DataCard(
+              icon: CupertinoIcons.trash,
+              iconColor: Colors.red,
+              title: '清空所有数据',
+              titleColor: Colors.red,
+              subtitle: '删除所有错题和复习记录；建议先创建完整备份',
+              onTap: () => _confirmClearAll(context, ref, questions.length),
+            ),
             const SizedBox(height: 20),
             const _SectionTitle('存储概览'),
             const SizedBox(height: 8),
@@ -125,17 +137,6 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               onTap: questions.isEmpty
                   ? null
                   : () => _exportWithOptions(context, questions, isPdf: true),
-            ),
-            const SizedBox(height: 20),
-            const _SectionTitle('清理与危险操作'),
-            const SizedBox(height: 8),
-            _DataCard(
-              icon: CupertinoIcons.trash,
-              iconColor: Colors.red,
-              title: '清空所有数据',
-              titleColor: Colors.red,
-              subtitle: '删除所有错题和复习记录，不可恢复',
-              onTap: () => _confirmClearAll(context, ref, questions.length),
             ),
           ],
         ),
