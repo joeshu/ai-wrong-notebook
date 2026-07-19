@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
@@ -302,16 +305,236 @@ class AppEmptyState extends StatelessWidget {
 }
 
 class AppErrorState extends StatelessWidget {
-  const AppErrorState({super.key, this.message = '暂时无法加载，请稍后重试。', required this.onRetry});
-  final String message;
-  final VoidCallback onRetry;
+  const AppErrorState({
+    super.key,
+    this.error,
+    this.message,
+    this.onRetry,
+  }) : assert(
+          error == null || message == null,
+          'Either provide an error object for auto-friendly mapping, '
+          'or an explicit message, but not both.',
+        );
+
+  /// 原始错误对象，会根据常见异常类型映射为友好文案；为 null 时使用默认文案。
+  final Object? error;
+
+  /// 显式文案，会覆盖 [error] 的自动映射；同时提供 [error] 与 [message] 会触发断言。
+  final String? message;
+
+  /// 重试回调。为 null 时不展示重试按钮。
+  final VoidCallback? onRetry;
+
+  String _resolveMessage() {
+    if (message != null) return message!;
+    final source = error;
+    if (source == null) return '加载失败，请重试';
+    if (source is FormatException) return '数据格式异常';
+    if (source is FileSystemException) return '文件读取失败';
+    if (source is TimeoutException) return '请求超时';
+    if (source is SocketException) return '网络连接失败';
+    return '加载失败，请重试';
+  }
+
   @override
-  Widget build(BuildContext context) => AppEmptyState(icon: CupertinoIcons.exclamationmark_triangle, title: '加载失败', description: message, action: OutlinedButton.icon(onPressed: onRetry, icon: const Icon(CupertinoIcons.arrow_clockwise), label: const Text('重试')));
+  Widget build(BuildContext context) {
+    final resolved = _resolveMessage();
+    return AppEmptyState(
+      icon: CupertinoIcons.exclamationmark_triangle,
+      title: '加载失败',
+      description: resolved,
+      action: onRetry == null
+          ? null
+          : OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(CupertinoIcons.arrow_clockwise),
+              label: const Text('重试'),
+            ),
+    );
+  }
 }
 
 class AppLoadingState extends StatelessWidget {
-  const AppLoadingState({super.key, this.label = '正在加载…'});
+  const AppLoadingState({super.key, this.label = '正在加载…'}) : child = null;
+
+  /// 直接渲染调用方提供的骨架布局，常用于需要更贴近真实内容的占位场景。
+  const AppLoadingState.skeleton({super.key, required this.child})
+      : label = '正在加载…';
+
   final String label;
+
+  /// 调用方提供的骨架布局。非 null 时 [build] 直接返回该 widget，
+  /// 不再渲染默认的转圈加载指示器。
+  final Widget? child;
+
   @override
-  Widget build(BuildContext context) => Center(child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[const CircularProgressIndicator(), const SizedBox(height: AppSpace.md), Text(label, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant))]));
+  Widget build(BuildContext context) {
+    final skeleton = child;
+    if (skeleton != null) return skeleton;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const CircularProgressIndicator(),
+          const SizedBox(height: AppSpace.md),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 通用 shimmer 占位组件：用 [AnimationController] 在 1.2s 内做
+/// #E5E7EB → #F3F4F6 → #E5E7EB 的扫光循环。child 通常是几个圆角灰条
+/// [Container]；通过 [ShaderMask] + [BlendMode.srcIn] 把动画渐变叠加在
+/// child 的可见像素上，从而实现"灰色扫光"效果。
+class AppShimmer extends StatefulWidget {
+  const AppShimmer({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  State<AppShimmer> createState() => _AppShimmerState();
+}
+
+class _AppShimmerState extends State<AppShimmer>
+    with SingleTickerProviderStateMixin {
+  static const Color _base = Color(0xFFE5E7EB);
+  static const Color _highlight = Color(0xFFF3F4F6);
+
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (BuildContext context, Widget? child) {
+        // value 在 [0, 1] 间来回，将高光带从左侧扫到右侧再回来。
+        final shift = _controller.value * 2 - 1;
+        return ShaderMask(
+          shaderCallback: (Rect bounds) {
+            return LinearGradient(
+              begin: Alignment(shift - 0.6, 0),
+              end: Alignment(shift + 0.6, 0),
+              colors: const <Color>[_base, _highlight, _base],
+              stops: const <double>[0.0, 0.5, 1.0],
+            ).createShader(bounds);
+          },
+          blendMode: BlendMode.srcIn,
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// 默认渲染 6 个列表项骨架：左侧 48x48 圆角方块 + 右侧两行灰条
+/// （上行宽 70% 下行宽 40%），整体用 [AppShimmer] 包裹。可通过
+/// [itemCount] 调整数量。
+class AppListSkeleton extends StatelessWidget {
+  const AppListSkeleton({super.key, this.itemCount = 6});
+
+  final int itemCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppShimmer(
+      child: ListView.builder(
+        padding: const EdgeInsets.all(AppSpace.lg),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: itemCount,
+        itemBuilder: (BuildContext context, int index) => const Padding(
+          padding: EdgeInsets.only(bottom: AppSpace.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              _SkeletonBox(
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+              ),
+              SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    _SkeletonBar(widthFactor: 0.7),
+                    SizedBox(height: AppSpace.xs),
+                    _SkeletonBar(widthFactor: 0.4),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonBox extends StatelessWidget {
+  const _SkeletonBox({
+    required this.width,
+    required this.height,
+    this.borderRadius = AppRadius.small,
+  });
+
+  final double width;
+  final double height;
+  final double borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE5E7EB),
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    );
+  }
+}
+
+class _SkeletonBar extends StatelessWidget {
+  const _SkeletonBar({required this.widthFactor});
+
+  final double widthFactor;
+
+  @override
+  Widget build(BuildContext context) {
+    return FractionallySizedBox(
+      widthFactor: widthFactor,
+      alignment: Alignment.centerLeft,
+      child: Container(
+        height: 12,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE5E7EB),
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+    );
+  }
 }

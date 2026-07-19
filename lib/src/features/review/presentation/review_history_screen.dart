@@ -6,6 +6,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 class ReviewHistoryScreen extends ConsumerWidget {
@@ -32,8 +33,11 @@ class ReviewHistoryScreen extends ConsumerWidget {
                 itemBuilder: (_, index) =>
                     _buildEntry(context, ref, entries[index]),
               ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('加载失败: $e')),
+        loading: () => const AppListSkeleton(),
+        error: (e, _) => AppErrorState(
+          error: e,
+          onRetry: () => ref.invalidate(_reviewLogsWithQuestionsProvider),
+        ),
       ),
     );
   }

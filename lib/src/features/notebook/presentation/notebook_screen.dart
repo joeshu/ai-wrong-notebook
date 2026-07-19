@@ -635,6 +635,8 @@ class _QuestionCard extends StatelessWidget {
     final aiTags = question.aiTags ?? <String>[];
     final customTags = question.customTags ?? <String>[];
     final allTags = [...aiTags, ...customTags];
+    final isFailed =
+        question.contentStatus.toString().split('.').last == 'failed';
 
     return Dismissible(
       key: ValueKey(question.id),
@@ -665,6 +667,7 @@ class _QuestionCard extends StatelessWidget {
             child: AppCard(
               padding: const EdgeInsets.all(AppSpace.md),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   if (selectionMode) ...<Widget>[
                     Checkbox(value: selected, onChanged: (_) => onSelect()),
@@ -676,99 +679,91 @@ class _QuestionCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Hero(
-                          tag: 'question_text_${question.id}',
-                          child: Material(
-                            color: Colors.transparent,
-                            child: MathContentView(
-                              question.correctedText,
-                              contentFormat: question.contentFormat,
-                              mode: MathContentViewMode.compact,
-                              maxLines: 1,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w500, fontSize: 14),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppSpace.sm),
-                        Wrap(
-                          spacing: AppSpace.sm,
-                          runSpacing: AppSpace.xs,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: <Widget>[
-                            Text(
-                              '${question.subject.label} · ${_formatDate(question.createdAt)}',
-                              style: TextStyle(
-                                  fontSize: 12, color: question.subject.color),
+                            Expanded(
+                              child: Hero(
+                                tag: 'question_text_${question.id}',
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: MathContentView(
+                                    question.correctedText,
+                                    contentFormat: question.contentFormat,
+                                    mode: MathContentViewMode.compact,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 14),
+                                  ),
+                                ),
+                              ),
                             ),
-                            _MasteryChip(level: question.masteryLevel),
-                            if (question.contentStatus.toString().split('.').last == 'failed')
-                              const AppTag(
-                                label: '待处理',
-                                textColor: AppColors.warningDark,
-                                backgroundColor: AppColors.warningContainerLight,
-                                fontSize: 10,
+                            if (primaryAction != null)
+                              IconButton(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                    minWidth: 28, minHeight: 28),
+                                visualDensity: VisualDensity.compact,
+                                iconSize: 18,
+                                tooltip: primaryAction!.label,
+                                icon: Icon(
+                                  primaryAction!.icon,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                onPressed: primaryAction!.onTap,
+                              )
+                            else
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 4, top: 2),
+                                child: Icon(
+                                  CupertinoIcons.chevron_right,
+                                  color: colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.65),
+                                  size: 18,
+                                ),
                               ),
                           ],
                         ),
-                        const SizedBox(height: AppSpace.sm),
-                        Row(
-                          children: <Widget>[
-                            Icon(_dueIcon(question), size: 13, color: _dueColor(context, question)),
-                            const SizedBox(width: AppSpace.xs),
-                            Expanded(child: Text(_dueLabel(question),
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: _dueColor(context, question),
-                                    fontWeight: FontWeight.w600))),
-                            Text('复习 ${question.reviewCount} 次',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: colorScheme.onSurfaceVariant)),
-                          ],
-                        ),
+                        const SizedBox(height: AppSpace.xs),
+                        _buildMetaInfo(context, isFailed),
                         if (allTags.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: AppSpace.sm),
+                          const SizedBox(height: AppSpace.xs),
                           Wrap(
                             spacing: AppSpace.xs,
                             runSpacing: AppSpace.xs,
-                            children: allTags.take(4).map((tag) {
-                              final isAiTag = aiTags.contains(tag);
-                              return AppTag(
-                                label: tag,
-                                textColor: isAiTag
-                                    ? AppColors.accentAmber
-                                    : AppColors.primaryDark,
-                                backgroundColor: isAiTag
-                                    ? AppColors.accentAmberContainerLight
-                                    : AppColors.primaryContainerLight,
-                                fontSize: 10,
-                                onTap: () => onKnowledgePointTap(tag),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                        if (primaryAction != null) ...<Widget>[
-                          const SizedBox(height: AppSpace.sm),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: primaryAction!.onTap,
-                              icon: Icon(primaryAction!.icon, size: 15),
-                              label: Text(primaryAction!.label),
-                              style: TextButton.styleFrom(
-                                minimumSize: const Size(0, 32),
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                              ),
-                            ),
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: <Widget>[
+                              ...allTags.take(2).map((tag) {
+                                final isAiTag = aiTags.contains(tag);
+                                return AppTag(
+                                  label: tag,
+                                  textColor: isAiTag
+                                      ? AppColors.accentAmber
+                                      : AppColors.primaryDark,
+                                  backgroundColor: isAiTag
+                                      ? AppColors.accentAmberContainerLight
+                                      : AppColors.primaryContainerLight,
+                                  fontSize: 10,
+                                  onTap: () => onKnowledgePointTap(tag),
+                                );
+                              }),
+                              if (allTags.length > 2)
+                                AppTag(
+                                  label: '+${allTags.length - 2}',
+                                  textColor: colorScheme.onSurfaceVariant,
+                                  backgroundColor:
+                                      colorScheme.surfaceContainerHighest,
+                                  fontSize: 10,
+                                ),
+                            ],
                           ),
                         ],
                       ],
                     ),
                   ),
-                  Icon(CupertinoIcons.chevron_right,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
-                      size: 22),
                 ],
               ),
             ),
@@ -793,6 +788,81 @@ class _QuestionCard extends StatelessWidget {
     if (!next.isAfter(today)) return '今天待复习';
     final days = DateTime(next.year, next.month, next.day).difference(DateTime(today.year, today.month, today.day)).inDays;
     return days == 1 ? '明天复习' : '$days 天后复习';
+  }
+
+  IconData _masteryIcon(MasteryLevel level) {
+    switch (level) {
+      case MasteryLevel.newQuestion:
+        return CupertinoIcons.circle;
+      case MasteryLevel.reviewing:
+        return CupertinoIcons.circle_lefthalf_fill;
+      case MasteryLevel.mastered:
+        return CupertinoIcons.checkmark_circle_fill;
+    }
+  }
+
+  Widget _buildMetaInfo(BuildContext context, bool isFailed) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final masteryColor = _masteryColor(context, question.masteryLevel);
+    final dueColor = _dueColor(context, question);
+    final showMastery = question.masteryLevel != MasteryLevel.newQuestion;
+    final showDue = question.nextReviewAt != null;
+
+    final spans = <InlineSpan>[
+      TextSpan(
+        text: question.subject.label,
+        style: TextStyle(
+            color: question.subject.color, fontWeight: FontWeight.w500),
+      ),
+      TextSpan(text: ' · ${_formatDate(question.createdAt)}'),
+    ];
+
+    if (showMastery) {
+      spans.add(const TextSpan(text: ' · '));
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Icon(_masteryIcon(question.masteryLevel),
+            size: 11, color: masteryColor),
+      ));
+      spans.add(TextSpan(
+        text: _masteryLabel(question.masteryLevel),
+        style: TextStyle(color: masteryColor),
+      ));
+    }
+
+    if (isFailed) {
+      spans.add(const TextSpan(text: ' · '));
+      spans.add(const WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Icon(CupertinoIcons.exclamationmark_triangle_fill,
+            size: 11, color: AppColors.warning),
+      ));
+      spans.add(const TextSpan(
+        text: '待解析',
+        style: TextStyle(color: AppColors.warning),
+      ));
+    }
+
+    if (showDue) {
+      spans.add(const TextSpan(text: ' · '));
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Icon(_dueIcon(question), size: 11, color: dueColor),
+      ));
+      spans.add(TextSpan(
+        text: _dueLabel(question),
+        style: TextStyle(color: dueColor),
+      ));
+    }
+
+    return Text.rich(
+      TextSpan(
+        style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+        children: spans,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -827,31 +897,6 @@ class _SubjectAvatar extends StatelessWidget {
         tag: 'subject_icon_${question.id}',
         child: Icon(question.subject.icon,
             size: isSmall ? 18 : 20, color: question.subject.color),
-      ),
-    );
-  }
-}
-
-class _MasteryChip extends StatelessWidget {
-  const _MasteryChip({required this.level});
-
-  final MasteryLevel level;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _masteryColor(context, level);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.16 : 0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        _masteryLabel(level),
-        style: TextStyle(
-            fontSize: 11, color: color, fontWeight: FontWeight.w500),
       ),
     );
   }

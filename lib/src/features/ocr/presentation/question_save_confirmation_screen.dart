@@ -74,7 +74,7 @@ class _QuestionSaveConfirmationScreenState
                   onTap: () => _showFullImage(context, current.imagePath),
                   child: Container(
                     width: double.infinity,
-                    constraints: const BoxConstraints(maxHeight: 220),
+                    constraints: const BoxConstraints(maxHeight: 130),
                     decoration: BoxDecoration(
                       color:
                           Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -208,63 +208,99 @@ class _QuestionSaveConfirmationScreenState
                       const TextStyle(fontSize: 12, color: Color(0xFFB91C1C)),
                 ),
               ],
-              const SizedBox(height: 24),
-              OutlinedButton.icon(
-                onPressed: () => context.go('/analysis/result'),
-                icon: const Icon(CupertinoIcons.chevron_left, size: 18),
-                label: const Text('返回结果页'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
+            ],
+          ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: true,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 0.5,
               ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () async {
-                  final text = _textController.text.trim();
-                  if (text.isEmpty) {
-                    setState(() => _errorMessage = '请先补充题目内容，再保存到错题本');
-                    return;
-                  }
-
-                  final updated = current.copyWith(
-                    extractedQuestionText:
-                        current.extractedQuestionText.isNotEmpty
-                            ? current.extractedQuestionText
-                            : text,
-                    normalizedQuestionText: text,
-                  );
-                  ref.read(currentQuestionProvider.notifier).state = updated;
-                  final messenger = ScaffoldMessenger.of(context);
-                  final router = GoRouter.of(context);
-                  await ref.read(questionRepositoryProvider).saveDraft(updated);
-                  invalidateQuestionList(ref);
-                  final worksheet = ref.read(currentWorksheetImportProvider);
-                  if (worksheet != null) {
-                    final remaining = worksheet.pages
-                        .where((page) => page.id != current.id)
-                        .toList();
-                    await persistWorksheetImport(
-                      ref,
-                      remaining.isEmpty ? null : worksheet.copyWith(pages: remaining),
-                    );
-                  }
-                  ref.read(currentQuestionProvider.notifier).state = null;
-                  if (!mounted) return;
-                  messenger.showSnackBar(
-                    const SnackBar(
-                      content: Text('已保存到错题本'),
-                      duration: Duration(seconds: 2),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.go('/analysis/result'),
+                      icon: const Icon(CupertinoIcons.chevron_left, size: 18),
+                      label: const Text('返回结果页'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
                     ),
-                  );
-                  router.go(worksheet == null || worksheet.pages.length <= 1
-                      ? '/notebook'
-                      : '/worksheet/import');
-                },
-                icon: const Icon(CupertinoIcons.checkmark_alt, size: 18),
-                label: const Text('确认并保存到错题本'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () async {
+                        final text = _textController.text.trim();
+                        if (text.isEmpty) {
+                          setState(() => _errorMessage = '请先补充题目内容，再保存到错题本');
+                          return;
+                        }
+
+                        final updated = current.copyWith(
+                          extractedQuestionText:
+                              current.extractedQuestionText.isNotEmpty
+                                  ? current.extractedQuestionText
+                                  : text,
+                          normalizedQuestionText: text,
+                        );
+                        ref.read(currentQuestionProvider.notifier).state =
+                            updated;
+                        final messenger = ScaffoldMessenger.of(context);
+                        final router = GoRouter.of(context);
+                        await ref
+                            .read(questionRepositoryProvider)
+                            .saveDraft(updated);
+                        invalidateQuestionList(ref);
+                        final worksheet =
+                            ref.read(currentWorksheetImportProvider);
+                        if (worksheet != null) {
+                          final remaining = worksheet.pages
+                              .where((page) => page.id != current.id)
+                              .toList();
+                          await persistWorksheetImport(
+                            ref,
+                            remaining.isEmpty
+                                ? null
+                                : worksheet.copyWith(pages: remaining),
+                          );
+                        }
+                        ref.read(currentQuestionProvider.notifier).state =
+                            null;
+                        if (!mounted) return;
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('已保存到错题本'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        router.go(worksheet == null ||
+                                worksheet.pages.length <= 1
+                            ? '/notebook'
+                            : '/worksheet/import');
+                      },
+                      icon:
+                          const Icon(CupertinoIcons.checkmark_alt, size: 18),
+                      label: const Text('确认并保存到错题本'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

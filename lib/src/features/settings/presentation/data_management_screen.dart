@@ -14,6 +14,7 @@ import 'package:smart_wrong_notebook/src/data/files/backup_attachment_integrity.
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
@@ -140,8 +141,11 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
             ),
           ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('加载失败: $e')),
+        loading: () => const AppListSkeleton(),
+        error: (e, _) => AppErrorState(
+          error: e,
+          onRetry: () => ref.invalidate(questionListProvider),
+        ),
       ),
     );
   }

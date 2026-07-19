@@ -146,7 +146,7 @@ class _QuestionSplitConfirmationScreenState
                 onTap: () => _showFullImage(context, source.imagePath),
                 child: Container(
                   width: double.infinity,
-                  constraints: const BoxConstraints(maxHeight: 220),
+                  constraints: const BoxConstraints(maxHeight: 130),
                   decoration: BoxDecoration(
                     color:
                         Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -427,40 +427,60 @@ class _QuestionSplitConfirmationScreenState
                 ),
               ),
             ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _isSaving || selectedCount == 0
-                  ? null
-                  : () => _saveQuestions(_draftsForSelected(session)),
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(CupertinoIcons.tray_arrow_down, size: 18),
-              label: Text(_isSaving ? '正在保存...' : '保存已勾选题目 ($selectedCount)'),
-              style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 50)),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              selectedCount == 0
-                  ? '请至少勾选一道题后再保存。'
-                  : '将保存已勾选的 $selectedCount 道题；未勾选题目不会写入错题本。',
-              textAlign: TextAlign.center,
-              style:
-                  TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => context.go('/analysis/result'),
-              icon: const Icon(CupertinoIcons.chevron_left, size: 18),
-              label: const Text('返回结果页'),
-              style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48)),
-            ),
           ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: true,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              FilledButton.icon(
+                onPressed: _isSaving || selectedCount == 0
+                    ? null
+                    : () => _saveQuestions(_draftsForSelected(session)),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(CupertinoIcons.tray_arrow_down, size: 18),
+                label:
+                    Text(_isSaving ? '正在保存...' : '保存已勾选题目 ($selectedCount)'),
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50)),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                selectedCount == 0
+                    ? '请至少勾选一道题后再保存。'
+                    : '将保存已勾选的 $selectedCount 道题；未勾选题目不会写入错题本。',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 12, color: colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/analysis/result'),
+                icon: const Icon(CupertinoIcons.chevron_left, size: 18),
+                label: const Text('返回结果页'),
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48)),
+              ),
+            ],
+          ),
         ),
       ),
     );

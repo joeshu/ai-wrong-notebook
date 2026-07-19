@@ -144,7 +144,7 @@ class HomeScreen extends ConsumerWidget {
                 _RecentList(questions: questions.take(5).toList(), ref: ref),
             loading: () => const AppLoadingState(label: '正在加载最近错题…'),
             error: (e, _) => AppErrorState(
-              message: '加载失败: $e',
+              error: e,
               onRetry: () => ref.invalidate(questionListProvider),
             ),
           ),
@@ -159,6 +159,12 @@ class HomeScreen extends ConsumerWidget {
     final total = questions.length;
     final mastered =
         questions.where((q) => q.masteryLevel == MasteryLevel.mastered).length;
+    final reviewing = questions
+        .where((q) => q.masteryLevel == MasteryLevel.reviewing)
+        .length;
+    final newQ = questions
+        .where((q) => q.masteryLevel == MasteryLevel.newQuestion)
+        .length;
     final pending = total - mastered;
     final now = DateTime.now();
     final todayNew = questions.where((q) {
@@ -212,33 +218,37 @@ class HomeScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: AppSpace.md),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 10,
-                    backgroundColor: colorScheme.surfaceContainerHighest,
-                    color: colorScheme.primary,
+                SizedBox(
+                  height: 8,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: Row(
+                      children: <Widget>[
+                        if (mastered > 0)
+                          Expanded(
+                              flex: mastered,
+                              child: Container(color: _kMasteredColor)),
+                        if (reviewing > 0)
+                          Expanded(
+                              flex: reviewing,
+                              child: Container(color: _kReviewingColor)),
+                        if (newQ > 0)
+                          Expanded(
+                              flex: newQ, child: Container(color: _kNewColor)),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpace.md),
                 Row(
                   children: <Widget>[
-                    Text(
-                      AppStrings.homeMasteredCount.replaceFirst('{}', '$mastered').replaceFirst('{}', '$total'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      AppStrings.homePendingCount.replaceAll('{}', '$pending'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                    _LegendDot(
+                        color: _kMasteredColor, label: '已掌握 $mastered'),
+                    const SizedBox(width: AppSpace.md),
+                    _LegendDot(
+                        color: _kReviewingColor, label: '复习中 $reviewing'),
+                    const SizedBox(width: AppSpace.md),
+                    _LegendDot(color: _kNewColor, label: '新题 $newQ'),
                   ],
                 ),
               ],
@@ -253,10 +263,15 @@ class HomeScreen extends ConsumerWidget {
 class _TodayPlanSkeleton extends StatelessWidget {
   const _TodayPlanSkeleton();
   @override
-  Widget build(BuildContext context) => Container(
-    height: 150,
-    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(AppRadius.medium)),
-  );
+  Widget build(BuildContext context) => AppShimmer(
+        child: Container(
+          height: 150,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE5E7EB),
+            borderRadius: BorderRadius.circular(AppRadius.medium),
+          ),
+        ),
+      );
 }
 
 class _QuickStartRow extends StatelessWidget {
@@ -336,24 +351,26 @@ class _StatsGridSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
-      children: <Widget>[
-        Row(
-          children: <Widget>[
-            Expanded(child: _StatCardSkeleton()),
-            SizedBox(width: AppSpace.md, height: 70),
-            Expanded(child: _StatCardSkeleton()),
-          ],
-        ),
-        SizedBox(height: AppSpace.md),
-        Row(
-          children: <Widget>[
-            Expanded(child: _StatCardSkeleton()),
-            SizedBox(width: AppSpace.md, height: 70),
-            Expanded(child: _StatCardSkeleton()),
-          ],
-        ),
-      ],
+    return AppShimmer(
+      child: Column(
+        children: <Widget>[
+          Row(
+            children: const <Widget>[
+              Expanded(child: _StatCardSkeleton()),
+              SizedBox(width: AppSpace.md, height: 70),
+              Expanded(child: _StatCardSkeleton()),
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
+          Row(
+            children: const <Widget>[
+              Expanded(child: _StatCardSkeleton()),
+              SizedBox(width: AppSpace.md, height: 70),
+              Expanded(child: _StatCardSkeleton()),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -363,12 +380,10 @@ class _StatCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Container(
       height: 70,
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
+        color: const Color(0xFFE5E7EB),
         borderRadius: BorderRadius.circular(AppRadius.small),
       ),
     );
@@ -463,6 +478,57 @@ class _TodayPlanCard extends StatelessWidget {
   }
 }
 
+const Color _kMasteredColor = Color(0xFF22C55E);
+const Color _kReviewingColor = Color(0xFFF59E0B);
+const Color _kNewColor = Color(0xFF9CA3AF);
+
+Color _mistakeCategoryColor(MistakeCategory category) {
+  switch (category) {
+    case MistakeCategory.calculation:
+      return const Color(0xFFEF4444);
+    case MistakeCategory.concept:
+      return const Color(0xFFF59E0B);
+    case MistakeCategory.careless:
+      return const Color(0xFF3B82F6);
+    case MistakeCategory.comprehension:
+    case MistakeCategory.strategy:
+    case MistakeCategory.format:
+      return const Color(0xFF9CA3AF);
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _MistakeCategorySummary extends StatelessWidget {
   const _MistakeCategorySummary({
     required this.stats,
@@ -474,6 +540,7 @@ class _MistakeCategorySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final total = stats.values.fold(0, (int sum, int v) => sum + v);
     final ranked = stats.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final top = ranked.take(3).toList();
@@ -484,17 +551,93 @@ class _MistakeCategorySummary extends StatelessWidget {
         children: <Widget>[
           Text(AppStrings.homeMistakeCategories, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: AppSpace.md),
-          Wrap(
-            spacing: AppSpace.sm,
-            runSpacing: AppSpace.sm,
-            children: top
-                .map((entry) => AppTag(
-                      label: '${entry.key.label} ${entry.value} 题',
-                      onTap: () => onSelect(entry.key),
-                    ))
-                .toList(),
-          ),
+          if (total == 0 || top.isEmpty)
+            AppEmptyState(
+              icon: CupertinoIcons.chart_bar,
+              title: '暂无错因分析数据',
+            )
+          else
+            ...top.map((entry) => _MistakeCategoryBar(
+                  category: entry.key,
+                  count: entry.value,
+                  maxValue: top.first.value.toDouble(),
+                  total: total,
+                  onTap: () => onSelect(entry.key),
+                )),
         ],
+      ),
+    );
+  }
+}
+
+class _MistakeCategoryBar extends StatelessWidget {
+  const _MistakeCategoryBar({
+    required this.category,
+    required this.count,
+    required this.maxValue,
+    required this.total,
+    required this.onTap,
+  });
+
+  final MistakeCategory category;
+  final int count;
+  final double maxValue;
+  final int total;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _mistakeCategoryColor(category);
+    final widthRatio =
+        maxValue == 0 ? 0.0 : (count / maxValue).clamp(0.0, 1.0);
+    final percent = total == 0 ? 0 : (count * 100 / total).round();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Row(
+          children: <Widget>[
+            Text(
+              category.label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: widthRatio,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            Text(
+              '$count 题 ($percent%)',
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

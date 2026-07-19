@@ -668,37 +668,60 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                   )),
             ],
             const SizedBox(height: 24),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () =>
-                        _startPractice(record, activeCandidateAnalysis),
-                    child: const Text('开始练习'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () async {
-                      final splitter = ref.read(questionSplitServiceProvider);
-                      ref
-                          .read(currentQuestionSplitSessionProvider.notifier)
-                          .state = await buildQuestionSplitSession(
-                        record,
-                        splitter: splitter,
-                      );
-                      if (!context.mounted) return;
-                      context.go('/capture/split-confirmation');
-                    },
-                    child: const Text('保存到错题本'),
-                  ),
-                ),
-              ],
-            ),
           ],
         ],
       ),
+      bottomNavigationBar: displayResult == null
+          ? null
+          : SafeArea(
+              top: true,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () =>
+                            _startPractice(record, activeCandidateAnalysis),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: const Text('开始练习'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () async {
+                          final splitter = ref.read(questionSplitServiceProvider);
+                          ref
+                              .read(currentQuestionSplitSessionProvider.notifier)
+                              .state = await buildQuestionSplitSession(
+                            record,
+                            splitter: splitter,
+                          );
+                          if (!context.mounted) return;
+                          context.go('/capture/split-confirmation');
+                        },
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: const Text('保存到错题本'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 

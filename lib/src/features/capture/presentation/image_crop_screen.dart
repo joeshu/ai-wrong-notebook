@@ -8,6 +8,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class ImageCropScreen extends ConsumerStatefulWidget {
   const ImageCropScreen({super.key});
@@ -112,14 +113,7 @@ class _ImageCropScreenState extends ConsumerState<ImageCropScreen> {
       body: SafeArea(
         child: Center(
           child: _cropping
-              ? const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('正在打开裁剪工具...'),
-                  ],
-                )
+              ? const AppLoadingState(label: '正在打开裁剪工具...')
               : Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Column(

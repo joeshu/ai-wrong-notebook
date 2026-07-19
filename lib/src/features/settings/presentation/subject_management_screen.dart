@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class SubjectManagementScreen extends ConsumerWidget {
   const SubjectManagementScreen({super.key});
@@ -59,8 +60,11 @@ class SubjectManagementScreen extends ConsumerWidget {
             );
           },
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('加载失败: $e')),
+        loading: () => const AppListSkeleton(),
+        error: (e, _) => AppErrorState(
+          error: e,
+          onRetry: () => ref.invalidate(questionListProvider),
+        ),
       ),
     );
   }

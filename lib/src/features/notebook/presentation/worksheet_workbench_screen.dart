@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
@@ -66,8 +67,11 @@ class _WorksheetWorkbenchScreenState
         ),
       ),
       body: questionsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('题库加载失败：$error')),
+        loading: () => const AppListSkeleton(),
+        error: (error, _) => AppErrorState(
+          error: error,
+          onRetry: () => ref.invalidate(questionListProvider),
+        ),
         data: (questions) {
           if (questions.isEmpty) {
             return _EmptyWorkbenchState(onAdd: () => context.go('/'));
