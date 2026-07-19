@@ -441,6 +441,9 @@ final StateProvider<Subject?> selectedSubjectFilterProvider =
 final StateProvider<MasteryLevel?> selectedMasteryFilterProvider =
     StateProvider<MasteryLevel?>((ref) => null);
 
+final StateProvider<bool> unmasteredOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
 final StateProvider<MistakeCategory?> selectedMistakeCategoryFilterProvider =
     StateProvider<MistakeCategory?>((ref) => null);
 
@@ -518,6 +521,17 @@ final FutureProvider<List<String>> allTagsProvider =
   return tags.toList()..sort();
 });
 
+final FutureProvider<List<String>> allKnowledgePointsProvider =
+    FutureProvider<List<String>>((ref) async {
+  ref.watch(_listVersionProvider);
+  final all = await ref.read(questionRepositoryProvider).listAll();
+  final points = <String>{};
+  for (final question in all) {
+    points.addAll(question.aiKnowledgePoints);
+  }
+  return points.toList()..sort();
+});
+
 // --- Filtered notebook list ---
 
 final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
@@ -527,6 +541,7 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
 
   final subject = ref.watch(selectedSubjectFilterProvider);
   final mastery = ref.watch(selectedMasteryFilterProvider);
+  final unmasteredOnly = ref.watch(unmasteredOnlyFilterProvider);
   final mistakeCategory = ref.watch(selectedMistakeCategoryFilterProvider);
   final dueOnly = ref.watch(dueOnlyFilterProvider);
   final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
@@ -546,6 +561,7 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
   final filtered = all.where((QuestionRecord q) {
     if (subject != null && q.subject != subject) return false;
     if (mastery != null && q.masteryLevel != mastery) return false;
+    if (unmasteredOnly && q.masteryLevel == MasteryLevel.mastered) return false;
     if (mistakeCategory != null && q.mistakeCategory != mistakeCategory) {
       return false;
     }

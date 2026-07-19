@@ -129,6 +129,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   void _clearFilters(WidgetRef ref) {
     ref.read(selectedSubjectFilterProvider.notifier).state = null;
     ref.read(selectedMasteryFilterProvider.notifier).state = null;
+    ref.read(unmasteredOnlyFilterProvider.notifier).state = false;
     ref.read(selectedMistakeCategoryFilterProvider.notifier).state = null;
     ref.read(selectedKnowledgePointFilterProvider.notifier).state = null;
     ref.read(selectedTagsFilterProvider.notifier).state = const <String>[];
@@ -149,6 +150,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     final questionsAsync = ref.watch(filteredQuestionListProvider);
     final selectedSubject = ref.watch(selectedSubjectFilterProvider);
     final selectedMastery = ref.watch(selectedMasteryFilterProvider);
+    final unmasteredOnly = ref.watch(unmasteredOnlyFilterProvider);
     final selectedMistakeCategory =
         ref.watch(selectedMistakeCategoryFilterProvider);
     final selectedTags = ref.watch(selectedTagsFilterProvider);
@@ -168,6 +170,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     final activeFilterLabels = <String>[
       if (selectedSubject != null) selectedSubject.label,
       if (selectedMastery != null) _masteryFilterLabel(selectedMastery),
+      if (unmasteredOnly) '未掌握',
       if (selectedMistakeCategory != null) selectedMistakeCategory.label,
       if (selectedKnowledgePoint != null) selectedKnowledgePoint,
       if (selectedTags.isNotEmpty) ...selectedTags,
@@ -290,7 +293,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               },
             ),
           ),
-          // Filter chips
+          // 高频筛选保留在首屏；低频条件收纳到高级筛选面板。
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -298,126 +301,42 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               children: <Widget>[
                 _Chip(
                   label: '全部',
-                  selected: selectedSubject == null &&
-                      selectedMastery == null &&
-                      selectedMistakeCategory == null &&
-                      selectedTags.isEmpty &&
-                      !dueOnly &&
-                      !favoritesOnly &&
-                      !failedOnly &&
-                      dateRange == QuestionDateRange.all &&
-                      selectedSource == null &&
-                      selectedStage == null &&
-                      selectedDifficulty == null &&
-                      selectedAttemptStatus == null &&
-                      sort == QuestionSort.newest &&
-                      selectedKnowledgePoint == null,
+                  selected: activeFilterLabels.isEmpty,
                   onTap: () => _clearFilters(ref),
                 ),
                 const SizedBox(width: 8),
                 _Chip(
                   label: '待复习',
                   selected: dueOnly,
-                  onTap: () => ref.read(dueOnlyFilterProvider.notifier).state =
-                      !dueOnly,
+                  onTap: () => ref.read(dueOnlyFilterProvider.notifier).state = !dueOnly,
+                ),
+                const SizedBox(width: 8),
+                _Chip(
+                  label: '未掌握',
+                  selected: unmasteredOnly,
+                  onTap: () => ref.read(unmasteredOnlyFilterProvider.notifier).state = !unmasteredOnly,
                 ),
                 const SizedBox(width: 8),
                 _Chip(
                   label: '收藏',
                   selected: favoritesOnly,
-                  onTap: () => ref
-                      .read(favoritesOnlyFilterProvider.notifier)
-                      .state = !favoritesOnly,
+                  onTap: () => ref.read(favoritesOnlyFilterProvider.notifier).state = !favoritesOnly,
                 ),
                 const SizedBox(width: 8),
                 _Chip(
-                  label: '近7天',
-                  selected: dateRange == QuestionDateRange.last7Days,
-                  onTap: () => ref
-                      .read(questionDateRangeProvider.notifier)
-                      .state = dateRange == QuestionDateRange.last7Days
-                      ? QuestionDateRange.all
-                      : QuestionDateRange.last7Days,
-                ),
-                const SizedBox(width: 8),
-                ...Subject.values.map((s) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _Chip(
-                        label: s.label,
-                        selected: selectedSubject == s,
-                        onTap: () {
-                          ref
-                              .read(selectedSubjectFilterProvider.notifier)
-                              .state = selectedSubject == s ? null : s;
-                        },
-                      ),
-                    )),
-                ...MistakeCategory.values.map((category) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _Chip(
-                        label: category.label,
-                        selected: selectedMistakeCategory == category,
-                        onTap: () {
-                          ref
-                              .read(selectedMistakeCategoryFilterProvider
-                                  .notifier)
-                              .state = selectedMistakeCategory == category
-                              ? null
-                              : category;
-                        },
-                      ),
-                    )),
-                ...sources.map((source) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _Chip(
-                        label: '来源：$source',
-                        selected: selectedSource == source,
-                        onTap: () {
-                          ref.read(selectedSourceFilterProvider.notifier).state =
-                              selectedSource == source ? null : source;
-                        },
-                      ),
-                    )),
-                ...stages.map((stage) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _Chip(
-                        label: '年级：$stage',
-                        selected: selectedStage == stage,
-                        onTap: () => ref.read(selectedLearningStageFilterProvider.notifier).state =
-                            selectedStage == stage ? null : stage,
-                      ),
-                    )),
-                ...QuestionDifficulty.values.map((difficulty) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _Chip(
-                        label: _difficultyFilterLabel(difficulty),
-                        selected: selectedDifficulty == difficulty,
-                        onTap: () => ref.read(selectedDifficultyFilterProvider.notifier).state =
-                            selectedDifficulty == difficulty ? null : difficulty,
-                      ),
-                    )),
-                ...AttemptStatus.values.map((status) => Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: _Chip(
-                        label: _attemptFilterLabel(status),
-                        selected: selectedAttemptStatus == status,
-                        onTap: () => ref.read(selectedAttemptStatusFilterProvider.notifier).state =
-                            selectedAttemptStatus == status ? null : status,
-                      ),
-                    )),
-                // AI 知识点过滤
-                if (selectedKnowledgePoint != null) ...<Widget>[
-                  const SizedBox(width: 8),
-                  _Chip(
-                    label: '📚 $selectedKnowledgePoint',
-                    selected: true,
-                    onTap: () {
-                      ref
-                          .read(selectedKnowledgePointFilterProvider.notifier)
-                          .state = null;
-                    },
+                  label: '筛选',
+                  selected: activeFilterLabels.any((label) =>
+                      label != '待复习' && label != '未掌握' && label != '收藏'),
+                  onTap: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (_) => _AdvancedFilterSheet(
+                      sources: sources,
+                      stages: stages,
+                      onClear: () => _clearFilters(ref),
+                    ),
                   ),
-                ],
+                ),
               ],
             ),
           ),
@@ -909,6 +828,93 @@ String _sortFilterLabel(QuestionSort value) => switch (value) {
       QuestionSort.newest => '最新录入',
       QuestionSort.oldest => '最早录入',
       QuestionSort.nextReview => '下次复习',
+    };
+
+class _AdvancedFilterSheet extends ConsumerWidget {
+  const _AdvancedFilterSheet({
+    required this.sources,
+    required this.stages,
+    required this.onClear,
+  });
+
+  final List<String> sources;
+  final List<String> stages;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final subject = ref.watch(selectedSubjectFilterProvider);
+    final category = ref.watch(selectedMistakeCategoryFilterProvider);
+    final knowledge = ref.watch(selectedKnowledgePointFilterProvider);
+    final dateRange = ref.watch(questionDateRangeProvider);
+    final source = ref.watch(selectedSourceFilterProvider);
+    final stage = ref.watch(selectedLearningStageFilterProvider);
+    final difficulty = ref.watch(selectedDifficultyFilterProvider);
+    final attempt = ref.watch(selectedAttemptStatusFilterProvider);
+    final failedOnly = ref.watch(failedOnlyFilterProvider);
+    final sort = ref.watch(questionSortProvider);
+    final points = ref.watch(allKnowledgePointsProvider).valueOrNull ?? const <String>[];
+
+    return SafeArea(
+      child: DraggableScrollableSheet(
+        initialChildSize: .78,
+        minChildSize: .45,
+        maxChildSize: .94,
+        expand: false,
+        builder: (context, controller) => ListView(
+          controller: controller,
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          children: <Widget>[
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Row(children: <Widget>[Text('高级筛选', style: Theme.of(context).textTheme.titleLarge), const Spacer(), TextButton(onPressed: onClear, child: const Text('清除全部'))]),
+            _FilterOptionGroup<Subject>(title: '科目', values: Subject.values, selected: subject, label: (value) => value.label, onChanged: (value) => ref.read(selectedSubjectFilterProvider.notifier).state = value),
+            _FilterOptionGroup<MistakeCategory>(title: '错因', values: MistakeCategory.values, selected: category, label: (value) => value.label, onChanged: (value) => ref.read(selectedMistakeCategoryFilterProvider.notifier).state = value),
+            if (points.isNotEmpty) _FilterOptionGroup<String>(title: '知识点', values: points, selected: knowledge, label: (value) => value, onChanged: (value) => ref.read(selectedKnowledgePointFilterProvider.notifier).state = value),
+            _FilterOptionGroup<QuestionDateRange>(title: '录入日期', values: const <QuestionDateRange>[QuestionDateRange.all, QuestionDateRange.last7Days, QuestionDateRange.last30Days], selected: dateRange, label: _dateRangeLabel, onChanged: (value) => ref.read(questionDateRangeProvider.notifier).state = value ?? QuestionDateRange.all),
+            if (sources.isNotEmpty) _FilterOptionGroup<String>(title: '来源批次', values: sources, selected: source, label: (value) => value, onChanged: (value) => ref.read(selectedSourceFilterProvider.notifier).state = value),
+            if (stages.isNotEmpty) _FilterOptionGroup<String>(title: '年级 / 学习阶段', values: stages, selected: stage, label: (value) => value, onChanged: (value) => ref.read(selectedLearningStageFilterProvider.notifier).state = value),
+            _FilterOptionGroup<QuestionDifficulty>(title: '难度', values: QuestionDifficulty.values, selected: difficulty, label: _difficultyFilterLabel, onChanged: (value) => ref.read(selectedDifficultyFilterProvider.notifier).state = value),
+            _FilterOptionGroup<AttemptStatus>(title: '作答状态', values: AttemptStatus.values, selected: attempt, label: _attemptFilterLabel, onChanged: (value) => ref.read(selectedAttemptStatusFilterProvider.notifier).state = value),
+            _FilterOptionGroup<QuestionSort>(title: '排序', values: QuestionSort.values, selected: sort, label: _sortFilterLabel, onChanged: (value) => ref.read(questionSortProvider.notifier).state = value ?? QuestionSort.newest),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('仅看待处理草稿'),
+              value: failedOnly,
+              onChanged: (value) => ref.read(failedOnlyFilterProvider.notifier).state = value,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(context), child: const Text('完成'))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterOptionGroup<T> extends StatelessWidget {
+  const _FilterOptionGroup({required this.title, required this.values, required this.selected, required this.label, required this.onChanged});
+  final String title;
+  final List<T> values;
+  final T? selected;
+  final String Function(T) label;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 16),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+      Text(title, style: Theme.of(context).textTheme.titleSmall),
+      const SizedBox(height: 8),
+      Wrap(spacing: 8, runSpacing: 8, children: values.map((value) => ChoiceChip(label: Text(label(value)), selected: selected == value, onSelected: (_) => onChanged(selected == value ? null : value))).toList()),
+    ]),
+  );
+}
+
+String _dateRangeLabel(QuestionDateRange value) => switch (value) {
+      QuestionDateRange.all => '不限',
+      QuestionDateRange.last7Days => '近 7 天',
+      QuestionDateRange.last30Days => '近 30 天',
     };
 
 class _ActiveFilterSummary extends StatelessWidget {
