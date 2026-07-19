@@ -321,6 +321,9 @@ void main() {
       overrides: <Override>[
         questionRepositoryProvider.overrideWithValue(repository),
         currentQuestionProvider.overrideWith((ref) => first),
+        questionBatchGroupsProvider.overrideWithValue(
+          AsyncValue.data(buildQuestionBatchGroups(<QuestionRecord>[first, second])),
+        ),
       ],
     );
     addTearDown(container.dispose);
