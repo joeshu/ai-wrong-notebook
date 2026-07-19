@@ -25,6 +25,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   final _analysisKey = GlobalKey();
   final _practiceKey = GlobalKey();
   final _recordKey = GlobalKey();
+  bool _editing = false;
 
   void _jumpTo(GlobalKey key) {
     final target = key.currentContext;
@@ -65,55 +66,39 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
             onPressed: () => _toggleFavorite(context, ref, current),
           ),
           IconButton(
-            icon: const Icon(CupertinoIcons.pencil),
-            onPressed: () => _editQuestion(context, ref, current),
+            icon: Icon(_editing ? CupertinoIcons.check_mark : CupertinoIcons.pencil),
+            tooltip: _editing ? '完成编辑' : '编辑题目',
+            onPressed: () => setState(() => _editing = !_editing),
           ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'delete') _confirmDelete(context, ref, current);
-              if (value == 'source') _editSource(context, ref, current);
-              if (value == 'learningContext') {
-                _editLearningContext(context, ref, current);
-              }
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'learningContext',
-                child: Row(
-                  children: [
-                    Icon(CupertinoIcons.person_crop_circle, size: 20),
-                    SizedBox(width: 8),
-                    Text('编辑学习档案'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'source',
-                child: Row(
-                  children: [
-                    Icon(CupertinoIcons.folder, size: 20),
-                    SizedBox(width: 8),
-                    Text('设置题目来源'),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
+          if (_editing)
+            PopupMenuButton<String>(
+              onSelected: (value) {
+                if (value == 'delete') _confirmDelete(context, ref, current);
+              },
+              itemBuilder: (_) => const <PopupMenuEntry<String>>[
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(children: <Widget>[
                     Icon(CupertinoIcons.trash, color: Colors.red, size: 20),
                     SizedBox(width: 8),
                     Text('删除', style: TextStyle(color: Colors.red)),
-                  ],
+                  ]),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
       body: Column(children: <Widget>[
         _DetailSectionBar(onQuestion: () => _jumpTo(_questionKey), onAnalysis: () => _jumpTo(_analysisKey), onPractice: () => _jumpTo(_practiceKey), onRecord: () => _jumpTo(_recordKey)),
+        if (_editing)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+            child: OutlinedButton.icon(
+              onPressed: () => _editQuestion(context, ref, current),
+              icon: const Icon(CupertinoIcons.doc_text),
+              label: const Text('编辑题干、答案与解析'),
+            ),
+          ),
         Expanded(child: ListView(
         padding: const EdgeInsets.all(24),
         children: <Widget>[
@@ -212,10 +197,10 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                         .toList(),
                   ),
                 ],
-                // 添加标签按钮
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () => _showAddTagDialog(context, ref, current),
+                if (_editing) ...<Widget>[
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => _showAddTagDialog(context, ref, current),
                   child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -246,13 +231,15 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                       ],
                     ),
                   ),
-                ),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 12),
           _LearningProfileCard(
             question: current,
+            editing: _editing,
             onToggleFavorite: () => _toggleFavorite(context, ref, current),
             onEditSource: () => _editSource(context, ref, current),
             onEditLearningContext: () => _editLearningContext(context, ref, current),
@@ -1063,12 +1050,14 @@ class _SectionNavButton extends StatelessWidget {
 class _LearningProfileCard extends StatelessWidget {
   const _LearningProfileCard({
     required this.question,
+    required this.editing,
     required this.onToggleFavorite,
     required this.onEditSource,
     required this.onEditLearningContext,
   });
 
   final QuestionRecord question;
+  final bool editing;
   final VoidCallback onToggleFavorite;
   final VoidCallback onEditSource;
   final VoidCallback onEditLearningContext;
@@ -1114,16 +1103,30 @@ class _LearningProfileCard extends StatelessWidget {
                 label: question.isFavorite ? '已收藏' : '收藏',
                 onTap: onToggleFavorite,
               ),
-              _ProfileAction(
-                icon: CupertinoIcons.folder,
-                label: question.source ?? '设置来源',
-                onTap: onEditSource,
-              ),
-              _ProfileAction(
-                icon: CupertinoIcons.person_crop_circle,
-                label: question.learningStage ?? '学习档案',
-                onTap: onEditLearningContext,
-              ),
+              if (editing)
+                _ProfileAction(
+                  icon: CupertinoIcons.folder,
+                  label: question.source ?? '设置来源',
+                  onTap: onEditSource,
+                )
+              else
+                _ProfileItem(
+                  icon: CupertinoIcons.folder,
+                  label: '来源',
+                  value: question.source ?? '未设置',
+                ),
+              if (editing)
+                _ProfileAction(
+                  icon: CupertinoIcons.person_crop_circle,
+                  label: question.learningStage ?? '学习档案',
+                  onTap: onEditLearningContext,
+                )
+              else
+                _ProfileItem(
+                  icon: CupertinoIcons.person_crop_circle,
+                  label: '学习阶段',
+                  value: question.learningStage ?? '未设置',
+                ),
               if (question.difficulty != null)
                 _ProfileItem(
                   icon: CupertinoIcons.chart_bar,
