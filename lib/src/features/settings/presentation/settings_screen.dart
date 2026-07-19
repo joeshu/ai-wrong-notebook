@@ -19,8 +19,8 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: <Widget>[
-          // Appearance
-          Text('外观',
+          // 应用外观
+          Text('应用外观',
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),
@@ -125,15 +125,15 @@ class SettingsScreen extends ConsumerWidget {
                   icon: CupertinoIcons.pencil,
                   iconColor: const Color(0xFFD97706),
                   lightIconBg: const Color(0xFFFFFBEB),
-                  title: '提示词设置',
+                  title: 'AI 分析偏好',
                   onTap: () => context.go('/settings/prompts'),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 24),
-          // Content
-          Text('内容',
+          // 学习内容
+          Text('学习与内容',
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),

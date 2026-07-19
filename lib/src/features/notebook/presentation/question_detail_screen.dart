@@ -13,8 +13,23 @@ import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
-class QuestionDetailScreen extends ConsumerWidget {
+class QuestionDetailScreen extends ConsumerStatefulWidget {
   const QuestionDetailScreen({super.key});
+
+  @override
+  ConsumerState<QuestionDetailScreen> createState() => _QuestionDetailScreenState();
+}
+
+class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
+  final _questionKey = GlobalKey();
+  final _analysisKey = GlobalKey();
+  final _practiceKey = GlobalKey();
+  final _recordKey = GlobalKey();
+
+  void _jumpTo(GlobalKey key) {
+    final target = key.currentContext;
+    if (target != null) Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -97,12 +112,14 @@ class QuestionDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
+      body: Column(children: <Widget>[
+        _DetailSectionBar(onQuestion: () => _jumpTo(_questionKey), onAnalysis: () => _jumpTo(_analysisKey), onPractice: () => _jumpTo(_practiceKey), onRecord: () => _jumpTo(_recordKey)),
+        Expanded(child: ListView(
         padding: const EdgeInsets.all(24),
         children: <Widget>[
           // 统一标签分类框：科目 | AI识别 | 状态
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            key: _questionKey,
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
@@ -291,7 +308,9 @@ class QuestionDetailScreen extends ConsumerWidget {
             ),
           ],
           if (result != null) ...<Widget>[
+            Container(key: _analysisKey),
             const SizedBox(height: 16),
+            Container(key: _practiceKey),
             _PracticeSummaryCard(current: current),
             const SizedBox(height: 20),
             // 原题（包含图片和文本）
@@ -575,6 +594,7 @@ class QuestionDetailScreen extends ConsumerWidget {
                   )),
             ],
             const SizedBox(height: 24),
+            Container(key: _recordKey),
             _MasteryActions(
               current: current,
               onForgot: () => _markResult(context, ref, current, ReviewRating.forgot),
@@ -583,7 +603,8 @@ class QuestionDetailScreen extends ConsumerWidget {
             ),
           ],
         ],
-      ),
+      )),
+    ]),
     );
   }
 
@@ -1011,6 +1032,32 @@ class QuestionDetailScreen extends ConsumerWidget {
     };
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+class _DetailSectionBar extends StatelessWidget {
+  const _DetailSectionBar({required this.onQuestion, required this.onAnalysis, required this.onPractice, required this.onRecord});
+  final VoidCallback onQuestion;
+  final VoidCallback onAnalysis;
+  final VoidCallback onPractice;
+  final VoidCallback onRecord;
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Theme.of(context).colorScheme.surface,
+    child: SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 6, 12, 8), child: Row(children: <Widget>[
+      _SectionNavButton(label: '题目', onTap: onQuestion),
+      _SectionNavButton(label: '解析', onTap: onAnalysis),
+      _SectionNavButton(label: '练习', onTap: onPractice),
+      _SectionNavButton(label: '记录', onTap: onRecord),
+    ])),
+  );
+}
+
+class _SectionNavButton extends StatelessWidget {
+  const _SectionNavButton({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(right: 8), child: OutlinedButton(onPressed: onTap, child: Text(label)));
 }
 
 class _LearningProfileCard extends StatelessWidget {

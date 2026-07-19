@@ -11,6 +11,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class NotebookScreen extends ConsumerStatefulWidget {
   const NotebookScreen({super.key});
@@ -418,25 +419,11 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
             child: questionsAsync.when(
               data: (questions) {
                 if (questions.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Icon(CupertinoIcons.question,
-                            size: 64,
-                            color: colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.45)),
-                        const SizedBox(height: 16),
-                        Text('暂无错题',
-                            style: TextStyle(
-                                fontSize: 16, color: colorScheme.onSurface)),
-                        const SizedBox(height: 8),
-                        Text('点击 + 拍照添加',
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: colorScheme.onSurfaceVariant)),
-                      ],
-                    ),
+                  return AppEmptyState(
+                    icon: CupertinoIcons.question,
+                    title: '还没有错题',
+                    description: '拍照录入一道错题，或导入整页试卷开始整理。',
+                    action: FilledButton.icon(onPressed: () => showModalBottomSheet<void>(context: context, builder: (_) => const CaptureEntrySheet()), icon: const Icon(CupertinoIcons.camera), label: const Text('拍照录题')),
                   );
                 }
                 final hasPracticeAction =
@@ -488,8 +475,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                   ),
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('加载失败: $e')),
+              loading: () => const AppLoadingState(label: '正在整理错题本…'),
+              error: (_, __) => AppErrorState(onRetry: () => ref.invalidate(questionListProvider)),
             ),
           ),
         ],
