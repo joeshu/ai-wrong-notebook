@@ -116,15 +116,6 @@ class _WorksheetRegionEditorScreenState
           onPressed: _isCropping ? null : () => context.go('/worksheet/import'),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-        child: FilledButton.icon(
-          onPressed: _isCropping || _regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).isEmpty ? null : () => _confirmAndCrop(page),
-          icon: _isCropping ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(CupertinoIcons.crop),
-          label: Text(_isCropping ? '正在生成独立题图...' : '确认并生成 ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).length} 道题'),
-          style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-        ),
-      ),
       body: SafeArea(
         child: Column(children: <Widget>[
           Padding(
@@ -243,6 +234,14 @@ class _WorksheetRegionEditorScreenState
               );
             }),
           ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: FilledButton.icon(
+              onPressed: _isCropping || _regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).isEmpty ? null : () => _confirmAndCrop(page),
+              icon: _isCropping ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(CupertinoIcons.crop),
+              label: Text(_isCropping ? '正在生成独立题图...' : '确认并生成 ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).length} 道题'),
+              style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+            ),
           ),
         ]),
       ),
