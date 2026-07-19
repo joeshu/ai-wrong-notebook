@@ -16,6 +16,7 @@ import 'package:smart_wrong_notebook/src/features/settings/presentation/layout_p
 import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/prompt_settings_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/data_management_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/export_workbench_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/image_crop_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/question_correction_screen.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_import_screen.dart';
@@ -95,6 +96,10 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                   GoRoute(
                       path: 'data',
                       builder: (_, __) => const DataManagementScreen()),
+                  GoRoute(
+                    path: 'export-workbench',
+                    builder: (_, __) => const ExportWorkbenchScreen(),
+                  ),
                 ],
               ),
             ],

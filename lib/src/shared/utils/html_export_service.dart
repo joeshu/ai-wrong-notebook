@@ -9,21 +9,163 @@ import 'package:image/image.dart' as image;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
-import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
-import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_template.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/html_render_utils.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/templates/export_template_factory.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/worksheet_export_mode.dart';
 
-/// 封面上的学生信息栏数据。
+/// 封面上学生信息栏数据。
 class ExportStudentInfo {
-  const ExportStudentInfo({this.name, this.className, this.date});
+  const ExportStudentInfo({
+    this.name,
+    this.className,
+    this.date,
+    this.anonymize = false,
+    this.watermark,
+  });
 
   final String? name;
   final String? className;
 
   /// 已格式化的日期字符串，为空时使用导出当前时间。
   final String? date;
+
+  /// 脱敏导出：将姓名替换为 "X 同学"，日期仅保留到天（隐藏时分）。
+  final bool anonymize;
+
+  /// 水印文本，支持占位符 "{学生名}" 与 "{日期}"；为空表示不渲染水印。
+  final String? watermark;
+
+  /// 脱敏导出时返回 'X 同学'，否则返回 [name]（可能为 null）。
+  String? get displayName => anonymize ? 'X 同学' : name;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ExportStudentInfo &&
+          name == other.name &&
+          className == other.className &&
+          date == other.date &&
+          anonymize == other.anonymize &&
+          watermark == other.watermark;
+
+  @override
+  int get hashCode => Object.hash(name, className, date, anonymize, watermark);
+}
+
+/// HTML 导出结果：包含文件路径与统计信息。
+class HtmlExportResult {
+  const HtmlExportResult({
+    required this.filePath,
+    required this.totalQuestions,
+    required this.failedImages,
+    required this.htmlSizeBytes,
+  });
+
+  /// 生成的 HTML 文件绝对路径。
+  final String filePath;
+
+  /// 题目总数。
+  final int totalQuestions;
+
+  /// 处理失败的题图数量。
+  final int failedImages;
+
+  /// HTML 文件大小（字节）。
+  final int htmlSizeBytes;
+
+  /// 失败题图数 > 0 时返回给用户的提示文案，否则返回空串。
+  String get failureHint =>
+      failedImages > 0 ? '$failedImages 张题图处理失败' : '';
+}
+
+/// HTML 导出缓存：避免预览页与 PDF 导出重复生成同一份 HTML。
+///
+/// 缓存键：(questions 引用, mode, contentOptions, title, studentInfo,
+/// lowResolution, noImage, layoutOptions, templateType)。任一不同则视为不命中。
+/// 简单的引用/值相等判断，适合「预览 → 导出 PDF」这种短时间内的复用场景。
+class HtmlExportCache {
+  static String? _cachedHtml;
+  static List<QuestionRecord>? _cachedQuestions;
+  static WorksheetExportMode? _cachedMode;
+  static ExportContentOptions? _cachedOptions;
+  static String? _cachedTitle;
+  static ExportStudentInfo? _cachedStudentInfo;
+  static bool? _cachedLowResolution;
+  static bool? _cachedNoImage;
+  static PdfLayoutOptions? _cachedLayoutOptions;
+  static ExportTemplateType? _cachedTemplateType;
+
+  HtmlExportCache._();
+
+  /// 命中返回缓存的 HTML 字符串，否则返回 null。
+  static String? get({
+    required List<QuestionRecord> questions,
+    WorksheetExportMode? mode,
+    ExportContentOptions? options,
+    String title = '错题本整理报告',
+    ExportStudentInfo? studentInfo,
+    bool lowResolution = false,
+    bool noImage = false,
+    PdfLayoutOptions? layoutOptions,
+    ExportTemplateType templateType = ExportTemplateType.mistakeReport,
+  }) {
+    if (_cachedHtml != null &&
+        identical(_cachedQuestions, questions) &&
+        _cachedMode == mode &&
+        _cachedOptions == options &&
+        _cachedTitle == title &&
+        _cachedStudentInfo == studentInfo &&
+        _cachedLowResolution == lowResolution &&
+        _cachedNoImage == noImage &&
+        _cachedLayoutOptions == layoutOptions &&
+        _cachedTemplateType == templateType) {
+      return _cachedHtml;
+    }
+    return null;
+  }
+
+  /// 写入缓存。后续相同键的 [get] 调用会直接返回 [html]。
+  static void set(
+    String html, {
+    required List<QuestionRecord> questions,
+    WorksheetExportMode? mode,
+    ExportContentOptions? options,
+    String title = '错题本整理报告',
+    ExportStudentInfo? studentInfo,
+    bool lowResolution = false,
+    bool noImage = false,
+    PdfLayoutOptions? layoutOptions,
+    ExportTemplateType templateType = ExportTemplateType.mistakeReport,
+  }) {
+    _cachedHtml = html;
+    _cachedQuestions = questions;
+    _cachedMode = mode;
+    _cachedOptions = options;
+    _cachedTitle = title;
+    _cachedStudentInfo = studentInfo;
+    _cachedLowResolution = lowResolution;
+    _cachedNoImage = noImage;
+    _cachedLayoutOptions = layoutOptions;
+    _cachedTemplateType = templateType;
+  }
+
+  /// 清空缓存。
+  static void clear() {
+    _cachedHtml = null;
+    _cachedQuestions = null;
+    _cachedMode = null;
+    _cachedOptions = null;
+    _cachedTitle = null;
+    _cachedStudentInfo = null;
+    _cachedLowResolution = null;
+    _cachedNoImage = null;
+    _cachedLayoutOptions = null;
+    _cachedTemplateType = null;
+  }
 }
 
 /// 生成完全自包含的 HTML 错题报告。
@@ -33,12 +175,29 @@ class ExportStudentInfo {
 /// - 题目文本、答案、解析中的 LaTeX 会被 KaTeX 渲染，支持 `$$`、`$`、
 ///   `\(...\)`、`\[...\]` 以及 `\begin{env}...\end{env}` 环境。
 /// - 错题原图（如果存在）会被缩放压缩后以 base64 内嵌，几何图形可直接查看。
+/// - 大题量（>50 题或预估 HTML >10MB）走分章节流式写入路径，避免单 StringBuffer
+///   持有完整 HTML 字符串与图片 base64 Map 同时驻留内存的峰值。
+/// - 通过 [templateType] 选择导出模板（错题报告 / 学习报告 / 复习卡），
+///   模板负责 CSS / 封面 / 题目块 / 尾页的生成；本服务负责图片预处理、KaTeX
+///   内联、流式写入、文件管理、缓存等通用逻辑。
 class HtmlExportService {
   static String? _cachedKatexCss;
   static String? _cachedKatexJs;
 
-  /// exports 目录最多保留的文件数，超出按时间倒序清理。
-  static const int maxKeptExports = 20;
+  /// exports 目录按总大小清理的阈值（200MB）。
+  static const int maxTotalExportsBytes = 200 * 1024 * 1024;
+
+  /// exports 目录文件数二次保护上限。
+  static const int maxKeptExports = 50;
+
+  /// 图片分批处理每批数量。
+  static const int _imageBatchSize = 8;
+
+  /// 大题量阈值：超过则启用流式写入。
+  static const int _streamingQuestionThreshold = 50;
+
+  /// 流式写入触发阈值：预估 HTML 字节数。
+  static const int _streamingSizeThreshold = 10 * 1024 * 1024;
 
   /// 是否为桌面平台（Windows / macOS / Linux），用于 PDF 降级判断。
   static bool get isDesktopPlatform =>
@@ -48,132 +207,191 @@ class HtmlExportService {
   /// 生成 HTML 字符串（可用于直接写入文件或转 PDF）。
   ///
   /// [onProgress] 在预处理图片时回调，用于显示进度。
+  /// [lowResolution] 为 true 时图片压缩到 maxWidth 800px、JPEG quality 60，
+  /// 适合大题量场景减小 HTML 体积。
+  /// [noImage] 为 true 时跳过所有图片处理，HTML 中以"[题图省略]"占位。
+  /// [contentOptions] 提供时启用缓存：命中则直接返回缓存，未命中则生成后缓存。
+  /// [watermark] 非空时在 HTML 上叠加固定位置水印（支持 "{学生名}" "{日期}" 占位符）。
+  /// [layoutOptions] 非空时覆盖默认 A4 + 22mm 16mm 边距 + 11pt 字号，
+  /// 同时控制封面/目录/页眉/页脚是否生成。
+  /// [templateType] 选择导出模板，默认 [ExportTemplateType.mistakeReport]
+  /// 保持向后兼容。
+  /// [reviewLogs] 用于学习报告模板尾页的复习趋势图，可为空。
   static Future<String> generateHtmlString(
     List<QuestionRecord> questions, {
     String title = '错题本整理报告',
     WorksheetExportMode? mode,
     ExportStudentInfo? studentInfo,
     void Function(int done, int total)? onProgress,
+    bool lowResolution = false,
+    bool noImage = false,
+    ExportContentOptions? contentOptions,
+    String? watermark,
+    PdfLayoutOptions? layoutOptions,
+    ExportTemplateType templateType = ExportTemplateType.mistakeReport,
+    List<ReviewLog>? reviewLogs,
   }) async {
-    final katexCss = await _loadKatexCss();
-    final katexJs = await _loadKatexJs();
-
-    final grouped = <Subject, List<QuestionRecord>>{};
-    for (final q in questions) {
-      grouped.putIfAbsent(q.subject, () => []).add(q);
-    }
-    final sortedSubjects = grouped.keys.toList()
-      ..sort((a, b) => a.label.compareTo(b.label));
-
-    // 预处理所有图片（并行压缩编码），避免逐题 await 阻塞。
-    final imageUris = await _preloadImages(questions, onProgress);
-
-    final dateStr = studentInfo?.date ??
-        DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-    final buffer = StringBuffer();
-
-    buffer.writeln('<!DOCTYPE html>');
-    buffer.writeln('<html lang="zh-CN">');
-    buffer.writeln('<head>');
-    buffer.writeln('<meta charset="UTF-8">');
-    buffer.writeln(
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0">');
-    buffer.writeln('<title>${_escapeHtml(title)}</title>');
-    buffer.writeln('<style>');
-    buffer.writeln(_reportCss());
-    buffer.writeln(katexCss);
-    buffer.writeln('</style>');
-    buffer.writeln('</head>');
-    buffer.writeln('<body>');
-    // 打印时的页眉页脚（fixed 元素，支持的平台会在每页重复）。
-    buffer.writeln('  <div class="print-header">${_escapeHtml(title)}</div>');
-    buffer.writeln('  <div class="print-footer"></div>');
-    buffer.writeln('<div class="page">');
-
-    // 封面
-    buffer.writeln('  <div class="cover">');
-    buffer.writeln('    <h1>${_escapeHtml(title)}</h1>');
-    buffer.writeln('    <div class="subtitle">AI Wrong Notebook</div>');
-    buffer.writeln('    <div class="divider"></div>');
-    buffer.writeln('    <div class="info">共 ${questions.length} 道错题</div>');
-    buffer.writeln('    <div class="info">导出时间：$dateStr</div>');
-    buffer.writeln(
-        '    <div class="info">涵盖 ${sortedSubjects.length} 个学科</div>');
-    buffer.writeln('    <div class="name-row">');
-    buffer.writeln(
-        '      <span>姓&emsp;名：${_escapeHtml(studentInfo?.name ?? '____________')}</span>');
-    buffer.writeln(
-        '      <span>班&emsp;级：${_escapeHtml(studentInfo?.className ?? '____________')}</span>');
-    buffer.writeln('    </div>');
-    buffer.writeln('    <div class="name-row">');
-    buffer.writeln('      <span>日&emsp;期：$dateStr</span>');
-    buffer.writeln('      <span>得&emsp;分：____________</span>');
-    buffer.writeln('    </div>');
-    buffer.writeln('  </div>');
-
-    // 目录
-    buffer.writeln('  <div class="toc">');
-    buffer.writeln('    <h2>目&emsp;录</h2>');
-    for (final subject in sortedSubjects) {
-      final list = grouped[subject]!;
-      buffer.writeln('    <div class="toc-item">');
-      buffer.writeln('      <span>${_escapeHtml(subject.label)}</span>');
-      buffer.writeln('      <span class="count">${list.length} 题</span>');
-      buffer.writeln('    </div>');
-    }
-    buffer.writeln('    <div class="legend">');
-    buffer.writeln(
-        '      掌握程度：● 待学习&emsp;● 复习中&emsp;● 已掌握');
-    buffer.writeln('    </div>');
-    buffer.writeln('  </div>');
-
-    // 各学科详情
-    int globalIndex = 0;
-    for (final subject in sortedSubjects) {
-      final list = grouped[subject]!;
-      final color = _subjectColorHex(subject);
-      buffer.writeln('  <div class="subject-section">');
-      buffer.writeln('    <div class="subject-header">');
-      buffer.writeln(
-          '      <div class="subject-bar" style="background:$color"></div>');
-      buffer.writeln(
-          '      <div class="subject-title">${_escapeHtml(subject.label)}（${list.length} 题）</div>');
-      buffer.writeln('    </div>');
-
-      for (final q in list) {
-        globalIndex++;
-        _writeQuestionBlock(buffer, globalIndex, q,
-            mode: mode, imageUris: imageUris);
-      }
-
-      buffer.writeln('  </div>');
-    }
-
-    buffer.writeln('</div>');
-    buffer.writeln('<script>');
-    buffer.writeln(katexJs);
-    buffer.writeln(_renderMathJs());
-    buffer.writeln('</script>');
-    buffer.writeln('</body>');
-    buffer.writeln('</html>');
-
-    return buffer.toString();
-  }
-
-  /// 生成 HTML 文件并返回。
-  static Future<File> generateHtml(
-    List<QuestionRecord> questions, {
-    String title = '错题本整理报告',
-    WorksheetExportMode? mode,
-    ExportStudentInfo? studentInfo,
-    void Function(int done, int total)? onProgress,
-  }) async {
-    final html = await generateHtmlString(
+    final result = await _generateHtmlStringInternal(
       questions,
       title: title,
       mode: mode,
       studentInfo: studentInfo,
       onProgress: onProgress,
+      lowResolution: lowResolution,
+      noImage: noImage,
+      contentOptions: contentOptions,
+      watermark: watermark,
+      layoutOptions: layoutOptions,
+      templateType: templateType,
+      reviewLogs: reviewLogs,
+    );
+    return result.html;
+  }
+
+  /// 内部实现：返回 HTML 字符串及失败题图数。
+  static Future<({String html, int failedImages})> _generateHtmlStringInternal(
+    List<QuestionRecord> questions, {
+    String title = '错题本整理报告',
+    WorksheetExportMode? mode,
+    ExportStudentInfo? studentInfo,
+    void Function(int done, int total)? onProgress,
+    bool lowResolution = false,
+    bool noImage = false,
+    ExportContentOptions? contentOptions,
+    String? watermark,
+    PdfLayoutOptions? layoutOptions,
+    ExportTemplateType templateType = ExportTemplateType.mistakeReport,
+    List<ReviewLog>? reviewLogs,
+  }) async {
+    // 缓存命中检查
+    if (contentOptions != null) {
+      final cached = HtmlExportCache.get(
+        questions: questions,
+        mode: mode,
+        options: contentOptions,
+        title: title,
+        studentInfo: studentInfo,
+        lowResolution: lowResolution,
+        noImage: noImage,
+        layoutOptions: layoutOptions,
+        templateType: templateType,
+      );
+      if (cached != null) {
+        return (html: cached, failedImages: 0);
+      }
+    }
+
+    final katexCss = await _loadKatexCss();
+    final katexJs = await _loadKatexJs();
+
+    final template = ExportTemplateFactory.create(templateType);
+
+    // 脱敏导出：隐藏创建时间的时分秒，仅保留到天。
+    final anonymize = studentInfo?.anonymize ?? false;
+    final dateStr = studentInfo?.date ??
+        DateFormat(anonymize ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm')
+            .format(DateTime.now());
+    final resolvedWatermark = _resolveWatermark(watermark, studentInfo, dateStr);
+
+    // 预处理所有图片（分批压缩编码，避免一次启动过多 isolate）。
+    final imageResult = await _preloadImages(
+      questions,
+      onProgress,
+      lowResolution: lowResolution,
+      noImage: noImage,
+    );
+
+    final useStreaming = _shouldUseStreaming(questions);
+
+    String html;
+    if (useStreaming) {
+      // 大题量流式写入：先写文件头到临时文件，按章节 flush，最后写文件尾。
+      html = await _generateHtmlStreaming(
+        questions: questions,
+        title: title,
+        mode: mode,
+        studentInfo: studentInfo,
+        dateStr: dateStr,
+        katexCss: katexCss,
+        katexJs: katexJs,
+        imageUris: imageResult.uris,
+        noImage: noImage,
+        watermark: resolvedWatermark,
+        layoutOptions: layoutOptions,
+        template: template,
+        contentOptions: contentOptions ?? const ExportContentOptions(),
+        reviewLogs: reviewLogs,
+      );
+    } else {
+      // 小题量：保持原 StringBuffer 路径（性能更好）。
+      final buffer = StringBuffer();
+      _writeHtmlToSink(
+        buffer,
+        questions: questions,
+        title: title,
+        mode: mode,
+        studentInfo: studentInfo,
+        dateStr: dateStr,
+        katexCss: katexCss,
+        katexJs: katexJs,
+        imageUris: imageResult.uris,
+        noImage: noImage,
+        watermark: resolvedWatermark,
+        layoutOptions: layoutOptions,
+        template: template,
+        contentOptions: contentOptions ?? const ExportContentOptions(),
+        reviewLogs: reviewLogs,
+      );
+      html = buffer.toString();
+    }
+
+    // 写入缓存
+    if (contentOptions != null) {
+      HtmlExportCache.set(
+        html,
+        questions: questions,
+        mode: mode,
+        options: contentOptions,
+        title: title,
+        studentInfo: studentInfo,
+        lowResolution: lowResolution,
+        noImage: noImage,
+        layoutOptions: layoutOptions,
+        templateType: templateType,
+      );
+    }
+
+    return (html: html, failedImages: imageResult.failed);
+  }
+
+  /// 生成 HTML 文件并返回结果（含统计信息）。
+  static Future<HtmlExportResult> generateHtml(
+    List<QuestionRecord> questions, {
+    String title = '错题本整理报告',
+    WorksheetExportMode? mode,
+    ExportStudentInfo? studentInfo,
+    void Function(int done, int total)? onProgress,
+    bool lowResolution = false,
+    bool noImage = false,
+    ExportContentOptions? contentOptions,
+    String? watermark,
+    PdfLayoutOptions? layoutOptions,
+    ExportTemplateType templateType = ExportTemplateType.mistakeReport,
+    List<ReviewLog>? reviewLogs,
+  }) async {
+    final result = await _generateHtmlStringInternal(
+      questions,
+      title: title,
+      mode: mode,
+      studentInfo: studentInfo,
+      onProgress: onProgress,
+      lowResolution: lowResolution,
+      noImage: noImage,
+      contentOptions: contentOptions,
+      watermark: watermark,
+      layoutOptions: layoutOptions,
+      templateType: templateType,
+      reviewLogs: reviewLogs,
     );
     final dir = await getApplicationDocumentsDirectory();
     final exportDir = Directory('${dir.path}/exports');
@@ -181,11 +399,16 @@ class HtmlExportService {
       await exportDir.create(recursive: true);
     }
     final filename =
-        'wrong_notebook_${DateTime.now().millisecondsSinceEpoch}.html';
+        buildExportFileName(questions, mode: mode, studentInfo: studentInfo);
     final file = File('${exportDir.path}/$filename');
-    await file.writeAsString(html, flush: true);
+    await file.writeAsString(result.html, flush: true);
     await cleanupExports(exportDir);
-    return file;
+    return HtmlExportResult(
+      filePath: file.path,
+      totalQuestions: questions.length,
+      failedImages: result.failedImages,
+      htmlSizeBytes: await file.length(),
+    );
   }
 
   /// 调起系统分享 HTML 文件，并在生成期间显示进度。
@@ -195,6 +418,11 @@ class HtmlExportService {
     String title = '错题本整理报告',
     WorksheetExportMode? mode,
     ExportStudentInfo? studentInfo,
+    ExportContentOptions? contentOptions,
+    String? watermark,
+    PdfLayoutOptions? layoutOptions,
+    ExportTemplateType templateType = ExportTemplateType.mistakeReport,
+    List<ReviewLog>? reviewLogs,
   }) async {
     final progress = ValueNotifier<double>(0);
     if (!context.mounted) return;
@@ -230,7 +458,7 @@ class HtmlExportService {
       ),
     );
     try {
-      final file = await generateHtml(
+      final result = await generateHtml(
         questions,
         title: title,
         mode: mode,
@@ -238,15 +466,26 @@ class HtmlExportService {
         onProgress: (done, total) {
           progress.value = total == 0 ? 1 : done / total;
         },
+        contentOptions: contentOptions,
+        watermark: watermark,
+        layoutOptions: layoutOptions,
+        templateType: templateType,
+        reviewLogs: reviewLogs,
       );
       if (!context.mounted) return;
       Navigator.of(context).pop();
+      if (result.failureHint.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出完成（${result.failureHint}）')),
+        );
+      }
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
       final origin = box.localToGlobal(Offset.zero) & box.size;
+      final studentLabel = studentInfo?.displayName ?? '错题本';
       await Share.shareXFiles(
-        [XFile(file.path)],
-        text: '$title（共 ${questions.length} 题）',
+        [XFile(result.filePath)],
+        text: '$studentLabel $title（共 ${questions.length} 题）',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -259,14 +498,43 @@ class HtmlExportService {
     }
   }
 
-  /// 清理 exports 目录，只保留最近 [maxKeptExports] 个文件。
+  /// 清理 exports 目录：按总大小（>200MB 删最旧）+ 文件数上限（>50 删最旧）。
   static Future<void> cleanupExports(Directory exportDir) async {
     try {
       if (!exportDir.existsSync()) return;
-      final files = exportDir.listSync().whereType<File>().toList()
-        ..sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
-      for (final file in files.skip(maxKeptExports)) {
-        await file.delete();
+      final entries = exportDir.listSync().whereType<File>().toList();
+      final stats = <_FileStat>[];
+      for (final f in entries) {
+        try {
+          final s = f.statSync();
+          stats.add(_FileStat(f, s.modified, s.size));
+        } catch (_) {
+          // 单个文件 stat 失败跳过，不影响其他文件清理。
+        }
+      }
+      // 按修改时间倒序（最新在前）。
+      stats.sort((a, b) => b.modified.compareTo(a.modified));
+
+      var totalBytes = 0;
+      for (final s in stats) {
+        totalBytes += s.size;
+      }
+
+      // 从最旧开始删，直到同时满足大小与数量上限。
+      var remainingCount = stats.length;
+      for (var i = stats.length - 1; i >= 0; i--) {
+        if (totalBytes <= maxTotalExportsBytes &&
+            remainingCount <= maxKeptExports) {
+          break;
+        }
+        final s = stats[i];
+        try {
+          await s.file.delete();
+          totalBytes -= s.size;
+          remainingCount--;
+        } catch (_) {
+          // 单个删除失败不影响其他文件清理。
+        }
       }
     } catch (_) {
       // 清理失败不影响导出。
@@ -274,238 +542,391 @@ class HtmlExportService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 题目块
+  // 流式写入路径（大题量）
   // ─────────────────────────────────────────────────────────────────────────
 
-  static void _writeQuestionBlock(
-    StringBuffer buffer,
-    int index,
-    QuestionRecord q, {
-    WorksheetExportMode? mode,
-    Map<String, String?> imageUris = const {},
-  }) {
-    final createDateStr = DateFormat('MM/dd').format(q.createdAt);
-    final mastery = _masteryLabel(q.masteryLevel);
-
-    buffer.writeln('    <div class="question-block">');
-    buffer.writeln('      <div class="question-header">');
-    buffer.writeln('        <span class="question-index">#$index</span>');
-    if (q.isFavorite) {
-      buffer.writeln('        <span style="color:#d97706">★</span>');
-    }
-    buffer.writeln(
-        '        <span class="badge ${_masteryBadgeClass(q.masteryLevel)}">${_escapeHtml(mastery)}</span>');
-    if (q.contentStatus != ContentStatus.ready) {
-      buffer.writeln(
-          '        <span class="badge badge-status">${_statusLabel(q.contentStatus)}</span>');
-    }
-    if (q.reviewCount > 0) {
-      buffer.writeln(
-          '        <span class="meta">已复习 ${q.reviewCount} 次</span>');
-    }
-    buffer.writeln(
-        '        <span class="meta" style="margin-left:auto">$createDateStr</span>');
-    buffer.writeln('      </div>');
-
-    // 题干
-    final questionText = q.normalizedQuestionText.isNotEmpty
-        ? q.normalizedQuestionText
-        : q.extractedQuestionText;
-    if (questionText.isNotEmpty) {
-      buffer.writeln('      <div class="question-body">');
-      buffer.write(_mixedTextToHtml(questionText));
-      buffer.writeln('      </div>');
-    }
-
-    // 原题图片（几何图、手写痕迹等）
-    final imageUri = imageUris[q.id];
-    if (imageUri != null) {
-      buffer.writeln(
-          '      <img class="question-image" src="$imageUri" alt="错题图片">');
-    }
-
-    if (mode == WorksheetExportMode.practice) {
-      final blankHeight = _practiceBlankHeight(questionText);
-      buffer.writeln(
-          '      <div class="blank-area" style="height:${blankHeight}px"></div>');
-    } else {
-      _writeAnalysisBlock(buffer, q, mode);
-    }
-
-    buffer.writeln('    </div>');
+  /// 判断是否启用流式写入：题目数 > 50 或预估 HTML > 10MB。
+  static bool _shouldUseStreaming(List<QuestionRecord> questions) {
+    if (questions.length > _streamingQuestionThreshold) return true;
+    // 预估：题目文本 ~3KB/题 + 题图压缩后 ~400KB/张（base64 后约 530KB）。
+    final imageCount =
+        questions.where((q) => q.imagePath.isNotEmpty).length;
+    final estimatedBytes =
+        questions.length * 3 * 1024 + imageCount * 530 * 1024;
+    return estimatedBytes > _streamingSizeThreshold;
   }
 
-  static void _writeAnalysisBlock(
-    StringBuffer buffer,
-    QuestionRecord q,
-    WorksheetExportMode? mode,
-  ) {
-    final analysis = q.analysisResult;
-    if (analysis == null) return;
+  /// 大题量流式写入：用 [IOSink]（实现 [StringSink]）逐章节 flush 到临时文件，
+  /// 完成后读回 HTML 字符串返回。读回虽有一次 IO，但避免 StringBuffer 在生成
+  /// 期间同时持有完整 HTML（5MB+）与图片 base64 Map（数十 MB）的内存峰值。
+  static Future<String> _generateHtmlStreaming({
+    required List<QuestionRecord> questions,
+    required String title,
+    required WorksheetExportMode? mode,
+    required ExportStudentInfo? studentInfo,
+    required String dateStr,
+    required String katexCss,
+    required String katexJs,
+    required Map<String, String?> imageUris,
+    required bool noImage,
+    required String? watermark,
+    required ExportTemplate template,
+    required ExportContentOptions contentOptions,
+    required List<ReviewLog>? reviewLogs,
+    PdfLayoutOptions? layoutOptions,
+  }) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final exportDir = Directory('${dir.path}/exports');
+    if (!exportDir.existsSync()) {
+      await exportDir.create(recursive: true);
+    }
+    final tempFile = File(
+        '${exportDir.path}/.tmp_streaming_${DateTime.now().millisecondsSinceEpoch}.html');
+    final sink = tempFile.openWrite();
+    try {
+      // 写文件头（DOCTYPE/CSS/字体/封面/目录）。
+      _writeHtmlHeadToSink(
+        sink,
+        questions: questions,
+        title: title,
+        studentInfo: studentInfo,
+        dateStr: dateStr,
+        katexCss: katexCss,
+        watermark: watermark,
+        layoutOptions: layoutOptions,
+        template: template,
+      );
+      await sink.flush();
 
-    if (mode == null || mode == WorksheetExportMode.answer) {
-      final kps = [...analysis.knowledgePoints, ...analysis.aiTags]
-          .take(5)
-          .join('  ·  ');
-      if (kps.isNotEmpty) {
-        buffer.writeln(
-            '      <div class="analysis-row"><span class="analysis-label purple">知识点</span>：${_mixedTextToHtml(kps)}</div>');
-      }
-      if (analysis.mistakeReason.isNotEmpty) {
-        buffer.writeln(
-            '      <div class="analysis-row"><span class="analysis-label">错因分析</span>：${_mixedTextToHtml(analysis.mistakeReason)}</div>');
-      }
-      if (analysis.finalAnswer.isNotEmpty) {
-        buffer.writeln(
-            '      <div class="analysis-row"><span class="analysis-label green">正确答案</span>：${_mixedTextToHtml(analysis.finalAnswer)}</div>');
-      }
-      if (analysis.steps.isNotEmpty) {
-        buffer.writeln('      <div class="steps-box">');
-        buffer.writeln(
-            '        <div class="analysis-label blue" style="margin-bottom:4px">解题步骤</div>');
-        for (var i = 0; i < analysis.steps.length; i++) {
-          buffer.writeln(
-              '        <div class="step-item">${i + 1}. ${_mixedTextToHtml(analysis.steps[i])}</div>');
+      // 写正文：按模板风格渲染各题。
+      // - 错题报告/学习报告：按学科分组（学习报告内部扁平列出）。
+      // - 复习卡：每题两页（正面 + 背面），不按学科分组。
+      if (template.type == ExportTemplateType.reviewCard) {
+        for (var i = 0; i < questions.length; i++) {
+          final q = questions[i];
+          final imageUri = imageUris[q.id];
+          sink.write(template.generateQuestionBlock(
+            question: q,
+            index: i + 1,
+            mode: mode ?? WorksheetExportMode.answer,
+            contentOptions: contentOptions,
+            imageBase64: imageUri,
+            watermark: watermark,
+            noImage: noImage,
+          ));
+          await sink.flush();
         }
-        buffer.writeln('      </div>');
-      }
-      if (analysis.studyAdvice.isNotEmpty) {
-        buffer.writeln(
-            '      <div class="analysis-row"><span class="analysis-label orange">学习建议</span>：${_mixedTextToHtml(analysis.studyAdvice)}</div>');
-      }
-    } else if (mode == WorksheetExportMode.correction) {
-      if (analysis.mistakeReason.isNotEmpty) {
-        buffer.writeln(
-            '      <div class="analysis-row"><span class="analysis-label">错因分析</span>：${_mixedTextToHtml(analysis.mistakeReason)}</div>');
-      }
-      if (analysis.studyAdvice.isNotEmpty) {
-        buffer.writeln(
-            '      <div class="analysis-row"><span class="analysis-label orange">订正提示</span>：${_mixedTextToHtml(analysis.studyAdvice)}</div>');
-      }
-      final blankHeight = _practiceBlankHeight(q.normalizedQuestionText);
-      buffer.writeln(
-          '      <div class="blank-area" style="height:${blankHeight}px"></div>');
-    }
-  }
-
-  /// 练习卷/订正卷答题留白高度，按题干长度自适应。
-  static int _practiceBlankHeight(String questionText) {
-    if (questionText.isEmpty) return 80;
-    final lines = (questionText.length / 40).ceil();
-    final height = (lines + 3) * 28;
-    return height.clamp(60, 220).toInt();
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // 文字 + LaTeX 混合转 HTML
-  // ─────────────────────────────────────────────────────────────────────────
-
-  static String _mixedTextToHtml(String input) {
-    final normalized = _normalizeDelimiters(input);
-    final spans = _splitMathSpans(normalized);
-    final buffer = StringBuffer();
-    for (final span in spans) {
-      if (span.isMath) {
-        final cls = span.display ? 'math-display' : 'math-inline';
-        buffer.write('<span class="$cls">${_escapeHtml(span.text)}</span>');
       } else {
-        final text = span.text
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('\n', '<br>');
-        buffer.write(text);
+        final grouped = HtmlRenderUtils.groupBySubject(questions);
+        final sortedSubjects = HtmlRenderUtils.sortedSubjects(grouped);
+        int globalIndex = 0;
+        for (final subject in sortedSubjects) {
+          final list = grouped[subject]!;
+          final color = HtmlRenderUtils.subjectColorHex(subject);
+          sink.writeln('  <div class="subject-section">');
+          sink.writeln('    <div class="subject-header">');
+          sink.writeln(
+              '      <div class="subject-bar" style="background:$color"></div>');
+          sink.writeln(
+              '      <div class="subject-title">${HtmlRenderUtils.escapeHtml(subject.label)}（${list.length} 题）</div>');
+          sink.writeln('    </div>');
+
+          for (final q in list) {
+            globalIndex++;
+            final imageUri = imageUris[q.id];
+            sink.write(template.generateQuestionBlock(
+              question: q,
+              index: globalIndex,
+              mode: mode ?? WorksheetExportMode.answer,
+              contentOptions: contentOptions,
+              imageBase64: imageUri,
+              watermark: watermark,
+              noImage: noImage,
+            ));
+          }
+
+          sink.writeln('  </div>');
+          await sink.flush();
+        }
       }
+
+      // 尾页（学习报告会生成 SVG 图表，其它模板返回 null）。
+      final footer = template.generateFooter(
+        questions: questions,
+        reviewLogs: reviewLogs,
+      );
+      if (footer != null && footer.isNotEmpty) {
+        sink.write(footer);
+      }
+
+      // 写文件尾（page 闭合 + KaTeX JS + render 脚本）。
+      sink.writeln('</div>');
+      sink.writeln('<script>');
+      sink.writeln(katexJs);
+      sink.writeln(HtmlRenderUtils.renderMathJs());
+      sink.writeln('</script>');
+      sink.writeln('</body>');
+      sink.writeln('</html>');
+
+      await sink.flush();
+      await sink.close();
+
+      // 读回 HTML 字符串供 PDF 转换或缓存使用。
+      return tempFile.readAsString();
+    } catch (_) {
+      // 出错时也尝试关闭 sink，避免文件句柄泄漏。
+      try {
+        await sink.close();
+      } catch (_) {
+        // 忽略关闭失败。
+      }
+      rethrow;
     }
-    return buffer.toString();
   }
 
-  static String _normalizeDelimiters(String v) {
-    return v
-        .replaceAllMapped(
-          RegExp(r'\\\['),
-          (_) => r'$$',
-        )
-        .replaceAllMapped(
-          RegExp(r'\\\]'),
-          (_) => r'$$',
-        )
-        .replaceAllMapped(
-          RegExp(r'\\\('),
-          (_) => r'$',
-        )
-        .replaceAllMapped(
-          RegExp(r'\\\)'),
-          (_) => r'$',
-        );
-  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // HTML 写入：StringSink 兼容 StringBuffer（内存）与 IOSink（流式）
+  // ─────────────────────────────────────────────────────────────────────────
 
-  static List<_MathSpan> _splitMathSpans(String v) {
-    final spans = <_MathSpan>[];
-    // 同时匹配 `$$...$$` 与 `\begin{env}...\end{env}` 两种 display 数学块。
-    final displayOrEnv = RegExp(
-      r'\$\$([\s\S]*?)\$\$|\\begin\{([A-Za-z]+\*?)\}([\s\S]*?)\\end\{\2\}',
+  /// 把完整 HTML 写入 [sink]，小题量场景下 [sink] 是 [StringBuffer]。
+  static void _writeHtmlToSink(
+    StringSink sink, {
+    required List<QuestionRecord> questions,
+    required String title,
+    required WorksheetExportMode? mode,
+    required ExportStudentInfo? studentInfo,
+    required String dateStr,
+    required String katexCss,
+    required String katexJs,
+    required Map<String, String?> imageUris,
+    required bool noImage,
+    required String? watermark,
+    required ExportTemplate template,
+    required ExportContentOptions contentOptions,
+    required List<ReviewLog>? reviewLogs,
+    PdfLayoutOptions? layoutOptions,
+  }) {
+    _writeHtmlHeadToSink(
+      sink,
+      questions: questions,
+      title: title,
+      studentInfo: studentInfo,
+      dateStr: dateStr,
+      katexCss: katexCss,
+      watermark: watermark,
+      layoutOptions: layoutOptions,
+      template: template,
     );
-    var cursor = 0;
-    for (final m in displayOrEnv.allMatches(v)) {
-      if (m.start > cursor) {
-        spans.addAll(_splitInlineMath(v.substring(cursor, m.start)));
+
+    // 正文：按模板风格渲染各题。
+    if (template.type == ExportTemplateType.reviewCard) {
+      for (var i = 0; i < questions.length; i++) {
+        final q = questions[i];
+        final imageUri = imageUris[q.id];
+        sink.write(template.generateQuestionBlock(
+          question: q,
+          index: i + 1,
+          mode: mode ?? WorksheetExportMode.answer,
+          contentOptions: contentOptions,
+          imageBase64: imageUri,
+          watermark: watermark,
+          noImage: noImage,
+        ));
       }
-      final math = m.group(1) ?? m.group(3)!;
-      spans.add(_MathSpan(math.trim(), isMath: true, display: true));
-      cursor = m.end;
+    } else {
+      final grouped = HtmlRenderUtils.groupBySubject(questions);
+      final sortedSubjects = HtmlRenderUtils.sortedSubjects(grouped);
+      int globalIndex = 0;
+      for (final subject in sortedSubjects) {
+        final list = grouped[subject]!;
+        final color = HtmlRenderUtils.subjectColorHex(subject);
+        sink.writeln('  <div class="subject-section">');
+        sink.writeln('    <div class="subject-header">');
+        sink.writeln(
+            '      <div class="subject-bar" style="background:$color"></div>');
+        sink.writeln(
+            '      <div class="subject-title">${HtmlRenderUtils.escapeHtml(subject.label)}（${list.length} 题）</div>');
+        sink.writeln('    </div>');
+
+        for (final q in list) {
+          globalIndex++;
+          final imageUri = imageUris[q.id];
+          sink.write(template.generateQuestionBlock(
+            question: q,
+            index: globalIndex,
+            mode: mode ?? WorksheetExportMode.answer,
+            contentOptions: contentOptions,
+            imageBase64: imageUri,
+            watermark: watermark,
+            noImage: noImage,
+          ));
+        }
+
+        sink.writeln('  </div>');
+      }
     }
-    if (cursor < v.length) {
-      spans.addAll(_splitInlineMath(v.substring(cursor)));
+
+    // 尾页（学习报告会生成 SVG 图表，其它模板返回 null）。
+    final footer = template.generateFooter(
+      questions: questions,
+      reviewLogs: reviewLogs,
+    );
+    if (footer != null && footer.isNotEmpty) {
+      sink.write(footer);
     }
-    return spans.where((s) => s.text.isNotEmpty).toList();
+
+    sink.writeln('</div>');
+    sink.writeln('<script>');
+    sink.writeln(katexJs);
+    sink.writeln(HtmlRenderUtils.renderMathJs());
+    sink.writeln('</script>');
+    sink.writeln('</body>');
+    sink.writeln('</html>');
   }
 
-  static List<_MathSpan> _splitInlineMath(String v) {
-    final spans = <_MathSpan>[];
-    final inlineRe = RegExp(r'\$([^\$]+)\$');
-    var cursor = 0;
-    for (final m in inlineRe.allMatches(v)) {
-      if (m.start > cursor) {
-        spans.add(_MathSpan(v.substring(cursor, m.start), isMath: false));
+  /// 写 HTML 文件头：DOCTYPE、head、CSS、body 开始、封面、目录。
+  /// 流式路径下此部分先 flush 一次。
+  /// [layoutOptions] 非空时按 includeCover/includeToc/includeHeader/includeFooter
+  /// 控制对应区块；模板负责具体的 CSS / 封面 HTML 生成。
+  static void _writeHtmlHeadToSink(
+    StringSink sink, {
+    required List<QuestionRecord> questions,
+    required String title,
+    required ExportStudentInfo? studentInfo,
+    required String dateStr,
+    required String katexCss,
+    required String? watermark,
+    required ExportTemplate template,
+    PdfLayoutOptions? layoutOptions,
+  }) {
+    final layout = layoutOptions ?? const PdfLayoutOptions();
+    sink.writeln('<!DOCTYPE html>');
+    sink.writeln('<html lang="zh-CN">');
+    sink.writeln('<head>');
+    sink.writeln('<meta charset="UTF-8">');
+    sink.writeln(
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0">');
+    sink.writeln('<title>${HtmlRenderUtils.escapeHtml(title)}</title>');
+    sink.writeln('<style>');
+    sink.writeln(template.generateCss(layout));
+    sink.writeln(katexCss);
+    sink.writeln('</style>');
+    sink.writeln('</head>');
+    sink.writeln('<body>');
+    // 水印：非空时叠加固定位置半透明文字，覆盖整页且不影响交互。
+    if (watermark != null && watermark.isNotEmpty) {
+      sink.writeln(
+          '  <div class="watermark">${HtmlRenderUtils.escapeHtml(watermark)}</div>');
+    }
+    // 打印时的页眉页脚（fixed 元素，支持的平台会在每页重复）。
+    // 复习卡模板不生成页眉页脚（每页都是卡片，fixed 元素会干扰视觉）。
+    final showHeader = layout.includeHeader &&
+        template.type != ExportTemplateType.reviewCard;
+    final showFooter = layout.includeFooter &&
+        template.type != ExportTemplateType.reviewCard;
+    if (showHeader) {
+      sink.writeln('  <div class="print-header">${HtmlRenderUtils.escapeHtml(title)}</div>');
+    }
+    if (showFooter) {
+      sink.writeln(
+          '  <div class="print-footer">第 1 页 / 共 1 页</div>');
+    }
+    sink.writeln('<div class="page">');
+
+    // 封面与目录：复习卡模板不生成（模板 generateCover 返回空串）。
+    // 学习报告 / 错题报告模板受 layout.includeCover / includeToc 控制。
+    final showCover = layout.includeCover;
+    final showToc = layout.includeToc &&
+        template.type != ExportTemplateType.reviewCard;
+    if (showCover) {
+      sink.write(template.generateCover(
+        title: title,
+        studentName: studentInfo?.displayName,
+        className: studentInfo?.className,
+        date: DateTime.now(),
+        questionCount: questions.length,
+        questions: questions,
+        anonymize: studentInfo?.anonymize ?? false,
+        formattedDate: dateStr,
+      ));
+    }
+
+    if (showToc) {
+      final grouped = HtmlRenderUtils.groupBySubject(questions);
+      final sortedSubjects = HtmlRenderUtils.sortedSubjects(grouped);
+      sink.writeln('  <div class="toc">');
+      sink.writeln('    <h2>目&emsp;录</h2>');
+      for (final subject in sortedSubjects) {
+        final list = grouped[subject]!;
+        sink.writeln('    <div class="toc-item">');
+        sink.writeln('      <span>${HtmlRenderUtils.escapeHtml(subject.label)}</span>');
+        sink.writeln('      <span class="count">${list.length} 题</span>');
+        sink.writeln('    </div>');
       }
-      spans.add(_MathSpan(m.group(1)!.trim(), isMath: true));
-      cursor = m.end;
+      sink.writeln('    <div class="legend">');
+      sink.writeln(
+          '      掌握程度：● 待学习&emsp;● 复习中&emsp;● 已掌握');
+      sink.writeln('    </div>');
+      sink.writeln('  </div>');
     }
-    if (cursor < v.length) {
-      spans.add(_MathSpan(v.substring(cursor), isMath: false));
-    }
-    return spans.where((s) => s.text.isNotEmpty).toList();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 图片预处理（并行压缩）
+  // 图片预处理（分批压缩）
   // ─────────────────────────────────────────────────────────────────────────
 
-  static Future<Map<String, String?>> _preloadImages(
+  /// 预处理题目图片：分批压缩编码，每批 [_imageBatchSize] 张并行 isolate。
+  /// [lowResolution] 为 true 时降低 maxWidth 与 JPEG quality。
+  /// [noImage] 为 true 时直接返回空 map，不读图。
+  /// 返回 (uris, failed)：uris[q.id] 为 data URI 或 null（处理失败），
+  /// failed 为失败题图总数。
+  static Future<({Map<String, String?> uris, int failed})> _preloadImages(
     List<QuestionRecord> questions,
-    void Function(int done, int total)? onProgress,
-  ) async {
+    void Function(int done, int total)? onProgress, {
+    bool lowResolution = false,
+    bool noImage = false,
+  }) async {
+    if (noImage) {
+      // 无图模式：跳过所有图片处理。
+      if (onProgress != null) onProgress(0, 0);
+      return (uris: const <String, String?>{}, failed: 0);
+    }
     final entries = questions.where((q) => q.imagePath.isNotEmpty).toList();
     final total = entries.length;
     if (total == 0) {
       if (onProgress != null) onProgress(0, 0);
-      return const {};
+      return (uris: const <String, String?>{}, failed: 0);
     }
+    final uris = <String, String?>{};
     var done = 0;
-    final results = await Future.wait(entries.map((q) async {
-      final uri = await _encodeImage(q.imagePath);
-      final current = ++done;
-      if (onProgress != null) onProgress(current, total);
-      return MapEntry(q.id, uri);
-    }));
-    return {for (final e in results) e.key: e.value};
+    var failed = 0;
+    // 分批处理：每批 _imageBatchSize 张，限制同时启动的 isolate 数量。
+    for (var i = 0; i < entries.length; i += _imageBatchSize) {
+      final batch = entries.skip(i).take(_imageBatchSize).toList();
+      final results = await Future.wait(batch.map((q) async {
+        final uri =
+            await _encodeImage(q.imagePath, lowResolution: lowResolution);
+        return MapEntry(q.id, uri);
+      }));
+      for (final e in results) {
+        uris[e.key] = e.value;
+        if (e.value == null) failed++;
+        done++;
+      }
+      if (onProgress != null) onProgress(done, total);
+    }
+    return (uris: uris, failed: failed);
   }
 
-  /// 读取图片文件，缩放到最大宽度 1200px 并重新编码，返回 data URI。
+  /// 读取图片文件，缩放到最大宽度并重新编码，返回 data URI。
   /// 解码/缩放/编码在后台 isolate 执行，避免大图阻塞 UI。
-  /// PNG 保留 PNG 编码（保留透明），其余转 JPEG(quality 80)。
-  static Future<String?> _encodeImage(String path) async {
+  /// PNG 保留 PNG 编码（保留透明），其余转 JPEG。
+  /// [lowResolution] 为 true 时 maxWidth 降到 800px、JPEG quality 60。
+  /// 返回 null 表示解码失败（调用方应记录为失败题图）。
+  static Future<String?> _encodeImage(
+    String path, {
+    bool lowResolution = false,
+  }) async {
     if (path.isEmpty) return null;
     final file = File(path);
     if (!await file.exists()) return null;
@@ -514,7 +935,7 @@ class HtmlExportService {
       if (raw.isEmpty) return null;
       final result = await compute(
         _encodeImageIsolate,
-        _EncodeRequest(raw, path),
+        _EncodeRequest(raw, path, lowResolution: lowResolution),
       );
       if (result == null) {
         // 无法解码，回退原文件 base64。
@@ -578,232 +999,87 @@ class HtmlExportService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // 样式与脚本
+  // 文件名与水印工具
   // ─────────────────────────────────────────────────────────────────────────
 
-  static String _reportCss() {
-    return '''
-@page {
-  size: A4;
-  margin: 22mm 16mm 20mm 16mm;
-  @bottom-center {
-    content: "第 " counter(page) " 页 / 共 " counter(pages) " 页";
-    font-size: 9pt;
-    color: #999;
-  }
-}
-* { box-sizing: border-box; }
-body {
-  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
-  font-size: 11pt;
-  line-height: 1.7;
-  color: #1f2937;
-  margin: 0;
-  padding: 0;
-}
-.page { max-width: 190mm; margin: 0 auto; }
-
-.print-header, .print-footer { display: none; }
-@media print {
-  .print-header {
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 9pt;
-    color: #999;
-    border-bottom: 1px solid #eee;
-    padding: 4px 0;
-  }
-  .print-footer {
-    display: block;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    text-align: center;
-    font-size: 9pt;
-    color: #999;
-  }
-}
-
-.cover {
-  text-align: center;
-  padding-top: 60mm;
-  page-break-after: always;
-}
-.cover h1 { font-size: 26pt; font-weight: 700; color: #6366F1; margin-bottom: 12px; }
-.cover .subtitle { font-size: 13pt; color: #888; margin-bottom: 36px; }
-.cover .divider { width: 60%; height: 1px; background: #ddd; margin: 0 auto 24px; }
-.cover .info { font-size: 12pt; color: #555; margin-bottom: 6px; }
-.name-row {
-  display: flex;
-  justify-content: space-around;
-  margin-top: 18px;
-  font-size: 12pt;
-  color: #444;
-}
-
-.toc { page-break-after: always; }
-.toc h2 { font-size: 20pt; font-weight: 700; margin-bottom: 20px; }
-.toc-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12pt; }
-.toc-item .count { color: #888; font-size: 10.5pt; }
-.legend { font-size: 10pt; color: #888; margin-top: 18px; line-height: 2; }
-
-.subject-section { page-break-before: always; }
-.subject-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
-.subject-bar { width: 4px; height: 22px; border-radius: 2px; }
-.subject-title { font-size: 18pt; font-weight: 700; }
-
-.question-block {
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
-  break-inside: avoid;
-}
-.question-header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.question-index { font-size: 13pt; font-weight: 700; color: #6366F1; margin-right: 2px; }
-.badge {
-  display: inline-block;
-  font-size: 8.5pt;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-weight: 500;
-}
-.badge-new { background: #fee2e2; color: #dc2626; }
-.badge-reviewing { background: #fef3c7; color: #d97706; }
-.badge-mastered { background: #dcfce7; color: #16a34a; }
-.badge-status { background: #f3f4f6; color: #6b7280; }
-.meta { font-size: 9pt; color: #9ca3af; }
-
-.question-body {
-  background: #f5f3ff;
-  border-radius: 6px;
-  padding: 10px 12px;
-  margin: 8px 0;
-  font-size: 11pt;
-  line-height: 1.8;
-}
-.question-image {
-  max-width: 100%;
-  max-height: 260px;
-  object-fit: contain;
-  border-radius: 6px;
-  margin-top: 8px;
-  display: block;
-}
-
-.analysis-row { font-size: 10.5pt; margin-top: 4px; }
-.analysis-label { font-weight: 600; }
-.analysis-label.green { color: #16a34a; }
-.analysis-label.purple { color: #7c3aed; }
-.analysis-label.orange { color: #d97706; }
-.analysis-label.blue { color: #6366F1; }
-.steps-box {
-  border-left: 2px solid #6366F1;
-  padding-left: 10px;
-  margin-top: 6px;
-}
-.step-item { font-size: 10pt; margin-bottom: 3px; }
-
-.math-inline { display: inline; }
-.math-display { display: block; margin: 6px 0; }
-.katex { font-size: 1.06em; }
-.blank-area {
-  border: 1px dashed #c7c3ff;
-  border-radius: 6px;
-  background: #fafaff;
-  margin-top: 8px;
-}
-
-@media print {
-  .page { max-width: none; }
-  .question-block { break-inside: avoid; }
-  .subject-section { break-before: page; }
-}
-''';
+  /// 构造默认导出文件名：`{学生名或"错题本"}_{模式}_{学科范围}_{题量}题_{yyyyMMdd_HHmm}.{extension}`。
+  ///
+  /// 脱敏导出时学生名用 "X 同学" 代替；文件名中的非法字符会被替换为下划线。
+  static String buildExportFileName(
+    List<QuestionRecord> questions, {
+    WorksheetExportMode? mode,
+    ExportStudentInfo? studentInfo,
+    String extension = 'html',
+  }) {
+    final namePart =
+        _sanitizeFileNamePart(studentInfo?.displayName ?? '错题本');
+    final modePart = _sanitizeFileNamePart(_modeLabel(mode));
+    final subjectPart = _sanitizeFileNamePart(_subjectScopeLabel(questions));
+    final countPart = '${questions.length}题';
+    final timePart = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+    return '${namePart}_${modePart}_${subjectPart}_${countPart}_$timePart.$extension';
   }
 
-  static String _renderMathJs() {
-    return '''
-document.addEventListener('DOMContentLoaded', function() {
-  function render(el, display) {
-    try {
-      katex.render(el.textContent, el, {
-        throwOnError: false,
-        strict: false,
-        trust: true,
-        displayMode: display
-      });
-    } catch(e) {}
-  }
-  document.querySelectorAll('.math-inline').forEach(function(el) { render(el, false); });
-  document.querySelectorAll('.math-display').forEach(function(el) { render(el, true); });
-});
-''';
+  /// 工作表模式对应的中文标签（用于文件名）。
+  static String _modeLabel(WorksheetExportMode? mode) {
+    if (mode == null) return '默认';
+    return switch (mode) {
+      WorksheetExportMode.practice => '练习卷',
+      WorksheetExportMode.answer => '答案卷',
+      WorksheetExportMode.correction => '订正卷',
+    };
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // 工具
-  // ─────────────────────────────────────────────────────────────────────────
-
-  static String _escapeHtml(String input) {
-    return input
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
+  /// 学科范围标签：单学科返回学科名，多学科返回"多学科"，空题库返回"空"。
+  static String _subjectScopeLabel(List<QuestionRecord> questions) {
+    final subjects = questions.map((q) => q.subject).toSet();
+    if (subjects.isEmpty) return '空';
+    if (subjects.length == 1) return subjects.first.label;
+    return '多学科';
   }
 
-  static String _subjectColorHex(Subject subject) {
-    final c = subject.color;
-    final r = (c.r * 255).round().toRadixString(16).padLeft(2, '0');
-    final g = (c.g * 255).round().toRadixString(16).padLeft(2, '0');
-    final b = (c.b * 255).round().toRadixString(16).padLeft(2, '0');
-    return '#$r$g$b';
+  /// 替换文件名中的非法字符为下划线。
+  static String _sanitizeFileNamePart(String part) {
+    return part.replaceAll(RegExp(r'[\\/:*?"<>|\s]'), '_');
   }
 
-  static String _masteryLabel(MasteryLevel level) => switch (level) {
-        MasteryLevel.newQuestion => '待学习',
-        MasteryLevel.reviewing => '复习中',
-        MasteryLevel.mastered => '已掌握',
-      };
-
-  static String _masteryBadgeClass(MasteryLevel level) => switch (level) {
-        MasteryLevel.newQuestion => 'badge-new',
-        MasteryLevel.reviewing => 'badge-reviewing',
-        MasteryLevel.mastered => 'badge-mastered',
-      };
-
-  static String _statusLabel(ContentStatus status) => switch (status) {
-        ContentStatus.processing => '处理中',
-        ContentStatus.ready => '已完成',
-        ContentStatus.failed => '识别失败',
-      };
-}
-
-class _MathSpan {
-  _MathSpan(this.text, {this.isMath = false, this.display = false});
-  final String text;
-  final bool isMath;
-  final bool display;
+  /// 解析水印模板：将 "{学生名}" "{日期}" 占位符替换为实际值。
+  /// 返回 null 表示不渲染水印（watermark 为 null 或空串）。
+  static String? _resolveWatermark(
+    String? watermark,
+    ExportStudentInfo? studentInfo,
+    String dateStr,
+  ) {
+    if (watermark == null || watermark.isEmpty) return null;
+    final name = studentInfo?.displayName ?? '错题本';
+    return watermark
+        .replaceAll('{学生名}', name)
+        .replaceAll('{日期}', dateStr);
+  }
 }
 
 class _EncodeRequest {
-  const _EncodeRequest(this.bytes, this.path);
+  const _EncodeRequest(this.bytes, this.path, {this.lowResolution = false});
   final Uint8List bytes;
   final String path;
+  final bool lowResolution;
+}
+
+/// 文件 + 修改时间 + 大小，用于 cleanupExports 排序。
+class _FileStat {
+  const _FileStat(this.file, this.modified, this.size);
+  final File file;
+  final DateTime modified;
+  final int size;
 }
 
 /// 在后台 isolate 执行图片解码、缩放、重编码，返回 data URI 字符串。
 /// 返回 null 表示解码失败（调用方回退原文件 base64）。
+/// [req.lowResolution] 为 true 时 maxWidth 降到 800px、JPEG quality 60。
 String? _encodeImageIsolate(_EncodeRequest req) {
   final decoded = image.decodeImage(req.bytes);
   if (decoded == null) return null;
-  const maxWidth = 1200;
+  final maxWidth = req.lowResolution ? 800 : 1200;
   image.Image scaled = decoded;
   if (decoded.width > maxWidth) {
     scaled = image.copyResize(decoded, width: maxWidth);
@@ -813,6 +1089,7 @@ String? _encodeImageIsolate(_EncodeRequest req) {
     final encoded = image.encodePng(scaled, level: 6);
     return 'data:image/png;base64,${base64Encode(encoded)}';
   }
-  final encoded = image.encodeJpg(scaled, quality: 80);
+  final quality = req.lowResolution ? 60 : 80;
+  final encoded = image.encodeJpg(scaled, quality: quality);
   return 'data:image/jpeg;base64,${base64Encode(encoded)}';
 }

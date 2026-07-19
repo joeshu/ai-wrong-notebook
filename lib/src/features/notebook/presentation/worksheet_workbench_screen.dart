@@ -178,6 +178,7 @@ class _WorksheetWorkbenchScreenState
         options.filtered,
         mode: options.mode,
         studentInfo: options.studentInfo,
+        layoutOptions: options.layoutOptions,
       );
     } else {
       await HtmlExportService.shareHtml(
@@ -185,6 +186,8 @@ class _WorksheetWorkbenchScreenState
         options.filtered,
         mode: options.mode,
         studentInfo: options.studentInfo,
+        templateType: options.templateType,
+        layoutOptions: options.layoutOptions,
       );
     }
   }

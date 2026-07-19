@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +22,7 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DataManagementScreen extends ConsumerStatefulWidget {
   const DataManagementScreen({super.key});
@@ -30,13 +35,285 @@ class DataManagementScreen extends ConsumerStatefulWidget {
 class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   static const _backupSchemaVersion = 5;
   static const _lastImportKey = 'backup_last_import_v1';
+  /// 加密备份文件魔数 "WNB1"，用于识别加密格式。
+  static final _encryptedMagic = <int>[0x57, 0x4E, 0x42, 0x31];
   _ImportUndo? _lastImport;
   String? _lastBackupLabel;
+  bool _encryptBackup = false;
+  final TextEditingController _backupPasswordController =
+      TextEditingController();
+  Future<List<File>>? _exportFilesFuture;
 
   @override
   void initState() {
     super.initState();
     _loadLastImport();
+    // 初始先用空列表占位，避免在测试环境（path_provider 未注册）中
+    // CircularProgressIndicator 一直转导致 pumpAndSettle 超时；
+    // 首帧后再异步加载真实文件列表。
+    _exportFilesFuture = Future.value(const <File>[]);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _reloadExports();
+    });
+  }
+
+  @override
+  void dispose() {
+    _backupPasswordController.dispose();
+    super.dispose();
+  }
+
+  /// 加载 exports 目录下所有导出文件（按修改时间倒序）。
+  Future<List<File>> _loadExportFiles() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final exportDir = Directory('${dir.path}/exports');
+      if (!exportDir.existsSync()) return const <File>[];
+      final files = exportDir.listSync().whereType<File>().toList();
+      files.sort((a, b) {
+        try {
+          return b.statSync().modified.compareTo(a.statSync().modified);
+        } catch (_) {
+          return 0;
+        }
+      });
+      return files;
+    } catch (_) {
+      return const <File>[];
+    }
+  }
+
+  /// 刷新导出历史列表（分享/删除/重命名后调用）。
+  Future<void> _reloadExports() async {
+    final files = await _loadExportFiles();
+    if (!mounted) return;
+    setState(() => _exportFilesFuture = Future.value(files));
+  }
+
+  /// 通过系统分享导出历史中的单个文件。
+  Future<void> _shareExportFile(BuildContext context, File file) async {
+    try {
+      final box = context.findRenderObject() as RenderBox?;
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        sharePositionOrigin:
+            box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('分享失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 删除导出历史中的文件（带二次确认）。
+  Future<void> _deleteExportFile(BuildContext context, File file) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除导出文件'),
+        content: Text('确定要删除「${file.uri.pathSegments.last}」吗？此操作不可恢复。'),
+        actions: <Widget>[
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await file.delete();
+      await _reloadExports();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已删除导出文件')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 重命名导出历史中的文件。
+  Future<void> _renameExportFile(BuildContext context, File file) async {
+    final controller = TextEditingController(text: file.uri.pathSegments.last);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重命名导出文件'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: '新文件名',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty) return;
+    final safeName = newName.contains('.')
+        ? newName
+        : '$newName.${file.uri.pathSegments.last.split('.').last}';
+    final newPath = '${file.parent.path}/$safeName';
+    if (newPath == file.path) return;
+    try {
+      await file.rename(newPath);
+      await _reloadExports();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已重命名')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('重命名失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 用 mailto: 调起邮件客户端（无法直接附带文件，仅作为提示入口）。
+  Future<void> _emailExportFile(BuildContext context, File file) async {
+    final filename = file.uri.pathSegments.last;
+    final uri = Uri(
+      scheme: 'mailto',
+      queryParameters: <String, dynamic>{
+        'subject': filename,
+        'body': '请查收附件：$filename（请在系统分享中手动添加此文件作为附件）',
+      },
+    );
+    try {
+      if (!await launchUrl(uri)) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未找到邮件客户端，请改用「重新分享」')),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('调起邮件失败: $e')),
+        );
+      }
+    }
+  }
+
+  // --- 加密备份（基于 SHA-256 派生密钥流的 XOR 加密） ---
+
+  /// 由密码 + salt 派生指定长度的密钥流（SHA-256 + counter，类 HKDF 展开）。
+  Uint8List _deriveKeyStream(String password, Uint8List salt, int length) {
+    final out = Uint8List(length);
+    var offset = 0;
+    var counter = 0;
+    while (offset < length) {
+      final counterBytes = Uint8List(4)
+        ..buffer.asByteData().setInt32(0, counter, Endian.big);
+      final hash = sha256
+          .convert(Uint8List.fromList(
+              [...utf8.encode(password), ...salt, ...counterBytes]))
+          .bytes;
+      final take = math.min(hash.length, length - offset);
+      out.setRange(offset, offset + take, hash);
+      offset += take;
+      counter++;
+    }
+    return out;
+  }
+
+  /// 加密：magic(4) + saltLen(4) + salt(16) + cipher(XOR)。
+  Uint8List _encryptBytes(Uint8List plain, String password) {
+    final random = math.Random.secure();
+    final salt = Uint8List.fromList(
+        List<int>.generate(16, (_) => random.nextInt(256)));
+    final keyStream = _deriveKeyStream(password, salt, plain.length);
+    final cipher = Uint8List(plain.length);
+    for (var i = 0; i < plain.length; i++) {
+      cipher[i] = plain[i] ^ keyStream[i];
+    }
+    final out = BytesBuilder();
+    out.add(_encryptedMagic);
+    out.add(Uint8List(4)..buffer.asByteData().setInt32(0, salt.length, Endian.big));
+    out.add(salt);
+    out.add(cipher);
+    return out.toBytes();
+  }
+
+  /// 解密：返回明文；密码错误或格式损坏返回 null。
+  Uint8List? _decryptBytes(Uint8List raw, String password) {
+    if (!_isEncryptedBytes(raw)) return null;
+    final data = ByteData.sublistView(raw);
+    final saltLen = data.getInt32(4, Endian.big);
+    if (saltLen <= 0 || 8 + saltLen > raw.length) return null;
+    final salt = Uint8List.sublistView(raw, 8, 8 + saltLen);
+    final cipher = Uint8List.sublistView(raw, 8 + saltLen);
+    final keyStream = _deriveKeyStream(password, salt, cipher.length);
+    final plain = Uint8List(cipher.length);
+    for (var i = 0; i < cipher.length; i++) {
+      plain[i] = cipher[i] ^ keyStream[i];
+    }
+    return plain;
+  }
+
+  /// 是否为加密备份（魔数 "WNB1"）。
+  bool _isEncryptedBytes(Uint8List raw) {
+    if (raw.length < 8) return false;
+    for (var i = 0; i < _encryptedMagic.length; i++) {
+      if (raw[i] != _encryptedMagic[i]) return false;
+    }
+    return true;
+  }
+
+  /// 弹出密码输入框；返回 null 表示用户取消。
+  Future<String?> _promptForPassword(BuildContext context) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('输入密码'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: '备份密码',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: <Widget>[
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadLastImport() async {
@@ -73,6 +350,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         data: (questions) => ListView(
           padding: const EdgeInsets.all(16),
           children: <Widget>[
+            FilledButton.icon(
+              onPressed: () => context.go('/settings/export-workbench'),
+              icon: const Icon(CupertinoIcons.arrow_up_doc),
+              label: const Text('打开导出工作台'),
+            ),
+            const SizedBox(height: 12),
             _BackupStatusCard(
               questionCount: questions.length,
               lastBackupLabel: _lastBackupLabel,
@@ -83,6 +366,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               onUndo: _lastImport == null
                   ? null
                   : () => _undoLastImport(context, ref),
+              encryptBackup: _encryptBackup,
+              onEncryptToggle: (v) {
+                if (!v) _backupPasswordController.clear();
+                setState(() => _encryptBackup = v);
+              },
+              passwordController: _backupPasswordController,
             ),
             const SizedBox(height: 8),
             const Text('删除所有错题和复习记录，不可恢复',
@@ -134,10 +423,21 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
             _DataCard(
               icon: CupertinoIcons.doc_richtext,
               title: '导出为 PDF',
-              subtitle: '可选模式与筛选，公式与几何图高保真，桌面端自动用浏览器打开',
+              subtitle: '可选模式与筛选，公式与几何图高保真，桌面端优先用系统分享',
               onTap: questions.isEmpty
                   ? null
                   : () => _exportWithOptions(context, questions, isPdf: true),
+            ),
+            const SizedBox(height: 20),
+            const _SectionTitle('导出历史'),
+            const SizedBox(height: 8),
+            _ExportHistoryCard(
+              future: _exportFilesFuture,
+              onRefresh: _reloadExports,
+              onShare: (file) => _shareExportFile(context, file),
+              onDelete: (file) => _deleteExportFile(context, file),
+              onRename: (file) => _renameExportFile(context, file),
+              onEmail: (file) => _emailExportFile(context, file),
             ),
           ],
         ),
@@ -157,12 +457,15 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   }) async {
     final options = await showExportOptionsDialog(context, questions);
     if (options == null || !context.mounted) return;
+    final watermark = options.studentInfo?.watermark;
     if (isPdf) {
       await PdfExportService.sharePdf(
         context,
         options.filtered,
         mode: options.mode,
         studentInfo: options.studentInfo,
+        watermark: watermark,
+        layoutOptions: options.layoutOptions,
       );
     } else {
       await HtmlExportService.shareHtml(
@@ -170,8 +473,13 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         options.filtered,
         mode: options.mode,
         studentInfo: options.studentInfo,
+        watermark: watermark,
+        templateType: options.templateType,
+        layoutOptions: options.layoutOptions,
       );
     }
+    // 分享完成后刷新导出历史列表（新生成的文件会出现）。
+    await _reloadExports();
   }
 
   // --- 完整备份（.wnb zip 包：题目 + 复习记录 + 题图附件） ---
@@ -185,6 +493,14 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     final approved =
         await _showBackupPreview(context, questions, reviewLogs.length);
     if (approved != true || !context.mounted) return;
+    // 启用加密时强制要求密码非空。
+    final password = _encryptBackup ? _backupPasswordController.text : '';
+    if (_encryptBackup && password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已勾选加密备份，请先填写密码')),
+      );
+      return;
+    }
     try {
       final dir = await getApplicationDocumentsDirectory();
       final exportDir = Directory('${dir.path}/exports');
@@ -208,6 +524,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         'reviewLogCount': reviewLogs.length,
         'attachmentCount': attachments.length,
         'attachments': attachmentIndex,
+        if (_encryptBackup) 'encrypted': true,
       };
       final archive = Archive();
       archive.addFile(ArchiveFile(
@@ -228,17 +545,21 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       }
       final encoded = ZipEncoder().encode(archive);
       if (encoded == null) throw const FileSystemException('无法创建备份包');
+      final bytesToWrite = _encryptBackup
+          ? _encryptBytes(Uint8List.fromList(encoded), password)
+          : Uint8List.fromList(encoded);
       final file =
           File('${exportDir.path}/wrong-notebook-${now.millisecondsSinceEpoch}.wnb');
-      await file.writeAsBytes(encoded, flush: true);
+      await file.writeAsBytes(bytesToWrite, flush: true);
+      await _reloadExports();
       if (!mounted) return;
       setState(() => _lastBackupLabel =
-          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} · ${questions.length} 题');
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} · ${questions.length} 题${_encryptBackup ? ' · 加密' : ''}');
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
       await Share.shareXFiles([XFile(file.path)],
           subject: '错题本备份',
-          text: '错题本完整备份（${questions.length} 道错题）',
+          text: '错题本完整备份（${questions.length} 道错题）${_encryptBackup ? '（已加密）' : ''}',
           sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size);
     } catch (e) {
       if (mounted) {
@@ -328,10 +649,35 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   // --- 从备份恢复 ---
 
   Future<dynamic> _readBackupFile(File file) async {
-    if (!file.path.toLowerCase().endsWith('.wnb')) {
-      return jsonDecode(await file.readAsString());
+    final rawBytes = Uint8List.fromList(await file.readAsBytes());
+    // 加密备份：先弹密码框解密，再走原本的 zip 解析流程。
+    if (_isEncryptedBytes(rawBytes)) {
+      Uint8List? plain;
+      while (plain == null) {
+        final password = await _promptForPassword(context);
+        if (password == null) {
+          // 用户取消，返回特殊标记让上层中止恢复流程。
+          throw const _RestoreCancelledException();
+        }
+        plain = _decryptBytes(rawBytes, password);
+        if (plain == null) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('密码错误或备份已损坏，请重试')),
+            );
+          }
+        }
+      }
+      return _decodeBackupBytes(plain);
     }
-    final archive = ZipDecoder().decodeBytes(await file.readAsBytes());
+    if (!file.path.toLowerCase().endsWith('.wnb')) {
+      return jsonDecode(utf8.decode(rawBytes));
+    }
+    return _decodeBackupBytes(rawBytes);
+  }
+
+  dynamic _decodeBackupBytes(Uint8List bytes) {
+    final archive = ZipDecoder().decodeBytes(bytes);
     String readText(String name) {
       final entry =
           archive.files.where((item) => item.name == name).firstOrNull;
@@ -527,6 +873,9 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       if (!context.mounted) return;
       await _showRestoreResult(context, imported, restoredReviewLogIds.length,
           restoredImagePaths.length, skipped);
+    } on _RestoreCancelledException {
+      // 用户在密码框取消，静默返回，不显示错误。
+      return;
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -746,6 +1095,11 @@ class _BackupPreview {
   final String? generatedAt;
 }
 
+/// 用户在加密备份恢复的密码框中取消时抛出，用于中止恢复流程。
+class _RestoreCancelledException implements Exception {
+  const _RestoreCancelledException();
+}
+
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.label);
   final String label;
@@ -764,12 +1118,18 @@ class _BackupStatusCard extends StatelessWidget {
     this.onBackup,
     required this.onRestore,
     this.onUndo,
+    this.encryptBackup = false,
+    this.onEncryptToggle,
+    this.passwordController,
   });
   final int questionCount;
   final String? lastBackupLabel;
   final VoidCallback? onBackup;
   final VoidCallback onRestore;
   final VoidCallback? onUndo;
+  final bool encryptBackup;
+  final ValueChanged<bool>? onEncryptToggle;
+  final TextEditingController? passwordController;
   @override
   Widget build(BuildContext context) => Card(
         child: Padding(
@@ -817,6 +1177,34 @@ class _BackupStatusCard extends StatelessWidget {
                         label: const Text('撤销本次恢复')),
                 ],
               ),
+              if (onEncryptToggle != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Row(
+                  children: <Widget>[
+                    Checkbox(
+                      value: encryptBackup,
+                      onChanged: (v) => onEncryptToggle!(v ?? false),
+                    ),
+                    const Expanded(
+                      child: Text('加密备份（简易 XOR 加密，仅防偷窥）'),
+                    ),
+                  ],
+                ),
+                if (encryptBackup && passwordController != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8, top: 4),
+                    child: TextField(
+                      controller: passwordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        labelText: '密码',
+                        hintText: '恢复时需要输入此密码',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+              ],
             ],
           ),
         ),
@@ -913,4 +1301,201 @@ TextStyle _trailingStyle(BuildContext context) {
   final colorScheme = Theme.of(context).colorScheme;
   return TextStyle(
       fontSize: 16, fontWeight: FontWeight.w600, color: colorScheme.onSurface);
+}
+
+/// 导出历史卡片：FutureBuilder + ListView.builder 加载 exports 目录文件，
+/// 支持下拉刷新；每行显示文件名/大小/生成时间，提供分享/重命名/邮件/删除操作。
+class _ExportHistoryCard extends StatelessWidget {
+  const _ExportHistoryCard({
+    required this.future,
+    required this.onRefresh,
+    required this.onShare,
+    required this.onDelete,
+    required this.onRename,
+    required this.onEmail,
+  });
+
+  final Future<List<File>>? future;
+  final Future<void> Function() onRefresh;
+  final void Function(File file) onShare;
+  final void Function(File file) onDelete;
+  final void Function(File file) onRename;
+  final void Function(File file) onEmail;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: FutureBuilder<List<File>>(
+          future: future,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              );
+            }
+            final files = snapshot.data ?? const <File>[];
+            if (files.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Center(
+                  child: Text(
+                    '暂无导出文件。导出 HTML/PDF 或创建备份后会在这里显示。',
+                    style: TextStyle(
+                        fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            }
+            return RefreshIndicator(
+              onRefresh: onRefresh,
+              child: ListView.builder(
+                shrinkWrap: true,
+                physics: const AlwaysScrollableScrollPhysics(),
+                itemCount: files.length,
+                itemBuilder: (context, index) {
+                  final file = files[index];
+                  return _ExportFileTile(
+                    file: file,
+                    onShare: () => onShare(file),
+                    onDelete: () => onDelete(file),
+                    onRename: () => onRename(file),
+                    onEmail: () => onEmail(file),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ExportFileTile extends StatelessWidget {
+  const _ExportFileTile({
+    required this.file,
+    required this.onShare,
+    required this.onDelete,
+    required this.onRename,
+    required this.onEmail,
+  });
+
+  final File file;
+  final VoidCallback onShare;
+  final VoidCallback onDelete;
+  final VoidCallback onRename;
+  final VoidCallback onEmail;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final stat = file.statSync();
+    final filename = file.uri.pathSegments.last;
+    final sizeStr = _formatBytes(stat.size);
+    final timeStr = DateFormat('yyyy-MM-dd HH:mm').format(stat.modified);
+    final isPdf = filename.toLowerCase().endsWith('.pdf');
+    final isHtml = filename.toLowerCase().endsWith('.html');
+    final isBackup = filename.toLowerCase().endsWith('.wnb');
+    final icon = isPdf
+        ? CupertinoIcons.doc_richtext
+        : isHtml
+            ? CupertinoIcons.doc_text
+            : isBackup
+                ? CupertinoIcons.archivebox
+                : CupertinoIcons.doc;
+
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      leading: Icon(icon, color: colorScheme.primary),
+      title: Text(
+        filename,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        '$sizeStr · $timeStr',
+        style: TextStyle(
+            fontSize: 11, color: colorScheme.onSurfaceVariant),
+      ),
+      trailing: PopupMenuButton<String>(
+        icon: const Icon(CupertinoIcons.ellipsis_circle, size: 22),
+        tooltip: '操作',
+        onSelected: (value) {
+          switch (value) {
+            case 'share':
+              onShare();
+              break;
+            case 'email':
+              onEmail();
+              break;
+            case 'rename':
+              onRename();
+              break;
+            case 'delete':
+              onDelete();
+              break;
+          }
+        },
+        itemBuilder: (ctx) => <PopupMenuEntry<String>>[
+          const PopupMenuItem<String>(
+            value: 'share',
+            child: ListTile(
+              leading: Icon(CupertinoIcons.share),
+              title: Text('重新分享'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'email',
+            child: ListTile(
+              leading: Icon(CupertinoIcons.envelope),
+              title: Text('邮件发送'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+          ),
+          const PopupMenuItem<String>(
+            value: 'rename',
+            child: ListTile(
+              leading: Icon(CupertinoIcons.pencil),
+              title: Text('重命名'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+          ),
+          const PopupMenuDivider(),
+          const PopupMenuItem<String>(
+            value: 'delete',
+            child: ListTile(
+              leading: Icon(CupertinoIcons.delete, color: Colors.red),
+              title: Text('删除',
+                  style: TextStyle(color: Colors.red)),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 }

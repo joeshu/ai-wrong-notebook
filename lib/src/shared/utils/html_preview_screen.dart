@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/worksheet_export_mode.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 /// 导出前的 HTML 预览页：用 WebView 渲染最终报告，并提供分享 HTML / 导出 PDF。
+///
+/// 预览页生成 HTML 时会写入 [HtmlExportCache]，后续点击"导出 PDF"时
+/// [PdfExportService] 会优先命中缓存，避免同一份 HTML 被生成两次。
 class HtmlPreviewScreen extends StatefulWidget {
   const HtmlPreviewScreen({
     super.key,
@@ -26,7 +30,6 @@ class HtmlPreviewScreen extends StatefulWidget {
 
 class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
   WebViewController? _controller;
-  String? _filePath;
   bool _loading = true;
   String? _error;
 
@@ -38,17 +41,25 @@ class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
 
   Future<void> _init() async {
     try {
-      final file = await HtmlExportService.generateHtml(
+      // 传入 contentOptions 启用缓存：预览页生成的 HTML 会写入 HtmlExportCache，
+      // 之后用户点"导出 PDF"时 PdfExportService 直接命中缓存，不再重新生成。
+      final result = await HtmlExportService.generateHtml(
         widget.questions,
         title: widget.title,
         mode: widget.mode,
         studentInfo: widget.studentInfo,
+        contentOptions: ExportContentOptions.all,
       );
-      _filePath = file.path;
       _controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..loadFile(file.path);
-      if (mounted) setState(() => _loading = false);
+        ..loadFile(result.filePath);
+      if (!mounted) return;
+      setState(() => _loading = false);
+      if (result.failureHint.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('预览已生成（${result.failureHint}）')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -76,6 +87,7 @@ class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
                       title: widget.title,
                       mode: widget.mode,
                       studentInfo: widget.studentInfo,
+                      contentOptions: ExportContentOptions.all,
                     ),
           ),
           IconButton(
