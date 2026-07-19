@@ -35,8 +35,7 @@ class CachedQuestionImage extends StatefulWidget {
   State<CachedQuestionImage> createState() => _CachedQuestionImageState();
 
   /// 简易 LRU 缓存：path → 缩略图字节。最多保留 40 张。
-  // ignore: prefer_collection_literals
-  static final Map<String, Uint8List> _cache =
+  static final _BoundedMap<String, Uint8List> _cache =
       _BoundedMap<String, Uint8List>(maxSize: 40);
 }
 
