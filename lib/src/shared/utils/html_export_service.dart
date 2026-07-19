@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/worksheet_export_mode.dart';
 
 /// 生成完全自包含的 HTML 错题报告。
 ///
@@ -23,6 +24,7 @@ class HtmlExportService {
   static Future<String> generateHtmlString(
     List<QuestionRecord> questions, {
     String title = '错题本整理报告',
+    WorksheetExportMode? mode,
   }) async {
     final katexCss = await _loadKatexCss();
     final katexJs = await _loadKatexJs();
@@ -95,7 +97,7 @@ class HtmlExportService {
 
       for (final q in list) {
         globalIndex++;
-        await _writeQuestionBlock(buffer, globalIndex, q);
+        await _writeQuestionBlock(buffer, globalIndex, q, mode: mode);
       }
 
       buffer.writeln('  </div>');
@@ -116,8 +118,9 @@ class HtmlExportService {
   static Future<File> generateHtml(
     List<QuestionRecord> questions, {
     String title = '错题本整理报告',
+    WorksheetExportMode? mode,
   }) async {
-    final html = await generateHtmlString(questions, title: title);
+    final html = await generateHtmlString(questions, title: title, mode: mode);
     final dir = await getApplicationDocumentsDirectory();
     final exportDir = Directory('${dir.path}/exports');
     if (!exportDir.existsSync()) {
@@ -135,9 +138,10 @@ class HtmlExportService {
     BuildContext context,
     List<QuestionRecord> questions, {
     String title = '错题本整理报告',
+    WorksheetExportMode? mode,
   }) async {
     try {
-      final file = await generateHtml(questions, title: title);
+      final file = await generateHtml(questions, title: title, mode: mode);
       if (!context.mounted) return;
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
@@ -163,8 +167,9 @@ class HtmlExportService {
   static Future<void> _writeQuestionBlock(
     StringBuffer buffer,
     int index,
-    QuestionRecord q,
-  ) async {
+    QuestionRecord q, {
+    WorksheetExportMode? mode,
+  }) async {
     final createDateStr = DateFormat('MM/dd').format(q.createdAt);
     final mastery = _masteryLabel(q.masteryLevel);
 
@@ -174,7 +179,8 @@ class HtmlExportService {
     if (q.isFavorite) {
       buffer.writeln('        <span style="color:#d97706">★</span>');
     }
-    buffer.writeln('        <span class="badge ${_masteryBadgeClass(q.masteryLevel)}">$_escapeHtml(mastery)</span>');
+    buffer.writeln(
+        '        <span class="badge ${_masteryBadgeClass(q.masteryLevel)}">$_escapeHtml(mastery)</span>');
     if (q.contentStatus.toString().split('.').last != 'ready') {
       buffer.writeln(
           '        <span class="badge badge-status">${_statusLabel(q.contentStatus)}</span>');
@@ -204,13 +210,28 @@ class HtmlExportService {
           '      <img class="question-image" src="$imageUri" alt="错题图片">');
     }
 
-    // 解析信息
+    if (mode == WorksheetExportMode.practice) {
+      buffer.writeln(
+          '      <div class="blank-area" style="height:80px"></div>');
+    } else {
+      await _writeAnalysisBlock(buffer, q, mode);
+    }
+
+    buffer.writeln('    </div>');
+  }
+
+  static Future<void> _writeAnalysisBlock(
+    StringBuffer buffer,
+    QuestionRecord q,
+    WorksheetExportMode? mode,
+  ) async {
     final analysis = q.analysisResult;
-    if (analysis != null) {
-      final kps = [
-        ...analysis.knowledgePoints,
-        ...analysis.aiTags,
-      ].take(5).join('  ·  ');
+    if (analysis == null) return;
+
+    if (mode == null || mode == WorksheetExportMode.answer) {
+      final kps = [...analysis.knowledgePoints, ...analysis.aiTags]
+          .take(5)
+          .join('  ·  ');
       if (kps.isNotEmpty) {
         buffer.writeln(
             '      <div class="analysis-row"><span class="analysis-label purple">知识点</span>：${_mixedTextToHtml(kps)}</div>');
@@ -237,9 +258,18 @@ class HtmlExportService {
         buffer.writeln(
             '      <div class="analysis-row"><span class="analysis-label orange">学习建议</span>：${_mixedTextToHtml(analysis.studyAdvice)}</div>');
       }
+    } else if (mode == WorksheetExportMode.correction) {
+      if (analysis.mistakeReason.isNotEmpty) {
+        buffer.writeln(
+            '      <div class="analysis-row"><span class="analysis-label">错因分析</span>：${_mixedTextToHtml(analysis.mistakeReason)}</div>');
+      }
+      if (analysis.studyAdvice.isNotEmpty) {
+        buffer.writeln(
+            '      <div class="analysis-row"><span class="analysis-label orange">订正提示</span>：${_mixedTextToHtml(analysis.studyAdvice)}</div>');
+      }
+      buffer.writeln(
+          '      <div class="blank-area" style="height:100px"></div>');
     }
-
-    buffer.writeln('    </div>');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -476,6 +506,12 @@ body {
 .math-inline { display: inline; }
 .math-display { display: block; margin: 6px 0; }
 .katex { font-size: 1.06em; }
+.blank-area {
+  border: 1px dashed #c7c3ff;
+  border-radius: 6px;
+  background: #fafaff;
+  margin-top: 8px;
+}
 
 @media print {
   .page { max-width: none; }
@@ -528,7 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
   static String _masteryLabel(dynamic masteryLevel) {
     final name = masteryLevel is String
         ? masteryLevel
-        : '${masteryLevel}'.split('.').last;
+        : '$masteryLevel'.split('.').last;
     switch (name) {
       case 'newQuestion':
         return '待学习';
@@ -544,7 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
   static String _masteryBadgeClass(dynamic masteryLevel) {
     final name = masteryLevel is String
         ? masteryLevel
-        : '${masteryLevel}'.split('.').last;
+        : '$masteryLevel'.split('.').last;
     switch (name) {
       case 'newQuestion':
         return 'badge-new';
@@ -560,7 +596,7 @@ document.addEventListener('DOMContentLoaded', function() {
   static String _statusLabel(dynamic contentStatus) {
     final name = contentStatus is String
         ? contentStatus
-        : '${contentStatus}'.split('.').last;
+        : '$contentStatus'.split('.').last;
     switch (name) {
       case 'processing':
         return '处理中';
