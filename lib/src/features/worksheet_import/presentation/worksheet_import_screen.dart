@@ -155,6 +155,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                 onStartAll: () => _startAllQueuedQuestions(queuedQuestions),
                 onStop: () => ref.read(worksheetAutoAnalyzeProvider.notifier).state = false,
                 onSaveReady: () => _saveReadyQuestions(queuedQuestions),
+                onRetryFailed: () => _retryFailedQuestions(queuedQuestions),
                 onAnalyzeDrafts: () => _analyzeOcrDrafts(queuedQuestions),
                 onOpen: _openQueuedQuestion,
               ),
@@ -261,6 +262,33 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('批量保存失败: $e')));
     }
+  }
+
+  Future<void> _retryFailedQuestions(List<QuestionRecord> queuedQuestions) async {
+    final failed = queuedQuestions.where((item) => item.contentStatus == ContentStatus.failed).toList();
+    if (failed.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('重试 ${failed.length} 道失败题？'),
+        content: const Text('会保留当前裁切题图与人工校对文字，仅重新调用普通 AI 分析，不会重新 OCR 或裁切。'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('开始重试')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet == null) return;
+    final ids = failed.map((item) => item.id).toSet();
+    final next = worksheet.pages.map((item) => ids.contains(item.id)
+        ? item.copyWith(contentStatus: ContentStatus.processing) : item).toList();
+    await persistWorksheetImport(ref, worksheet.copyWith(pages: next));
+    final first = next.firstWhere((item) => item.id == failed.first.id);
+    ref.read(currentQuestionProvider.notifier).state = first;
+    ref.read(worksheetAutoAnalyzeProvider.notifier).state = true;
+    if (mounted) context.go('/analysis/loading');
   }
 
   Future<void> _analyzeOcrDrafts(List<QuestionRecord> queuedQuestions) async {
@@ -392,6 +420,7 @@ class _QueueSummaryCard extends StatelessWidget {
     required this.onStartAll,
     required this.onStop,
     required this.onSaveReady,
+    required this.onRetryFailed,
     required this.onAnalyzeDrafts,
     required this.onOpen,
   });
@@ -405,6 +434,7 @@ class _QueueSummaryCard extends StatelessWidget {
   final VoidCallback onStartAll;
   final VoidCallback onStop;
   final VoidCallback onSaveReady;
+  final VoidCallback onRetryFailed;
   final VoidCallback onAnalyzeDrafts;
   final ValueChanged<QuestionRecord> onOpen;
 
@@ -439,6 +469,12 @@ class _QueueSummaryCard extends StatelessWidget {
               tooltip: '停止自动处理',
               onPressed: onStop,
               icon: const Icon(CupertinoIcons.stop_circle),
+            ),
+          if (failedCount > 0)
+            OutlinedButton.icon(
+              onPressed: autoAnalyzing ? null : onRetryFailed,
+              icon: const Icon(CupertinoIcons.arrow_clockwise, size: 16),
+              label: Text('重试失败题 ($failedCount)'),
             ),
           if (ocrDraftCount > 0)
             OutlinedButton.icon(
