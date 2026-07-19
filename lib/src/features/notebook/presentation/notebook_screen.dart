@@ -126,6 +126,23 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     }
   }
 
+  void _clearFilters(WidgetRef ref) {
+    ref.read(selectedSubjectFilterProvider.notifier).state = null;
+    ref.read(selectedMasteryFilterProvider.notifier).state = null;
+    ref.read(selectedMistakeCategoryFilterProvider.notifier).state = null;
+    ref.read(selectedKnowledgePointFilterProvider.notifier).state = null;
+    ref.read(selectedTagsFilterProvider.notifier).state = const <String>[];
+    ref.read(dueOnlyFilterProvider.notifier).state = false;
+    ref.read(favoritesOnlyFilterProvider.notifier).state = false;
+    ref.read(failedOnlyFilterProvider.notifier).state = false;
+    ref.read(questionDateRangeProvider.notifier).state = QuestionDateRange.all;
+    ref.read(selectedSourceFilterProvider.notifier).state = null;
+    ref.read(selectedLearningStageFilterProvider.notifier).state = null;
+    ref.read(selectedDifficultyFilterProvider.notifier).state = null;
+    ref.read(selectedAttemptStatusFilterProvider.notifier).state = null;
+    ref.read(questionSortProvider.notifier).state = QuestionSort.newest;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -148,6 +165,23 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     final sort = ref.watch(questionSortProvider);
     final selectedKnowledgePoint =
         ref.watch(selectedKnowledgePointFilterProvider);
+    final activeFilterLabels = <String>[
+      if (selectedSubject != null) selectedSubject.label,
+      if (selectedMastery != null) _masteryFilterLabel(selectedMastery),
+      if (selectedMistakeCategory != null) selectedMistakeCategory.label,
+      if (selectedKnowledgePoint != null) selectedKnowledgePoint,
+      if (selectedTags.isNotEmpty) ...selectedTags,
+      if (dueOnly) '待复习',
+      if (favoritesOnly) '收藏',
+      if (failedOnly) '待处理',
+      if (dateRange == QuestionDateRange.last7Days) '近 7 天',
+      if (dateRange == QuestionDateRange.last30Days) '近 30 天',
+      if (selectedSource != null) '来源：$selectedSource',
+      if (selectedStage != null) '年级：$selectedStage',
+      if (selectedDifficulty != null) _difficultyFilterLabel(selectedDifficulty),
+      if (selectedAttemptStatus != null) _attemptFilterLabel(selectedAttemptStatus),
+      if (sort != QuestionSort.newest) _sortFilterLabel(sort),
+    ];
 
     return Scaffold(
       appBar: AppBar(
@@ -278,30 +312,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                       selectedAttemptStatus == null &&
                       sort == QuestionSort.newest &&
                       selectedKnowledgePoint == null,
-                  onTap: () {
-                    ref.read(selectedSubjectFilterProvider.notifier).state =
-                        null;
-                    ref.read(selectedMasteryFilterProvider.notifier).state =
-                        null;
-                    ref
-                        .read(selectedMistakeCategoryFilterProvider.notifier)
-                        .state = null;
-                    ref
-                        .read(selectedKnowledgePointFilterProvider.notifier)
-                        .state = null;
-                    ref.read(selectedTagsFilterProvider.notifier).state = const <String>[];
-                    ref.read(dueOnlyFilterProvider.notifier).state = false;
-                    ref.read(favoritesOnlyFilterProvider.notifier).state = false;
-                    ref.read(failedOnlyFilterProvider.notifier).state = false;
-                    ref.read(questionDateRangeProvider.notifier).state =
-                        QuestionDateRange.all;
-                    ref.read(selectedSourceFilterProvider.notifier).state = null;
-                    ref.read(selectedLearningStageFilterProvider.notifier).state = null;
-                    ref.read(selectedDifficultyFilterProvider.notifier).state = null;
-                    ref.read(selectedAttemptStatusFilterProvider.notifier).state = null;
-                    ref.read(questionSortProvider.notifier).state =
-                        QuestionSort.newest;
-                  },
+                  onTap: () => _clearFilters(ref),
                 ),
                 const SizedBox(width: 8),
                 _Chip(
@@ -410,6 +421,11 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               ],
             ),
           ),
+          if (activeFilterLabels.isNotEmpty)
+            _ActiveFilterSummary(
+              labels: activeFilterLabels,
+              onClear: () => _clearFilters(ref),
+            ),
           const SizedBox(height: 8),
           // List
           Expanded(
@@ -882,3 +898,53 @@ String _attemptFilterLabel(AttemptStatus value) => switch (value) {
       AttemptStatus.incomplete => '未完成',
       AttemptStatus.unknown => '作答未判断',
     };
+
+String _masteryFilterLabel(MasteryLevel value) => switch (value) {
+      MasteryLevel.newQuestion => '新题',
+      MasteryLevel.reviewing => '学习中',
+      MasteryLevel.mastered => '已掌握',
+    };
+
+String _sortFilterLabel(QuestionSort value) => switch (value) {
+      QuestionSort.newest => '最新录入',
+      QuestionSort.oldest => '最早录入',
+      QuestionSort.nextReview => '下次复习',
+    };
+
+class _ActiveFilterSummary extends StatelessWidget {
+  const _ActiveFilterSummary({required this.labels, required this.onClear});
+
+  final List<String> labels;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+      child: Row(
+        children: <Widget>[
+          const Icon(CupertinoIcons.line_horizontal_3_decrease_circle,
+              size: 16),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              labels.join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+            ),
+          ),
+          TextButton(
+            onPressed: onClear,
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 32),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+  }
+}
