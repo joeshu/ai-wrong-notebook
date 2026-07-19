@@ -283,6 +283,16 @@ class _BatchActionCard extends StatelessWidget {
     final drafts = all.where((item) => item.contentStatus == ContentStatus.ready && item.analysisResult == null).length;
     final pending = all.where((item) => item.contentStatus == ContentStatus.processing).length;
     final remaining = failed + drafts + pending;
+    final primaryAction = failed > 0
+        ? '重新分析'
+        : drafts > 0
+            ? '继续校对'
+            : '继续处理';
+    final primaryIcon = failed > 0
+        ? CupertinoIcons.arrow_clockwise
+        : drafts > 0
+            ? CupertinoIcons.pencil
+            : CupertinoIcons.arrow_right_circle;
     if (remaining == 0) return const SizedBox.shrink();
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
@@ -291,16 +301,16 @@ class _BatchActionCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
         Row(children: <Widget>[Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppStatusColor.warning), const SizedBox(width: 8), Expanded(child: Text('今日优先 · 待处理事项', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700))), Text('$remaining 项', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))]),
         const SizedBox(height: 10),
-        if (failed > 0) _BatchTodoRow(icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFEA580C), text: '$failed 道分析失败题', action: '重试'),
-        if (drafts > 0) _BatchTodoRow(icon: CupertinoIcons.sparkles, color: const Color(0xFF2563EB), text: '$drafts 道 OCR 草稿待分析', action: '分析'),
-        if (pending > 0) _BatchTodoRow(icon: CupertinoIcons.clock, color: const Color(0xFF64748B), text: '$pending 道题尚未处理', action: '继续'),
+        if (failed > 0) _BatchTodoRow(icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFEA580C), text: '$failed 道分析失败题', action: '重新分析'),
+        if (drafts > 0) _BatchTodoRow(icon: CupertinoIcons.sparkles, color: const Color(0xFF2563EB), text: '$drafts 道 OCR 草稿待确认', action: '继续校对'),
+        if (pending > 0) _BatchTodoRow(icon: CupertinoIcons.clock, color: const Color(0xFF64748B), text: '$pending 道题尚未处理', action: '继续处理'),
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
             onPressed: onOpen,
-            icon: const Icon(CupertinoIcons.arrow_right_circle),
-            label: const Text('继续处理'),
+            icon: Icon(primaryIcon),
+            label: Text(primaryAction),
           ),
         ),
       ]),
