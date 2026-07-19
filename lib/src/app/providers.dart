@@ -413,45 +413,38 @@ class TodayReviewPlan {
 }
 
 final StreamProvider<TodayReviewPlan> todayReviewPlanProvider =
-    StreamProvider<TodayReviewPlan>((ref) {
+    StreamProvider<TodayReviewPlan>((ref) async* {
   ref.watch(_listVersionProvider);
   const scheduler = ReviewScheduleService();
-  return _combineTodayPlan(ref, scheduler);
-});
-
-Stream<TodayReviewPlan> _combineTodayPlan(
-    Ref ref, ReviewScheduleService scheduler) async* {
-  // 同时订阅题目和复习记录两个流，任一更新都重算计划。
-  await for (final questions in ref.watch(questionListProvider).when(
-    data: (data) => Stream.value(data),
-    loading: () => const Stream.empty(),
-    error: (e, _) => Stream.error(e, _),
-  )) {
-    final logs = await ref.read(reviewLogListProvider.future);
-    final now = DateTime.now();
-    final completedIds = <String>{};
-    final reviewedDays = <DateTime>{};
-    for (final log in logs) {
-      final at = log.reviewedAt.toLocal();
-      final day = DateTime(at.year, at.month, at.day);
-      reviewedDays.add(day);
-      if (day == DateTime(now.year, now.month, now.day)) {
-        completedIds.add(log.questionRecordId);
-      }
+  // 等待题目和复习记录两个流的首个快照，再计算计划。
+  // _listVersionProvider 变化时整个 StreamProvider 会重建，触发重新计算；
+  // Drift watchAll() 在表变更时也会推动 questionListProvider/reviewLogListProvider
+  // 发出新值，通过 _listVersionProvider 间接触发刷新（保持兼容）。
+  final questions = await ref.read(questionListProvider.future);
+  final logs = await ref.read(reviewLogListProvider.future);
+  final now = DateTime.now();
+  final completedIds = <String>{};
+  final reviewedDays = <DateTime>{};
+  for (final log in logs) {
+    final at = log.reviewedAt.toLocal();
+    final day = DateTime(at.year, at.month, at.day);
+    reviewedDays.add(day);
+    if (day == DateTime(now.year, now.month, now.day)) {
+      completedIds.add(log.questionRecordId);
     }
-    var streak = 0;
-    var day = DateTime(now.year, now.month, now.day);
-    while (reviewedDays.contains(day)) {
-      streak++;
-      day = day.subtract(const Duration(days: 1));
-    }
-    yield TodayReviewPlan(
-      dueCount: questions.where(scheduler.isDue).length,
-      completedCount: completedIds.length,
-      streakDays: streak,
-    );
   }
-}
+  var streak = 0;
+  var day = DateTime(now.year, now.month, now.day);
+  while (reviewedDays.contains(day)) {
+    streak++;
+    day = day.subtract(const Duration(days: 1));
+  }
+  yield TodayReviewPlan(
+    dueCount: questions.where(scheduler.isDue).length,
+    completedCount: completedIds.length,
+    streakDays: streak,
+  );
+});
 
 // --- Mistake category statistics ---
 

@@ -62,6 +62,18 @@ class _CachedQuestionImageState extends State<CachedQuestionImage> {
 
   Future<void> _load() async {
     final path = widget.path;
+    // 空路径或文件不存在时直接进入错误态，避免在测试/无图场景下仍 spawn
+    // isolate 去读不存在的文件，导致 pumpAndSettle 等待 isolate 超时。
+    if (path.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _bytes = null;
+          _loading = false;
+          _error = 'empty_path';
+        });
+      }
+      return;
+    }
     final cacheKey = '${widget.highRes ? 'hr' : 'th'}:$path';
     final cached = CachedQuestionImage._cache[cacheKey];
     if (cached != null) {
@@ -70,6 +82,17 @@ class _CachedQuestionImageState extends State<CachedQuestionImage> {
           _bytes = cached;
           _loading = false;
           _error = null;
+        });
+      }
+      return;
+    }
+    final file = File(path);
+    if (!file.existsSync()) {
+      if (mounted) {
+        setState(() {
+          _bytes = null;
+          _loading = false;
+          _error = 'not_found';
         });
       }
       return;
