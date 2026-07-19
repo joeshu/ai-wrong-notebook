@@ -116,6 +116,15 @@ class _WorksheetRegionEditorScreenState
           onPressed: _isCropping ? null : () => context.go('/worksheet/import'),
         ),
       ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        child: FilledButton.icon(
+          onPressed: _isCropping || _regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).isEmpty ? null : () => _confirmAndCrop(page),
+          icon: _isCropping ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(CupertinoIcons.crop),
+          label: Text(_isCropping ? '正在生成独立题图...' : '确认并生成 ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).length} 道题'),
+          style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
+        ),
+      ),
       body: SafeArea(
         child: Column(children: <Widget>[
           Padding(
@@ -234,20 +243,6 @@ class _WorksheetRegionEditorScreenState
               );
             }),
           ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: FilledButton.icon(
-              onPressed: _isCropping || _regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).isEmpty
-                  ? null
-                  : () => _confirmAndCrop(page),
-              icon: _isCropping
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(CupertinoIcons.crop),
-              label: Text(_isCropping
-                  ? '正在生成独立题图...'
-                  : '确认 ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted).length} 题：${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted && region.analyzeWithAi).length} 题深度分析 / ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.accepted && !region.analyzeWithAi).length} 题仅保存 OCR${_regions.any((region) => region.reviewStatus == QuestionRegionReviewStatus.ignored) ? ' / ${_regions.where((region) => region.reviewStatus == QuestionRegionReviewStatus.ignored).length} 题忽略' : ''}'),
-              style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-            ),
           ),
         ]),
       ),
@@ -827,6 +822,7 @@ class _RecognizedQuestionWorkbenchState
   ];
   int _selectedIndex = 0;
   _QuestionListFilter _filter = _QuestionListFilter.all;
+  bool _showAdvanced = false;
   final Set<String> _batchSelectedIds = <String>{};
   Map<int, QuestionRegion>? _lastBatchBefore;
 
@@ -1286,11 +1282,11 @@ class _RecognizedQuestionWorkbenchState
             child: Text('⊘ 此题已忽略，不会被裁切、保存或交给 AI；可点击“恢复采用”撤销。', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
           ),
         if (risks.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 7),
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(6)),
-            child: Text('⚠ ${risks.join('；')}', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
+          _RiskActionCard(
+            risks: risks,
+            onEditText: () => setState(() => _showAdvanced = false),
+            onPreviewCrop: () => _showCropPreview(context, region, sourceImagePath),
+            onOpenAdvanced: () => setState(() => _showAdvanced = true),
           ),
         Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
         Align(
@@ -1331,17 +1327,33 @@ class _RecognizedQuestionWorkbenchState
               child: const Text('恢复识别原文'),
             ),
           ]),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            onPressed: () => _openBlockEditor(context, index, region),
-            icon: const Icon(CupertinoIcons.list_bullet_indent, size: 16),
-            label: Text('按原始顺序编辑 ${region.documentBlocks.isEmpty ? '内容块' : '${region.documentBlocks.length} 个内容块'}'),
-          ),
+        TextFormField(
+          key: ValueKey('${region.id}-quick-stem-$stem'),
+          initialValue: stem,
+          minLines: 2,
+          maxLines: 4,
+          onChanged: (value) => _updateStructured(index, region, stem: value),
+          decoration: const InputDecoration(isDense: true, labelText: '题干', helperText: '先校对题干；公式、表格和内容块可在高级校对中编辑。', alignLabelWithHint: true, border: OutlineInputBorder()),
         ),
         const SizedBox(height: 6),
+        ExpansionTile(
+          initiallyExpanded: _showAdvanced,
+          onExpansionChanged: (value) => setState(() => _showAdvanced = value),
+          tilePadding: EdgeInsets.zero,
+          title: const Text('高级校对', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          subtitle: Text('公式、表格、原文对照与内容块顺序${region.documentBlocks.isEmpty ? '' : ' · ${region.documentBlocks.length} 个内容块'}', style: const TextStyle(fontSize: 11)),
+          children: <Widget>[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _openBlockEditor(context, index, region),
+                icon: const Icon(CupertinoIcons.list_bullet_indent, size: 16),
+                label: const Text('编辑内容块顺序'),
+              ),
+            ),
+        const SizedBox(height: 6),
         TextFormField(
-          key: ValueKey('${region.id}-stem-$stem'),
+          key: ValueKey('${region.id}-advanced-stem-$stem'),
           initialValue: stem,
           minLines: 3,
           maxLines: 6,
@@ -1394,6 +1406,8 @@ class _RecognizedQuestionWorkbenchState
             _MarkdownTablePreview(tables.first),
           ],
         ],
+          ],
+        ),
         const SizedBox(height: 8),
         Row(children: <Widget>[
           Expanded(child: DropdownButtonFormField<Subject>(
@@ -1422,6 +1436,33 @@ class _RecognizedQuestionWorkbenchState
           subtitle: Text(region.analyzeWithAi ? '生成讲解、错因、知识点与练习' : '不调用普通 AI，可稍后在错题本中分析', style: const TextStyle(fontSize: 10)),
         ),
       ],
+    );
+  }
+}
+
+class _RiskActionCard extends StatelessWidget {
+  const _RiskActionCard({required this.risks, required this.onEditText, required this.onPreviewCrop, required this.onOpenAdvanced});
+  final List<String> risks;
+  final VoidCallback onEditText;
+  final VoidCallback onPreviewCrop;
+  final VoidCallback onOpenAdvanced;
+  @override
+  Widget build(BuildContext context) {
+    final needsText = risks.any((item) => item.contains('文字') || item.contains('可信度'));
+    final needsCrop = risks.any((item) => item.contains('边缘') || item.contains('重叠'));
+    final needsStructure = risks.any((item) => item.contains('公式') || item.contains('表格'));
+    return Container(
+      margin: const EdgeInsets.only(bottom: 7), padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(8)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+        Text('⚠ ${risks.join('；')}', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
+        const SizedBox(height: 5),
+        Wrap(spacing: 6, runSpacing: 4, children: <Widget>[
+          if (needsText) TextButton.icon(onPressed: onEditText, icon: const Icon(CupertinoIcons.pencil, size: 14), label: const Text('校对题干')),
+          if (needsCrop) TextButton.icon(onPressed: onPreviewCrop, icon: const Icon(CupertinoIcons.crop, size: 14), label: const Text('查看裁切')),
+          if (needsStructure) TextButton.icon(onPressed: onOpenAdvanced, icon: const Icon(CupertinoIcons.list_bullet, size: 14), label: const Text('校对格式')),
+        ]),
+      ]),
     );
   }
 }
