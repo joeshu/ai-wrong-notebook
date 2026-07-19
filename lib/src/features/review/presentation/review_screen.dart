@@ -25,7 +25,7 @@ class ReviewScreen extends ConsumerWidget {
       data: (questions) {
         const scheduler = ReviewScheduleService();
         final pending = questions.where(scheduler.isDue).toList();
-        final scheduled = questions.where((q) => !scheduler.isDue).toList();
+        final scheduled = questions.where((q) => !scheduler.isDue(q)).toList();
         final reviewedToday = _reviewedToday(
           reviewLogsAsync.valueOrNull ?? const <ReviewLog>[],
         );

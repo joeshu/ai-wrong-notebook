@@ -60,6 +60,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
           icon: const Icon(CupertinoIcons.chevron_left),
           onPressed: () => context.go('/settings'),
         ),
+      ),
       body: questionsAsync.when(
         data: (questions) => ListView(
           padding: const EdgeInsets.all(16),
