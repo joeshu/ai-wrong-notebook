@@ -1134,7 +1134,7 @@ class _MultiSelectDialogState extends State<_MultiSelectDialog> {
         children: <Widget>[
           Expanded(child: Text(widget.title)),
           TextButton(
-            onPressed: () => setState(_selected.clear()),
+            onPressed: () => setState(_selected.clear),
             child: const Text('清空'),
           ),
           TextButton(
