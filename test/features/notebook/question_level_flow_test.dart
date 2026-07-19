@@ -84,7 +84,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('第一题：已知 x+1=3，求 x'), findsOneWidget);
-    expect(find.text('来自同一拍照批次 · 第 1 题'), findsOneWidget);
     expect(find.text('一次方程'), findsOneWidget);
     expect(find.text('课堂'), findsOneWidget);
   });
@@ -142,6 +141,8 @@ void main() {
     expect(find.text('一次方程'), findsOneWidget);
     expect(container.read(currentQuestionProvider)?.id, 'q-batch-1');
 
+    await tester.tap(find.text('练习'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('继续练习'));
     await tester.pumpAndSettle();
 
@@ -213,6 +214,9 @@ void main() {
 
     await tester.tap(find.text('第一题：已知 x+1=3，求 x'));
     await tester.pumpAndSettle();
+
+    await tester.tap(find.text('练习'));
+    await tester.pumpAndSettle();
     expect(find.text('0/1 已答'), findsOneWidget);
 
     await tester.tap(find.text('继续练习'));
@@ -234,6 +238,8 @@ void main() {
     router.go('/notebook/question/q-batch-1');
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('练习'));
+    await tester.pumpAndSettle();
     expect(find.text('1/1 已答'), findsOneWidget);
     expect(
         container.read(currentQuestionProvider)?.savedExercises.first.isCorrect,
@@ -277,12 +283,13 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.tap(find.text('解析'));
     await tester.pumpAndSettle();
 
     expect(find.text('x=2'), findsOneWidget);
     expect(find.text('移项法则'), findsOneWidget);
-    await tester.drag(find.byType(ListView), const Offset(0, 700));
+
+    await tester.tap(find.text('练习'));
     await tester.pumpAndSettle();
     expect(find.text('继续练习'), findsOneWidget);
 

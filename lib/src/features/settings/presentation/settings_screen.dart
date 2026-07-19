@@ -18,125 +18,128 @@ class SettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.settingsTitle)),
-      body: ListView(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpace.xl),
-        children: <Widget>[
-          AppSectionTitle(AppStrings.settingsAppearance),
-          const SizedBox(height: AppSpace.md),
-          Row(
-            children: <Widget>[
-              _ThemeButton(
-                label: AppStrings.settingsThemeSystem,
-                icon: CupertinoIcons.device_phone_portrait,
-                isSelected: themeMode == ThemeMode.system,
-                onTap: () => ref
-                    .read(themeModeProvider.notifier)
-                    .setMode(ThemeMode.system),
-              ),
-              const SizedBox(width: AppSpace.sm),
-              _ThemeButton(
-                label: AppStrings.settingsThemeLight,
-                icon: CupertinoIcons.sun_max,
-                isSelected: themeMode == ThemeMode.light,
-                onTap: () => ref
-                    .read(themeModeProvider.notifier)
-                    .setMode(ThemeMode.light),
-              ),
-              const SizedBox(width: AppSpace.sm),
-              _ThemeButton(
-                label: AppStrings.settingsThemeDark,
-                icon: CupertinoIcons.moon,
-                isSelected: themeMode == ThemeMode.dark,
-                onTap: () => ref
-                    .read(themeModeProvider.notifier)
-                    .setMode(ThemeMode.dark),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpace.xl),
-          AppSectionTitle(AppStrings.settingsReminders),
-          const SizedBox(height: AppSpace.md),
-          AppCard(
-            child: AppListTile(
-              icon: CupertinoIcons.bell,
-              iconColor: AppColors.warning,
-              iconBackgroundColor: AppColors.warningContainerLight,
-              title: AppStrings.settingsReviewReminder,
-              subtitle: AppStrings.settingsReviewReminderSubtitle,
-              trailing: Switch(
-                value: reminderEnabled,
-                onChanged: (value) => _setReminderEnabled(context, ref, value),
-              ),
-              onTap: () => _setReminderEnabled(context, ref, !reminderEnabled),
-            ),
-          ),
-          const SizedBox(height: AppSpace.xl),
-          AppSectionTitle(AppStrings.settingsAiService),
-          const SizedBox(height: AppSpace.md),
-          AppCard(
-            child: Column(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            AppSectionTitle(AppStrings.settingsAppearance),
+            const SizedBox(height: AppSpace.md),
+            Row(
               children: <Widget>[
-                AppListTile(
-                  icon: CupertinoIcons.sparkles,
-                  iconColor: AppColors.primary,
-                  iconBackgroundColor: AppColors.primaryContainerLight,
-                  title: AppStrings.settingsAiProvider,
-                  onTap: () => context.go('/settings/provider'),
+                _ThemeButton(
+                  label: AppStrings.settingsThemeSystem,
+                  icon: CupertinoIcons.device_phone_portrait,
+                  isSelected: themeMode == ThemeMode.system,
+                  onTap: () => ref
+                      .read(themeModeProvider.notifier)
+                      .setMode(ThemeMode.system),
                 ),
-                Divider(
-                  height: 1,
-                  indent: 56,
-                  color: colorScheme.outlineVariant,
+                const SizedBox(width: AppSpace.sm),
+                _ThemeButton(
+                  label: AppStrings.settingsThemeLight,
+                  icon: CupertinoIcons.sun_max,
+                  isSelected: themeMode == ThemeMode.light,
+                  onTap: () => ref
+                      .read(themeModeProvider.notifier)
+                      .setMode(ThemeMode.light),
                 ),
-                AppListTile(
-                  icon: CupertinoIcons.doc_text,
-                  iconColor: AppColors.accentTeal,
-                  iconBackgroundColor: AppColors.accentTealContainerLight,
-                  title: AppStrings.settingsLayoutProvider,
-                  subtitle: AppStrings.settingsLayoutProviderSubtitle,
-                  onTap: () => context.go('/settings/layout'),
-                ),
-                Divider(
-                  height: 1,
-                  indent: 56,
-                  color: colorScheme.outlineVariant,
-                ),
-                AppListTile(
-                  icon: CupertinoIcons.pencil,
-                  iconColor: AppColors.accentAmber,
-                  iconBackgroundColor: AppColors.accentAmberContainerLight,
-                  title: AppStrings.settingsAiPrompts,
-                  onTap: () => context.go('/settings/prompts'),
+                const SizedBox(width: AppSpace.sm),
+                _ThemeButton(
+                  label: AppStrings.settingsThemeDark,
+                  icon: CupertinoIcons.moon,
+                  isSelected: themeMode == ThemeMode.dark,
+                  onTap: () => ref
+                      .read(themeModeProvider.notifier)
+                      .setMode(ThemeMode.dark),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: AppSpace.xl),
-          AppSectionTitle(AppStrings.settingsContent),
-          const SizedBox(height: AppSpace.md),
-          AppCard(
-            child: AppListTile(
-              icon: CupertinoIcons.folder,
-              iconColor: AppColors.success,
-              iconBackgroundColor: AppColors.successContainerLight,
-              title: AppStrings.settingsSubjects,
-              onTap: () => context.go('/settings/subjects'),
+            const SizedBox(height: AppSpace.xl),
+            AppSectionTitle(AppStrings.settingsReminders),
+            const SizedBox(height: AppSpace.md),
+            AppCard(
+              child: AppListTile(
+                icon: CupertinoIcons.bell,
+                iconColor: AppColors.warning,
+                iconBackgroundColor: AppColors.warningContainerLight,
+                title: AppStrings.settingsReviewReminder,
+                subtitle: AppStrings.settingsReviewReminderSubtitle,
+                trailing: Switch(
+                  value: reminderEnabled,
+                  onChanged: (value) => _setReminderEnabled(context, ref, value),
+                ),
+                onTap: () => _setReminderEnabled(context, ref, !reminderEnabled),
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpace.xl),
-          AppSectionTitle(AppStrings.settingsDataSecurity),
-          const SizedBox(height: AppSpace.md),
-          AppCard(
-            child: AppListTile(
-              icon: CupertinoIcons.shield_lefthalf_fill,
-              iconColor: AppColors.warning,
-              iconBackgroundColor: AppColors.warningContainerLight,
-              title: AppStrings.settingsDataManagement,
-              subtitle: AppStrings.settingsDataManagementSubtitle,
-              onTap: () => context.go('/settings/data'),
+            const SizedBox(height: AppSpace.xl),
+            AppSectionTitle(AppStrings.settingsAiService),
+            const SizedBox(height: AppSpace.md),
+            AppCard(
+              child: Column(
+                children: <Widget>[
+                  AppListTile(
+                    icon: CupertinoIcons.sparkles,
+                    iconColor: AppColors.primary,
+                    iconBackgroundColor: AppColors.primaryContainerLight,
+                    title: AppStrings.settingsAiProvider,
+                    onTap: () => context.go('/settings/provider'),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 56,
+                    color: colorScheme.outlineVariant,
+                  ),
+                  AppListTile(
+                    icon: CupertinoIcons.doc_text,
+                    iconColor: AppColors.accentTeal,
+                    iconBackgroundColor: AppColors.accentTealContainerLight,
+                    title: AppStrings.settingsLayoutProvider,
+                    subtitle: AppStrings.settingsLayoutProviderSubtitle,
+                    onTap: () => context.go('/settings/layout'),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 56,
+                    color: colorScheme.outlineVariant,
+                  ),
+                  AppListTile(
+                    icon: CupertinoIcons.pencil,
+                    iconColor: AppColors.accentAmber,
+                    iconBackgroundColor: AppColors.accentAmberContainerLight,
+                    title: AppStrings.settingsAiPrompts,
+                    onTap: () => context.go('/settings/prompts'),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: AppSpace.xl),
+            AppSectionTitle(AppStrings.settingsContent),
+            const SizedBox(height: AppSpace.md),
+            AppCard(
+              child: AppListTile(
+                icon: CupertinoIcons.folder,
+                iconColor: AppColors.success,
+                iconBackgroundColor: AppColors.successContainerLight,
+                title: AppStrings.settingsSubjects,
+                onTap: () => context.go('/settings/subjects'),
+              ),
+            ),
+            const SizedBox(height: AppSpace.xl),
+            AppSectionTitle(AppStrings.settingsDataSecurity),
+            const SizedBox(height: AppSpace.md),
+            AppCard(
+              child: AppListTile(
+                icon: CupertinoIcons.shield_lefthalf_fill,
+                iconColor: AppColors.warning,
+                iconBackgroundColor: AppColors.warningContainerLight,
+                title: AppStrings.settingsDataManagement,
+                subtitle: AppStrings.settingsDataManagementSubtitle,
+                onTap: () => context.go('/settings/data'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
