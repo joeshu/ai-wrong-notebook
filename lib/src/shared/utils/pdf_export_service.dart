@@ -89,11 +89,18 @@ class PdfExportService {
               const SizedBox(height: 12),
               ValueListenableBuilder<double>(
                 valueListenable: progress,
-                builder: (_, v, __) => Text(
-                  v <= 0
-                      ? '正在准备导出…'
-                      : '正在处理图片 ${(v * 100).round()}%',
-                ),
+                builder: (_, v, __) {
+                  if (v <= 0) {
+                    return const Text('正在准备导出…');
+                  }
+                  // 图片预处理到 100% 后，generatePdf 还要调用
+                  // convertHtmlToPdf 渲染 PDF（WebView，耗时数秒到十几秒），
+                  // 这期间进度保持 1.0。切换文案避免用户误以为卡死。
+                  if (v >= 1.0) {
+                    return const Text('正在生成 PDF…');
+                  }
+                  return Text('正在处理图片 ${(v * 100).round()}%');
+                },
               ),
             ],
           ),
