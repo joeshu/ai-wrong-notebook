@@ -359,7 +359,9 @@ void main() {
     expect(firstSibling, findsOneWidget);
     expect(secondSibling, findsOneWidget);
 
-    await tester.tap(secondSibling, warnIfMissed: false);
+    await tester.ensureVisible(secondSibling);
+    await tester.pumpAndSettle();
+    await tester.tap(secondSibling);
     await tester.pumpAndSettle();
 
     expect(container.read(currentQuestionProvider)?.id, 'q-batch-2');
