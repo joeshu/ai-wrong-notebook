@@ -136,8 +136,7 @@ class _QuestionSplitConfirmationScreenState
                         textColor: const Color(0xFFD97706),
                       ),
                     ],
-                  ),
-                ],
+                  ),                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -464,14 +463,6 @@ class _QuestionSplitConfirmationScreenState
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 12, color: colorScheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () => context.go('/analysis/result'),
-                icon: const Icon(CupertinoIcons.chevron_left, size: 18),
-                label: const Text('返回结果页'),
-                style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48)),
               ),
             ],
           ),
