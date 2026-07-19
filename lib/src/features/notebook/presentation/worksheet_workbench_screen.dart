@@ -6,6 +6,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/worksheet_export_mode.dart';
 
 /// Selects and orders a subset of the local question bank for export.
 /// The next slice adds per-mode PDF layouts; this screen deliberately keeps
