@@ -321,8 +321,8 @@ void main() {
       overrides: <Override>[
         questionRepositoryProvider.overrideWithValue(repository),
         currentQuestionProvider.overrideWith((ref) => first),
-        questionBatchGroupsProvider.overrideWithValue(
-          AsyncValue.data(buildQuestionBatchGroups(<QuestionRecord>[first, second])),
+        questionBatchGroupsProvider.overrideWith(
+          (ref) => buildQuestionBatchGroups(<QuestionRecord>[first, second]),
         ),
       ],
     );
