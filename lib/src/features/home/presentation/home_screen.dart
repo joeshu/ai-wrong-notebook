@@ -9,7 +9,7 @@ import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
-import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
+import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
@@ -52,14 +52,11 @@ class HomeScreen extends ConsumerWidget {
                 color: Theme.of(context).colorScheme.secondaryContainer,
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
-                  onTap: () => showModalBottomSheet<void>(
-                    context: context,
-                    builder: (_) => const CaptureEntrySheet(),
-                  ),
+                  onTap: () => CaptureEntryLauncher.show(context),
                   borderRadius: BorderRadius.circular(12),
                   child: const Padding(
                     padding: EdgeInsets.all(12),
-                    child: Icon(CupertinoIcons.camera),
+                    child: Icon(CupertinoIcons.add),
                   ),
                 ),
               ),
@@ -67,8 +64,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           _QuickStartRow(
-            onCapture: () => showModalBottomSheet<void>(context: context, builder: (_) => const CaptureEntrySheet()),
-            onImport: () => context.go('/worksheet/import'),
+            onCapture: () => CaptureEntryLauncher.show(context),
           ),
           if (worksheetSession != null) ...<Widget>[
             const SizedBox(height: 20),
@@ -80,10 +76,7 @@ class HomeScreen extends ConsumerWidget {
               child: _TodayPlanCard(
                 plan: plan,
                 onOpenReview: () => context.go('/review'),
-                onCapture: () => showModalBottomSheet<void>(
-                  context: context,
-                  builder: (_) => const CaptureEntrySheet(),
-                ),
+                onCapture: () => CaptureEntryLauncher.show(context),
               ),
             ),
             loading: () => const _TodayPlanSkeleton(),
@@ -247,18 +240,20 @@ class _TodayPlanSkeleton extends StatelessWidget {
 }
 
 class _QuickStartRow extends StatelessWidget {
-  const _QuickStartRow({required this.onCapture, required this.onImport});
+  const _QuickStartRow({required this.onCapture});
   final VoidCallback onCapture;
-  final VoidCallback onImport;
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
     Text('快速开始', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
     const SizedBox(height: 8),
-    Row(children: <Widget>[
-      Expanded(child: OutlinedButton.icon(onPressed: onCapture, icon: const Icon(CupertinoIcons.camera), label: const Text('拍照录题'))),
-      const SizedBox(width: 10),
-      Expanded(child: FilledButton.icon(onPressed: onImport, icon: const Icon(CupertinoIcons.doc), label: const Text('导入试卷'))),
-    ]),
+    SizedBox(
+      width: double.infinity,
+      child: FilledButton.icon(
+        onPressed: onCapture,
+        icon: const Icon(CupertinoIcons.add),
+        label: const Text('录入错题'),
+      ),
+    ),
   ]);
 }
 

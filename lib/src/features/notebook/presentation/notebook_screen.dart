@@ -8,7 +8,7 @@ import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
-import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
+import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -155,11 +155,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
         actions: [
           IconButton(
             icon: const Icon(CupertinoIcons.camera),
-            onPressed: () => showModalBottomSheet<void>(
-              context: context,
-              builder: (_) => const CaptureEntrySheet(),
-            ),
-            tooltip: '添加错题',
+            onPressed: () => CaptureEntryLauncher.show(context),
+            tooltip: '录入错题',
           ),
           PopupMenuButton<_NotebookMenuAction>(
             icon: const Icon(CupertinoIcons.line_horizontal_3_decrease),
@@ -423,7 +420,11 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                     icon: CupertinoIcons.question,
                     title: '还没有错题',
                     description: '拍照录入一道错题，或导入整页试卷开始整理。',
-                    action: FilledButton.icon(onPressed: () => showModalBottomSheet<void>(context: context, builder: (_) => const CaptureEntrySheet()), icon: const Icon(CupertinoIcons.add), label: const Text('拍照录题')),
+                    action: FilledButton.icon(
+                      onPressed: () => CaptureEntryLauncher.show(context),
+                      icon: const Icon(CupertinoIcons.add),
+                      label: const Text('录入错题'),
+                    ),
                   );
                 }
                 final hasPracticeAction =

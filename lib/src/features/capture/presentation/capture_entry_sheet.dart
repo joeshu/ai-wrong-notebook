@@ -44,7 +44,7 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
             ),
             const SizedBox(height: 20),
             Text(
-              '添加错题',
+              '录入错题',
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
