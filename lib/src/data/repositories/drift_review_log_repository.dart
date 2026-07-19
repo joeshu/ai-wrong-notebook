@@ -53,6 +53,22 @@ class DriftReviewLogRepository implements ReviewLogRepository {
     await _database.delete(_database.reviewLogs).go();
   }
 
+  @override
+  Future<void> deleteByIds(Set<String> ids) async {
+    if (ids.isEmpty) return;
+    final rows = await _database.select(_database.reviewLogs).get();
+    final rowIds = <int>[];
+    for (final row in rows) {
+      try {
+        final payload = row.notes == null ? null : jsonDecode(row.notes!);
+        if (payload is Map && ids.contains(payload['id'])) rowIds.add(row.id);
+      } catch (_) {}
+    }
+    if (rowIds.isNotEmpty) {
+      await (_database.delete(_database.reviewLogs)..where((table) => table.id.isIn(rowIds))).go();
+    }
+  }
+
   domain.ReviewLog _toDomain(db.ReviewLog row) {
     Map<String, dynamic>? payload;
     try {

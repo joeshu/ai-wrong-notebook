@@ -57,6 +57,12 @@ class SharedPrefsReviewLogRepository implements ReviewLogRepository {
   Future<List<ReviewLog>> listAll() async => _loadAll();
 
   @override
+  Future<void> deleteByIds(Set<String> ids) async {
+    final logs = await _loadAll();
+    await _saveAll(logs.where((item) => !ids.contains(item.id)).toList());
+  }
+
+  @override
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);

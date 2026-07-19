@@ -5,6 +5,7 @@ abstract class ReviewLogRepository {
   Future<List<ReviewLog>> getByQuestionId(String questionId);
   Future<List<ReviewLog>> listAll();
   Future<void> clear();
+  Future<void> deleteByIds(Set<String> ids);
 }
 
 class InMemoryReviewLogRepository implements ReviewLogRepository {
@@ -22,4 +23,8 @@ class InMemoryReviewLogRepository implements ReviewLogRepository {
 
   @override
   Future<void> clear() async => _items.clear();
+
+  @override
+  Future<void> deleteByIds(Set<String> ids) async =>
+      _items.removeWhere((item) => ids.contains(item.id));
 }
