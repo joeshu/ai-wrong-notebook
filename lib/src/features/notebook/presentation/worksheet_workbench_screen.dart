@@ -23,6 +23,7 @@ class _WorksheetWorkbenchScreenState
   final _selectedIds = <String>{};
   final _order = <String>[];
   String _query = '';
+  bool _draftApplied = false;
 
   List<QuestionRecord> _selected(List<QuestionRecord> all) {
     final byId = {for (final item in all) item.id: item};
@@ -43,6 +44,18 @@ class _WorksheetWorkbenchScreenState
   @override
   Widget build(BuildContext context) {
     final questionsAsync = ref.watch(questionListProvider);
+    final draftIds = ref.watch(worksheetDraftQuestionIdsProvider);
+    if (!_draftApplied) {
+      _draftApplied = true;
+      if (draftIds.isNotEmpty) {
+        _selectedIds.addAll(draftIds);
+        _order.addAll(draftIds);
+        Future<void>.microtask(() {
+          ref.read(worksheetDraftQuestionIdsProvider.notifier).state =
+              const <String>[];
+        });
+      }
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('组卷与打印'),

@@ -23,6 +23,8 @@ class NotebookScreen extends ConsumerStatefulWidget {
 class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   final _searchController = TextEditingController();
   bool _buildingKnowledgePointPractice = false;
+  bool _selectionMode = false;
+  final Set<String> _selectedQuestionIds = <String>{};
 
   @override
   void dispose() {
@@ -126,6 +128,51 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     }
   }
 
+  void _toggleSelection(String questionId) {
+    setState(() {
+      if (!_selectedQuestionIds.add(questionId)) {
+        _selectedQuestionIds.remove(questionId);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedQuestionIds.clear();
+    });
+  }
+
+  void _openWorksheet(BuildContext context, WidgetRef ref) {
+    if (_selectedQuestionIds.isEmpty) return;
+    ref.read(worksheetDraftQuestionIdsProvider.notifier).state =
+        _selectedQuestionIds.toList();
+    _exitSelectionMode();
+    context.go('/worksheet');
+  }
+
+  Future<void> _deleteSelected(BuildContext context, WidgetRef ref) async {
+    if (_selectedQuestionIds.isEmpty) return;
+    final count = _selectedQuestionIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('删除已选错题？'),
+        content: Text('将永久删除 $count 道错题及其本地图片，无法恢复。'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('取消')),
+          FilledButton.tonal(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('删除')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final repository = ref.read(questionRepositoryProvider);
+    for (final id in _selectedQuestionIds) {
+      await repository.delete(id);
+    }
+    invalidateQuestionList(ref);
+    if (mounted) _exitSelectionMode();
+  }
   void _clearFilters(WidgetRef ref) {
     ref.read(selectedSubjectFilterProvider.notifier).state = null;
     ref.read(selectedMasteryFilterProvider.notifier).state = null;
@@ -188,68 +235,55 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('错题本'),
-        actions: [
-          IconButton(
-            icon: const Icon(CupertinoIcons.camera),
-            onPressed: () => CaptureEntryLauncher.show(context),
-            tooltip: '录入错题',
-          ),
-          PopupMenuButton<_NotebookMenuAction>(
-            icon: const Icon(CupertinoIcons.line_horizontal_3_decrease),
-            tooltip: '筛选与排序',
-            onSelected: (action) => _applyMenuAction(ref, action),
-            itemBuilder: (_) => <PopupMenuEntry<_NotebookMenuAction>>[
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.dueOnly,
-                checked: dueOnly,
-                child: const Text('仅看待复习'),
-              ),
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.favoritesOnly,
-                checked: favoritesOnly,
-                child: const Text('仅看收藏'),
-              ),
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.failedOnly,
-                checked: failedOnly,
-                child: const Text('仅看待处理草稿'),
-              ),
-              const PopupMenuDivider(),
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.last7Days,
-                checked: dateRange == QuestionDateRange.last7Days,
-                child: const Text('近 7 天录入'),
-              ),
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.last30Days,
-                checked: dateRange == QuestionDateRange.last30Days,
-                child: const Text('近 30 天录入'),
-              ),
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.allDates,
-                checked: dateRange == QuestionDateRange.all,
-                child: const Text('不限录入日期'),
-              ),
-              const PopupMenuDivider(),
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.newest,
-                checked: sort == QuestionSort.newest,
-                child: const Text('按最新录入'),
-              ),
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.oldest,
-                checked: sort == QuestionSort.oldest,
-                child: const Text('按最早录入'),
-              ),
-              CheckedPopupMenuItem<_NotebookMenuAction>(
-                value: _NotebookMenuAction.nextReview,
-                checked: sort == QuestionSort.nextReview,
-                child: const Text('按下次复习'),
-              ),
-            ],
-          ),
-        ],
+        title: Text(_selectionMode ? '已选 ${_selectedQuestionIds.length} 道' : '错题本'),
+        leading: _selectionMode
+            ? IconButton(
+                icon: const Icon(CupertinoIcons.xmark),
+                tooltip: '取消选择',
+                onPressed: _exitSelectionMode,
+              )
+            : null,
+        actions: _selectionMode
+            ? <Widget>[
+                IconButton(
+                  icon: const Icon(CupertinoIcons.checkmark_square),
+                  tooltip: '全选当前列表',
+                  onPressed: () {
+                    final items = questionsAsync.valueOrNull ?? const <QuestionRecord>[];
+                    setState(() => _selectedQuestionIds.addAll(items.map((item) => item.id)));
+                  },
+                ),
+              ]
+            : <Widget>[
+                IconButton(
+                  icon: const Icon(CupertinoIcons.checkmark_square),
+                  tooltip: '选择错题',
+                  onPressed: () => setState(() => _selectionMode = true),
+                ),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.camera),
+                  onPressed: () => CaptureEntryLauncher.show(context),
+                  tooltip: '录入错题',
+                ),
+                PopupMenuButton<_NotebookMenuAction>(
+                  icon: const Icon(CupertinoIcons.line_horizontal_3_decrease),
+                  tooltip: '筛选与排序',
+                  onSelected: (action) => _applyMenuAction(ref, action),
+                  itemBuilder: (_) => <PopupMenuEntry<_NotebookMenuAction>>[
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.dueOnly, checked: dueOnly, child: const Text('仅看待复习')),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.favoritesOnly, checked: favoritesOnly, child: const Text('仅看收藏')),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.failedOnly, checked: failedOnly, child: const Text('仅看待处理草稿')),
+                    const PopupMenuDivider(),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.last7Days, checked: dateRange == QuestionDateRange.last7Days, child: const Text('近 7 天录入')),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.last30Days, checked: dateRange == QuestionDateRange.last30Days, child: const Text('近 30 天录入')),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.allDates, checked: dateRange == QuestionDateRange.all, child: const Text('不限录入日期')),
+                    const PopupMenuDivider(),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.newest, checked: sort == QuestionSort.newest, child: const Text('按最新录入')),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.oldest, checked: sort == QuestionSort.oldest, child: const Text('按最早录入')),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.nextReview, checked: sort == QuestionSort.nextReview, child: const Text('按下次复习')),
+                  ],
+                ),
+              ],
       ),
       body: Column(
         children: <Widget>[
@@ -393,6 +427,9 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                       return RepaintBoundary(
                         child: _QuestionCard(
                           question: q,
+                          selectionMode: _selectionMode,
+                          selected: _selectedQuestionIds.contains(q.id),
+                          onSelect: () => _toggleSelection(q.id),
                           onTap: () {
                             ref.read(currentQuestionProvider.notifier).state =
                                 q;
@@ -415,6 +452,18 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               error: (_, __) => AppErrorState(onRetry: () => ref.invalidate(questionListProvider)),
             ),
           ),
+          if (_selectionMode)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                child: Row(children: <Widget>[
+                  Expanded(child: OutlinedButton.icon(onPressed: _selectedQuestionIds.isEmpty ? null : () => _deleteSelected(context, ref), icon: const Icon(CupertinoIcons.trash), label: const Text('删除'))),
+                  const SizedBox(width: 12),
+                  Expanded(child: FilledButton.icon(onPressed: _selectedQuestionIds.isEmpty ? null : () => _openWorksheet(context, ref), icon: const Icon(CupertinoIcons.doc_text), label: const Text('加入组卷'))),
+                ]),
+              ),
+            ),
         ],
       ),
     );
@@ -524,12 +573,18 @@ class _Chip extends StatelessWidget {
 class _QuestionCard extends StatelessWidget {
   const _QuestionCard({
     required this.question,
+    required this.selectionMode,
+    required this.selected,
+    required this.onSelect,
     required this.onTap,
     required this.onDelete,
     required this.onKnowledgePointTap,
   });
 
   final dynamic question;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback onSelect;
   final VoidCallback onTap;
   final VoidCallback onDelete;
   final void Function(String knowledgePoint) onKnowledgePointTap;
@@ -545,7 +600,7 @@ class _QuestionCard extends StatelessWidget {
 
     return Dismissible(
       key: ValueKey(question.id),
-      direction: DismissDirection.endToStart,
+      direction: selectionMode ? DismissDirection.none : DismissDirection.endToStart,
       confirmDismiss: (_) async {
         onDelete();
         return false;
@@ -568,7 +623,7 @@ class _QuestionCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: GestureDetector(
-            onTap: onTap,
+            onTap: selectionMode ? onSelect : onTap,
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -585,6 +640,10 @@ class _QuestionCard extends StatelessWidget {
               ),
               child: Row(
                 children: <Widget>[
+                  if (selectionMode) ...<Widget>[
+                    Checkbox(value: selected, onChanged: (_) => onSelect()),
+                    const SizedBox(width: 4),
+                  ],
                   Container(
                     width: 44,
                     height: 44,

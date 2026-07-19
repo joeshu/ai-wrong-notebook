@@ -144,6 +144,9 @@ Future<void> persistLayoutProviderConfig(
   ref.read(layoutProviderConfigProvider.notifier).state = config;
 }
 
+final StateProvider<List<String>> worksheetDraftQuestionIdsProvider =
+    StateProvider<List<String>>((ref) => const <String>[]);
+
 final StateProvider<WorksheetImportSession?> currentWorksheetImportProvider =
     StateProvider<WorksheetImportSession?>((ref) => null);
 
