@@ -604,7 +604,7 @@ class _OverviewMetric extends StatelessWidget {
   final int value;
   final Color color;
   @override
-  Widget build(BuildContext context) => Expanded(child: Column(children: <Widget>[
+  Widget build(BuildContext context) => Column(children: <Widget>[
     Text('$value', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color)),
     Text(label, style: const TextStyle(fontSize: 11)),
   ]));
