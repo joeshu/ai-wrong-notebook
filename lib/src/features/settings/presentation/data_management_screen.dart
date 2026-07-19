@@ -70,6 +70,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               onRestore: () => _importQuestions(context, ref),
               onUndo: _lastImport == null ? null : () => _undoLastImport(context, ref),
             ),
+            const SizedBox(height: 8),
+            const Text('删除所有错题和复习记录，不可恢复', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
             const SizedBox(height: 20),
             const _SectionTitle('存储概览'),
             const SizedBox(height: 8),
@@ -109,8 +111,6 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
             )),
             const SizedBox(height: 20),
             const _SectionTitle('清理与危险操作'),
-            const SizedBox(height: 4),
-            const Text('删除所有错题和复习记录，不可恢复', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
             const SizedBox(height: 8),
             _DataCard(
               icon: CupertinoIcons.trash,
