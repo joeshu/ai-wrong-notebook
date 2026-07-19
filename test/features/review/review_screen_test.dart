@@ -79,14 +79,8 @@ void main() {
     testWidgets('shows history link', (tester) async {
       await _pumpReviewScreen(tester, InMemoryQuestionRepository());
 
-      await tester.scrollUntilVisible(
-        find.text('复习记录'),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-
-      expect(find.text('复习记录'), findsOneWidget);
-      expect(find.byIcon(CupertinoIcons.chevron_right), findsWidgets);
+      expect(find.byIcon(CupertinoIcons.clock), findsOneWidget);
+      expect(find.byTooltip('复习记录'), findsOneWidget);
     });
 
     testWidgets('shows today progress using distinct reviewed questions',
@@ -112,7 +106,7 @@ void main() {
 
       await _pumpReviewScreen(tester, repository, reviewLogRepository: logs);
 
-      expect(find.text('今日已完成 1 / 2 题'), findsOneWidget);
+      expect(find.text('1 / 2 今日完成'), findsOneWidget);
     });
 
     testWidgets('does not show batch label for standalone due question',

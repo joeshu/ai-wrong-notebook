@@ -1,3 +1,4 @@
+// ignore_for_file: prefer_const_constructors
 import 'dart:io';
 
 import 'package:flutter/services.dart' show rootBundle;
@@ -563,7 +564,7 @@ class PdfExportService {
   static String _masteryLabel(dynamic masteryLevel) {
     final name = masteryLevel is String
         ? masteryLevel
-        : '${masteryLevel}'.split('.').last;
+        : '$masteryLevel'.split('.').last;
     switch (name) {
       case 'newQuestion':
         return '待学习';
@@ -579,7 +580,7 @@ class PdfExportService {
   static int _masteryColor(dynamic masteryLevel) {
     final name = masteryLevel is String
         ? masteryLevel
-        : '${masteryLevel}'.split('.').last;
+        : '$masteryLevel'.split('.').last;
     switch (name) {
       case 'newQuestion':
         return 0xDC2626;
@@ -595,7 +596,7 @@ class PdfExportService {
   static String _statusLabel(dynamic contentStatus) {
     final name = contentStatus is String
         ? contentStatus
-        : '${contentStatus}'.split('.').last;
+        : '$contentStatus'.split('.').last;
     switch (name) {
       case 'processing':
         return '处理中';

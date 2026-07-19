@@ -659,3 +659,26 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
     await _settingsRepo.setString('theme_mode', value);
   }
 }
+
+final StateNotifierProvider<ReviewReminderNotifier, bool> reviewReminderEnabledProvider =
+    StateNotifierProvider<ReviewReminderNotifier, bool>((ref) {
+  return ReviewReminderNotifier(ref.read(settingsRepositoryProvider));
+});
+
+class ReviewReminderNotifier extends StateNotifier<bool> {
+  ReviewReminderNotifier(this._settingsRepo) : super(true) {
+    _load();
+  }
+
+  final SettingsRepository _settingsRepo;
+
+  Future<void> _load() async {
+    final value = await _settingsRepo.getString('review_reminder_enabled');
+    state = value != 'false';
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    await _settingsRepo.setString('review_reminder_enabled', enabled ? 'true' : 'false');
+  }
+}

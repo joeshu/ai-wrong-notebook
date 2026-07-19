@@ -9,8 +9,10 @@ import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
+import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -39,13 +41,13 @@ class HomeScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Text('今天，开始学习',
+                    Text(AppStrings.homeGreeting,
                         style: Theme.of(context)
                             .textTheme
                             .titleLarge
                             ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text('先完成计划，再记录新的错题',
+                    const SizedBox(height: AppSpace.xs),
+                    Text(AppStrings.homeSubtitle,
                         style: TextStyle(
                             fontSize: 13,
                             color: Theme.of(context)
@@ -71,7 +73,7 @@ class HomeScreen extends ConsumerWidget {
           const SizedBox(height: 14),
           if (hasPendingBatch)
             Padding(
-              padding: const EdgeInsets.only(top: 20),
+              padding: const EdgeInsets.only(top: AppSpace.lg),
               child: _BatchActionCard(
                 session: worksheetSession!,
                 onOpen: () => context.go('/worksheet/import'),
@@ -80,7 +82,7 @@ class HomeScreen extends ConsumerWidget {
           else
             todayPlanAsync.when(
               data: (plan) => Padding(
-                padding: const EdgeInsets.only(top: 16),
+                padding: const EdgeInsets.only(top: AppSpace.lg),
                 child: _TodayPlanCard(
                   plan: plan,
                   onOpenReview: () => context.go('/review'),
@@ -89,29 +91,29 @@ class HomeScreen extends ConsumerWidget {
               ),
               loading: () => const _TodayPlanSkeleton(),
               error: (_, __) => AppErrorState(
-                message: '今日计划暂时无法读取。',
+                message: AppStrings.homePlanError,
                 onRetry: () => ref.invalidate(todayReviewPlanProvider),
               ),
             ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpace.md),
           _QuickStartRow(
             onCapture: () => CaptureEntryLauncher.show(context),
           ),
-          const SizedBox(height: 20),
-          Text('学习统计', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.lg),
+          Text(AppStrings.homeStatsTitle, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: AppSpace.md),
           RepaintBoundary(
             child: questionsAsync.when(
               data: (questions) => _buildStatsSection(context, questions),
               loading: () => const _StatsGridSkeleton(),
-              error: (_, __) => AppErrorState(message: '学习统计暂时无法读取。', onRetry: () => ref.invalidate(questionListProvider)),
+              error: (_, __) => AppErrorState(message: AppStrings.homeStatsError, onRetry: () => ref.invalidate(questionListProvider)),
             ),
           ),
           mistakeStatsAsync.when(
             data: (stats) => stats.isEmpty
                 ? const SizedBox.shrink()
                 : Padding(
-                    padding: const EdgeInsets.only(top: 16),
+                    padding: const EdgeInsets.only(top: AppSpace.lg),
                     child: _MistakeCategorySummary(
                       stats: stats,
                       onSelect: (category) {
@@ -125,23 +127,26 @@ class HomeScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpace.xl),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
-              Text('最近新增', style: Theme.of(context).textTheme.titleLarge),
+              Text(AppStrings.homeRecentTitle, style: Theme.of(context).textTheme.titleLarge),
               TextButton(
                 onPressed: () => context.go('/notebook'),
-                child: const Text('查看全部'),
+                child: const Text(AppStrings.homeViewAll),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           questionsAsync.when(
             data: (questions) =>
                 _RecentList(questions: questions.take(5).toList(), ref: ref),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Text('加载失败: $e'),
+            loading: () => const AppLoadingState(label: '正在加载最近错题…'),
+            error: (e, _) => AppErrorState(
+              message: '加载失败: $e',
+              onRetry: () => ref.invalidate(questionListProvider),
+            ),
           ),
         ],
       ),
@@ -174,12 +179,12 @@ class HomeScreen extends ConsumerWidget {
           mastered: mastered,
         ),
         if (total > 0) ...<Widget>[
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(AppSpace.lg),
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.medium),
               border: Border.all(color: colorScheme.outlineVariant),
             ),
             child: Column(
@@ -188,7 +193,7 @@ class HomeScreen extends ConsumerWidget {
                 Row(
                   children: <Widget>[
                     Text(
-                      '掌握进度',
+                      AppStrings.homeMasterProgress,
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -206,7 +211,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
@@ -216,11 +221,11 @@ class HomeScreen extends ConsumerWidget {
                     color: colorScheme.primary,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AppSpace.md),
                 Row(
                   children: <Widget>[
                     Text(
-                      '$mastered / $total 已掌握',
+                      AppStrings.homeMasteredCount.replaceFirst('{}', '$mastered').replaceFirst('{}', '$total'),
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onSurfaceVariant,
@@ -228,7 +233,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                     const Spacer(),
                     Text(
-                      '$pending 待复习',
+                      AppStrings.homePendingCount.replaceAll('{}', '$pending'),
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onSurfaceVariant,
@@ -250,7 +255,7 @@ class _TodayPlanSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     height: 150,
-    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
+    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(AppRadius.medium)),
   );
 }
 
@@ -259,14 +264,14 @@ class _QuickStartRow extends StatelessWidget {
   final VoidCallback onCapture;
   @override
   Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-    Text('快速开始', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-    const SizedBox(height: 8),
+    Text(AppStrings.homeQuickStart, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+    const SizedBox(height: AppSpace.sm),
     SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
         onPressed: onCapture,
         icon: const Icon(CupertinoIcons.add),
-        label: const Text('录入错题'),
+        label: const Text(AppStrings.homeCapture),
       ),
     ),
   ]);
@@ -284,27 +289,25 @@ class _BatchActionCard extends StatelessWidget {
     final pending = all.where((item) => item.contentStatus == ContentStatus.processing).length;
     final remaining = failed + drafts + pending;
     final primaryAction = failed > 0
-        ? '重新分析'
+        ? AppStrings.homeBatchRetry
         : drafts > 0
-            ? '继续校对'
-            : '继续处理';
+            ? AppStrings.homeBatchContinueCorrection
+            : AppStrings.homeBatchContinueProcess;
     final primaryIcon = failed > 0
         ? CupertinoIcons.arrow_clockwise
         : drafts > 0
             ? CupertinoIcons.pencil
             : CupertinoIcons.arrow_right_circle;
     if (remaining == 0) return const SizedBox.shrink();
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: colorScheme.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: colorScheme.outlineVariant)),
+    return AppCard(
+      borderRadius: AppRadius.large,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-        Row(children: <Widget>[Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppStatusColor.warning), const SizedBox(width: 8), Expanded(child: Text('今日优先 · 待处理事项', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700))), Text('$remaining 项', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))]),
-        const SizedBox(height: 10),
-        if (failed > 0) _BatchTodoRow(icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFEA580C), text: '$failed 道分析失败题', action: '重新分析'),
-        if (drafts > 0) _BatchTodoRow(icon: CupertinoIcons.sparkles, color: const Color(0xFF2563EB), text: '$drafts 道 OCR 草稿待确认', action: '继续校对'),
-        if (pending > 0) _BatchTodoRow(icon: CupertinoIcons.clock, color: const Color(0xFF64748B), text: '$pending 道题尚未处理', action: '继续处理'),
-        const SizedBox(height: 10),
+        Row(children: <Widget>[Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppColors.warning), const SizedBox(width: AppSpace.sm), Expanded(child: Text(AppStrings.homeBatchPriority, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700))), Text('$remaining ${AppStrings.homeBatchRemaining}', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant))]),
+        const SizedBox(height: AppSpace.md),
+        if (failed > 0) _BatchTodoRow(icon: CupertinoIcons.exclamationmark_triangle_fill, color: AppColors.warning, text: '$failed ${AppStrings.homeBatchFailed}', action: AppStrings.homeBatchRetry),
+        if (drafts > 0) _BatchTodoRow(icon: CupertinoIcons.sparkles, color: AppColors.info, text: '$drafts ${AppStrings.homeBatchDrafts}', action: AppStrings.homeBatchContinueCorrection),
+        if (pending > 0) _BatchTodoRow(icon: CupertinoIcons.clock, color: AppColors.slate, text: '$pending ${AppStrings.homeBatchPending}', action: AppStrings.homeBatchContinueProcess),
+        const SizedBox(height: AppSpace.md),
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
@@ -338,15 +341,15 @@ class _StatsGridSkeleton extends StatelessWidget {
         Row(
           children: <Widget>[
             Expanded(child: _StatCardSkeleton()),
-            SizedBox(width: 12, height: 70),
+            SizedBox(width: AppSpace.md, height: 70),
             Expanded(child: _StatCardSkeleton()),
           ],
         ),
-        SizedBox(height: 12),
+        SizedBox(height: AppSpace.md),
         Row(
           children: <Widget>[
             Expanded(child: _StatCardSkeleton()),
-            SizedBox(width: 12, height: 70),
+            SizedBox(width: AppSpace.md, height: 70),
             Expanded(child: _StatCardSkeleton()),
           ],
         ),
@@ -366,7 +369,7 @@ class _StatCardSkeleton extends StatelessWidget {
       height: 70,
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.small),
       ),
     );
   }
@@ -390,16 +393,16 @@ class _TodayPlanCard extends StatelessWidget {
     final progress = target == 0 ? 0.0 : plan.completedCount / target;
     return Material(
       color: Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadius.medium),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpenReview,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpace.lg),
         decoration: BoxDecoration(
           color: colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.medium),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,40 +411,40 @@ class _TodayPlanCard extends StatelessWidget {
               children: <Widget>[
                 Icon(CupertinoIcons.calendar,
                     size: 18, color: colorScheme.onPrimaryContainer),
-                const SizedBox(width: 8),
-                Text('今日优先 · 复习计划',
+                const SizedBox(width: AppSpace.sm),
+                Text(AppStrings.homeReviewPlan,
                     style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: colorScheme.onPrimaryContainer)),
                 const Spacer(),
-                const Icon(CupertinoIcons.chevron_right, size: 18),
+                Icon(CupertinoIcons.chevron_right, size: 18, color: colorScheme.onPrimaryContainer),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Text(
               target == 0
-                  ? '今天暂无待复习题'
-                  : '${plan.dueCount} 题待复习 · 预计 ${plan.estimatedMinutes} 分钟',
+                  ? AppStrings.homeNoReviewToday
+                  : '${plan.dueCount}${AppStrings.homeReviewDue} · ${AppStrings.homeReviewEstimated.replaceFirst('{}', '${plan.estimatedMinutes}')}',
               style: TextStyle(fontSize: 13, color: colorScheme.onPrimaryContainer),
             ),
             if (target > 0) ...<Widget>[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               LinearProgressIndicator(
                 value: progress,
                 minHeight: 6,
               ),
-              const SizedBox(height: 6),
-              Text('已完成 ${plan.completedCount} / $target',
+              const SizedBox(height: AppSpace.xs),
+              Text(AppStrings.homeReviewCompleted.replaceFirst('{}', '${plan.completedCount}').replaceFirst('{}', '$target'),
                   style: TextStyle(
                       fontSize: 12, color: colorScheme.onPrimaryContainer)),
             ],
             if (plan.streakDays > 0) ...<Widget>[
-              const SizedBox(height: 6),
-              Text('连续学习 ${plan.streakDays} 天',
+              const SizedBox(height: AppSpace.xs),
+              Text(AppStrings.homeStreakDays.replaceFirst('{}', '${plan.streakDays}'),
                   style: TextStyle(
                       fontSize: 12, color: colorScheme.onPrimaryContainer)),
             ],
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpace.md),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -449,7 +452,7 @@ class _TodayPlanCard extends StatelessWidget {
                 icon: Icon(target == 0
                     ? CupertinoIcons.add
                     : CupertinoIcons.play_fill),
-                label: Text(target == 0 ? '录入错题' : '开始今日复习'),
+                label: Text(target == 0 ? AppStrings.homeCapture : AppStrings.homeStartReview),
               ),
             ),
           ],
@@ -471,30 +474,23 @@ class _MistakeCategorySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     final ranked = stats.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final top = ranked.take(3).toList();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text('常见错因', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 10),
+          Text(AppStrings.homeMistakeCategories, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: AppSpace.md),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: top
-                .map((entry) => ActionChip(
-                      label: Text('${entry.key.label} ${entry.value} 题'),
-                      onPressed: () => onSelect(entry.key),
+                .map((entry) => AppTag(
+                      label: '${entry.key.label} ${entry.value} 题',
+                      onTap: () => onSelect(entry.key),
                     ))
                 .toList(),
           ),
@@ -512,25 +508,11 @@ class _RecentList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     if (questions.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: colorScheme.outlineVariant),
-        ),
-        child: Column(
-          children: <Widget>[
-            Icon(CupertinoIcons.question,
-                size: 48,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.45)),
-            const SizedBox(height: 12),
-            Text('暂无错题，拍照开始添加',
-                style: TextStyle(color: colorScheme.onSurfaceVariant)),
-          ],
+      return AppCard(
+        child: AppEmptyState(
+          icon: CupertinoIcons.question,
+          title: AppStrings.homeEmptyTip,
         ),
       );
     }
@@ -560,7 +542,6 @@ class _RecentQuestionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final aiTags = question.aiTags;
     final customTags = question.customTags;
     final allTags = [...aiTags, ...customTags];
@@ -569,16 +550,16 @@ class _RecentQuestionCard extends StatelessWidget {
       button: true,
       label: '错题: ${question.correctedText}，科目: ${question.subject.label}',
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(bottom: AppSpace.sm),
         child: Container(
           decoration: BoxDecoration(
             color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.large),
             border: Border.all(color: colorScheme.outlineVariant),
           ),
           child: ListTile(
             contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.xs),
             leading: Container(
               width: 36,
               height: 36,
@@ -599,47 +580,28 @@ class _RecentQuestionCard extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                   color: colorScheme.onSurface),
             ),
-            subtitle: Row(
+            subtitle: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: AppSpace.sm,
+              runSpacing: AppSpace.xs,
               children: <Widget>[
-                Text(question.subject.label,
-                    style:
-                        TextStyle(fontSize: 12, color: question.subject.color)),
-                if (allTags.isNotEmpty) ...<Widget>[
-                  const SizedBox(width: 8),
-                  ...allTags.take(2).map((tag) {
-                    final isAiTag = aiTags.contains(tag);
-                    final tagColor = isAiTag
-                        ? const Color(0xFFD97706)
-                        : const Color(0xFF4F46E5);
-                    final tagBackground = isDark
-                        ? tagColor.withValues(alpha: 0.14)
-                        : isAiTag
-                            ? const Color(0xFFFFF7ED)
-                            : const Color(0xFFEEF2FF);
-                    return Container(
-                      margin: const EdgeInsets.only(right: 4),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: tagBackground,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: isDark
-                              ? tagColor.withValues(alpha: 0.22)
-                              : colorScheme.outlineVariant
-                                  .withValues(alpha: 0.5),
-                        ),
-                      ),
-                      child: MathContentView(
-                        tag,
-                        mode: MathContentViewMode.compact,
-                        style: TextStyle(
-                            fontSize: 10,
-                            color: isDark ? colorScheme.onSurface : tagColor),
-                      ),
-                    );
-                  }),
-                ],
+                AppTag(
+                  label: question.subject.label,
+                  textColor: question.subject.color,
+                  backgroundColor: question.subject.color.withValues(alpha: 0.08),
+                  fontSize: 10,
+                ),
+                ...allTags.take(2).map((tag) {
+                  final isAiTag = aiTags.contains(tag);
+                  return AppTag(
+                    label: tag,
+                    textColor: isAiTag ? AppColors.accentAmber : AppColors.primary,
+                    backgroundColor: isAiTag
+                        ? AppColors.accentAmberContainerLight
+                        : AppColors.primaryContainerLight,
+                    fontSize: 10,
+                  );
+                }),
               ],
             ),
             trailing: Icon(CupertinoIcons.chevron_right,

@@ -1,5 +1,4 @@
-// ignore_for_file: avoid_print
-import 'dart:convert';
+// ignore_for_file: avoid_print, prefer_const_constructors, deprecated_member_use
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -183,7 +182,7 @@ class _GeometryDemoPageState extends State<GeometryDemoPage> {
               startAngle: 180,
               sweepAngle: 180,
               filled: true,
-              fillColor: Colors.blue.withOpacity(0.15),
+              fillColor: Colors.blue.withValues(alpha: 0.15),
             ),
             LineElement(
               start: Offset(0.2, 0.65),
@@ -314,7 +313,7 @@ class _GeometryDemoPageState extends State<GeometryDemoPage> {
                 LabelInfo('C', Offset(0.85, 0.83)),
                 LabelInfo('B', Offset(0.13, 0.83)),
               ],
-              fillColor: Colors.grey.withOpacity(0.1),
+              fillColor: Colors.grey.withValues(alpha: 0.1),
             ),
             // 半圆（在上底上方）
             ArcElement(
@@ -323,7 +322,7 @@ class _GeometryDemoPageState extends State<GeometryDemoPage> {
               startAngle: 180,
               sweepAngle: 180,
               filled: true,
-              fillColor: Colors.blue.withOpacity(0.2),
+              fillColor: Colors.blue.withValues(alpha: 0.2),
             ),
             // 标注
             TextElement(text: 'AD=6', position: Offset(0.5, 0.35), color: Colors.red),
