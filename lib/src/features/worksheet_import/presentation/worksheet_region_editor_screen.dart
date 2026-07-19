@@ -19,6 +19,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 import 'package:uuid/uuid.dart';
 
 /// Manual multi-region editor. A tap places a question-sized candidate box;
@@ -211,7 +212,7 @@ class _WorksheetRegionEditorScreenState
                   });
                 },
                 child: Stack(fit: StackFit.expand, children: <Widget>[
-                  Image.file(File(page.imagePath), fit: BoxFit.fill),
+                  CachedQuestionImage(page.imagePath, fit: BoxFit.fill),
                   ..._regions.asMap().entries.map((entry) {
                     final quality = _RegionQuality.evaluate(_regions, entry.key);
                     return _RegionOverlay(
@@ -1105,7 +1106,7 @@ class _RecognizedQuestionWorkbenchState
                   left: -region.normalizedRect.left * scale,
                   top: -region.normalizedRect.top * scale,
                   width: scale,
-                  child: Image.file(File(imagePath), fit: BoxFit.fitWidth),
+                  child: CachedQuestionImage(imagePath, fit: BoxFit.fitWidth),
                 ),
               ]);
             }),

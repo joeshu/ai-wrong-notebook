@@ -7,6 +7,12 @@ abstract class QuestionRepository {
   Future<QuestionRecord?> getById(String id);
   Future<void> delete(String id);
   Future<void> update(QuestionRecord record);
+
+  /// 响应式订阅全量题目列表，底层 Drift 表变更时自动推送新快照。
+  /// 默认实现回退到一次性 Future 拉取（兼容 InMemory 等非 Drift 实现）。
+  Stream<List<QuestionRecord>> watchAll() async* {
+    yield await listAll();
+  }
 }
 
 class InMemoryQuestionRepository implements QuestionRepository {

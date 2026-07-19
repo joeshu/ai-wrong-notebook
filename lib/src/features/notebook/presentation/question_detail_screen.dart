@@ -15,6 +15,7 @@ import 'package:smart_wrong_notebook/src/features/review/presentation/review_con
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
 class QuestionDetailScreen extends ConsumerStatefulWidget {
   const QuestionDetailScreen({super.key});
@@ -533,7 +534,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ),
           body: Center(
             child: InteractiveViewer(
-              child: Image.file(File(imagePath)),
+              child: CachedQuestionImage(imagePath, highRes: true),
             ),
           ),
         ),
@@ -763,24 +764,12 @@ class _QuestionTab extends StatelessWidget {
                   children: <Widget>[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(AppRadius.small),
-                      child: Image.file(
-                        File(current.imagePath),
+                      child: SizedBox(
                         width: double.infinity,
                         height: 160,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Icon(CupertinoIcons.photo,
-                                  size: 30, color: colorScheme.onSurfaceVariant),
-                              const SizedBox(height: 4),
-                              Text('图片加载失败',
-                                  style: TextStyle(
-                                      color: colorScheme.onSurfaceVariant,
-                                      fontSize: 11)),
-                            ],
-                          ),
+                        child: CachedQuestionImage(
+                          current.imagePath,
+                          fit: BoxFit.contain,
                         ),
                       ),
                     ),

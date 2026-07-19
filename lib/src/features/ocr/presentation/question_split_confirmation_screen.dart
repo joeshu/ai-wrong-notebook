@@ -8,6 +8,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
 const _mathPreviewFormat = QuestionContentFormat.latexMixed;
 
@@ -155,8 +156,8 @@ class _QuestionSplitConfirmationScreenState
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.file(
-                      File(source.imagePath),
+                    child: CachedQuestionImage(
+                      source.imagePath,
                       fit: BoxFit.contain,
                     ),
                   ),
@@ -593,7 +594,7 @@ class _QuestionSplitConfirmationScreenState
           ),
           body: Center(
             child: InteractiveViewer(
-              child: Image.file(File(imagePath)),
+              child: CachedQuestionImage(imagePath, highRes: true),
             ),
           ),
         ),

@@ -16,12 +16,29 @@ class DriftQuestionRepository implements QuestionRepository {
 
   @override
   Future<List<domain.QuestionRecord>> listAll() async {
+    // 一次查询拿全部题目，再一次性拿全部练习题，按 questionId 分组组装，
+    // 消除 N+1 查询（原先每道题单独查一次 exercises）。
     final rows = await _db.select(_db.questionRecords).get();
-    final records = <domain.QuestionRecord>[];
-    for (final row in rows) {
-      records.add(await _toModel(row));
+    if (rows.isEmpty) return const <domain.QuestionRecord>[];
+
+    final exerciseRows = await (_db.select(_db.generatedExercises)
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.questionId),
+            (t) => OrderingTerm.asc(t.roundIndex),
+            (t) => OrderingTerm.asc(t.orderIndex),
+            (t) => OrderingTerm.asc(t.createdAt),
+          ]))
+        .get();
+    final exercisesByQuestion =
+        <String, List<db.GeneratedExercise>>{};
+    for (final er in exerciseRows) {
+      (exercisesByQuestion[er.questionId] ??= <db.GeneratedExercise>[])
+          .add(er);
     }
-    return records;
+    return rows
+        .map((row) => _toModel(row,
+            exerciseRows: exercisesByQuestion[row.id] ?? const []))
+        .toList();
   }
 
   @override
@@ -29,98 +46,152 @@ class DriftQuestionRepository implements QuestionRepository {
     final row = await (_db.select(_db.questionRecords)
           ..where((t) => t.id.equals(id)))
         .getSingleOrNull();
-    return row != null ? _toModel(row) : null;
+    if (row == null) return null;
+    final exerciseRows = await (_db.select(_db.generatedExercises)
+          ..where((t) => t.questionId.equals(id))
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.roundIndex),
+            (t) => OrderingTerm.asc(t.orderIndex),
+            (t) => OrderingTerm.asc(t.createdAt),
+          ]))
+        .get();
+    return _toModel(row, exerciseRows: exerciseRows);
   }
 
   @override
   Future<void> saveDraft(domain.QuestionRecord record) async {
-    await _db.into(_db.questionRecords).insertOnConflictUpdate(
-          db.QuestionRecordsCompanion(
-            id: Value(record.id),
-            subject: Value(record.subject.name),
-            originalImagePath: Value(record.imagePath),
-            originalText: Value(record.extractedQuestionText),
-            correctedText: Value(record.normalizedQuestionText),
-            masteryLevel: Value(record.masteryLevel.name),
-            contentStatus: Value(record.contentStatus.toString().split('.').last),
-            reviewCount: Value(record.reviewCount),
-            nextReviewAt: Value(record.nextReviewAt),
-            createdAt: Value(record.createdAt),
-            updatedAt: Value(record.updatedAt),
-            aiAnalysisJson: Value(record.analysisResult != null
-                ? jsonEncode(record.analysisResult!.toJson())
-                : null),
-            tags: Value(record.persistentTags.join(',')),
-            aiTags: Value(record.aiTags.join(',')),
-            aiKnowledgePoints: Value(record.aiKnowledgePoints.join(',')),
-            customTags: Value(record.customTags.join(',')),
-            parentQuestionId: Value(record.parentQuestionId),
-            rootQuestionId: Value(record.rootQuestionId),
-            splitOrder: Value(record.splitOrder),
-          ),
-        );
+    // 三步操作（写题→删旧练习→写新练习）用事务包裹，避免中途崩溃留下不一致状态。
+    await _db.transaction(() async {
+      await _db.into(_db.questionRecords).insertOnConflictUpdate(
+            db.QuestionRecordsCompanion(
+              id: Value(record.id),
+              subject: Value(record.subject.name),
+              originalImagePath: Value(record.imagePath),
+              originalText: Value(record.extractedQuestionText),
+              correctedText: Value(record.normalizedQuestionText),
+              masteryLevel: Value(record.masteryLevel.name),
+              contentStatus:
+                  Value(record.contentStatus.toString().split('.').last),
+              reviewCount: Value(record.reviewCount),
+              nextReviewAt: Value(record.nextReviewAt),
+              createdAt: Value(record.createdAt),
+              updatedAt: Value(record.updatedAt),
+              aiAnalysisJson: Value(record.analysisResult != null
+                  ? jsonEncode(record.analysisResult!.toJson())
+                  : null),
+              tags: Value(record.persistentTags.join(',')),
+              aiTags: Value(record.aiTags.join(',')),
+              aiKnowledgePoints: Value(record.aiKnowledgePoints.join(',')),
+              customTags: Value(record.customTags.join(',')),
+              parentQuestionId: Value(record.parentQuestionId),
+              rootQuestionId: Value(record.rootQuestionId),
+              splitOrder: Value(record.splitOrder),
+            ),
+          );
 
-    await (_db.delete(_db.generatedExercises)
-          ..where((t) => t.questionId.equals(record.id)))
-        .go();
-    if (record.savedExercises.isNotEmpty) {
-      await _db.batch((batch) {
-        batch.insertAll(
-          _db.generatedExercises,
-          record.savedExercises.map((exercise) {
-            final roundIndex = exercise.roundIndex ?? 1;
-            final normalized = exercise.copyWith(
-              id: '${record.id}-round-$roundIndex-exercise-${(exercise.order ?? 0) + 1}',
-              questionId: record.id,
-            );
-            return db.GeneratedExercisesCompanion.insert(
-              id: normalized.id,
-              questionId: normalized.questionId,
-              generationMode: Value(normalized.generationMode.name),
-              orderIndex: Value(normalized.order),
-              difficulty: normalized.difficulty,
-              question: normalized.question,
-              answer: normalized.answer,
-              explanation: Value(normalized.explanation),
-              optionsJson: Value(normalized.options == null
-                  ? null
-                  : jsonEncode(normalized.options)),
-              userAnswer: Value(normalized.userAnswer),
-              isCorrect: Value(normalized.isCorrect),
-              roundIndex: Value(normalized.roundIndex),
-              roundTotal: Value(normalized.roundTotal),
-              roundGroupId: Value(normalized.roundGroupId),
-              sourceExerciseId: Value(normalized.sourceExerciseId),
-              diagramDataJson: Value(normalized.diagramData == null
-                  ? null
-                  : jsonEncode(normalized.diagramData)),
-              createdAt: normalized.createdAt,
-            );
-          }).toList(),
-        );
-      });
-    }
+      await (_db.delete(_db.generatedExercises)
+            ..where((t) => t.questionId.equals(record.id)))
+          .go();
+      if (record.savedExercises.isNotEmpty) {
+        await _db.batch((batch) {
+          batch.insertAll(
+            _db.generatedExercises,
+            record.savedExercises.map((exercise) {
+              final roundIndex = exercise.roundIndex ?? 1;
+              final normalized = exercise.copyWith(
+                id:
+                    '${record.id}-round-$roundIndex-exercise-${(exercise.order ?? 0) + 1}',
+                questionId: record.id,
+              );
+              return db.GeneratedExercisesCompanion.insert(
+                id: normalized.id,
+                questionId: normalized.questionId,
+                generationMode: Value(normalized.generationMode.name),
+                orderIndex: Value(normalized.order),
+                difficulty: normalized.difficulty,
+                question: normalized.question,
+                answer: normalized.answer,
+                explanation: Value(normalized.explanation),
+                optionsJson: Value(normalized.options == null
+                    ? null
+                    : jsonEncode(normalized.options)),
+                userAnswer: Value(normalized.userAnswer),
+                isCorrect: Value(normalized.isCorrect),
+                roundIndex: Value(normalized.roundIndex),
+                roundTotal: Value(normalized.roundTotal),
+                roundGroupId: Value(normalized.roundGroupId),
+                sourceExerciseId: Value(normalized.sourceExerciseId),
+                diagramDataJson: Value(normalized.diagramData == null
+                    ? null
+                    : jsonEncode(normalized.diagramData)),
+                createdAt: normalized.createdAt,
+              );
+            }).toList(),
+          );
+        });
+      }
+    });
   }
 
   @override
   Future<void> saveDrafts(List<domain.QuestionRecord> records) async {
-    for (final record in records) {
-      await saveDraft(record);
-    }
+    if (records.isEmpty) return;
+    // 整批用单次事务包裹，任一条失败整体回滚，避免半保存状态。
+    await _db.transaction(() async {
+      for (final record in records) {
+        await saveDraft(record);
+      }
+    });
   }
 
   @override
   Future<void> delete(String id) async {
-    await (_db.delete(_db.generatedExercises)
-          ..where((t) => t.questionId.equals(id)))
-        .go();
-    await (_db.delete(_db.questionRecords)..where((t) => t.id.equals(id))).go();
+    await _db.transaction(() async {
+      await (_db.delete(_db.generatedExercises)
+            ..where((t) => t.questionId.equals(id)))
+          .go();
+      await (_db.delete(_db.questionRecords)..where((t) => t.id.equals(id)))
+          .go();
+    });
   }
 
   @override
   Future<void> update(domain.QuestionRecord record) => saveDraft(record);
 
-  Future<domain.QuestionRecord> _toModel(db.QuestionRecord row) async {
+  /// 响应式订阅：题目表或练习题表任一变更都自动推送新快照。
+  /// 内部用一次 `watch` 拿题目行，再 `get` 一次性拿全部练习题组装，
+  /// 避免每道题单独订阅造成的 stream 组合爆炸。
+  @override
+  Stream<List<domain.QuestionRecord>> watchAll() {
+    return _db
+        .select(_db.questionRecords)
+        .watch()
+        .asyncMap((rows) async {
+      if (rows.isEmpty) return const <domain.QuestionRecord>[];
+      final exerciseRows = await (_db.select(_db.generatedExercises)
+            ..orderBy([
+              (t) => OrderingTerm.asc(t.questionId),
+              (t) => OrderingTerm.asc(t.roundIndex),
+              (t) => OrderingTerm.asc(t.orderIndex),
+              (t) => OrderingTerm.asc(t.createdAt),
+            ]))
+          .get();
+      final exercisesByQuestion = <String, List<db.GeneratedExercise>>{};
+      for (final er in exerciseRows) {
+        (exercisesByQuestion[er.questionId] ??= <db.GeneratedExercise>[])
+            .add(er);
+      }
+      return rows
+          .map((row) => _toModel(row,
+              exerciseRows: exercisesByQuestion[row.id] ?? const []))
+          .toList();
+    });
+  }
+
+  domain.QuestionRecord _toModel(
+    db.QuestionRecord row, {
+    List<db.GeneratedExercise> exerciseRows = const [],
+  }) {
     AnalysisResult? analysisResult;
     List<GeneratedExercise> legacyExercises = <GeneratedExercise>[];
 
@@ -135,15 +206,6 @@ class DriftQuestionRepository implements QuestionRepository {
         analysisResult = null;
       }
     }
-
-    final exerciseRows = await (_db.select(_db.generatedExercises)
-          ..where((t) => t.questionId.equals(row.id))
-          ..orderBy([
-            (t) => OrderingTerm.asc(t.roundIndex),
-            (t) => OrderingTerm.asc(t.orderIndex),
-            (t) => OrderingTerm.asc(t.createdAt),
-          ]))
-        .get();
 
     final savedExercises = exerciseRows.isNotEmpty
         ? exerciseRows.map(_toExerciseModel).toList()

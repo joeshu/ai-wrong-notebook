@@ -1,3 +1,10 @@
+/// 应用字符串常量。
+///
+/// 这是 i18n 基础设施搭建前的旧入口，目前仍保留以避免大范围改动。
+/// **新代码请优先使用 `AppLocalizations.of(context).xxx`**，
+/// 字符串源文件位于 `lib/l10n/app_zh.arb`（中文，模板）和
+/// `lib/l10n/app_en.arb`（英文）。修改 .arb 后执行 `flutter gen-l10n`
+/// 重新生成 `lib/l10n/generated/` 下的代码。
 class AppStrings {
   static const String appName = 'AI错题本';
 

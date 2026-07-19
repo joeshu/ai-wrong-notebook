@@ -1,6 +1,9 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smart_wrong_notebook/l10n/generated/app_localizations.dart';
+import 'package:smart_wrong_notebook/src/app/onboarding_notifier.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/app/router.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/drift_settings_repository.dart';
@@ -30,17 +33,14 @@ void main() async {
     legacyReviewLogs: SharedPrefsReviewLogRepository(),
   ).migrateIfNeeded();
 
-  final router = buildRouter(settingsRepo);
+  // 在构建 router 之前先同步加载 onboarding 状态，避免启动闪烁。
+  final onboardingNotifier = OnboardingNotifier(initialDone: false);
+  await onboardingNotifier.loadFromSettings(settingsRepo.getString);
 
-  // Defer onboarding check to avoid blocking startup
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    try {
-      final onboardingDone = await settingsRepo.getString('onboarding_done');
-      if (onboardingDone == null) {
-        router.go('/onboarding');
-      }
-    } catch (_) {}
-  });
+  final router = buildRouter(
+    settingsRepo,
+    onboardingNotifier: onboardingNotifier,
+  );
 
   runApp(
     ProviderScope(
@@ -48,6 +48,7 @@ void main() async {
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
         questionRepositoryProvider.overrideWithValue(questionRepo),
         reviewLogRepositoryProvider.overrideWithValue(reviewLogRepo),
+        onboardingNotifierProvider.overrideWithValue(onboardingNotifier),
         // 注意：不要 override aiAnalysisServiceProvider，让它使用 settingsRepo
         imageStorageServiceProvider.overrideWithValue(ImageStorageService()),
       ],
@@ -59,6 +60,13 @@ void main() async {
           themeMode: ref.watch(themeModeProvider),
           routerConfig: router,
           debugShowCheckedModeBanner: false,
+          localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
         ),
       ),
     ),

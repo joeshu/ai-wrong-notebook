@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_wrong_notebook/src/app/onboarding_notifier.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/home/presentation/home_screen.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/presentation/notebook_screen.dart';
@@ -27,9 +28,24 @@ import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/exercise_practice_screen.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 
-GoRouter buildRouter(SettingsRepository settingsRepo) {
+GoRouter buildRouter(SettingsRepository settingsRepo,
+    {required OnboardingNotifier onboardingNotifier}) {
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: onboardingNotifier,
+    redirect: (BuildContext context, GoRouterState state) {
+      final onboardingDone = onboardingNotifier.done;
+      final inOnboarding = state.matchedLocation == '/onboarding';
+      // 读取 settings 出错时不强制跳转，避免把用户卡在 onboarding 死循环里。
+      if (onboardingNotifier.error != null) return null;
+      if (!onboardingDone && !inOnboarding) {
+        return '/onboarding';
+      }
+      if (onboardingDone && inOnboarding) {
+        return '/';
+      }
+      return null;
+    },
     routes: <RouteBase>[
       GoRoute(
           path: '/onboarding',

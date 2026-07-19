@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:smart_wrong_notebook/src/app/onboarding_notifier.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question_repository.dart';
@@ -45,6 +46,12 @@ final Provider<WorksheetImportRepository> worksheetImportRepositoryProvider =
 final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((ref) {
   return SharedPrefsSettingsRepository.instance;
+});
+
+// Production overrides this with a real OnboardingNotifier in main().
+final Provider<OnboardingNotifier> onboardingNotifierProvider =
+    Provider<OnboardingNotifier>((ref) {
+  return OnboardingNotifier(initialDone: true);
 });
 
 // Production overrides this with DriftReviewLogRepository in main().
@@ -286,6 +293,10 @@ QuestionRecord buildSplitQuestionRecord({
 }
 
 // --- Internal version counter for cache invalidation ---
+//
+// 保留 `invalidateQuestionList` 作为显式刷新入口（兼容旧调用方与
+// 非 Drift 仓库），核心数据 provider 已改为 StreamProvider 响应式订阅，
+// 无需手动 invalidate 即可自动更新。
 
 final StateProvider<int> _listVersionProvider = StateProvider<int>((ref) => 0);
 
@@ -294,18 +305,20 @@ void invalidateQuestionList(WidgetRef ref) {
   ref.read(_listVersionProvider.notifier).state++;
 }
 
-// --- All questions list ---
+// --- All questions list (reactive) ---
 
-final FutureProvider<List<QuestionRecord>> questionListProvider =
-    FutureProvider<List<QuestionRecord>>((ref) async {
+/// 全量题目列表，基于 Drift `watch()` 响应式更新，表变更自动推送新快照。
+/// 非 Drift 仓库回退到 `watchAll()` 默认实现（一次性 Future）。
+final StreamProvider<List<QuestionRecord>> questionListProvider =
+    StreamProvider<List<QuestionRecord>>((ref) {
   ref.watch(_listVersionProvider);
-  return ref.read(questionRepositoryProvider).listAll();
+  return ref.read(questionRepositoryProvider).watchAll();
 });
 
-final FutureProvider<List<ReviewLog>> reviewLogListProvider =
-    FutureProvider<List<ReviewLog>>((ref) async {
+final StreamProvider<List<ReviewLog>> reviewLogListProvider =
+    StreamProvider<List<ReviewLog>>((ref) {
   ref.watch(_listVersionProvider);
-  return ref.read(reviewLogRepositoryProvider).listAll();
+  return ref.read(reviewLogRepositoryProvider).watchAll();
 });
 
 class QuestionBatchGroup {
@@ -315,12 +328,15 @@ class QuestionBatchGroup {
   final List<QuestionRecord> questions;
 }
 
-final FutureProvider<Map<String, QuestionBatchGroup>>
+final StreamProvider<Map<String, QuestionBatchGroup>>
     questionBatchGroupsProvider =
-    FutureProvider<Map<String, QuestionBatchGroup>>((ref) async {
+    StreamProvider<Map<String, QuestionBatchGroup>>((ref) {
   ref.watch(_listVersionProvider);
-  final all = await ref.read(questionRepositoryProvider).listAll();
-  return buildQuestionBatchGroups(all);
+  return ref.watch(questionListProvider).when(
+        data: (all) => Stream.value(buildQuestionBatchGroups(all)),
+        loading: () => const Stream.empty(),
+        error: (e, _) => Stream.error(e, _),
+      );
 });
 
 Map<String, QuestionBatchGroup> buildQuestionBatchGroups(
@@ -366,12 +382,17 @@ int _compareBatchQuestions(QuestionRecord a, QuestionRecord b) {
 
 // --- Questions due for review ---
 
-final FutureProvider<List<QuestionRecord>> dueReviewProvider =
-    FutureProvider<List<QuestionRecord>>((ref) async {
+final StreamProvider<List<QuestionRecord>> dueReviewProvider =
+    StreamProvider<List<QuestionRecord>>((ref) {
   ref.watch(_listVersionProvider);
-  final all = await ref.read(questionRepositoryProvider).listAll();
-  const scheduler = ReviewScheduleService();
-  return all.where((QuestionRecord q) => scheduler.isDue(q)).toList();
+  return ref.watch(questionListProvider).when(
+        data: (all) {
+          const scheduler = ReviewScheduleService();
+          return Stream.value(all.where(scheduler.isDue).toList());
+        },
+        loading: () => const Stream.empty(),
+        error: (e, _) => Stream.error(e, _),
+      );
 });
 
 // --- Today's review plan ---
@@ -391,49 +412,64 @@ class TodayReviewPlan {
   int get estimatedMinutes => dueCount * 3;
 }
 
-final FutureProvider<TodayReviewPlan> todayReviewPlanProvider =
-    FutureProvider<TodayReviewPlan>((ref) async {
+final StreamProvider<TodayReviewPlan> todayReviewPlanProvider =
+    StreamProvider<TodayReviewPlan>((ref) {
   ref.watch(_listVersionProvider);
   const scheduler = ReviewScheduleService();
-  final questions = await ref.read(questionRepositoryProvider).listAll();
-  final logs = await ref.read(reviewLogRepositoryProvider).listAll();
-  final now = DateTime.now();
-  final completedIds = <String>{};
-  final reviewedDays = <DateTime>{};
-  for (final log in logs) {
-    final at = log.reviewedAt.toLocal();
-    final day = DateTime(at.year, at.month, at.day);
-    reviewedDays.add(day);
-    if (day == DateTime(now.year, now.month, now.day)) {
-      completedIds.add(log.questionRecordId);
-    }
-  }
-
-  var streak = 0;
-  var day = DateTime(now.year, now.month, now.day);
-  while (reviewedDays.contains(day)) {
-    streak++;
-    day = day.subtract(const Duration(days: 1));
-  }
-  return TodayReviewPlan(
-    dueCount: questions.where(scheduler.isDue).length,
-    completedCount: completedIds.length,
-    streakDays: streak,
-  );
+  return _combineTodayPlan(ref, scheduler);
 });
+
+Stream<TodayReviewPlan> _combineTodayPlan(
+    WidgetRef ref, ReviewScheduleService scheduler) async* {
+  // 同时订阅题目和复习记录两个流，任一更新都重算计划。
+  await for (final questions in ref.watch(questionListProvider).when(
+    data: (data) => Stream.value(data),
+    loading: () => const Stream.empty(),
+    error: (e, _) => Stream.error(e, _),
+  )) {
+    final logs = await ref.read(reviewLogListProvider.future);
+    final now = DateTime.now();
+    final completedIds = <String>{};
+    final reviewedDays = <DateTime>{};
+    for (final log in logs) {
+      final at = log.reviewedAt.toLocal();
+      final day = DateTime(at.year, at.month, at.day);
+      reviewedDays.add(day);
+      if (day == DateTime(now.year, now.month, now.day)) {
+        completedIds.add(log.questionRecordId);
+      }
+    }
+    var streak = 0;
+    var day = DateTime(now.year, now.month, now.day);
+    while (reviewedDays.contains(day)) {
+      streak++;
+      day = day.subtract(const Duration(days: 1));
+    }
+    yield TodayReviewPlan(
+      dueCount: questions.where(scheduler.isDue).length,
+      completedCount: completedIds.length,
+      streakDays: streak,
+    );
+  }
+}
 
 // --- Mistake category statistics ---
 
-final FutureProvider<Map<MistakeCategory, int>> mistakeCategoryStatsProvider =
-    FutureProvider<Map<MistakeCategory, int>>((ref) async {
+final StreamProvider<Map<MistakeCategory, int>> mistakeCategoryStatsProvider =
+    StreamProvider<Map<MistakeCategory, int>>((ref) {
   ref.watch(_listVersionProvider);
-  final all = await ref.read(questionRepositoryProvider).listAll();
-  final stats = <MistakeCategory, int>{};
-  for (final question in all) {
-    final category = question.mistakeCategory;
-    if (category != null) stats[category] = (stats[category] ?? 0) + 1;
-  }
-  return stats;
+  return ref.watch(questionListProvider).when(
+        data: (all) {
+          final stats = <MistakeCategory, int>{};
+          for (final question in all) {
+            final category = question.mistakeCategory;
+            if (category != null) stats[category] = (stats[category] ?? 0) + 1;
+          }
+          return Stream.value(stats);
+        },
+        loading: () => const Stream.empty(),
+        error: (e, _) => Stream.error(e, _),
+      );
 });
 
 // --- Notebook filter state ---
@@ -491,56 +527,77 @@ final StateProvider<String?> selectedKnowledgePointFilterProvider =
 final StateProvider<List<String>> selectedTagsFilterProvider =
     StateProvider<List<String>>((ref) => []);
 
-final FutureProvider<List<String>> allLearningStagesProvider =
-    FutureProvider<List<String>>((ref) async {
+final StreamProvider<List<String>> allLearningStagesProvider =
+    StreamProvider<List<String>>((ref) {
   ref.watch(_listVersionProvider);
-  final all = await ref.read(questionRepositoryProvider).listAll();
-  return all.map((question) => question.learningStage)
-      .whereType<String>().toSet().toList()..sort();
+  return ref.watch(questionListProvider).when(
+        data: (all) => Stream.value(all
+            .map((question) => question.learningStage)
+            .whereType<String>()
+            .toSet()
+            .toList()
+          ..sort()),
+        loading: () => const Stream.empty(),
+        error: (e, _) => Stream.error(e, _),
+      );
 });
 
-final FutureProvider<List<String>> allSourcesProvider =
-    FutureProvider<List<String>>((ref) async {
+final StreamProvider<List<String>> allSourcesProvider =
+    StreamProvider<List<String>>((ref) {
   ref.watch(_listVersionProvider);
-  final all = await ref.read(questionRepositoryProvider).listAll();
-  final sources = all.map((question) => question.source).whereType<String>().toSet();
-  return sources.toList()..sort();
+  return ref.watch(questionListProvider).when(
+        data: (all) {
+          final sources = all
+              .map((question) => question.source)
+              .whereType<String>()
+              .toSet();
+          return Stream.value(sources.toList()..sort());
+        },
+        loading: () => const Stream.empty(),
+        error: (e, _) => Stream.error(e, _),
+      );
 });
 
 // --- All tags provider ---
-final FutureProvider<List<String>> allTagsProvider =
-    FutureProvider<List<String>>((ref) async {
+final StreamProvider<List<String>> allTagsProvider =
+    StreamProvider<List<String>>((ref) {
   ref.watch(_listVersionProvider);
-  final all = await ref.read(questionRepositoryProvider).listAll();
-  final tags = <String>{};
-  for (final q in all) {
-    // 添加 AI 短标签
-    tags.addAll(q.aiTags);
-    // 添加 AI 知识点
-    tags.addAll(q.aiKnowledgePoints);
-    // 添加自定义标签
-    tags.addAll(q.customTags);
-  }
-  return tags.toList()..sort();
+  return ref.watch(questionListProvider).when(
+        data: (all) {
+          final tags = <String>{};
+          for (final q in all) {
+            tags.addAll(q.aiTags);
+            tags.addAll(q.aiKnowledgePoints);
+            tags.addAll(q.customTags);
+          }
+          return Stream.value(tags.toList()..sort());
+        },
+        loading: () => const Stream.empty(),
+        error: (e, _) => Stream.error(e, _),
+      );
 });
 
-final FutureProvider<List<String>> allKnowledgePointsProvider =
-    FutureProvider<List<String>>((ref) async {
+final StreamProvider<List<String>> allKnowledgePointsProvider =
+    StreamProvider<List<String>>((ref) {
   ref.watch(_listVersionProvider);
-  final all = await ref.read(questionRepositoryProvider).listAll();
-  final points = <String>{};
-  for (final question in all) {
-    points.addAll(question.aiKnowledgePoints);
-  }
-  return points.toList()..sort();
+  return ref.watch(questionListProvider).when(
+        data: (all) {
+          final points = <String>{};
+          for (final question in all) {
+            points.addAll(question.aiKnowledgePoints);
+          }
+          return Stream.value(points.toList()..sort());
+        },
+        loading: () => const Stream.empty(),
+        error: (e, _) => Stream.error(e, _),
+      );
 });
 
 // --- Filtered notebook list ---
 
-final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
-    FutureProvider<List<QuestionRecord>>((ref) async {
+final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
+    StreamProvider<List<QuestionRecord>>((ref) {
   ref.watch(_listVersionProvider);
-  final all = await ref.read(questionRepositoryProvider).listAll();
 
   final subject = ref.watch(selectedSubjectFilterProvider);
   final mastery = ref.watch(selectedMasteryFilterProvider);
@@ -561,53 +618,67 @@ final FutureProvider<List<QuestionRecord>> filteredQuestionListProvider =
 
   const scheduler = ReviewScheduleService();
   final now = DateTime.now();
-  final filtered = all.where((QuestionRecord q) {
-    if (subject != null && q.subject != subject) return false;
-    if (mastery != null && q.masteryLevel != mastery) return false;
-    if (unmasteredOnly && q.masteryLevel == MasteryLevel.mastered) return false;
-    if (mistakeCategory != null && q.mistakeCategory != mistakeCategory) {
-      return false;
-    }
-    if (dueOnly && !scheduler.isDue(q)) return false;
-    if (favoritesOnly && !q.isFavorite) return false;
-    if (failedOnly && q.contentStatus.toString().split('.').last != 'failed') return false;
-    if (!_isWithinDateRange(q.createdAt, dateRange, now)) return false;
-    if (source != null && q.source != source) return false;
-    if (learningStage != null && q.learningStage != learningStage) return false;
-    if (difficulty != null && q.difficulty != difficulty) return false;
-    if (attemptStatus != null && q.attemptStatus != attemptStatus) return false;
-    if (query.isNotEmpty &&
-        !q.normalizedQuestionText.toLowerCase().contains(query)) {
-      return false;
-    }
-    // AI 知识点过滤：匹配任意一个知识点
-    if (knowledgePoint != null && knowledgePoint.isNotEmpty) {
-      final kps = q.aiKnowledgePoints;
-      if (!kps.any((kp) => kp.contains(knowledgePoint))) return false;
-    }
-    // 多选标签过滤：必须包含所有选中的标签
-    if (selectedTags.isNotEmpty) {
-      final allQTags = [...q.aiKnowledgePoints, ...q.customTags];
-      for (final tag in selectedTags) {
-        if (!allQTags.any((t) => t.contains(tag))) return false;
-      }
-    }
-    return true;
-  }).toList();
 
-  filtered.sort((a, b) {
-    switch (sort) {
-      case QuestionSort.newest:
-        return b.createdAt.compareTo(a.createdAt);
-      case QuestionSort.oldest:
-        return a.createdAt.compareTo(b.createdAt);
-      case QuestionSort.nextReview:
-        final aAt = a.nextReviewAt ?? a.createdAt;
-        final bAt = b.nextReviewAt ?? b.createdAt;
-        return aAt.compareTo(bAt);
-    }
-  });
-  return filtered;
+  return ref.watch(questionListProvider).when(
+        data: (all) {
+          final filtered = all.where((QuestionRecord q) {
+            if (subject != null && q.subject != subject) return false;
+            if (mastery != null && q.masteryLevel != mastery) return false;
+            if (unmasteredOnly && q.masteryLevel == MasteryLevel.mastered) {
+              return false;
+            }
+            if (mistakeCategory != null && q.mistakeCategory != mistakeCategory) {
+              return false;
+            }
+            if (dueOnly && !scheduler.isDue(q)) return false;
+            if (favoritesOnly && !q.isFavorite) return false;
+            if (failedOnly &&
+                q.contentStatus.toString().split('.').last != 'failed') {
+              return false;
+            }
+            if (!_isWithinDateRange(q.createdAt, dateRange, now)) return false;
+            if (source != null && q.source != source) return false;
+            if (learningStage != null && q.learningStage != learningStage) {
+              return false;
+            }
+            if (difficulty != null && q.difficulty != difficulty) return false;
+            if (attemptStatus != null && q.attemptStatus != attemptStatus) {
+              return false;
+            }
+            if (query.isNotEmpty &&
+                !q.normalizedQuestionText.toLowerCase().contains(query)) {
+              return false;
+            }
+            if (knowledgePoint != null && knowledgePoint.isNotEmpty) {
+              final kps = q.aiKnowledgePoints;
+              if (!kps.any((kp) => kp.contains(knowledgePoint))) return false;
+            }
+            if (selectedTags.isNotEmpty) {
+              final allQTags = [...q.aiKnowledgePoints, ...q.customTags];
+              for (final tag in selectedTags) {
+                if (!allQTags.any((t) => t.contains(tag))) return false;
+              }
+            }
+            return true;
+          }).toList();
+
+          filtered.sort((a, b) {
+            switch (sort) {
+              case QuestionSort.newest:
+                return b.createdAt.compareTo(a.createdAt);
+              case QuestionSort.oldest:
+                return a.createdAt.compareTo(b.createdAt);
+              case QuestionSort.nextReview:
+                final aAt = a.nextReviewAt ?? a.createdAt;
+                final bAt = b.nextReviewAt ?? b.createdAt;
+                return aAt.compareTo(bAt);
+            }
+          });
+          return Stream.value(filtered);
+        },
+        loading: () => const Stream.empty(),
+        error: (e, _) => Stream.error(e, _),
+      );
 });
 
 bool _isWithinDateRange(

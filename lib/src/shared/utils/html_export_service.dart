@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:image/image.dart' as image;
@@ -495,7 +496,8 @@ class HtmlExportService {
   }
 
   /// 读取图片文件，缩放到最大宽度 1200px 并重新编码，返回 data URI。
-  /// PNG 保留 PNG 编码（保留透明），其余转 JPEG(quality 80)，显著降低体积。
+  /// 解码/缩放/编码在后台 isolate 执行，避免大图阻塞 UI。
+  /// PNG 保留 PNG 编码（保留透明），其余转 JPEG(quality 80)。
   static Future<String?> _encodeImage(String path) async {
     if (path.isEmpty) return null;
     final file = File(path);
@@ -503,25 +505,17 @@ class HtmlExportService {
     try {
       final raw = await file.readAsBytes();
       if (raw.isEmpty) return null;
-      final decoded = image.decodeImage(raw);
-      if (decoded == null) {
+      final result = await compute(
+        _encodeImageIsolate,
+        _EncodeRequest(raw, path),
+      );
+      if (result == null) {
         // 无法解码，回退原文件 base64。
         final ext = path.split('.').last.toLowerCase();
         final mime = ext == 'png' ? 'image/png' : 'image/jpeg';
         return 'data:$mime;base64,${base64Encode(raw)}';
       }
-      const maxWidth = 1200;
-      image.Image scaled = decoded;
-      if (decoded.width > maxWidth) {
-        scaled = image.copyResize(decoded, width: maxWidth);
-      }
-      final ext = path.split('.').last.toLowerCase();
-      if (ext == 'png') {
-        final encoded = image.encodePng(scaled, level: 6);
-        return 'data:image/png;base64,${base64Encode(encoded)}';
-      }
-      final encoded = image.encodeJpg(scaled, quality: 80);
-      return 'data:image/jpeg;base64,${base64Encode(encoded)}';
+      return result;
     } catch (_) {
       return null;
     }
@@ -789,4 +783,29 @@ class _MathSpan {
   final String text;
   final bool isMath;
   final bool display;
+}
+
+class _EncodeRequest {
+  const _EncodeRequest(this.bytes, this.path);
+  final Uint8List bytes;
+  final String path;
+}
+
+/// 在后台 isolate 执行图片解码、缩放、重编码，返回 data URI 字符串。
+/// 返回 null 表示解码失败（调用方回退原文件 base64）。
+String? _encodeImageIsolate(_EncodeRequest req) {
+  final decoded = image.decodeImage(req.bytes);
+  if (decoded == null) return null;
+  const maxWidth = 1200;
+  image.Image scaled = decoded;
+  if (decoded.width > maxWidth) {
+    scaled = image.copyResize(decoded, width: maxWidth);
+  }
+  final ext = req.path.split('.').last.toLowerCase();
+  if (ext == 'png') {
+    final encoded = image.encodePng(scaled, level: 6);
+    return 'data:image/png;base64,${base64Encode(encoded)}';
+  }
+  final encoded = image.encodeJpg(scaled, quality: 80);
+  return 'data:image/jpeg;base64,${base64Encode(encoded)}';
 }

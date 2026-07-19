@@ -8,6 +8,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
 /// Phase 1 worksheet importer: imports multiple pages and deliberately routes
 /// them through the proven single-page crop/correct/analyse flow. This keeps
@@ -399,7 +400,7 @@ class _PageTile extends StatelessWidget {
                 width: 72,
                 height: 88,
                 child: available
-                    ? Image.file(File(page.imagePath), fit: BoxFit.cover)
+                    ? CachedQuestionImage(page.imagePath, fit: BoxFit.cover)
                     : const ColoredBox(color: Color(0xFFE5E7EB)),
               ),
             ),

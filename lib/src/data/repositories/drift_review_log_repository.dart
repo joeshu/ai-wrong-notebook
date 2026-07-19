@@ -53,6 +53,14 @@ class DriftReviewLogRepository implements ReviewLogRepository {
     await _database.delete(_database.reviewLogs).go();
   }
 
+  /// 响应式订阅：reviewLogs 表变更时自动推送新快照。
+  Stream<List<domain.ReviewLog>> watchAll() {
+    return (_database.select(_database.reviewLogs)
+          ..orderBy([(table) => OrderingTerm.asc(table.reviewedAt)]))
+        .watch()
+        .map((rows) => rows.map(_toDomain).toList());
+  }
+
   @override
   Future<void> deleteByIds(Set<String> ids) async {
     if (ids.isEmpty) return;

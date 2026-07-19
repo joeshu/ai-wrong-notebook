@@ -46,9 +46,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _finish() async {
-    await ref
-        .read(settingsRepositoryProvider)
-        .setString('onboarding_done', 'true');
+    final settingsRepo = ref.read(settingsRepositoryProvider);
+    final notifier = ref.read(onboardingNotifierProvider);
+    // 1. 通知路由刷新（先标记内存状态，路由 redirect 会把用户带回首页）。
+    // 2. 同时持久化到 settings，下次启动直接读取。
+    await notifier.markDone(settingsRepo.setString);
     if (mounted) context.go('/');
   }
 

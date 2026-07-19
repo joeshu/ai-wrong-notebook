@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
 class QuestionCorrectionScreen extends ConsumerWidget {
   const QuestionCorrectionScreen({super.key});
@@ -29,7 +30,8 @@ class QuestionCorrectionScreen extends ConsumerWidget {
                     child: InteractiveViewer(
                       minScale: 0.5,
                       maxScale: 4.0,
-                      child: Image.file(File(imagePath), fit: BoxFit.contain),
+                      child: CachedQuestionImage(imagePath,
+                          fit: BoxFit.contain, highRes: true),
                     ),
                   )
                 : Center(

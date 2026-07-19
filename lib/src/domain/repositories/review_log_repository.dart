@@ -6,6 +6,11 @@ abstract class ReviewLogRepository {
   Future<List<ReviewLog>> listAll();
   Future<void> clear();
   Future<void> deleteByIds(Set<String> ids);
+
+  /// 响应式订阅全量复习记录，默认回退到一次性 Future 拉取。
+  Stream<List<ReviewLog>> watchAll() async* {
+    yield await listAll();
+  }
 }
 
 class InMemoryReviewLogRepository implements ReviewLogRepository {

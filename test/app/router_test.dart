@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:smart_wrong_notebook/src/app/onboarding_notifier.dart';
 import 'package:smart_wrong_notebook/src/app/router.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
@@ -19,8 +20,13 @@ class _TestSettingsRepository implements SettingsRepository {
 
 void main() {
   test('router includes capture split confirmation route', () {
-    final router = buildRouter(_TestSettingsRepository());
+    final notifier = OnboardingNotifier(initialDone: true);
+    final router = buildRouter(
+      _TestSettingsRepository(),
+      onboardingNotifier: notifier,
+    );
     addTearDown(router.dispose);
+    addTearDown(notifier.dispose);
 
     expect(
       () => router.configuration.findMatch(Uri.parse('/capture/split-confirmation')),

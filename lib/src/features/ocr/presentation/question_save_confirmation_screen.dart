@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
 class QuestionSaveConfirmationScreen extends ConsumerStatefulWidget {
   const QuestionSaveConfirmationScreen({super.key});
@@ -83,8 +84,8 @@ class _QuestionSaveConfirmationScreenState
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        File(current.imagePath),
+                      child: CachedQuestionImage(
+                        current.imagePath,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -284,7 +285,7 @@ class _QuestionSaveConfirmationScreenState
           ),
           body: Center(
             child: InteractiveViewer(
-              child: Image.file(File(imagePath)),
+              child: CachedQuestionImage(imagePath, highRes: true),
             ),
           ),
         ),

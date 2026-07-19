@@ -9,6 +9,7 @@ import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
 class AnalysisResultScreen extends ConsumerStatefulWidget {
   const AnalysisResultScreen({super.key});
@@ -282,11 +283,13 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                           children: <Widget>[
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.file(
-                                File(record.imagePath),
+                              child: SizedBox(
                                 width: double.infinity,
                                 height: 120,
-                                fit: BoxFit.contain,
+                                child: CachedQuestionImage(
+                                  record.imagePath,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
                             Positioned(
@@ -841,7 +844,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
           ),
           body: Center(
             child: InteractiveViewer(
-              child: Image.file(File(imagePath)),
+              child: CachedQuestionImage(imagePath, highRes: true),
             ),
           ),
         ),
