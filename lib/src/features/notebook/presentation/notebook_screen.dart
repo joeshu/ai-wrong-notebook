@@ -191,6 +191,34 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     ref.read(questionSortProvider.notifier).state = QuestionSort.newest;
   }
 
+  _CardPrimaryAction? _cardPrimaryAction(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) {
+    if (question.contentStatus == ContentStatus.failed) {
+      return _CardPrimaryAction(label: '重新分析', icon: CupertinoIcons.arrow_clockwise, onTap: () {
+        ref.read(currentQuestionProvider.notifier).state = question;
+        context.go('/notebook/question/${question.id}');
+      });
+    }
+    if (question.analysisResult == null) {
+      return _CardPrimaryAction(label: '继续校对', icon: CupertinoIcons.pencil, onTap: () {
+        ref.read(currentQuestionProvider.notifier).state = question;
+        context.go('/notebook/question/${question.id}');
+      });
+    }
+    final due = question.nextReviewAt != null && !question.nextReviewAt!.isAfter(DateTime.now());
+    if (due) return _CardPrimaryAction(label: '开始复习', icon: CupertinoIcons.play_fill, onTap: () => context.go('/review'));
+    if (question.masteryLevel == MasteryLevel.newQuestion) {
+      return _CardPrimaryAction(label: '开始练习', icon: CupertinoIcons.pencil_ellipsis_rectangle, onTap: () {
+        ref.read(currentQuestionProvider.notifier).state = question;
+        context.go('/notebook/question/${question.id}');
+      });
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -442,6 +470,9 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                                     .notifier)
                                 .state = kp;
                           },
+                          primaryAction: _selectionMode
+                              ? null
+                              : _cardPrimaryAction(context, ref, q),
                         ),
                       );
                     },
@@ -480,6 +511,18 @@ enum _NotebookMenuAction {
   newest,
   oldest,
   nextReview,
+}
+
+class _CardPrimaryAction {
+  const _CardPrimaryAction({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
 }
 
 class _KnowledgePointPracticeCard extends StatelessWidget {
@@ -579,6 +622,7 @@ class _QuestionCard extends StatelessWidget {
     required this.onTap,
     required this.onDelete,
     required this.onKnowledgePointTap,
+    required this.primaryAction,
   });
 
   final dynamic question;
@@ -588,6 +632,7 @@ class _QuestionCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
   final void Function(String knowledgePoint) onKnowledgePointTap;
+  final _CardPrimaryAction? primaryAction;
 
   @override
   Widget build(BuildContext context) {
@@ -787,6 +832,21 @@ class _QuestionCard extends StatelessWidget {
                                 ),
                               );
                             }).toList(),
+                          ),
+                        ],
+                        if (primaryAction != null) ...<Widget>[
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: primaryAction!.onTap,
+                              icon: Icon(primaryAction!.icon, size: 15),
+                              label: Text(primaryAction!.label),
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(0, 32),
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                            ),
                           ),
                         ],
                       ],
