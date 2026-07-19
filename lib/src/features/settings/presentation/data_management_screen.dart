@@ -18,6 +18,7 @@ import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class DataManagementScreen extends ConsumerStatefulWidget {
   const DataManagementScreen({super.key});
@@ -123,8 +124,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
             const SizedBox(height: 8),
           ],
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('加载失败: $e')),
+        loading: () => const AppLoadingState(label: '正在读取本地数据…'),
+        error: (_, __) => AppErrorState(message: '数据暂时无法读取。', onRetry: () => ref.invalidate(questionListProvider)),
       ),
     );
   }
