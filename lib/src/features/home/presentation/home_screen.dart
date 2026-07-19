@@ -7,6 +7,7 @@ import 'package:smart_wrong_notebook/src/common/widgets/stats_chart.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
