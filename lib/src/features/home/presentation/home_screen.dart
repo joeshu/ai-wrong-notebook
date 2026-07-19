@@ -247,7 +247,7 @@ class _QuickStartRow extends StatelessWidget {
     Row(children: <Widget>[
       Expanded(child: OutlinedButton.icon(onPressed: onCapture, icon: const Icon(CupertinoIcons.camera), label: const Text('拍照录题'))),
       const SizedBox(width: 10),
-      Expanded(child: FilledButton.icon(onPressed: onImport, icon: const Icon(CupertinoIcons.doc_viewfinder), label: const Text('导入试卷'))),
+      Expanded(child: FilledButton.icon(onPressed: onImport, icon: const Icon(CupertinoIcons.doc), label: const Text('导入试卷'))),
     ]),
   ]);
 }
@@ -261,7 +261,7 @@ class _BatchActionCard extends StatelessWidget {
     final all = session.pages;
     final failed = all.where((item) => item.contentStatus == ContentStatus.failed).length;
     final drafts = all.where((item) => item.contentStatus == ContentStatus.ready && item.analysisResult == null).length;
-    final pending = all.where((item) => item.contentStatus == ContentStatus.pending).length;
+    final pending = all.where((item) => item.contentStatus == ContentStatus.processing).length;
     final remaining = failed + drafts + pending;
     if (remaining == 0) return const SizedBox.shrink();
     final colorScheme = Theme.of(context).colorScheme;

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:shared_preferences/shared_preferences.dart;
+import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
@@ -209,7 +210,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       if (questionId is! String || fileName is! String) continue;
       final entry = archive.files.where((file) => file.name == 'attachments/${questionId}_$fileName').firstOrNull;
       if (entry == null || !entry.isFile) { corrupt++; continue; }
-      final bytes = entry.content as List<int>;
+      final bytes = Uint8List.fromList(entry.content as List<int>);
       if (item['byteSize'] != bytes.length || !BackupAttachmentIntegrity.matches(bytes, item['sha256'] as String?)) { corrupt++; continue; }
       attachments.add(<String, dynamic>{'questionId': questionId, 'fileName': fileName, 'contentBase64': base64Encode(bytes), 'sha256': item['sha256']});
     }
