@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -510,6 +513,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     // use_build_context_synchronously 警告。
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
+    final formats = _selectedFormats.toList();
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -526,8 +530,8 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
                 builder: (_, v, __) {
                   if (v <= 0) return const Text('正在准备导出…');
                   if (v >= 1) return const Text('导出完成');
-                  final formats = _selectedFormats.toList();
                   if (formats.isEmpty) return const Text('正在导出…');
+                  // v 为整体进度（0..1），换算到当前格式索引。
                   final idx =
                       (v * formats.length).floor().clamp(0, formats.length - 1);
                   final label = _formatLabel(formats[idx]);
@@ -541,11 +545,20 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     );
 
     try {
-      final formats = _selectedFormats.toList();
       for (var i = 0; i < formats.length; i++) {
+        // 每个格式开始：把整体进度推进到 i/N（外层文案显示"正在导出 X"）。
         progress.value = i / formats.length;
         if (mounted) setState(() => _exportProgress = progress.value);
-        await _exportFormat(formats[i], options);
+        // 内部进度通过 base + sub * (1/N) 反映到整体。
+        final base = i / formats.length;
+        final span = 1.0 / formats.length;
+        final sub = ValueNotifier<double>(0);
+        sub.addListener(() {
+          progress.value = (base + sub.value * span).clamp(0.0, 0.9999);
+          if (mounted) setState(() => _exportProgress = progress.value);
+        });
+        await _exportFormat(formats[i], options, sub);
+        sub.dispose();
       }
       progress.value = 1;
       if (mounted) setState(() => _exportProgress = 1);
@@ -566,30 +579,66 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
   Future<void> _exportFormat(
     ExportFormat format,
     ExportOptions options,
+    ValueNotifier<double> progress,
   ) async {
     final questions = options.filtered;
     final mode = options.mode;
     final studentInfo = options.studentInfo;
     final watermark = studentInfo?.watermark;
     final contentOptions = options.contentOptions;
+    // 在 async gap 之前捕获 messenger / render box，避免
+    // use_build_context_synchronously 警告。
+    final messenger = ScaffoldMessenger.of(context);
+    final renderBox = context.findRenderObject() as RenderBox?;
+    // 工作台已在外层显示进度对话框，这里直接调用底层生成接口，
+    // 不再走 shareHtml / sharePdf —— 它们各自会再弹一个进度对话框，
+    // 与工作台外层对话框叠加，且 Share.shareXFiles await 期间内层对话框
+    // 不会关闭，在某些平台会导致整个流程卡死。
     switch (format) {
       case ExportFormat.html:
-        await HtmlExportService.shareHtml(
-          context,
+        final result = await HtmlExportService.generateHtml(
           questions,
           mode: mode,
           studentInfo: studentInfo,
           contentOptions: contentOptions,
           watermark: watermark,
+          layoutOptions: options.layoutOptions,
+          templateType: options.templateType,
+          onProgress: (done, total) {
+            // 0..1 表示当前格式内部进度，由外层换算到整体进度。
+            progress.value = total == 0 ? 1 : done / total;
+          },
+        );
+        if (result.failureHint.isNotEmpty) {
+          messenger.showSnackBar(
+            SnackBar(content: Text('导出完成（${result.failureHint}）')),
+          );
+        }
+        await _shareFile(
+          result.filePath,
+          studentInfo,
+          questions.length,
+          messenger: messenger,
+          renderBox: renderBox,
         );
         break;
       case ExportFormat.pdf:
-        await PdfExportService.sharePdf(
-          context,
+        final file = await PdfExportService.generatePdf(
           questions,
           mode: mode,
           studentInfo: studentInfo,
           watermark: watermark,
+          layoutOptions: options.layoutOptions,
+          onProgress: (done, total) {
+            progress.value = total == 0 ? 1 : done / total;
+          },
+        );
+        await _shareFile(
+          file.path,
+          studentInfo,
+          questions.length,
+          messenger: messenger,
+          renderBox: renderBox,
         );
         break;
       case ExportFormat.markdown:
@@ -620,6 +669,31 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         );
         await JsonExportService().shareJson(json, _buildFileName('json'));
         break;
+    }
+  }
+
+  /// 调起系统分享单文件，桌面端 share_plus 失败时回退到系统默认打开。
+  Future<void> _shareFile(
+    String filePath,
+    ExportStudentInfo? studentInfo,
+    int questionCount, {
+    required ScaffoldMessengerState messenger,
+    required RenderBox? renderBox,
+  }) async {
+    final file = File(filePath);
+    if (!await file.exists()) return;
+    final studentLabel = studentInfo?.displayName ?? '错题本';
+    final origin = renderBox != null && renderBox.hasSize
+        ? renderBox.localToGlobal(Offset.zero) & renderBox.size
+        : null;
+    try {
+      await Share.shareXFiles(
+        [XFile(filePath)],
+        text: '$studentLabel 错题本（共 $questionCount 题）',
+        sharePositionOrigin: origin,
+      );
+    } catch (_) {
+      // 桌面端 share_plus 在无 DBus/分享面板的环境下会抛错，忽略。
     }
   }
 

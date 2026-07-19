@@ -414,38 +414,29 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
                 ),
                 if (_availableKnowledgePoints.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 8),
-                  const Text('按知识点筛选（不选=全部）', style: _sectionStyle),
-                  _chipGroup<String>(
+                  _buildCompactMultiSelect(
+                    label: '按知识点筛选',
+                    hint: '不选=全部',
                     values: _availableKnowledgePoints.toList()..sort(),
                     selected: _knowledgePoints,
-                    label: (s) => s,
-                    onToggle: (s) => setState(() {
-                      if (!_knowledgePoints.add(s)) _knowledgePoints.remove(s);
-                    }),
                   ),
                 ],
                 if (_availableLearningStages.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 8),
-                  const Text('按学习阶段筛选（不选=全部）', style: _sectionStyle),
-                  _chipGroup<String>(
+                  _buildCompactMultiSelect(
+                    label: '按学习阶段筛选',
+                    hint: '不选=全部',
                     values: _availableLearningStages.toList()..sort(),
                     selected: _learningStages,
-                    label: (s) => s,
-                    onToggle: (s) => setState(() {
-                      if (!_learningStages.add(s)) _learningStages.remove(s);
-                    }),
                   ),
                 ],
                 if (_availableSources.isNotEmpty) ...<Widget>[
                   const SizedBox(height: 8),
-                  const Text('按来源筛选（不选=全部）', style: _sectionStyle),
-                  _chipGroup<String>(
+                  _buildCompactMultiSelect(
+                    label: '按来源筛选',
+                    hint: '不选=全部',
                     values: _availableSources.toList()..sort(),
                     selected: _sources,
-                    label: (s) => s,
-                    onToggle: (s) => setState(() {
-                      if (!_sources.add(s)) _sources.remove(s);
-                    }),
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -790,6 +781,103 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
     );
   }
 
+  /// 大列表多选字段（知识点 / 学习阶段 / 来源）：紧凑行 + 弹出式多选对话框。
+  ///
+  /// 候选值数量可能很大（几十到上百），用 FilterChip 平铺会让对话框变得超长。
+  /// 改为单行紧凑展示「已选 N / 共 M」+ 一个「选择」按钮，点击后弹出
+  /// 可滚动的多选对话框，对话框内还提供搜索框（候选 >12 时显示）与
+  /// 「全选 / 清空 / 反选」快捷操作。
+  Widget _buildCompactMultiSelect({
+    required String label,
+    required String hint,
+    required List<String> values,
+    required Set<String> selected,
+  }) {
+    final selectedInValues = selected.intersection(values.toSet());
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: InkWell(
+        onTap: () => _openMultiSelectDialog(
+          label: label,
+          values: values,
+          selected: selected,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(label,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(
+                      selectedInValues.isEmpty
+                          ? hint
+                          : '已选 ${selectedInValues.length} / 共 ${values.length} 个'
+                              '${_previewSelected(selectedInValues)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: selectedInValues.isEmpty
+                            ? Theme.of(context).colorScheme.onSurfaceVariant
+                            : Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.unfold_more,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 拼接前 3 个已选项作为预览，超出显示「等 N 项」。
+  String _previewSelected(Set<String> selectedInValues) {
+    if (selectedInValues.isEmpty) return '';
+    final sorted = selectedInValues.toList()..sort();
+    const max = 3;
+    final head = sorted.take(max).join('、');
+    if (sorted.length <= max) return '：$head';
+    return '：$head 等 ${sorted.length} 项';
+  }
+
+  Future<void> _openMultiSelectDialog({
+    required String label,
+    required List<String> values,
+    required Set<String> selected,
+  }) async {
+    final result = await showDialog<Set<String>?>(
+      context: context,
+      builder: (dialogContext) => _MultiSelectDialog(
+        title: label,
+        values: values,
+        initial: selected,
+      ),
+    );
+    if (result == null) return;
+    setState(() {
+      selected
+        ..clear()
+        ..addAll(result);
+    });
+  }
+
   Widget _contentOptionTile(
     String title,
     bool value,
@@ -992,5 +1080,131 @@ PdfLayoutOptions _decodeLayoutOptions(String json) {
     );
   } catch (_) {
     return const PdfLayoutOptions();
+  }
+}
+
+/// 大列表多选对话框：带搜索框（候选 >12 时显示）与「全选 / 清空」快捷按钮。
+///
+/// 用于知识点 / 学习阶段 / 来源等可能存在几十上百个候选值的字段。
+/// 点击「确定」返回新选择集合；点击「取消」返回 null（调用方保持原状）。
+class _MultiSelectDialog extends StatefulWidget {
+  const _MultiSelectDialog({
+    required this.title,
+    required this.values,
+    required this.initial,
+  });
+
+  final String title;
+  final List<String> values;
+  final Set<String> initial;
+
+  @override
+  State<_MultiSelectDialog> createState() => _MultiSelectDialogState();
+}
+
+class _MultiSelectDialogState extends State<_MultiSelectDialog> {
+  late Set<String> _selected;
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = Set<String>.of(widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<String> get _filtered {
+    if (_query.isEmpty) return widget.values;
+    final q = _query.toLowerCase();
+    return widget.values.where((v) => v.toLowerCase().contains(q)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final showSearch = widget.values.length > 12;
+    final filtered = _filtered;
+    return AlertDialog(
+      title: Row(
+        children: <Widget>[
+          Expanded(child: Text(widget.title)),
+          TextButton(
+            onPressed: () => setState(_selected.clear()),
+            child: const Text('清空'),
+          ),
+          TextButton(
+            onPressed: () => setState(() {
+              _selected
+                ..clear()
+                ..addAll(widget.values);
+            }),
+            child: const Text('全选'),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (showSearch) ...<Widget>[
+              TextField(
+                controller: _searchController,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  hintText: '搜索',
+                  prefixIcon: Icon(Icons.search, size: 18),
+                ),
+                onChanged: (v) => setState(() => _query = v.trim()),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Text('已选 ${_selected.length} / 共 ${widget.values.length} 项',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF666666))),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: filtered.length,
+                itemBuilder: (_, index) {
+                  final v = filtered[index];
+                  return CheckboxListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: _selected.contains(v),
+                    title: Text(v, style: const TextStyle(fontSize: 13)),
+                    onChanged: (checked) {
+                      setState(() {
+                        if (checked == true) {
+                          _selected.add(v);
+                        } else {
+                          _selected.remove(v);
+                        }
+                      });
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_selected),
+          child: const Text('确定'),
+        ),
+      ],
+    );
   }
 }
