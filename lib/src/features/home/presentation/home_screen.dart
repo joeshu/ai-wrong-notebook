@@ -22,6 +22,12 @@ class HomeScreen extends ConsumerWidget {
     final todayPlanAsync = ref.watch(todayReviewPlanProvider);
     final mistakeStatsAsync = ref.watch(mistakeCategoryStatsProvider);
     final worksheetSession = ref.watch(currentWorksheetImportProvider);
+    final hasPendingBatch = worksheetSession?.pages.any((item) =>
+            item.contentStatus == ContentStatus.processing ||
+            item.contentStatus == ContentStatus.failed ||
+            (item.contentStatus == ContentStatus.ready &&
+                item.analysisResult == null)) ??
+        false;
 
     return SafeArea(
       child: ListView(
@@ -63,24 +69,33 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 14),
-          _QuickStartRow(
-            onCapture: () => CaptureEntryLauncher.show(context),
-          ),
-          if (worksheetSession != null) ...<Widget>[
-            const SizedBox(height: 20),
-            _BatchActionCard(session: worksheetSession, onOpen: () => context.go('/worksheet/import')),
-          ],
-          todayPlanAsync.when(
-            data: (plan) => Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: _TodayPlanCard(
-                plan: plan,
-                onOpenReview: () => context.go('/review'),
-                onCapture: () => CaptureEntryLauncher.show(context),
+          if (hasPendingBatch)
+            Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: _BatchActionCard(
+                session: worksheetSession!,
+                onOpen: () => context.go('/worksheet/import'),
+              ),
+            )
+          else
+            todayPlanAsync.when(
+              data: (plan) => Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: _TodayPlanCard(
+                  plan: plan,
+                  onOpenReview: () => context.go('/review'),
+                  onCapture: () => CaptureEntryLauncher.show(context),
+                ),
+              ),
+              loading: () => const _TodayPlanSkeleton(),
+              error: (_, __) => AppErrorState(
+                message: '今日计划暂时无法读取。',
+                onRetry: () => ref.invalidate(todayReviewPlanProvider),
               ),
             ),
-            loading: () => const _TodayPlanSkeleton(),
-            error: (_, __) => AppErrorState(message: '今日计划暂时无法读取。', onRetry: () => ref.invalidate(todayReviewPlanProvider)),
+          const SizedBox(height: 14),
+          _QuickStartRow(
+            onCapture: () => CaptureEntryLauncher.show(context),
           ),
           const SizedBox(height: 20),
           Text('学习统计', style: Theme.of(context).textTheme.titleLarge),
@@ -274,13 +289,20 @@ class _BatchActionCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: colorScheme.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: colorScheme.outlineVariant)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-        Row(children: <Widget>[Icon(CupertinoIcons.check_mark_circled, color: colorScheme.primary), const SizedBox(width: 8), Expanded(child: Text('待处理事项', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700))), Text('$remaining 项', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))]),
+        Row(children: <Widget>[Icon(CupertinoIcons.exclamationmark_circle_fill, color: AppStatusColor.warning), const SizedBox(width: 8), Expanded(child: Text('今日优先 · 待处理事项', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700))), Text('$remaining 项', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant))]),
         const SizedBox(height: 10),
         if (failed > 0) _BatchTodoRow(icon: CupertinoIcons.exclamationmark_triangle_fill, color: const Color(0xFFEA580C), text: '$failed 道分析失败题', action: '重试'),
         if (drafts > 0) _BatchTodoRow(icon: CupertinoIcons.sparkles, color: const Color(0xFF2563EB), text: '$drafts 道 OCR 草稿待分析', action: '分析'),
         if (pending > 0) _BatchTodoRow(icon: CupertinoIcons.clock, color: const Color(0xFF64748B), text: '$pending 道题尚未处理', action: '继续'),
-        const SizedBox(height: 6),
-        Align(alignment: Alignment.centerRight, child: TextButton(onPressed: onOpen, child: const Text('打开批次处理'))),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: onOpen,
+            icon: const Icon(CupertinoIcons.arrow_right_circle),
+            label: const Text('继续处理'),
+          ),
+        ),
       ]),
     );
   }
@@ -377,7 +399,7 @@ class _TodayPlanCard extends StatelessWidget {
                 Icon(CupertinoIcons.calendar,
                     size: 18, color: colorScheme.onPrimaryContainer),
                 const SizedBox(width: 8),
-                Text('今日复习计划',
+                Text('今日优先 · 复习计划',
                     style: TextStyle(
                         fontWeight: FontWeight.w700,
                         color: colorScheme.onPrimaryContainer)),
@@ -410,23 +432,15 @@ class _TodayPlanCard extends StatelessWidget {
                       fontSize: 12, color: colorScheme.onPrimaryContainer)),
             ],
             const SizedBox(height: 14),
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: target == 0 ? onCapture : onOpenReview,
-                    icon: Icon(target == 0
-                        ? CupertinoIcons.camera
-                        : CupertinoIcons.play_fill),
-                    label: Text(target == 0 ? '拍照录题' : '开始今日复习'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                OutlinedButton(
-                  onPressed: target == 0 ? null : onCapture,
-                  child: const Text('录入错题'),
-                ),
-              ],
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: target == 0 ? onCapture : onOpenReview,
+                icon: Icon(target == 0
+                    ? CupertinoIcons.add
+                    : CupertinoIcons.play_fill),
+                label: Text(target == 0 ? '录入错题' : '开始今日复习'),
+              ),
             ),
           ],
         ),
