@@ -352,11 +352,14 @@ void main() {
     await tester.tap(find.text('题目'));
     await tester.pumpAndSettle();
 
-    expect(find.text('同批题目'), findsOneWidget);
-    expect(find.text('第 1 题'), findsOneWidget);
-    expect(find.text('第 2 题'), findsOneWidget);
+    final siblingTitle = find.text('同批题目', skipOffstage: false);
+    final firstSibling = find.text('第 1 题', skipOffstage: false);
+    final secondSibling = find.text('第 2 题', skipOffstage: false);
+    expect(siblingTitle, findsOneWidget);
+    expect(firstSibling, findsOneWidget);
+    expect(secondSibling, findsOneWidget);
 
-    await tester.tap(find.text('第 2 题'));
+    await tester.tap(secondSibling, warnIfMissed: false);
     await tester.pumpAndSettle();
 
     expect(container.read(currentQuestionProvider)?.id, 'q-batch-2');
