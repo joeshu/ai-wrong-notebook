@@ -349,6 +349,10 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    print('DEBUG batchGroups=${container.read(questionBatchGroupsProvider)}');
+    print('DEBUG batchGroup=${container.read(questionBatchGroupsProvider).valueOrNull?[questionBatchRootId(first)]}');
+    print('DEBUG current=${container.read(currentQuestionProvider)?.id}');
+
     expect(find.text('同批题目'), findsOneWidget);
     expect(find.text('第 1 题'), findsOneWidget);
     expect(find.text('第 2 题'), findsOneWidget);
