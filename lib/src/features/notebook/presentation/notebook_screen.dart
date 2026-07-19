@@ -741,12 +741,11 @@ class _QuestionCard extends StatelessWidget {
                           ]),
                         ],
                         const SizedBox(height: 5),
+                        if (_batchLabel(question) != null) ...<Widget>[
                           const SizedBox(height: 4),
                           Text(
                             _batchLabel(question)!,
-                            style: TextStyle(
-                                fontSize: 11,
-                                color: colorScheme.onSurfaceVariant),
+                            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
                           ),
                         ],
                         // AI 知识点标签（有颜色区分 AI 生成和手动）

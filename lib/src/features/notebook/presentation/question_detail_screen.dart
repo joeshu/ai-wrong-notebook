@@ -32,7 +32,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final current = ref.watch(currentQuestionProvider);
 
     if (current == null) {
