@@ -107,6 +107,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
               selectedPageCount: _selected.length,
               questionCount: queuedQuestions.length,
               readyCount: readyCount,
+              ocrDraftCount: ocrDraftCount,
               pendingCount: queuedQuestions.length - readyCount - failedCount,
               failedCount: failedCount,
             ),
@@ -518,17 +519,19 @@ class _QueueQuestionTile extends StatelessWidget {
 
 
 class _ImportOverviewCard extends StatelessWidget {
-  const _ImportOverviewCard({required this.pageCount, required this.selectedPageCount, required this.questionCount, required this.readyCount, required this.pendingCount, required this.failedCount});
+  const _ImportOverviewCard({required this.pageCount, required this.selectedPageCount, required this.questionCount, required this.readyCount, required this.ocrDraftCount, required this.pendingCount, required this.failedCount});
   final int pageCount;
   final int selectedPageCount;
   final int questionCount;
   final int readyCount;
+  final int ocrDraftCount;
   final int pendingCount;
   final int failedCount;
 
   @override
   Widget build(BuildContext context) {
-    final total = readyCount + pendingCount + failedCount;
+    final analyzedCount = readyCount - ocrDraftCount;
+    final total = analyzedCount + ocrDraftCount + pendingCount + failedCount;
     return Card(
       margin: EdgeInsets.zero,
       color: const Color(0xFFF8FAFC),
@@ -542,14 +545,15 @@ class _ImportOverviewCard extends StatelessWidget {
             Text('已选 $selectedPageCount 页', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
           ]),
           const SizedBox(height: 10),
-          Row(children: <Widget>[
-            _OverviewMetric(label: '已分析', value: readyCount, color: const Color(0xFF16A34A)),
-            _OverviewMetric(label: '待处理', value: pendingCount, color: const Color(0xFF2563EB)),
-            _OverviewMetric(label: '失败/需重试', value: failedCount, color: const Color(0xFFEA580C)),
+          Wrap(spacing: 4, runSpacing: 8, children: <Widget>[
+            SizedBox(width: 76, child: _OverviewMetric(label: '已分析', value: analyzedCount, color: const Color(0xFF16A34A))),
+            SizedBox(width: 76, child: _OverviewMetric(label: 'OCR 草稿', value: ocrDraftCount, color: const Color(0xFF2563EB))),
+            SizedBox(width: 76, child: _OverviewMetric(label: '待处理', value: pendingCount, color: const Color(0xFF64748B))),
+            SizedBox(width: 76, child: _OverviewMetric(label: '失败/重试', value: failedCount, color: const Color(0xFFEA580C))),
           ]),
           if (total > 0) ...<Widget>[
             const SizedBox(height: 10),
-            ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: readyCount / total, minHeight: 7, backgroundColor: const Color(0xFFE2E8F0), color: const Color(0xFF16A34A))),
+            ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: analyzedCount / total, minHeight: 7, backgroundColor: const Color(0xFFE2E8F0), color: const Color(0xFF16A34A))),
           ] else
             const Padding(padding: EdgeInsets.only(top: 6), child: Text('确认题框后，题目会出现在这里并显示分析进度。', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),),
         ]),
