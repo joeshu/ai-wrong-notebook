@@ -349,6 +349,9 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('题目'));
+    await tester.pumpAndSettle();
+
     expect(find.text('同批题目'), findsOneWidget);
     expect(find.text('第 1 题'), findsOneWidget);
     expect(find.text('第 2 题'), findsOneWidget);
