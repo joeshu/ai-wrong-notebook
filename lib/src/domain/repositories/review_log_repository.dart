@@ -32,4 +32,9 @@ class InMemoryReviewLogRepository implements ReviewLogRepository {
   @override
   Future<void> deleteByIds(Set<String> ids) async =>
       _items.removeWhere((item) => ids.contains(item.id));
+
+  @override
+  Stream<List<ReviewLog>> watchAll() async* {
+    yield await listAll();
+  }
 }

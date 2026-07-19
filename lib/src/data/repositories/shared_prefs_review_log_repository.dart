@@ -67,4 +67,9 @@ class SharedPrefsReviewLogRepository implements ReviewLogRepository {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
   }
+
+  @override
+  Stream<List<ReviewLog>> watchAll() async* {
+    yield await listAll();
+  }
 }

@@ -54,6 +54,7 @@ class DriftReviewLogRepository implements ReviewLogRepository {
   }
 
   /// 响应式订阅：reviewLogs 表变更时自动推送新快照。
+  @override
   Stream<List<domain.ReviewLog>> watchAll() {
     return (_database.select(_database.reviewLogs)
           ..orderBy([(table) => OrderingTerm.asc(table.reviewedAt)]))

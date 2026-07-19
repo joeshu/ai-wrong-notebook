@@ -420,7 +420,7 @@ final StreamProvider<TodayReviewPlan> todayReviewPlanProvider =
 });
 
 Stream<TodayReviewPlan> _combineTodayPlan(
-    WidgetRef ref, ReviewScheduleService scheduler) async* {
+    Ref ref, ReviewScheduleService scheduler) async* {
   // 同时订阅题目和复习记录两个流，任一更新都重算计划。
   await for (final questions in ref.watch(questionListProvider).when(
     data: (data) => Stream.value(data),

@@ -66,6 +66,11 @@ class SharedPrefsQuestionRepository implements QuestionRepository {
     await saveDraft(record);
   }
 
+  @override
+  Stream<List<QuestionRecord>> watchAll() async* {
+    yield await listAll();
+  }
+
   Future<void> _saveAll(List<QuestionRecord> questions) async {
     final json = jsonEncode(questions.map((q) => q.toJson()).toList());
     await (await _preferences).setString(_questionsKey, json);

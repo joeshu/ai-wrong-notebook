@@ -55,4 +55,9 @@ class InMemoryQuestionRepository implements QuestionRepository {
       _items[index] = record;
     }
   }
+
+  @override
+  Stream<List<QuestionRecord>> watchAll() async* {
+    yield await listAll();
+  }
 }
