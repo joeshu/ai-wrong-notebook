@@ -52,8 +52,10 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     }
 
     final result = current.analysisResult;
-    final batchGroups = ref.watch(questionBatchGroupsProvider).valueOrNull;
+    final batchGroupsAsync = ref.watch(questionBatchGroupsProvider);
+    final batchGroups = batchGroupsAsync.valueOrNull;
     final batchGroup = batchGroups?[questionBatchRootId(current)];
+    debugPrint('DETAIL batchGroupsAsync=$batchGroupsAsync batchGroup=$batchGroup current=${current.id}');
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
