@@ -423,7 +423,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                     icon: CupertinoIcons.question,
                     title: '还没有错题',
                     description: '拍照录入一道错题，或导入整页试卷开始整理。',
-                    action: FilledButton.icon(onPressed: () => showModalBottomSheet<void>(context: context, builder: (_) => const CaptureEntrySheet()), icon: const Icon(CupertinoIcons.camera), label: const Text('拍照录题')),
+                    action: FilledButton.icon(onPressed: () => showModalBottomSheet<void>(context: context, builder: (_) => const CaptureEntrySheet()), icon: const Icon(CupertinoIcons.add), label: const Text('拍照录题')),
                   );
                 }
                 final hasPracticeAction =

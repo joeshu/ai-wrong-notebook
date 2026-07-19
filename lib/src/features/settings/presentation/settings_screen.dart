@@ -19,8 +19,8 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: <Widget>[
-          // 应用外观
-          Text('应用外观',
+          // 外观
+          Text('外观',
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),

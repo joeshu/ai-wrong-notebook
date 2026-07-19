@@ -1043,12 +1043,12 @@ class _DetailSectionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: Theme.of(context).colorScheme.surface,
-    child: SingleChildScrollView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.fromLTRB(12, 6, 12, 8), child: Row(children: <Widget>[
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: <Widget>[
       _SectionNavButton(label: '题目', onTap: onQuestion),
       _SectionNavButton(label: '解析', onTap: onAnalysis),
       _SectionNavButton(label: '练习', onTap: onPractice),
       _SectionNavButton(label: '记录', onTap: onRecord),
-    ])),
+    ]),
   );
 }
 
