@@ -24,25 +24,3 @@ jobs:
 
       - name: Run tests
         run: flutter test
-
-  build-android:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - run: flutter pub get
-
-      - name: Build release APK
-        run: flutter build apk --release
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ai-wrong-notebook-release
-          path: build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 30
