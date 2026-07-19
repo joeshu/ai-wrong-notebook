@@ -100,10 +100,13 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       final shouldAnalyzeImageDirectly = _shouldAnalyzeImageDirectly(working);
       if (working.normalizedQuestionText.isEmpty &&
           !shouldAnalyzeImageDirectly) {
+        // 录入模式由 capture_entry_sheet 的模式选择器决定，默认 printed。
+        final captureMode = ref.read(captureModeProvider);
         final extraction = await service.extractQuestionStructure(
           subjectName: working.subject.name,
           imagePath: working.imagePath,
           textHint: working.extractedQuestionText,
+          mode: captureMode,
         );
         working = working.copyWith(
           extractedQuestionText: extraction.extractedQuestionText,
@@ -112,6 +115,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
               : extraction.extractedQuestionText,
           subject: extraction.subject ?? working.subject,
           splitResult: extraction.splitResult,
+          studentAnswer: extraction.studentAnswer,
         );
         ref.read(currentQuestionProvider.notifier).state = working;
       }
@@ -272,7 +276,8 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       if (mounted) {
         if (_continueWorksheetQueue(failedDraft)) return;
         setState(() {
-          _errorMessage = '${e.toString()}\n\n原图和已校对题干已保存到错题本，可稍后重试或手动补充。';
+          _errorMessage =
+              '${friendlyAiErrorMessage(e)}\n\n原图和已校对题干已保存到错题本，可稍后重试或手动补充。';
           _debugInfo = debugInfo;
         });
       }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
@@ -49,6 +50,12 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                   .textTheme
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            _CaptureModeSelector(
+              mode: ref.watch(captureModeProvider),
+              onChanged: (mode) =>
+                  ref.read(captureModeProvider.notifier).state = mode,
             ),
             const SizedBox(height: 12),
             _RecognitionChoiceSelector(
@@ -383,6 +390,76 @@ enum _RecognitionChoice {
   const _RecognitionChoice(this.label, this.description);
   final String label;
   final String description;
+}
+
+/// 录入模式选择器：决定 AI 识别时如何处理图片中的印刷与手写内容。
+///
+/// - [CaptureMode.printed]：只识别印刷题干，忽略手写批改（默认）
+/// - [CaptureMode.handwritten]：忠实转录手写解答过程，包括错误步骤
+/// - [CaptureMode.mixed]：同时识别印刷题干和手写批注
+class _CaptureModeSelector extends StatelessWidget {
+  const _CaptureModeSelector({required this.mode, required this.onChanged});
+
+  final CaptureMode mode;
+  final ValueChanged<CaptureMode> onChanged;
+
+  String _description(CaptureMode mode) {
+    switch (mode) {
+      case CaptureMode.printed:
+        return '只识别印刷题干，忽略手写批改痕迹、圈画、红叉等';
+      case CaptureMode.handwritten:
+        return '忠实转录手写解答过程，包括错误步骤';
+      case CaptureMode.mixed:
+        return '同时识别印刷题干和手写批注';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Text('本次录入的内容主要是？',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        SegmentedButton<CaptureMode>(
+          segments: const <ButtonSegment<CaptureMode>>[
+            ButtonSegment<CaptureMode>(
+              value: CaptureMode.printed,
+              label: Text('印刷题'),
+              icon: Icon(CupertinoIcons.doc_text, size: 16),
+            ),
+            ButtonSegment<CaptureMode>(
+              value: CaptureMode.handwritten,
+              label: Text('手写解答'),
+              icon: Icon(CupertinoIcons.pencil, size: 16),
+            ),
+            ButtonSegment<CaptureMode>(
+              value: CaptureMode.mixed,
+              label: Text('混合'),
+              icon: Icon(CupertinoIcons.doc_richtext, size: 16),
+            ),
+          ],
+          selected: <CaptureMode>{mode},
+          onSelectionChanged: (selection) {
+            if (selection.isNotEmpty) onChanged(selection.first);
+          },
+          showSelectedIcon: true,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.standard,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          _description(mode),
+          style: TextStyle(
+              fontSize: 11, color: colorScheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
 }
 
 class _RecognitionChoiceSelector extends StatelessWidget {

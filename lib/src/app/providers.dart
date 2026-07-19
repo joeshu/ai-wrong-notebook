@@ -16,6 +16,7 @@ import 'package:smart_wrong_notebook/src/data/services/ocr_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_region_crop_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/vision_document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
@@ -746,3 +747,10 @@ class ReviewReminderNotifier extends StateNotifier<bool> {
     await _settingsRepo.setString('review_reminder_enabled', enabled ? 'true' : 'false');
   }
 }
+
+// --- Capture mode (printed / handwritten / mixed) ---
+//
+// 录入时用户选择的识别模式，决定 AI 识别时如何处理图片中的印刷与手写内容。
+// 默认 [CaptureMode.printed]，与原有"忽略手写批改"行为保持一致。
+final StateProvider<CaptureMode> captureModeProvider =
+    StateProvider<CaptureMode>((ref) => CaptureMode.printed);

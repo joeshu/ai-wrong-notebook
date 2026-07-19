@@ -203,8 +203,10 @@ class _QuestionSplitConfirmationScreenState
                     final isActive = index == safeIndex;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
+                      child: Builder(
+                        builder: (itemContext) => InkWell(
                         onTap: () => setState(() => _activeIndex = index),
+                        onLongPress: () => _showDraftMenu(itemContext, index),
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
                           padding: const EdgeInsets.all(12),
@@ -312,6 +314,7 @@ class _QuestionSplitConfirmationScreenState
                             ],
                           ),
                         ),
+                      ),
                       ),
                     );
                   }),
@@ -483,6 +486,218 @@ class _QuestionSplitConfirmationScreenState
 
     if (_errorMessage != null) {
       setState(() => _errorMessage = null);
+    }
+  }
+
+  /// 长按题目卡片弹出操作菜单：与上一题合并 / 在此处拆分 / 重新切分本题。
+  Future<void> _showDraftMenu(BuildContext itemContext, int index) async {
+    final renderBox = itemContext.findRenderObject() as RenderBox?;
+    final offset = renderBox?.localToGlobal(Offset.zero) ?? Offset.zero;
+    final size = renderBox?.size ?? Size.zero;
+    final action = await showMenu<String>(
+      context: itemContext,
+      position: RelativeRect.fromLTRB(
+        offset.dx + size.width / 2,
+        offset.dy + size.height / 2,
+        offset.dx + size.width / 2,
+        offset.dy + size.height / 2,
+      ),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'merge',
+          enabled: index > 0,
+          child: const Text('与上一题合并'),
+        ),
+        const PopupMenuItem<String>(
+          value: 'split',
+          child: Text('在此处拆分'),
+        ),
+        const PopupMenuItem<String>(
+          value: 'resplit',
+          child: Text('重新切分本题'),
+        ),
+      ],
+    );
+    if (action == null) return;
+    if (!mounted) return;
+    switch (action) {
+      case 'merge':
+        _mergeWithPrevious(index);
+        break;
+      case 'split':
+        await _splitAt(index);
+        break;
+      case 'resplit':
+        await _resplitCurrent(index);
+        break;
+    }
+  }
+
+  /// 与上一题合并：把当前题的 text 拼到上一题末尾（中间加换行），删除当前题。
+  void _mergeWithPrevious(int index) {
+    final session = ref.read(currentQuestionSplitSessionProvider);
+    if (session == null || index <= 0 || index >= session.drafts.length) {
+      return;
+    }
+    final current = session.drafts[index];
+    final previous = session.drafts[index - 1];
+    final mergedText = '${previous.text}\n${current.text}';
+    final nextDrafts = [...session.drafts];
+    nextDrafts[index - 1] = previous.copyWith(
+      text: mergedText,
+      selected: previous.selected || current.selected,
+    );
+    nextDrafts.removeAt(index);
+    ref.read(currentQuestionSplitSessionProvider.notifier).state =
+        session.copyWith(drafts: nextDrafts);
+
+    setState(() {
+      if (_activeIndex >= index) {
+        _activeIndex = (_activeIndex - 1).clamp(0, nextDrafts.length - 1);
+      }
+      _errorMessage = null;
+    });
+  }
+
+  /// 在此处拆分：弹出对话框让用户输入拆分关键词，在该关键词首次出现处拆成两题。
+  Future<void> _splitAt(int index) async {
+    final session = ref.read(currentQuestionSplitSessionProvider);
+    if (session == null || index < 0 || index >= session.drafts.length) {
+      return;
+    }
+    final draft = session.drafts[index];
+
+    final keyword = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('在此处拆分'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text('输入拆分关键词，将在该关键词首次出现处拆分为两题：'),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxHeight: 120),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(dialogContext)
+                        .colorScheme
+                        .surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      draft.text.isEmpty ? '（空内容）' : draft.text,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  decoration: const InputDecoration(
+                    hintText: '例如：第2题、2.、(2)',
+                    border: OutlineInputBorder(),
+                  ),
+                  autofocus: true,
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext)
+                  .pop(controller.text.trim()),
+              child: const Text('拆分'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (keyword == null || keyword.isEmpty) return;
+
+    final pos = draft.text.indexOf(keyword);
+    if (pos <= 0) {
+      setState(() => _errorMessage = '未找到关键词「$keyword」，无法拆分');
+      return;
+    }
+    final firstPart = draft.text.substring(0, pos).trim();
+    final secondPart = draft.text.substring(pos).trim();
+    if (firstPart.isEmpty || secondPart.isEmpty) {
+      setState(() => _errorMessage = '拆分后某一部分为空，请换个关键词');
+      return;
+    }
+
+    final nextDrafts = [...session.drafts];
+    // 前半部分保留原 draft id，后半部分新增 draft
+    nextDrafts[index] = draft.copyWith(text: firstPart);
+    nextDrafts.insert(
+      index + 1,
+      QuestionSplitDraft(
+        id: '${draft.id}-split-${DateTime.now().millisecondsSinceEpoch}',
+        text: secondPart,
+        selected: draft.selected,
+        originalOrder: draft.originalOrder,
+        contentFormat: draft.contentFormat,
+        canSave: draft.canSave,
+        disabledReason: draft.disabledReason,
+      ),
+    );
+    ref.read(currentQuestionSplitSessionProvider.notifier).state =
+        session.copyWith(drafts: nextDrafts);
+    setState(() => _errorMessage = null);
+  }
+
+  /// 重新切分本题：调用 question_split_service 重新切分当前题，可能变成多题。
+  Future<void> _resplitCurrent(int index) async {
+    final session = ref.read(currentQuestionSplitSessionProvider);
+    if (session == null || index < 0 || index >= session.drafts.length) {
+      return;
+    }
+    final draft = session.drafts[index];
+    final splitter = ref.read(questionSplitServiceProvider);
+
+    setState(() => _errorMessage = null);
+    try {
+      final result = await splitter.split(
+        draft.text,
+        subject: session.source.subject,
+      );
+      if (!mounted) return;
+      if (result.candidates.length <= 1) {
+        setState(() => _errorMessage = '未能进一步拆分当前题目');
+        return;
+      }
+      final nextDrafts = [...session.drafts];
+      final newDrafts = result.candidates
+          .map((candidate) => QuestionSplitDraft(
+                id: '${draft.id}-resplit-${candidate.order}',
+                text: candidate.text,
+                selected: draft.selected,
+                originalOrder: draft.originalOrder,
+                contentFormat: draft.contentFormat,
+                canSave: draft.canSave,
+                disabledReason: draft.disabledReason,
+              ))
+          .toList();
+      nextDrafts.replaceRange(index, index + 1, newDrafts);
+      ref.read(currentQuestionSplitSessionProvider.notifier).state =
+          session.copyWith(drafts: nextDrafts);
+      setState(() => _errorMessage = null);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = '重新切分失败：$e');
     }
   }
 

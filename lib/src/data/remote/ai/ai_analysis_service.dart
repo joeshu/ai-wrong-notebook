@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_response_contract.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
+import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
@@ -128,12 +129,178 @@ class AiQuestionExtractionResult {
     required this.normalizedQuestionText,
     this.subject,
     this.splitResult,
+    this.studentAnswer,
   });
 
   final String extractedQuestionText;
   final String normalizedQuestionText;
   final Subject? subject;
   final QuestionSplitResult? splitResult;
+
+  /// 手写解答过程转录结果。
+  ///
+  /// 仅在录入模式为 [CaptureMode.handwritten] 或 [CaptureMode.mixed] 时由 AI
+  /// 返回；[CaptureMode.printed] 模式下保持为 null，沿用"忽略手写批改"行为。
+  final String? studentAnswer;
+}
+
+/// 校验题干文本中 LaTeX 结构是否平衡。
+/// 返回 null 表示通过；返回 String 表示问题具体描述（仅作 debugPrint 警告，
+/// 不阻塞业务流程）。
+String? validateLatexStructure(String text) {
+  if (text.isEmpty) return null;
+
+  // 1. `$$...$$` 必须成对。
+  final doubleDollarCount = RegExp(r'\$\$').allMatches(text).length;
+  if (doubleDollarCount.isOdd) {
+    return 'LaTeX 定界符不匹配：\$\$ 未成对';
+  }
+
+  // 2. 单 `$...$` 在去掉 `$$` 后必须成对。
+  final textWithoutDoubleDollar = text.replaceAll(r'$$', '');
+  final singleDollarCount =
+      RegExp(r'\$').allMatches(textWithoutDoubleDollar).length;
+  if (singleDollarCount.isOdd) {
+    return 'LaTeX 定界符不匹配：\$ 未成对';
+  }
+
+  // 3. `\begin{env}` 与 `\end{env}` 配对（栈式匹配）。
+  final envMatches = <_LatexEnvMatch>[];
+  for (final m in RegExp(r'\\begin\{([^}]+)\}').allMatches(text)) {
+    envMatches.add(_LatexEnvMatch(m.group(1)!, m.start, true));
+  }
+  for (final m in RegExp(r'\\end\{([^}]+)\}').allMatches(text)) {
+    envMatches.add(_LatexEnvMatch(m.group(1)!, m.start, false));
+  }
+  envMatches.sort((a, b) => a.position.compareTo(b.position));
+  final envStack = <String>[];
+  for (final m in envMatches) {
+    if (m.isBegin) {
+      envStack.add(m.env);
+    } else {
+      if (envStack.isEmpty) {
+        return 'LaTeX 环境不匹配：\\end{${m.env}} 缺少对应的 \\begin';
+      }
+      final last = envStack.removeLast();
+      if (last != m.env) {
+        return 'LaTeX 环境不匹配：\\begin{$last} 与 \\end{${m.env}} 不对应';
+      }
+    }
+  }
+  if (envStack.isNotEmpty) {
+    return 'LaTeX 环境不匹配：\\begin{${envStack.last}} 缺少对应的 \\end';
+  }
+
+  // 4. 数学环境内的 `()[]{}` 括号匹配。
+  final bracketIssue = _checkBracketsInMathEnvironments(text);
+  if (bracketIssue != null) return bracketIssue;
+
+  return null;
+}
+
+class _LatexEnvMatch {
+  _LatexEnvMatch(this.env, this.position, this.isBegin);
+  final String env;
+  final int position;
+  final bool isBegin;
+}
+
+/// 从文本中提取数学环境片段（`$...$`、`$$...$$`、`\(...\)`、`\[...\]`）。
+/// 若定界符本身不平衡，返回空列表（外层已先行告警）。
+List<String> _extractMathEnvironments(String text) {
+  final segments = <String>[];
+  // $$ ... $$
+  for (final m in RegExp(r'\$\$([\s\S]*?)\$\$').allMatches(text)) {
+    segments.add(m.group(1)!);
+  }
+  // 移除已匹配的 $$ 块，再提取单 $ 块
+  final textWithoutDoubleDollar = text.replaceAll(RegExp(r'\$\$[\s\S]*?\$\$'), '');
+  for (final m in RegExp(r'\$([^$]*?)\$').allMatches(textWithoutDoubleDollar)) {
+    segments.add(m.group(1)!);
+  }
+  // \( ... \)
+  for (final m in RegExp(r'\\\(([\s\S]*?)\\\)').allMatches(text)) {
+    segments.add(m.group(1)!);
+  }
+  // \[ ... \]
+  for (final m in RegExp(r'\\\[([\s\S]*?)\\\]').allMatches(text)) {
+    segments.add(m.group(1)!);
+  }
+  return segments;
+}
+
+String? _checkBracketsInMathEnvironments(String text) {
+  for (final segment in _extractMathEnvironments(text)) {
+    final issue = _checkBracketBalance(segment);
+    if (issue != null) return issue;
+  }
+  return null;
+}
+
+String? _checkBracketBalance(String text) {
+  const pairs = <String, String>{')': '(', ']': '[', '}': '{'};
+  final opens = pairs.values.toSet();
+  final stack = <String>[];
+  for (var i = 0; i < text.length; i++) {
+    final c = text[i];
+    if (opens.contains(c)) {
+      stack.add(c);
+    } else if (pairs.containsKey(c)) {
+      if (stack.isEmpty) {
+        return '括号不匹配：多余的右括号 "$c"';
+      }
+      final top = stack.removeLast();
+      if (top != pairs[c]) {
+        return '括号不匹配："$top" 与 "$c" 不对应';
+      }
+    }
+  }
+  if (stack.isNotEmpty) {
+    return '括号不匹配：未闭合的左括号 "${stack.last}"';
+  }
+  return null;
+}
+
+/// 对 AI 提取出的题干文本做保守的 OCR 混淆字符纠错。
+/// 仅在明确上下文里替换，避免误纠正常字母。
+String correctCommonOcrErrors(String text, {required String subject}) {
+  if (text.isEmpty) return text;
+  final isMath = subject == Subject.math.label || subject == Subject.math.name;
+  final isPhysics =
+      subject == Subject.physics.label || subject == Subject.physics.name;
+  if (!isMath && !isPhysics) return text;
+
+  var result = text;
+  if (isMath) {
+    // 数字上下文中的 l → 1：例如 "l2" / "3l" / "l00"
+    result = result.replaceAllMapped(
+      RegExp(r'(?<=\d)l|l(?=\d)'),
+      (_) => '1',
+    );
+    // 数字上下文中的 O → 0：例如 "O2" / "3O" / "O0"
+    result = result.replaceAllMapped(
+      RegExp(r'(?<=\d)O|O(?=\d)'),
+      (_) => '0',
+    );
+    // 独立的 V → √：前后为非字母数字
+    result = result.replaceAllMapped(
+      RegExp(r'(?<![A-Za-z0-9])V(?![A-Za-z0-9])'),
+      (_) => '√',
+    );
+    // 数字之间的 x → ×：例如 "3x4" → "3×4"，但 "x+1=3" 保留
+    result = result.replaceAllMapped(
+      RegExp(r'(?<=\d)x(?=\d)'),
+      (_) => '×',
+    );
+  }
+  if (isPhysics) {
+    // 物理题：O 与 0 混淆纠错（数字上下文）
+    result = result.replaceAllMapped(
+      RegExp(r'(?<=\d)O|O(?=\d)'),
+      (_) => '0',
+    );
+  }
+  return result;
 }
 
 class AiAnalysisService {
@@ -143,8 +310,50 @@ class AiAnalysisService {
 
   static const _maxRetries = 2; // 最多重试2次（总共3次请求）
   static const _baseDelayMs = 1000; // 基础延迟1秒
+  // 429 缺省退避（秒），未读到 Retry-After 时使用。
+  static const _defaultRetryAfterSeconds = 5;
 
-  /// 带重试的 POST 请求（指数退避）
+  /// 判断是否需要重试，并返回应等待的时长（null 表示不重试）。
+  /// 429 优先使用响应头 Retry-After（秒数）；其它可重试错误走指数退避。
+  Duration? _retryBackoff(DioException e, int attempt) {
+    final status = e.response?.statusCode;
+    final is429 = status == 429;
+    final isServer5xx = status != null && status >= 500 && status < 600;
+    final isNetworkOrTimeout = e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.sendTimeout ||
+        e.type == DioExceptionType.connectionError;
+
+    final shouldRetry = is429 || isServer5xx || isNetworkOrTimeout;
+    if (!shouldRetry) return null;
+    if (attempt > _maxRetries) return null;
+
+    if (is429) {
+      final retryAfterSeconds = _parseRetryAfterHeader(e);
+      return Duration(seconds: retryAfterSeconds);
+    }
+    // 指数退避：1s/2s/4s。
+    final delayMs = _baseDelayMs * (1 << (attempt - 1));
+    return Duration(milliseconds: delayMs);
+  }
+
+  int _parseRetryAfterHeader(DioException e) {
+    final raw = e.response?.headers.value('Retry-After');
+    if (raw == null || raw.isEmpty) return _defaultRetryAfterSeconds;
+    final parsed = int.tryParse(raw.trim());
+    if (parsed != null && parsed > 0) return parsed;
+    // HTTP 日期格式不支持，回退缺省。
+    return _defaultRetryAfterSeconds;
+  }
+
+  String _retryReason(DioException e) {
+    final status = e.response?.statusCode;
+    if (status == 429) return '429 限流';
+    if (status != null && status >= 500) return 'HTTP $status';
+    return e.type.name;
+  }
+
+  /// 带重试的 POST 请求（指数退避；429 读 Retry-After 头）
   Future<Response<T>> _retryPost<T>(
     Dio dio,
     String path, {
@@ -154,20 +363,16 @@ class AiAnalysisService {
     try {
       return await dio.post<T>(path, data: data);
     } on DioException catch (e) {
-      // 只对网络错误和超时进行重试，不重试 HTTP 错误（如401、403）
-      final shouldRetry = e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout ||
-          e.type == DioExceptionType.sendTimeout ||
-          e.type == DioExceptionType.connectionError;
-
-      if (shouldRetry && attempt <= _maxRetries) {
-        final delayMs = _baseDelayMs * attempt;
-        debugPrint(
-            '[AiAnalysisService] 请求失败，${delayMs}ms 后重试 (第 $attempt 次)...');
-        await Future.delayed(Duration(milliseconds: delayMs));
-        return _retryPost(dio, path, data: data, attempt: attempt + 1);
+      // 不重试 4xx（除 429、408 外），例如 401/403/404。
+      final backoff = _retryBackoff(e, attempt);
+      if (backoff == null) {
+        rethrow;
       }
-      rethrow;
+      final reason = _retryReason(e);
+      debugPrint(
+          '[AiAnalysisService] 请求失败($reason)，${backoff.inMilliseconds}ms 后重试 (第 $attempt 次, 共 $_maxRetries 次)...');
+      await Future.delayed(backoff);
+      return _retryPost(dio, path, data: data, attempt: attempt + 1);
     }
   }
 
@@ -389,28 +594,59 @@ class AiAnalysisService {
     required String subjectName,
     required String imagePath,
     String textHint = '',
+    CaptureMode mode = CaptureMode.printed,
   }) async {
-    debugPrint('[AiAnalysisService] extractQuestionStructure called');
+    debugPrint('[AiAnalysisService] extractQuestionStructure called (mode=$mode)');
 
     final config = await _requireConfig();
     final imageBytes = await File(imagePath).readAsBytes();
     try {
+      final systemPrompt = await _loadExtractionSystemPrompt(mode: mode);
+      final prompt = _buildExtractionPrompt(
+        subjectName: subjectName,
+        textHint: textHint,
+        mode: mode,
+      );
+      const firstMaxTokens = 1600;
+      const firstImageDetail = 'auto';
       final extractionContent = await _requestAiContentWithImage(
         config: config,
-        systemPrompt: await _loadExtractionSystemPrompt(),
-        prompt: _buildExtractionPrompt(
-            subjectName: subjectName, textHint: textHint),
+        systemPrompt: systemPrompt,
+        prompt: prompt,
         imageBytes: imageBytes,
-        maxTokens: 1600,
-        imageDetail: 'auto',
+        maxTokens: firstMaxTokens,
+        imageDetail: firstImageDetail,
       );
-      final extraction = _parseExtractionResponse(extractionContent);
+      final extraction = await _parseContentWithJsonRetry(
+        firstContent: extractionContent,
+        parse: _parseExtractionResponse,
+        retryContentFetcher: () => _requestAiContentWithImage(
+          config: config,
+          systemPrompt: systemPrompt,
+          prompt: prompt,
+          imageBytes: imageBytes,
+          maxTokens: firstMaxTokens + 500,
+          imageDetail: firstImageDetail,
+          temperature: 0.3,
+        ),
+        stage: 'extraction',
+      );
+
+      // 识别为空但图非空告警：图片较大但未提取到文字，可能是图片质量差或纯图形题。
+      if (imageBytes.length > 50 * 1024 &&
+          extraction.extractedQuestionText.length < 5) {
+        debugPrint(
+            '[AiAnalysisService] 提取文本为空但图片较大(${imageBytes.length} bytes)，提示重拍');
+        throw AiAnalysisException(
+            '未识别到文字内容，可能图片质量差或为纯图形题，建议重拍或手动输入');
+      }
 
       return AiQuestionExtractionResult(
         extractedQuestionText: extraction.extractedQuestionText,
         normalizedQuestionText: extraction.normalizedQuestionText,
         subject: extraction.subject,
         splitResult: extraction.splitResult,
+        studentAnswer: extraction.studentAnswer,
       );
     } on DioException catch (e) {
       debugPrint(
@@ -436,11 +672,16 @@ class AiAnalysisService {
     var failed = 0;
     final payloads = <CandidateAnalysisPayload>[];
 
-    debugPrint(
-        '[AiAnalysisService] analyzeSplitCandidates: $total candidates, concurrency=2');
+    // 并发度从配置读取，便于根据模型限流调整；缺省为 2。
+    final config = await settingsRepository.getAiProviderConfig();
+    final concurrency = config?.effectiveMaxConcurrency ?? 2;
 
-    for (var start = 0; start < candidates.length; start += 2) {
-      final batch = candidates.skip(start).take(2).map((candidate) async {
+    debugPrint(
+        '[AiAnalysisService] analyzeSplitCandidates: $total candidates, concurrency=$concurrency');
+
+    for (var start = 0; start < candidates.length; start += concurrency) {
+      final batch =
+          candidates.skip(start).take(concurrency).map((candidate) async {
         try {
           final payload = await _analyzeSplitCandidateWithRetry(
             questionId: questionId,
@@ -461,7 +702,7 @@ class AiAnalysisService {
             candidateId: candidate.id,
             order: candidate.order,
             questionText: candidate.text,
-            errorMessage: e.toString(),
+            errorMessage: friendlyAiErrorMessage(e),
           );
         }
       }).toList();
@@ -568,19 +809,36 @@ class AiAnalysisService {
         }
 
         try {
+          final firstMaxTokens = isCompositeLanguageAnalysis ||
+                  shouldAnalyzeImageFirst
+              ? 3000
+              : 2000;
+          final firstImageDetail = isCompositeLanguageAnalysis ||
+                  shouldAnalyzeImageFirst
+              ? 'high'
+              : 'auto';
           final content = await _requestAiContentWithImage(
             config: config,
             systemPrompt: systemPrompt,
             prompt: imagePrompt,
             imageBytes: imageBytes,
-            maxTokens: isCompositeLanguageAnalysis || shouldAnalyzeImageFirst
-                ? 3000
-                : 2000,
-            imageDetail: isCompositeLanguageAnalysis || shouldAnalyzeImageFirst
-                ? 'high'
-                : 'auto',
+            maxTokens: firstMaxTokens,
+            imageDetail: firstImageDetail,
           );
-          final analysis = _parseAnalysisResponse(content);
+          final analysis = await _parseContentWithJsonRetry(
+            firstContent: content,
+            parse: _parseAnalysisResponse,
+            retryContentFetcher: () => _requestAiContentWithImage(
+              config: config,
+              systemPrompt: systemPrompt,
+              prompt: imagePrompt,
+              imageBytes: imageBytes,
+              maxTokens: firstMaxTokens + 500,
+              imageDetail: firstImageDetail,
+              temperature: 0.3,
+            ),
+            stage: 'analysis(image)',
+          );
           return _ensureAnalysisConsistency(
             analysis,
             questionText: correctedText,
@@ -596,15 +854,30 @@ class AiAnalysisService {
           }
           debugPrint(
               '[AiAnalysisService] High detail image analysis failed, retrying compact image request: ${e.type}, status=${e.response?.statusCode}');
+          const compactMaxTokens = 2200;
+          const compactImageDetail = 'auto';
           final content = await _requestAiContentWithImage(
             config: config,
             systemPrompt: systemPrompt,
             prompt: prompt,
             imageBytes: imageBytes,
-            maxTokens: 2200,
-            imageDetail: 'auto',
+            maxTokens: compactMaxTokens,
+            imageDetail: compactImageDetail,
           );
-          final analysis = _parseAnalysisResponse(content);
+          final analysis = await _parseContentWithJsonRetry(
+            firstContent: content,
+            parse: _parseAnalysisResponse,
+            retryContentFetcher: () => _requestAiContentWithImage(
+              config: config,
+              systemPrompt: systemPrompt,
+              prompt: prompt,
+              imageBytes: imageBytes,
+              maxTokens: compactMaxTokens + 500,
+              imageDetail: compactImageDetail,
+              temperature: 0.3,
+            ),
+            stage: 'analysis(compact image)',
+          );
           return _ensureAnalysisConsistency(
             analysis,
             questionText: correctedText,
@@ -616,13 +889,25 @@ class AiAnalysisService {
         }
       }
 
+      final firstMaxTokens = isCompositeLanguageAnalysis ? 3000 : 2000;
       final content = await _requestAiContent(
         config: config,
         systemPrompt: systemPrompt,
         prompt: prompt,
-        maxTokens: isCompositeLanguageAnalysis ? 3000 : 2000,
+        maxTokens: firstMaxTokens,
       );
-      final analysis = _parseAnalysisResponse(content);
+      final analysis = await _parseContentWithJsonRetry(
+        firstContent: content,
+        parse: _parseAnalysisResponse,
+        retryContentFetcher: () => _requestAiContent(
+          config: config,
+          systemPrompt: systemPrompt,
+          prompt: prompt,
+          maxTokens: firstMaxTokens + 500,
+          temperature: 0.3,
+        ),
+        stage: 'analysis(text)',
+      );
       return _ensureAnalysisConsistency(
         analysis,
         questionText: correctedText,
@@ -635,6 +920,7 @@ class AiAnalysisService {
           '[AiAnalysisService] DioException: type=${e.type}, message=${e.message}, status=${e.response?.statusCode}, body=${e.response?.data}');
       throw AiAnalysisException(_dioErrorMessage(e));
     } catch (e) {
+      if (e is AiAnalysisException) rethrow;
       debugPrint('[AiAnalysisService] Exception: $e');
       if (e is FormatException) {
         throw AiAnalysisException('AI 返回内容格式异常，请重试或换一张更清晰的图片');
@@ -1688,6 +1974,30 @@ class AiAnalysisService {
     return response.data['choices'][0]['message']['content'] as String;
   }
 
+  /// 在 [_parseResponseJson] 失败时重试一次 AI 请求。
+  /// 第一次解析失败 -> 调用 [retryContentFetcher] 重新请求 AI（调用方应将
+  /// max_tokens +500，temperature 降为 0.3）-> 再次解析；仍失败抛
+  /// [AiAnalysisException]。
+  Future<T> _parseContentWithJsonRetry<T>({
+    required String firstContent,
+    required T Function(String) parse,
+    required Future<String> Function() retryContentFetcher,
+    required String stage,
+  }) async {
+    try {
+      return parse(firstContent);
+    } on _AiJsonParseException catch (e1) {
+      debugPrint(
+          '[AiAnalysisService] $stage JSON 解析失败(${e1.inner})，重试 AI 请求 (max_tokens+500, temperature=0.3)...');
+      try {
+        final retryContent = await retryContentFetcher();
+        return parse(retryContent);
+      } on _AiJsonParseException catch (e2) {
+        throw AiAnalysisException('解析 AI 响应失败: ${e2.inner}');
+      }
+    }
+  }
+
   static const _defaultAnalysisSystemPrompt = r'''你是一个专业的错题分析助手，专门帮助学生分析和理解错题。
 
 你的任务是：
@@ -1789,22 +2099,111 @@ class AiAnalysisService {
   "normalizedQuestionText": "整理后的标准题目文本"
 }''';
 
+  /// 手写解答模式：忠实转录图片中的手写内容，包括错误步骤。
+  ///
+  /// 错题本场景下，学生的手写解答过程恰恰是错因分析的核心信息，因此该模式下
+  /// 不能"忽略手写批改"，而应原样转录。
+  static const _handwrittenExtractionSystemPrompt =
+      r'''你是一个专业的教辅录入员，负责把题目图片中的手写内容原样转录成可存储、可检索的结构化文本。
+
+你的任务是：
+1. 忠实转录图片中的手写内容，包括学生的解答过程和错误步骤
+2. 不要纠正错误，原样转录；学生写错的符号、计算、单位都要保留
+3. 输出适合存入题库的规范化文本，便于后续做错因分析
+4. 判断题目所属科目
+5. 数学公式使用 LaTeX 或 Markdown 友好的表达，保持题意完整
+
+重要规则：
+- 必须以图片内容为准，不要虚构缺失内容
+- studentAnswer 字段必须包含完整的手写解答过程转录结果
+- extractedQuestionText、normalizedQuestionText 仅在能辨识出印刷题干时填写，否则留空字符串
+- 如果图片无法识别出有效手写内容，所有文本字段都返回空字符串
+- 如果内容包含 LaTeX，必须先生成合法 JSON：所有 LaTeX 反斜杠都写成 JSON 转义形式，例如 \\frac、\\times、\\(x\\)、\\[x\\]
+- 方程组或多行公式必须使用 KaTeX 兼容的 aligned 或 cases 环境，例如 \\begin{cases} x+y=5 \\\\ x-y=1 \\end{cases}，不要使用 \\newline
+- 不要在 JSON 字符串内部直接换行；换行必须写成 \\n
+- 【LaTeX 格式强制规范——必须严格遵守】
+  1. 所有数学公式必须使用标准 LaTeX 定界符包裹：行内公式用 \(公式\)，独立公式用 \[公式\]。禁止使用方括号 [(...) 或 [...] 作为 LaTeX 定界符。
+  2. LaTeX 命令必须使用完整的反斜杠前缀，禁止省略反斜杠：
+     - 正确命令：\frac、\angle、\triangle、\circ、\times、\cdot、\pm、\sqrt、\pi、\rho、\alpha、\beta、\gamma、\theta、\Delta、\lambda、\mu、\sigma、\omega、\leq、\geq、\neq、\approx、\sin、\cos、\tan、\log、\ln、\mathrm、\rightarrow、\leftarrow
+     - 错误写法：frac、angle、triangle、circ、times、cdot、pm、sqrt、pi、rho、alpha
+     - 注意：乘号用 \times，除法用 \frac，分数用 \frac{a}{b}，圆周率用 \pi，密度用 \rho
+  3. 角度/度数统一用 ^\circ，圆周率统一用 \pi
+  4. 上标用 ^{n} 格式，禁止裸 ^n
+  5. 物理单位用 \mathrm{}：\mathrm{kg}、\mathrm{m}、\mathrm{N}、\mathrm{Pa}、\mathrm{J}、\mathrm{W}、\mathrm{V}、\mathrm{A}、\mathrm{\Omega}
+  6. JSON 转义规则：反斜杠双写，\ → \\，\\ → \\\\。换行用 \\n。cases 环境行分隔符 \\ → \\\\
+返回格式必须严格如下（不要包含 markdown 代码块标记，使用纯 JSON）：
+{
+  "subject": "自动判断的科目名称",
+  "extractedQuestionText": "可辨识的印刷题干（无则留空字符串）",
+  "normalizedQuestionText": "整理后的标准题目文本（无则留空字符串）",
+  "studentAnswer": "完整手写解答过程转录，原样保留错误步骤"
+}''';
+
+  /// 混合模式：同时识别印刷题干和手写批注。
+  static const _mixedExtractionSystemPrompt =
+      r'''你是一个专业的教辅录入员，负责把题目图片整理成可存储、可检索的结构化文本。
+
+你的任务是：
+1. 同时识别图片中的印刷题干和手写批注
+2. 印刷题干写入 extractedQuestionText / normalizedQuestionText
+3. 手写批注原样转录到 studentAnswer，包括学生的解答过程和错误步骤；不要纠正错误
+4. 判断题目所属科目
+5. 数学公式使用 LaTeX 或 Markdown 友好的表达，保持题意完整
+
+重要规则：
+- 必须以图片内容为准，不要虚构缺失内容
+- extractedQuestionText 保留尽量忠实的印刷题干识别结果
+- normalizedQuestionText 输出更适合展示、搜索和后续 AI 分析的规范文本
+- studentAnswer 必须包含完整的手写批注/解答过程，原样保留错误步骤
+- 如果图片无法识别出有效内容，所有文本字段都返回空字符串
+- 如果内容包含 LaTeX，必须先生成合法 JSON：所有 LaTeX 反斜杠都写成 JSON 转义形式，例如 \\frac、\\times、\\(x\\)、\\[x\\]
+- 方程组或多行公式必须使用 KaTeX 兼容的 aligned 或 cases 环境，例如 \\begin{cases} x+y=5 \\\\ x-y=1 \\end{cases}，不要使用 \\newline
+- 不要在 JSON 字符串内部直接换行；换行必须写成 \\n
+- 【LaTeX 格式强制规范——必须严格遵守】
+  1. 所有数学公式必须使用标准 LaTeX 定界符包裹：行内公式用 \(公式\)，独立公式用 \[公式\]。禁止使用方括号 [(...) 或 [...] 作为 LaTeX 定界符。
+  2. LaTeX 命令必须使用完整的反斜杠前缀，禁止省略反斜杠：
+     - 正确命令：\frac、\angle、\triangle、\circ、\times、\cdot、\pm、\sqrt、\pi、\rho、\alpha、\beta、\gamma、\theta、\Delta、\lambda、\mu、\sigma、\omega、\leq、\geq、\neq、\approx、\sin、\cos、\tan、\log、\ln、\mathrm、\rightarrow、\leftarrow
+     - 错误写法：frac、angle、triangle、circ、times、cdot、pm、sqrt、pi、rho、alpha
+     - 注意：乘号用 \times，除法用 \frac，分数用 \frac{a}{b}，圆周率用 \pi，密度用 \rho
+  3. 角度/度数统一用 ^\circ，圆周率统一用 \pi
+  4. 上标用 ^{n} 格式，禁止裸 ^n
+  5. 物理单位用 \mathrm{}：\mathrm{kg}、\mathrm{m}、\mathrm{N}、\mathrm{Pa}、\mathrm{J}、\mathrm{W}、\mathrm{V}、\mathrm{A}、\mathrm{\Omega}
+  6. JSON 转义规则：反斜杠双写，\ → \\，\\ → \\\\。换行用 \\n。cases 环境行分隔符 \\ → \\\\
+返回格式必须严格如下（不要包含 markdown 代码块标记，使用纯 JSON）：
+{
+  "subject": "自动判断的科目名称",
+  "extractedQuestionText": "从图片提取的印刷题干原始文本",
+  "normalizedQuestionText": "整理后的标准题目文本",
+  "studentAnswer": "完整手写批注/解答过程转录，原样保留错误步骤"
+}''';
+
   Future<String> _loadAnalysisSystemPrompt() async {
     final custom = await settingsRepository.getString('system_prompt');
     return custom?.isNotEmpty == true ? custom! : _defaultAnalysisSystemPrompt;
   }
 
-  Future<String> _loadExtractionSystemPrompt() async {
+  Future<String> _loadExtractionSystemPrompt({
+    CaptureMode mode = CaptureMode.printed,
+  }) async {
     final custom =
         await settingsRepository.getString('extraction_system_prompt');
-    return custom?.isNotEmpty == true
-        ? custom!
-        : _defaultExtractionSystemPrompt;
+    // 用户自定义了 extraction_system_prompt 时，统一沿用自定义 prompt，不再按模式分支，
+    // 避免覆盖用户的刻意配置。
+    if (custom?.isNotEmpty == true) return custom!;
+    switch (mode) {
+      case CaptureMode.handwritten:
+        return _handwrittenExtractionSystemPrompt;
+      case CaptureMode.mixed:
+        return _mixedExtractionSystemPrompt;
+      case CaptureMode.printed:
+        return _defaultExtractionSystemPrompt;
+    }
   }
 
   String _buildExtractionPrompt({
     required String subjectName,
     required String textHint,
+    CaptureMode mode = CaptureMode.printed,
   }) {
     final buffer = StringBuffer();
     buffer.writeln('请先做题目结构化提取。');
@@ -1818,8 +2217,24 @@ class AiAnalysisService {
     buffer.writeln();
     buffer.writeln(
         '若题目包含图形/示意图，请先忠实描述原图中真实看到的图形类型、边界、标注和目标区域；看不清就写不确定，不要猜成梯形/半圆/扇形等特定题型。');
-    buffer.writeln(
-        '请输出 subject、extractedQuestionText、normalizedQuestionText。方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
+    switch (mode) {
+      case CaptureMode.handwritten:
+        buffer.writeln(
+            '本次录入模式：手写解答。请忠实转录图片中的手写内容，包括学生的解答过程和错误步骤。不要纠正错误，原样转录。返回的 studentAnswer 字段必须包含完整手写内容；extractedQuestionText、normalizedQuestionText 留空字符串或仅记录可辨识的印刷题干。');
+        buffer.writeln(
+            '请输出 subject、extractedQuestionText、normalizedQuestionText、studentAnswer。方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
+        break;
+      case CaptureMode.mixed:
+        buffer.writeln(
+            '本次录入模式：混合。请同时识别印刷题干（写入 extractedQuestionText / normalizedQuestionText）和手写批注（写入 studentAnswer）。手写部分原样转录，包括错误步骤，不要纠正。');
+        buffer.writeln(
+            '请输出 subject、extractedQuestionText、normalizedQuestionText、studentAnswer。方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
+        break;
+      case CaptureMode.printed:
+        buffer.writeln(
+            '请输出 subject、extractedQuestionText、normalizedQuestionText。方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
+        break;
+    }
     return buffer.toString();
   }
 
@@ -1999,7 +2414,7 @@ class AiAnalysisService {
       }
 
       debugPrint('[AiAnalysisService] Parse error: $e');
-      throw AiAnalysisException('解析 AI 响应失败: $e');
+      throw _AiJsonParseException(e);
     }
   }
 
@@ -2148,21 +2563,66 @@ class AiAnalysisService {
   AiQuestionExtractionResult _parseExtractionResponse(String content) {
     final map = _parseResponseJson(content);
     final subject = _parseSubject((map['subject'] as String?) ?? '');
-    final extractedQuestionText = _normalizeExtractedQuestionText(
+    final subjectKey = subject?.name ?? (map['subject'] as String?) ?? '';
+    var extractedQuestionText = _normalizeExtractedQuestionText(
       (map['extractedQuestionText'] as String?)?.trim() ?? '',
     );
-    final normalizedQuestionText = _normalizeExtractedQuestionText(
+    var normalizedQuestionText = _normalizeExtractedQuestionText(
       (map['normalizedQuestionText'] as String?)?.trim() ?? '',
     );
+
+    // 后处理校验：先做保守的 OCR 混淆字符纠错，再做 LaTeX 结构校验（仅警告）。
+    if (extractedQuestionText.isNotEmpty) {
+      final correctedExtracted = correctCommonOcrErrors(
+        extractedQuestionText,
+        subject: subjectKey,
+      );
+      if (correctedExtracted != extractedQuestionText) {
+        debugPrint(
+            '[AiAnalysisService] extractedQuestionText OCR 纠错: "$extractedQuestionText" -> "$correctedExtracted"');
+        extractedQuestionText = correctedExtracted;
+      }
+      final latexIssue = validateLatexStructure(extractedQuestionText);
+      if (latexIssue != null) {
+        debugPrint(
+            '[AiAnalysisService] extractedQuestionText LaTeX 警告: $latexIssue');
+      }
+    }
+    if (normalizedQuestionText.isNotEmpty) {
+      final correctedNormalized = correctCommonOcrErrors(
+        normalizedQuestionText,
+        subject: subjectKey,
+      );
+      if (correctedNormalized != normalizedQuestionText) {
+        debugPrint(
+            '[AiAnalysisService] normalizedQuestionText OCR 纠错: "$normalizedQuestionText" -> "$correctedNormalized"');
+        normalizedQuestionText = correctedNormalized;
+      }
+      final latexIssue = validateLatexStructure(normalizedQuestionText);
+      if (latexIssue != null) {
+        debugPrint(
+            '[AiAnalysisService] normalizedQuestionText LaTeX 警告: $latexIssue');
+      }
+    }
+
     final splitSeed = normalizedQuestionText.isNotEmpty
         ? normalizedQuestionText
         : extractedQuestionText;
+
+    // 手写解答模式 / 混合模式下，AI 应返回 studentAnswer 字段（手写过程原样转录）。
+    // printed 模式下该字段不存在，保持为 null。
+    final rawStudentAnswer =
+        (map['studentAnswer'] as String?)?.trim() ?? '';
+    final studentAnswer = rawStudentAnswer.isEmpty
+        ? null
+        : _normalizeExtractedQuestionText(rawStudentAnswer);
 
     return AiQuestionExtractionResult(
       subject: subject,
       extractedQuestionText: extractedQuestionText,
       normalizedQuestionText: normalizedQuestionText,
       splitResult: _defaultSplitQuestionCandidates(splitSeed),
+      studentAnswer: studentAnswer,
     );
   }
 
@@ -5198,6 +5658,7 @@ class _FakeAiAnalysisService extends AiAnalysisService {
     required String subjectName,
     required String imagePath,
     String textHint = '',
+    CaptureMode mode = CaptureMode.printed,
   }) async {
     final normalized = textHint.isNotEmpty ? textHint : '示例题目文本';
     final splitResult = await splitQuestionCandidates(
@@ -5259,6 +5720,7 @@ class TestAiAnalysisService extends AiAnalysisService {
     required String subjectName,
     required String imagePath,
     String textHint = '',
+    CaptureMode mode = CaptureMode.printed,
   }) async {
     extractionCallCount++;
     return extractionResult;
@@ -5285,4 +5747,52 @@ class AiAnalysisException implements Exception {
   final String message;
   @override
   String toString() => message;
+}
+
+/// 标记 AI 响应 JSON 解析失败（含本地修复失败）。
+/// 上层 [_requestWithJsonRetry] 捕获此异常后重试一次 AI 请求。
+class _AiJsonParseException implements Exception {
+  _AiJsonParseException(this.inner);
+  final Object inner;
+  @override
+  String toString() => 'AI JSON parse failed: $inner';
+}
+
+/// 把底层异常翻译成用户可读的中文文案。UI 层应优先调用本函数，而不是
+/// 直接 `e.toString()`，避免暴露技术栈。
+String friendlyAiErrorMessage(Object error) {
+  if (error is AiAnalysisException) {
+    final message = error.message;
+    // 解析 AI 响应失败 -> 走"内容格式异常"语义。
+    if (message.startsWith('解析 AI 响应失败')) {
+      return 'AI 返回内容格式异常，请重试或换一张更清晰的图片';
+    }
+    // 已经是友好文案，直接返回。
+    return message;
+  }
+  if (error is DioException) {
+    final status = error.response?.statusCode;
+    if (status == 401 || status == 403) {
+      return 'AI 服务未授权，请检查 API Key 设置';
+    }
+    if (status == 429) {
+      return 'AI 服务繁忙，请稍后重试';
+    }
+    if (status != null && status >= 500 && status < 600) {
+      return 'AI 服务暂时不可用，请稍后重试';
+    }
+    if (error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.sendTimeout) {
+      return '网络较慢，建议切换网络后重试';
+    }
+    if (error.type == DioExceptionType.connectionError) {
+      return '网络连接失败，请检查网络';
+    }
+    return 'AI 服务请求失败，请稍后重试';
+  }
+  if (error is FormatException) {
+    return 'AI 返回内容不完整，请重试';
+  }
+  return 'AI 分析失败，请重试';
 }

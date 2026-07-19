@@ -5,6 +5,7 @@ import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/image_preprocessor.dart';
 import 'package:uuid/uuid.dart';
 
 class CaptureResult {
@@ -104,7 +105,12 @@ class CaptureService {
   }
 
   Future<QuestionRecord> _saveToDraft(XFile file) async {
+    // 1. 保存原图：UI 展示（CachedQuestionImage）与回退 OCR 都读这个路径。
     final savedPath = await _storage.saveImage(File(file.path));
+    // 2. 生成预处理图（去噪 / 纠偏 / 二值化），保存到
+    //    `<savedPath 去扩展名>_preprocessed.jpg`。AI / OCR 链路按命名约定
+    //    优先读这个文件；失败时静默回退，AI 仍读 savedPath。
+    await _generatePreprocessedImage(savedPath);
     final fingerprint = await ImageFingerprintCodec.fromFile(File(savedPath));
     return QuestionRecord.draft(
       id: const Uuid().v4(),
@@ -112,5 +118,36 @@ class CaptureService {
       subject: Subject.math,
       recognizedText: '',
     ).copyWith(tags: ImageFingerprintCodec.write(const <String>[], fingerprint));
+  }
+
+  /// 在后台 isolate 对原图跑预处理管线，把结果写到
+  /// `<savedPath 去扩展名>_preprocessed.jpg`。
+  ///
+  /// 命名约定：给定 `imagePath = xxx.jpg`，预处理图位于
+  /// `xxx_preprocessed.jpg`。AI / OCR 链路据此查找预处理版本，
+  /// 文件不存在时回退到 `imagePath` 原图。
+  ///
+  /// 任一步骤失败时静默跳过，调用方继续使用原图。
+  Future<void> _generatePreprocessedImage(String originalPath) async {
+    if (originalPath.isEmpty) return;
+    final original = File(originalPath);
+    if (!original.existsSync()) return;
+    try {
+      final sourceBytes = await original.readAsBytes();
+      if (sourceBytes.isEmpty) return;
+      final processed = await preprocessForOcr(sourceBytes);
+      if (processed.isEmpty || identical(processed, sourceBytes)) return;
+      final outPath = _preprocessedPath(originalPath);
+      await File(outPath).writeAsBytes(processed, flush: true);
+      debugPrint('[CaptureService] Preprocessed image saved: $outPath');
+    } catch (e) {
+      debugPrint('[CaptureService] Preprocess failed, fallback to original: $e');
+    }
+  }
+
+  String _preprocessedPath(String original) {
+    final dot = original.lastIndexOf('.');
+    if (dot < 0) return '${original}_preprocessed.jpg';
+    return '${original.substring(0, dot)}_preprocessed.jpg';
   }
 }

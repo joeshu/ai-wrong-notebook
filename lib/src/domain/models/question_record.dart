@@ -167,6 +167,7 @@ class QuestionRecord {
     this.parentQuestionId,
     this.rootQuestionId,
     this.splitOrder,
+    this.studentAnswer,
   });
 
   static const favoriteTag = '__system_favorite';
@@ -309,6 +310,7 @@ class QuestionRecord {
       parentQuestionId: _nullableString(json['parentQuestionId']),
       rootQuestionId: _nullableString(json['rootQuestionId']),
       splitOrder: _nullableInt(json['splitOrder']),
+      studentAnswer: _nullableString(json['studentAnswer']),
     );
   }
 
@@ -343,6 +345,7 @@ class QuestionRecord {
       'parentQuestionId': parentQuestionId,
       'rootQuestionId': rootQuestionId,
       'splitOrder': splitOrder,
+      'studentAnswer': studentAnswer,
     };
   }
 
@@ -371,6 +374,7 @@ class QuestionRecord {
   final String? parentQuestionId;
   final String? rootQuestionId;
   final int? splitOrder;
+  final String? studentAnswer;
 
   String get recognizedText => extractedQuestionText;
   String get correctedText => normalizedQuestionText;
@@ -453,6 +457,7 @@ class QuestionRecord {
     String? parentQuestionId,
     String? rootQuestionId,
     int? splitOrder,
+    String? studentAnswer,
   }) {
     return QuestionRecord(
       id: id,
@@ -482,6 +487,7 @@ class QuestionRecord {
       parentQuestionId: parentQuestionId ?? this.parentQuestionId,
       rootQuestionId: rootQuestionId ?? this.rootQuestionId,
       splitOrder: splitOrder ?? this.splitOrder,
+      studentAnswer: studentAnswer ?? this.studentAnswer,
     );
   }
 }
