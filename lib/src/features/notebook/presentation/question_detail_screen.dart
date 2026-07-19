@@ -623,6 +623,7 @@ class _QuestionTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('QUESTION_TAB built batchGroup=${batchGroup?.rootId} questions=${batchGroup?.questions.length}');
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final result = current.analysisResult;
@@ -1574,6 +1575,7 @@ class _BatchSiblingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    debugPrint('BATCH_CARD built group=${group.questions.length} current=${current.id}');
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpace.md),
