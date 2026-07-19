@@ -121,7 +121,7 @@ class HtmlExportService {
   static String _masteryLabel(dynamic masteryLevel) {
     final name = masteryLevel is String
         ? masteryLevel
-        : '${masteryLevel}'.split('.').last;
+        : '$masteryLevel'.split('.').last;
     switch (name) {
       case 'newQuestion':
         return '待学习';
@@ -137,7 +137,7 @@ class HtmlExportService {
   static String _statusLabel(dynamic contentStatus) {
     final name = contentStatus is String
         ? contentStatus
-        : '${contentStatus}'.split('.').last;
+        : '$contentStatus'.split('.').last;
     switch (name) {
       case 'processing':
         return '处理中';
@@ -162,7 +162,7 @@ class HtmlExportService {
   static String _masteryBadge(dynamic masteryLevel) {
     final name = masteryLevel is String
         ? masteryLevel
-        : '${masteryLevel}'.split('.').last;
+        : '$masteryLevel'.split('.').last;
     switch (name) {
       case 'newQuestion':
         return '<span class="badge badge-new">待学习</span>';

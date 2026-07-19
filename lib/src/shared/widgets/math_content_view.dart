@@ -203,7 +203,7 @@ class MathContentView extends StatelessWidget {
     r = r.replaceAllMapped(_reNakedCases, (m) => '\$\$${m.group(0)}\$\$');
     r = r.replaceAllMapped(_reInlineCases, (m) {
       final full = m.group(0)!;
-      return '\$${full}\$';
+      return '\$$full\$';
     });
 
     // Step 5: fix lone backslash-space → \\ inside cases/aligned
