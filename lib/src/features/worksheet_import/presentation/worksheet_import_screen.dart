@@ -52,6 +52,9 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     final readyCount = queuedQuestions
         .where((item) => item.contentStatus == ContentStatus.ready)
         .length;
+    final ocrDraftCount = queuedQuestions
+        .where((item) => item.contentStatus == ContentStatus.ready && item.analysisResult == null)
+        .length;
     final failedCount = queuedQuestions
         .where((item) => item.contentStatus == ContentStatus.failed)
         .length;
@@ -142,6 +145,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
               _QueueSummaryCard(
                 questions: queuedQuestions,
                 readyCount: readyCount,
+                ocrDraftCount: ocrDraftCount,
                 failedCount: failedCount,
                 autoAnalyzing: autoAnalyzing,
                 onStartOne: () => _startQueuedQuestion(queuedQuestions
@@ -150,6 +154,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                 onStartAll: () => _startAllQueuedQuestions(queuedQuestions),
                 onStop: () => ref.read(worksheetAutoAnalyzeProvider.notifier).state = false,
                 onSaveReady: () => _saveReadyQuestions(queuedQuestions),
+                onAnalyzeDrafts: () => _analyzeOcrDrafts(queuedQuestions),
                 onOpen: _openQueuedQuestion,
               ),
             if (queuedQuestions.isNotEmpty) const SizedBox(height: 12),
@@ -212,7 +217,19 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     context.go('/');
   }
 
-  void _openQueuedQuestion(QuestionRecord question) {
+  Future<void> _openQueuedQuestion(QuestionRecord question) async {
+    if (question.contentStatus == ContentStatus.ready && question.analysisResult == null) {
+      final worksheet = ref.read(currentWorksheetImportProvider);
+      if (worksheet != null) {
+        final next = worksheet.pages.map((item) => item.id == question.id
+            ? item.copyWith(contentStatus: ContentStatus.processing) : item).toList();
+        await persistWorksheetImport(ref, worksheet.copyWith(pages: next));
+        question = next.firstWhere((item) => item.id == question.id);
+      }
+      ref.read(currentQuestionProvider.notifier).state = question;
+      if (mounted) context.go('/analysis/loading');
+      return;
+    }
     ref.read(currentQuestionProvider.notifier).state = question;
     context.go(question.contentStatus == ContentStatus.ready
         ? '/analysis/result'
@@ -242,6 +259,24 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(SnackBar(content: Text('批量保存失败: $e')));
+    }
+  }
+
+  Future<void> _analyzeOcrDrafts(List<QuestionRecord> queuedQuestions) async {
+    final drafts = queuedQuestions.where((item) =>
+        item.contentStatus == ContentStatus.ready && item.analysisResult == null).toList();
+    if (drafts.isEmpty) return;
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet != null) {
+      final ids = drafts.map((item) => item.id).toSet();
+      final next = worksheet.pages.map((item) => ids.contains(item.id)
+          ? item.copyWith(contentStatus: ContentStatus.processing)
+          : item).toList();
+      await persistWorksheetImport(ref, worksheet.copyWith(pages: next));
+      final first = next.firstWhere((item) => item.id == drafts.first.id);
+      ref.read(currentQuestionProvider.notifier).state = first;
+      ref.read(worksheetAutoAnalyzeProvider.notifier).state = true;
+      if (mounted) context.go('/analysis/loading');
     }
   }
 
@@ -349,23 +384,27 @@ class _QueueSummaryCard extends StatelessWidget {
   const _QueueSummaryCard({
     required this.questions,
     required this.readyCount,
+    required this.ocrDraftCount,
     required this.failedCount,
     required this.autoAnalyzing,
     required this.onStartOne,
     required this.onStartAll,
     required this.onStop,
     required this.onSaveReady,
+    required this.onAnalyzeDrafts,
     required this.onOpen,
   });
 
   final List<QuestionRecord> questions;
   final int readyCount;
+  final int ocrDraftCount;
   final int failedCount;
   final bool autoAnalyzing;
   final VoidCallback onStartOne;
   final VoidCallback onStartAll;
   final VoidCallback onStop;
   final VoidCallback onSaveReady;
+  final VoidCallback onAnalyzeDrafts;
   final ValueChanged<QuestionRecord> onOpen;
 
   @override
@@ -400,6 +439,12 @@ class _QueueSummaryCard extends StatelessWidget {
               onPressed: onStop,
               icon: const Icon(CupertinoIcons.stop_circle),
             ),
+          if (ocrDraftCount > 0)
+            OutlinedButton.icon(
+              onPressed: autoAnalyzing ? null : onAnalyzeDrafts,
+              icon: const Icon(CupertinoIcons.sparkles, size: 16),
+              label: Text('分析 OCR 草稿 ($ocrDraftCount)'),
+            ),
           if (readyCount > 0)
             FilledButton.icon(
               onPressed: onSaveReady,
@@ -431,12 +476,17 @@ class _QueueQuestionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = question.contentStatus;
-    final color = status == ContentStatus.ready
+    final isOcrDraft = status == ContentStatus.ready && question.analysisResult == null;
+    final color = isOcrDraft
+        ? const Color(0xFF2563EB)
+        : status == ContentStatus.ready
         ? const Color(0xFF16A34A)
         : status == ContentStatus.failed
             ? const Color(0xFFEA580C)
             : const Color(0xFF64748B);
-    final label = status == ContentStatus.ready
+    final label = isOcrDraft
+        ? 'OCR 草稿'
+        : status == ContentStatus.ready
         ? '已分析'
         : status == ContentStatus.failed
             ? '待处理'
