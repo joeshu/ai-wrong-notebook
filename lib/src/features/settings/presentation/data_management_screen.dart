@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart;
 import 'package:archive/archive.dart';
 import 'package:archive/archive_io.dart';
 import 'package:file_picker/file_picker.dart';
@@ -27,8 +27,24 @@ class DataManagementScreen extends ConsumerStatefulWidget {
 
 class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   static const _backupSchemaVersion = 5;
+  static const _lastImportKey = 'backup_last_import_v1';
   _ImportUndo? _lastImport;
   String? _lastBackupLabel;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastImport();
+  }
+
+  Future<void> _loadLastImport() async {
+    final raw = (await SharedPreferences.getInstance()).getString(_lastImportKey);
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      if (mounted) setState(() => _lastImport = _ImportUndo.fromJson(decoded));
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +134,10 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       await exportDir.create(recursive: true);
       final now = DateTime.now();
       final attachments = await _buildAttachmentBackup(questions);
+      final attachmentIndex = attachments.map((item) => <String, dynamic>{
+        'questionId': item['questionId'], 'fileName': item['fileName'],
+        'sha256': item['sha256'], 'byteSize': base64Decode(item['contentBase64'] as String).length,
+      }).toList();
       final manifest = <String, dynamic>{
         'format': 'smart-wrong-notebook-backup',
         'schemaVersion': _backupSchemaVersion,
@@ -125,6 +145,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         'questionCount': questions.length,
         'reviewLogCount': reviewLogs.length,
         'attachmentCount': attachments.length,
+        'attachments': attachmentIndex,
       };
       final archive = Archive();
       archive.addFile(ArchiveFile('manifest.json', 0, utf8.encode(jsonEncode(manifest))));
@@ -152,13 +173,21 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   }
 
   Future<bool?> _showBackupPreview(BuildContext context, List<QuestionRecord> questions, int logCount) async {
-    final attachments = questions.where((item) => item.imagePath.isNotEmpty).length;
+    final attachments = await _buildAttachmentBackup(questions);
+    final metadataBytes = utf8.encode(jsonEncode(attachments.map((item) {
+      final copy = Map<String, dynamic>.from(item)..remove('contentBase64');
+      return copy;
+    }).toList())).length;
+    final bytes = utf8.encode(jsonEncode(questions.map(_questionToJson).toList())).length + metadataBytes + attachments.fold<int>(0, (sum, item) => sum + base64Decode(item['contentBase64'] as String).length);
+    final estimate = _formatBytes(bytes);
     return showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('创建完整备份'),
-      content: Text('将创建可在新设备恢复的 .wnb 备份包：\n\n✓ ${questions.length} 道错题\n✓ $logCount 条复习记录\n✓ $attachments 张题图\n\n不会包含 API Key、临时导入会话和未确认的工作台草稿。'),
+      content: Text('将创建可在新设备恢复的 .wnb 备份包：\n\n✓ ${questions.length} 道错题\n✓ $logCount 条复习记录\n✓ ${attachments.length} 张题图\n预计大小：约 $estimate（压缩后可能更小）\n\n不会包含 API Key、临时导入会话和未确认的工作台草稿。'),
       actions: <Widget>[TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('创建并保存'))],
     ));
   }
+
+  String _formatBytes(int bytes) => bytes < 1024 * 1024 ? '${(bytes / 1024).toStringAsFixed(1)} KB' : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 
 
   Future<dynamic> _readBackupFile(File file) async {
@@ -170,24 +199,34 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       return utf8.decode(entry.content as List<int>);
     }
     final manifest = Map<String, dynamic>.from(jsonDecode(readText('manifest.json')) as Map);
-    final attachments = archive.files.where((item) => item.name.startsWith('attachments/') && item.isFile).map((item) {
-      final base = item.name.split('/').last;
-      final divider = base.indexOf('_');
-      return <String, dynamic>{'questionId': divider < 1 ? '' : base.substring(0, divider), 'fileName': divider < 1 ? base : base.substring(divider + 1), 'contentBase64': base64Encode(item.content as List<int>), 'sha256': BackupAttachmentIntegrity.sha256Hex(item.content as List<int>)};
-    }).toList();
-    return <String, dynamic>{...manifest, 'questions': jsonDecode(readText('questions.json')), 'reviewLogs': jsonDecode(readText('review_logs.json')), 'attachments': attachments};
+    final index = manifest['attachments'] is List ? manifest['attachments'] as List : const <dynamic>[];
+    final attachments = <Map<String, dynamic>>[];
+    var corrupt = 0;
+    for (final item in index) {
+      if (item is! Map) continue;
+      final questionId = item['questionId'];
+      final fileName = item['fileName'];
+      if (questionId is! String || fileName is! String) continue;
+      final entry = archive.files.where((file) => file.name == 'attachments/${questionId}_$fileName').firstOrNull;
+      if (entry == null || !entry.isFile) { corrupt++; continue; }
+      final bytes = entry.content as List<int>;
+      if (item['byteSize'] != bytes.length || !BackupAttachmentIntegrity.matches(bytes, item['sha256'] as String?)) { corrupt++; continue; }
+      attachments.add(<String, dynamic>{'questionId': questionId, 'fileName': fileName, 'contentBase64': base64Encode(bytes), 'sha256': item['sha256']});
+    }
+    return <String, dynamic>{...manifest, 'questions': jsonDecode(readText('questions.json')), 'reviewLogs': jsonDecode(readText('review_logs.json')), 'attachments': attachments, 'corruptAttachmentCount': corrupt};
   }
 
   _BackupPreview _backupPreview(dynamic decoded) {
     final questions = _questionsFromBackup(decoded);
     final attachments = decoded is Map && decoded['attachments'] is List ? (decoded['attachments'] as List).length : 0;
     final logs = decoded is Map && decoded['reviewLogs'] is List ? (decoded['reviewLogs'] as List).length : 0;
-    return _BackupPreview(questions.length, logs, attachments, decoded is Map ? decoded['generatedAt'] as String? : null);
+    final corrupt = decoded is Map && decoded['corruptAttachmentCount'] is int ? decoded['corruptAttachmentCount'] as int : 0;
+    return _BackupPreview(questions.length, logs, attachments, corrupt, decoded is Map ? decoded['generatedAt'] as String? : null);
   }
 
   Future<bool?> _showRestorePreview(BuildContext context, _BackupPreview preview) => showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
     title: const Text('确认恢复备份'),
-    content: Text('备份内容：\n✓ ${preview.questions} 道错题\n✓ ${preview.logs} 条复习记录\n✓ ${preview.attachments} 张题图${preview.generatedAt == null ? '' : '\n\n创建时间：${preview.generatedAt}'}\n\n将以“合并”方式恢复；当前已有的同 ID 题目会跳过，不会清空现有题库。'),
+    content: Text('备份内容：\n✓ ${preview.questions} 道错题\n✓ ${preview.logs} 条复习记录\n✓ ${preview.attachments} 张题图${preview.corruptAttachments == 0 ? '' : '\n⚠ ${preview.corruptAttachments} 张题图校验失败，将跳过'}${preview.generatedAt == null ? '' : '\n\n创建时间：${preview.generatedAt}'}\n\n将以“合并”方式恢复；当前已有的同 ID 题目会跳过，不会清空现有题库。'),
     actions: <Widget>[TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')), FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('开始恢复'))],
   ));
 
@@ -207,8 +246,13 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     await ref.read(reviewLogRepositoryProvider).deleteByIds(undo.reviewLogIds);
     for (final path in undo.imagePaths) { final file = File(path); if (await file.exists()) await file.delete(); }
     if (mounted) setState(() => _lastImport = null);
+    await (await SharedPreferences.getInstance()).remove(_lastImportKey);
     invalidateQuestionList(ref);
     if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已撤销本次恢复')));
+  }
+
+  Future<void> _persistLastImport(_ImportUndo undo) async {
+    await (await SharedPreferences.getInstance()).setString(_lastImportKey, jsonEncode(undo.toJson()));
   }
 
   void _showPdfExportSheet(BuildContext context, List<QuestionRecord> questions) {
@@ -299,7 +343,9 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         ref,
         allowedQuestionIds: importedIds,
       );
-      if (mounted) setState(() => _lastImport = _ImportUndo(importedIds, restoredReviewLogIds.toSet(), restoredImagePaths));
+      final undo = _ImportUndo(importedIds, restoredReviewLogIds.toSet(), restoredImagePaths);
+      await _persistLastImport(undo);
+      if (mounted) setState(() => _lastImport = undo);
       invalidateQuestionList(ref);
 
       if (!context.mounted) return;
@@ -317,48 +363,38 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     dynamic decoded, {
     required Set<String> allowedIds,
   }) async {
-    if (decoded is! Map || decoded['attachments'] is! List) {
-      return const <String, String>{};
-    }
+    if (decoded is! Map || decoded['attachments'] is! List) return const <String, String>{};
     final documents = await getApplicationDocumentsDirectory();
+    final staging = Directory('${documents.path}/restore_staging_${DateTime.now().microsecondsSinceEpoch}');
     final attachmentDir = Directory('${documents.path}/imported_images');
-    if (!await attachmentDir.exists()) {
-      await attachmentDir.create(recursive: true);
-    }
-
+    await staging.create(recursive: true);
     final restored = <String, String>{};
-    for (final item in decoded['attachments'] as List) {
-      if (item is! Map) continue;
-      final questionId = item['questionId'];
-      final content = item['contentBase64'];
-      if (questionId is! String ||
-          questionId.isEmpty ||
-          !allowedIds.contains(questionId) ||
-          content is! String) {
-        continue;
-      }
-      try {
+    try {
+      for (final item in decoded['attachments'] as List) {
+        if (item is! Map) continue;
+        final questionId = item['questionId'];
+        final content = item['contentBase64'];
+        if (questionId is! String || questionId.isEmpty || !allowedIds.contains(questionId) || content is! String) continue;
         final bytes = base64Decode(content);
-        final expectedHash = item['sha256'];
-        final hashMatches = BackupAttachmentIntegrity.matches(
-          bytes,
-          expectedHash is String ? expectedHash : null,
-        );
-        if (!hashMatches) {
-          continue;
-        }
-        final rawName = item['fileName'] is String
-            ? item['fileName'] as String
-            : 'image.jpg';
+        if (!BackupAttachmentIntegrity.matches(bytes, item['sha256'] as String?)) continue;
+        final rawName = item['fileName'] is String ? item['fileName'] as String : 'image.jpg';
         final safeName = rawName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
-        final target = File('${attachmentDir.path}/${questionId}_$safeName');
-        await target.writeAsBytes(bytes, flush: true);
-        restored[questionId] = target.path;
-      } catch (_) {
-        // Invalid or corrupt attachment: import the question without its image.
+        final staged = File('${staging.path}/${questionId}_$safeName');
+        await staged.writeAsBytes(bytes, flush: true);
+        restored[questionId] = staged.path;
       }
+      await attachmentDir.create(recursive: true);
+      final committed = <String, String>{};
+      for (final entry in restored.entries) {
+        final source = File(entry.value);
+        final target = File('${attachmentDir.path}/${source.uri.pathSegments.last}');
+        await source.rename(target.path);
+        committed[entry.key] = target.path;
+      }
+      return committed;
+    } finally {
+      if (await staging.exists()) await staging.delete(recursive: true);
     }
-    return restored;
   }
 
   Future<List<String>> _restoreReviewLogs(
@@ -493,13 +529,20 @@ class _ImportUndo {
   final Set<String> questionIds;
   final Set<String> reviewLogIds;
   final List<String> imagePaths;
+  Map<String, dynamic> toJson() => <String, dynamic>{'questionIds': questionIds.toList(), 'reviewLogIds': reviewLogIds.toList(), 'imagePaths': imagePaths};
+  factory _ImportUndo.fromJson(Map<String, dynamic> json) => _ImportUndo(
+    (json['questionIds'] as List? ?? const <dynamic>[]).whereType<String>().toSet(),
+    (json['reviewLogIds'] as List? ?? const <dynamic>[]).whereType<String>().toSet(),
+    (json['imagePaths'] as List? ?? const <dynamic>[]).whereType<String>().toList(),
+  );
 }
 
 class _BackupPreview {
-  const _BackupPreview(this.questions, this.logs, this.attachments, this.generatedAt);
+  const _BackupPreview(this.questions, this.logs, this.attachments, this.corruptAttachments, this.generatedAt);
   final int questions;
   final int logs;
   final int attachments;
+  final int corruptAttachments;
   final String? generatedAt;
 }
 
