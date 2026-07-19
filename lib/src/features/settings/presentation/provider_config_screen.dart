@@ -1,24 +1,30 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class ProviderConfigScreen extends ConsumerStatefulWidget {
   const ProviderConfigScreen({super.key});
 
   @override
-  ConsumerState<ProviderConfigScreen> createState() =>
+  ConsumerState<ProviderConfigScreen> createState =>
       _ProviderConfigScreenState();
 }
 
 class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
-  late TextEditingController _urlController;
-  late TextEditingController _modelController;
-  late TextEditingController _apiKeyController;
+  late final TextEditingController _urlController;
+  late final TextEditingController _modelController;
+  late final TextEditingController _apiKeyController;
+  final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   bool _loaded = false;
   bool _testing = false;
+  bool _obscureApiKey = true;
   String? _testResult;
 
   @override
@@ -54,127 +60,149 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
     _loadConfig();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final success = _testResult?.contains('成功') ?? false;
-    final statusColor =
-        success ? const Color(0xFF16A34A) : const Color(0xFFEA580C);
-    final statusBg =
-        success ? const Color(0xFFF0FDF4) : const Color(0xFFFFF7ED);
-    final statusBorder =
-        success ? const Color(0xFFBBF7D0) : const Color(0xFFFED7AA);
+    final statusColor = success ? AppColors.success : AppColors.warning;
+    final statusBg = success
+        ? AppColors.successContainerLight
+        : AppColors.warningContainerLight;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI 服务配置'),
+        title: const Text(AppStrings.providerConfigTitle),
         leading: IconButton(
-            icon: const Icon(CupertinoIcons.chevron_left),
-            onPressed: () => Navigator.of(context).pop()),
+          icon: const Icon(CupertinoIcons.chevron_left),
+          onPressed: () => context.go('/settings'),
+        ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: ListView(
-          children: <Widget>[
-            TextFormField(
-              controller: _urlController,
-              decoration: const InputDecoration(
-                labelText: 'API 地址',
-                hintText:
-                    'https://api.openai.com/v1 或 https://openrouter.ai/api/v1',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _modelController,
-              decoration: const InputDecoration(
-                labelText: '模型',
-                hintText: 'gpt-4o, gemini-2.0-flash-thinking-exp-121 等',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _apiKeyController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'API Key',
-                hintText: 'sk-...',
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_testResult != null) ...<Widget>[
-              Container(
-                padding: const EdgeInsets.all(12),
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color:
-                      isDark ? statusColor.withValues(alpha: 0.14) : statusBg,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: isDark
-                          ? statusColor.withValues(alpha: 0.35)
-                          : statusBorder),
+        padding: const EdgeInsets.all(AppSpace.lg),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: <Widget>[
+              TextFormField(
+                controller: _urlController,
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? AppStrings.providerConfigUrlRequired
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: AppStrings.providerConfigUrlLabel,
+                  hintText: AppStrings.providerConfigUrlHint,
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Icon(
-                      success
-                          ? CupertinoIcons.checkmark_circle
-                          : CupertinoIcons.exclamationmark_triangle,
-                      color: statusColor,
-                      size: 20,
+              ),
+              const SizedBox(height: AppSpace.md),
+              TextFormField(
+                controller: _modelController,
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? AppStrings.providerConfigModelRequired
+                    : null,
+                decoration: const InputDecoration(
+                  labelText: AppStrings.providerConfigModelLabel,
+                  hintText: AppStrings.providerConfigModelHint,
+                ),
+              ),
+              const SizedBox(height: AppSpace.md),
+              TextFormField(
+                controller: _apiKeyController,
+                obscureText: _obscureApiKey,
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? AppStrings.providerConfigApiKeyRequired
+                    : null,
+                decoration: InputDecoration(
+                  labelText: AppStrings.providerConfigApiKeyLabel,
+                  hintText: AppStrings.providerConfigApiKeyHint,
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscureApiKey
+                        ? CupertinoIcons.eye
+                        : CupertinoIcons.eye_slash),
+                    onPressed: () => setState(
+                        () => _obscureApiKey = !_obscureApiKey),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSpace.lg),
+              if (_testResult != null) ...<Widget>[
+                Container(
+                  padding: const EdgeInsets.all(AppSpace.md),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? statusColor.withValues(alpha: 0.14)
+                        : statusBg,
+                    borderRadius: BorderRadius.circular(AppRadius.small),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: isDark ? 0.35 : 0.3),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _testResult!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark
-                              ? statusColor
-                              : (success
-                                  ? const Color(0xFF166534)
-                                  : const Color(0xFF9A3412)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Icon(
+                        success
+                            ? CupertinoIcons.checkmark_circle
+                            : CupertinoIcons.exclamationmark_triangle,
+                        color: statusColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: AppSpace.sm),
+                      Expanded(
+                        child: Text(
+                          _testResult!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? statusColor
+                                : (success
+                                    ? AppColors.successDark
+                                    : AppColors.warningDark),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _testing ? null : _testConnection,
-                    icon: _testing
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(CupertinoIcons.wifi, size: 18),
-                    label: Text(_testing ? '测试中...' : '测试连接'),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _loading ? null : _save,
-                    child: _loading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('保存'),
-                  ),
-                ),
+                const SizedBox(height: AppSpace.lg),
               ],
-            ),
-          ],
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _testing ? null : _testConnection,
+                      icon: _testing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(CupertinoIcons.wifi, size: 18),
+                      label: Text(_testing
+                          ? AppStrings.providerConfigTesting
+                          : AppStrings.providerConfigTest),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _loading ? null : _save,
+                      child: _loading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(AppStrings.providerConfigSave),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
     setState(() {
       _loading = true;
       _testResult = null;
@@ -190,11 +218,12 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
     if (mounted) {
       setState(() => _loading = false);
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('配置已保存')));
+          .showSnackBar(const SnackBar(content: Text(AppStrings.providerConfigSaved)));
     }
   }
 
   Future<void> _testConnection() async {
+    if (!_formKey.currentState!.validate()) return;
     final config = AiProviderConfig(
       id: 'default',
       displayName: '默认',
@@ -203,49 +232,40 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
       apiKey: _apiKeyController.text.trim(),
     );
 
-    if (config.baseUrl.isEmpty ||
-        config.model.isEmpty ||
-        config.apiKey.isEmpty) {
-      setState(() => _testResult = '请填写完整的配置信息');
-      return;
-    }
-
     setState(() {
       _testing = true;
       _testResult = '正在保存配置...\nURL: ${config.baseUrl}\n模型: ${config.model}';
     });
 
     try {
-      // 先保存到本地
       debugPrint('[ProviderConfig] Saving config...');
       await ref.read(settingsRepositoryProvider).saveAiProviderConfig(config);
       debugPrint('[ProviderConfig] Config saved successfully');
 
-      // 立即读取验证
       final savedConfig =
           await ref.read(settingsRepositoryProvider).getAiProviderConfig();
       debugPrint(
           '[ProviderConfig] Saved config: ${savedConfig?.baseUrl}, ${savedConfig?.model}');
 
       if (savedConfig == null) {
-        setState(() => _testResult = '✗ 保存失败\n\n无法读取保存的配置，请重试');
+        setState(() => _testResult = AppStrings.providerConfigSaveFailed);
         return;
       }
 
       setState(() => _testResult =
           '配置已保存，正在连接 AI...\nURL: ${savedConfig.baseUrl}\n模型: ${savedConfig.model}');
 
-      // 调用 AI 服务测试
       final service = ref.read(aiAnalysisServiceProvider);
       await service.testConnection(savedConfig);
 
       if (mounted) {
-        setState(() => _testResult = '✓ 成功！\n\nAPI 连接正常，配置已保存！\n\n现在可以拍照测试了。');
+        setState(() => _testResult = AppStrings.providerConfigTestSuccess);
       }
     } catch (e) {
       debugPrint('[ProviderConfig] Test failed: $e');
       if (mounted) {
-        setState(() => _testResult = '✗ 连接失败\n\n${e.toString()}');
+        setState(() => _testResult =
+            '${AppStrings.providerConfigTestFailed}${e.toString()}');
       }
     } finally {
       if (mounted) {

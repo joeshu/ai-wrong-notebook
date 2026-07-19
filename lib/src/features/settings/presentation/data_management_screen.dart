@@ -57,9 +57,9 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       appBar: AppBar(
         title: const Text('数据管理'),
         leading: IconButton(
-            icon: const Icon(CupertinoIcons.chevron_left),
-            onPressed: () => Navigator.of(context).pop()),
-      ),
+          icon: const Icon(CupertinoIcons.chevron_left),
+          onPressed: () => context.go('/settings'),
+        ),
       body: questionsAsync.when(
         data: (questions) => ListView(
           padding: const EdgeInsets.all(16),

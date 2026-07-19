@@ -9,10 +9,12 @@ import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
-import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 class NotebookScreen extends ConsumerStatefulWidget {
   const NotebookScreen({super.key});
@@ -264,7 +266,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectionMode ? '已选 ${_selectedQuestionIds.length} 道' : '错题本'),
+        title: Text(_selectionMode ? '已选 ${_selectedQuestionIds.length} 道' : AppStrings.notebookTitle),
         leading: _selectionMode
             ? IconButton(
                 icon: const Icon(CupertinoIcons.xmark),
@@ -295,21 +297,25 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                   tooltip: '录入错题',
                 ),
                 PopupMenuButton<_NotebookMenuAction>(
-                  icon: const Icon(CupertinoIcons.line_horizontal_3_decrease),
-                  tooltip: '筛选与排序',
+                  icon: const Icon(CupertinoIcons.arrow_up_arrow_down),
+                  tooltip: '排序',
                   onSelected: (action) => _applyMenuAction(ref, action),
                   itemBuilder: (_) => <PopupMenuEntry<_NotebookMenuAction>>[
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.dueOnly, checked: dueOnly, child: const Text('仅看待复习')),
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.favoritesOnly, checked: favoritesOnly, child: const Text('仅看收藏')),
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.failedOnly, checked: failedOnly, child: const Text('仅看待处理草稿')),
-                    const PopupMenuDivider(),
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.last7Days, checked: dateRange == QuestionDateRange.last7Days, child: const Text('近 7 天录入')),
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.last30Days, checked: dateRange == QuestionDateRange.last30Days, child: const Text('近 30 天录入')),
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.allDates, checked: dateRange == QuestionDateRange.all, child: const Text('不限录入日期')),
-                    const PopupMenuDivider(),
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.newest, checked: sort == QuestionSort.newest, child: const Text('按最新录入')),
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.oldest, checked: sort == QuestionSort.oldest, child: const Text('按最早录入')),
-                    CheckedPopupMenuItem<_NotebookMenuAction>(value: _NotebookMenuAction.nextReview, checked: sort == QuestionSort.nextReview, child: const Text('按下次复习')),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(
+                      value: _NotebookMenuAction.newest,
+                      checked: sort == QuestionSort.newest,
+                      child: const Text('按最新录入'),
+                    ),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(
+                      value: _NotebookMenuAction.oldest,
+                      checked: sort == QuestionSort.oldest,
+                      child: const Text('按最早录入'),
+                    ),
+                    CheckedPopupMenuItem<_NotebookMenuAction>(
+                      value: _NotebookMenuAction.nextReview,
+                      checked: sort == QuestionSort.nextReview,
+                      child: const Text('按下次复习'),
+                    ),
                   ],
                 ),
               ],
@@ -318,11 +324,11 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
         children: <Widget>[
           // Search bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+            padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.sm, AppSpace.lg, AppSpace.sm),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: '搜索错题',
+                hintText: AppStrings.notebookSearchHint,
                 prefixIcon: const Icon(CupertinoIcons.search, size: 20),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -330,25 +336,10 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                         onPressed: () {
                           _searchController.clear();
                           ref.read(searchQueryProvider.notifier).state = '';
+                          setState(() {});
                         },
                       )
                     : null,
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                filled: true,
-                fillColor: colorScheme.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: colorScheme.outlineVariant),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(color: colorScheme.outlineVariant),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      BorderSide(color: Theme.of(context).colorScheme.primary),
-                ),
               ),
               onChanged: (v) {
                 ref.read(searchQueryProvider.notifier).state = v;
@@ -359,37 +350,39 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
           // 高频筛选保留在首屏；低频条件收纳到高级筛选面板。
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
             child: Row(
               children: <Widget>[
                 _Chip(
-                  label: '全部',
+                  label: AppStrings.notebookFilterAll,
                   selected: activeFilterLabels.isEmpty,
                   onTap: () => _clearFilters(ref),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 _Chip(
-                  label: '待复习',
+                  label: AppStrings.notebookFilterDue,
                   selected: dueOnly,
                   onTap: () => ref.read(dueOnlyFilterProvider.notifier).state = !dueOnly,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 _Chip(
-                  label: '未掌握',
+                  label: AppStrings.notebookFilterUnmastered,
                   selected: unmasteredOnly,
                   onTap: () => ref.read(unmasteredOnlyFilterProvider.notifier).state = !unmasteredOnly,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 _Chip(
-                  label: '收藏',
+                  label: AppStrings.notebookFilterFavorite,
                   selected: favoritesOnly,
                   onTap: () => ref.read(favoritesOnlyFilterProvider.notifier).state = !favoritesOnly,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 _Chip(
-                  label: '筛选',
+                  label: AppStrings.notebookFilterMore,
                   selected: activeFilterLabels.any((label) =>
-                      label != '待复习' && label != '未掌握' && label != '收藏'),
+                      label != AppStrings.notebookFilterDue &&
+                      label != AppStrings.notebookFilterUnmastered &&
+                      label != AppStrings.notebookFilterFavorite),
                   onTap: () => showModalBottomSheet<void>(
                     context: context,
                     isScrollControlled: true,
@@ -416,12 +409,12 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 if (questions.isEmpty) {
                   return AppEmptyState(
                     icon: CupertinoIcons.question,
-                    title: '还没有错题',
-                    description: '拍照录入一道错题，或导入整页试卷开始整理。',
+                    title: AppStrings.notebookEmptyTitle,
+                    description: AppStrings.notebookEmptySubtitle,
                     action: FilledButton.icon(
                       onPressed: () => CaptureEntryLauncher.show(context),
                       icon: const Icon(CupertinoIcons.add),
-                      label: const Text('录入错题'),
+                      label: const Text(AppStrings.homeCapture),
                     ),
                   );
                 }
@@ -432,8 +425,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                     ref.invalidate(questionListProvider);
                   },
                   child: ListView.builder(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpace.lg, vertical: AppSpace.xs),
                     itemCount:
                         questions.length + (hasPracticeAction ? 1 : 0),
                     itemBuilder: (context, index) {
@@ -639,7 +632,6 @@ class _QuestionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final masteryColor = _masteryColor(context, question.masteryLevel);
     final aiTags = question.aiTags ?? <String>[];
     final customTags = question.customTags ?? <String>[];
     final allTags = [...aiTags, ...customTags];
@@ -670,39 +662,15 @@ class _QuestionCard extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 10),
           child: GestureDetector(
             onTap: selectionMode ? onSelect : onTap,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colorScheme.outlineVariant),
-                boxShadow: [
-                  BoxShadow(
-                      color:
-                          Colors.black.withValues(alpha: isDark ? 0.12 : 0.03),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
-                ],
-              ),
+            child: AppCard(
+              padding: const EdgeInsets.all(AppSpace.md),
               child: Row(
                 children: <Widget>[
                   if (selectionMode) ...<Widget>[
                     Checkbox(value: selected, onChanged: (_) => onSelect()),
                     const SizedBox(width: 4),
                   ],
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: question.subject.color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: Hero(
-                      tag: 'subject_icon_${question.id}',
-                      child: Icon(question.subject.icon,
-                          size: 20, color: question.subject.color),
-                    ),
-                  ),
+                  _SubjectAvatar(question: question),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -722,121 +690,66 @@ class _QuestionCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Row(
+                        const SizedBox(height: AppSpace.sm),
+                        Wrap(
+                          spacing: AppSpace.sm,
+                          runSpacing: AppSpace.xs,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: <Widget>[
                             Text(
                               '${question.subject.label} · ${_formatDate(question.createdAt)}',
                               style: TextStyle(
                                   fontSize: 12, color: question.subject.color),
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: masteryColor.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
+                            _MasteryChip(level: question.masteryLevel),
+                            if (question.contentStatus.toString().split('.').last == 'failed')
+                              const AppTag(
+                                label: '待处理',
+                                textColor: AppColors.warningDark,
+                                backgroundColor: AppColors.warningContainerLight,
+                                fontSize: 10,
                               ),
-                              child: Text(
-                                _masteryLabel(question.masteryLevel),
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: masteryColor,
-                                    fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                            if (question.contentStatus.toString().split('.').last == 'failed') ...[
-                              const SizedBox(width: 6),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEA580C)
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text('待处理',
-                                    style: TextStyle(
-                                        fontSize: 11,
-                                        color: Color(0xFF9A3412),
-                                        fontWeight: FontWeight.w500)),
-                              ),
-                            ],
                           ],
                         ),
+                        const SizedBox(height: AppSpace.sm),
                         Row(
                           children: <Widget>[
                             Icon(_dueIcon(question), size: 13, color: _dueColor(context, question)),
-                            const SizedBox(width: 4),
-                            Expanded(child: Text(_dueLabel(question), style: TextStyle(fontSize: 11, color: _dueColor(context, question), fontWeight: FontWeight.w600))),
-                            Text('复习 ${question.reviewCount} 次', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                            const SizedBox(width: AppSpace.xs),
+                            Expanded(child: Text(_dueLabel(question),
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: _dueColor(context, question),
+                                    fontWeight: FontWeight.w600))),
+                            Text('复习 ${question.reviewCount} 次',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: colorScheme.onSurfaceVariant)),
                           ],
                         ),
-                        if (question.mistakeCategory != null) ...<Widget>[
-                          const SizedBox(height: 4),
-                          Row(children: <Widget>[
-                            const Icon(CupertinoIcons.exclamationmark_circle, size: 13, color: Color(0xFFEA580C)),
-                            const SizedBox(width: 4),
-                            Text('错因：${question.mistakeCategory.label}', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
-                          ]),
-                        ],
-                        const SizedBox(height: 5),
-                        if (_batchLabel(question) != null) ...<Widget>[
-                          const SizedBox(height: 4),
-                          Text(
-                            _batchLabel(question)!,
-                            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
-                          ),
-                        ],
-                        // AI 知识点标签（有颜色区分 AI 生成和手动）
                         if (allTags.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: 6),
+                          const SizedBox(height: AppSpace.sm),
                           Wrap(
-                            spacing: 4,
-                            runSpacing: 4,
-                            children: allTags.take(5).map((tag) {
+                            spacing: AppSpace.xs,
+                            runSpacing: AppSpace.xs,
+                            children: allTags.take(4).map((tag) {
                               final isAiTag = aiTags.contains(tag);
-                              final tagColor = isAiTag
-                                  ? const Color(0xFFD97706)
-                                  : const Color(0xFF4F46E5);
-                              final tagBackground = isDark
-                                  ? tagColor.withValues(alpha: 0.14)
-                                  : isAiTag
-                                      ? const Color(0xFFFFF7ED)
-                                      : const Color(0xFFEEF2FF);
-                              return GestureDetector(
+                              return AppTag(
+                                label: tag,
+                                textColor: isAiTag
+                                    ? AppColors.accentAmber
+                                    : AppColors.primaryDark,
+                                backgroundColor: isAiTag
+                                    ? AppColors.accentAmberContainerLight
+                                    : AppColors.primaryContainerLight,
+                                fontSize: 10,
                                 onTap: () => onKnowledgePointTap(tag),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: tagBackground,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: isDark
-                                          ? tagColor.withValues(alpha: 0.22)
-                                          : colorScheme.outlineVariant
-                                              .withValues(alpha: 0.5),
-                                    ),
-                                  ),
-                                  child: MathContentView(
-                                    tag,
-                                    mode: MathContentViewMode.compact,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: isDark
-                                          ? colorScheme.onSurface
-                                          : tagColor,
-                                    ),
-                                  ),
-                                ),
                               );
                             }).toList(),
                           ),
                         ],
                         if (primaryAction != null) ...<Widget>[
-                          const SizedBox(height: 6),
+                          const SizedBox(height: AppSpace.sm),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: TextButton.icon(
@@ -854,8 +767,7 @@ class _QuestionCard extends StatelessWidget {
                     ),
                   ),
                   Icon(CupertinoIcons.chevron_right,
-                      color:
-                          colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
                       size: 22),
                 ],
               ),
@@ -892,35 +804,79 @@ class _QuestionCard extends StatelessWidget {
     return '${date.month}月${date.day}日';
   }
 
-  Color _masteryColor(BuildContext context, MasteryLevel level) {
-    final colorScheme = Theme.of(context).colorScheme;
-    switch (level) {
-      case MasteryLevel.newQuestion:
-        return colorScheme.onSurfaceVariant;
-      case MasteryLevel.reviewing:
-        return const Color(0xFFD97706);
-      case MasteryLevel.mastered:
-        return const Color(0xFF16A34A);
-    }
-  }
+}
 
-  String _masteryLabel(MasteryLevel level) {
-    switch (level) {
-      case MasteryLevel.newQuestion:
-        return '新增';
-      case MasteryLevel.reviewing:
-        return '复习中';
-      case MasteryLevel.mastered:
-        return '已掌握';
-    }
-  }
+class _SubjectAvatar extends StatelessWidget {
+  const _SubjectAvatar({required this.question});
 
-  String? _batchLabel(QuestionRecord question) {
-    if (question.parentQuestionId == null && question.rootQuestionId == null) {
-      return null;
-    }
-    final order = question.splitOrder;
-    return order == null ? '来自同一拍照批次' : '来自同一拍照批次 · 第 $order 题';
+  final QuestionRecord question;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSmall = MediaQuery.of(context).size.width < 360;
+    final size = isSmall ? 36.0 : 40.0;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: question.subject.color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(size / 2),
+      ),
+      child: Hero(
+        tag: 'subject_icon_${question.id}',
+        child: Icon(question.subject.icon,
+            size: isSmall ? 18 : 20, color: question.subject.color),
+      ),
+    );
+  }
+}
+
+class _MasteryChip extends StatelessWidget {
+  const _MasteryChip({required this.level});
+
+  final MasteryLevel level;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _masteryColor(context, level);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.16 : 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        _masteryLabel(level),
+        style: TextStyle(
+            fontSize: 11, color: color, fontWeight: FontWeight.w500),
+      ),
+    );
+  }
+}
+
+Color _masteryColor(BuildContext context, MasteryLevel level) {
+  final colorScheme = Theme.of(context).colorScheme;
+  switch (level) {
+    case MasteryLevel.newQuestion:
+      return colorScheme.onSurfaceVariant;
+    case MasteryLevel.reviewing:
+      return AppColors.warning;
+    case MasteryLevel.mastered:
+      return AppColors.success;
+  }
+}
+
+String _masteryLabel(MasteryLevel level) {
+  switch (level) {
+    case MasteryLevel.newQuestion:
+      return '新增';
+    case MasteryLevel.reviewing:
+      return '复习中';
+    case MasteryLevel.mastered:
+      return '已掌握';
   }
 }
 
@@ -977,9 +933,9 @@ class _AdvancedFilterSheet extends ConsumerWidget {
 
     return SafeArea(
       child: DraggableScrollableSheet(
-        initialChildSize: .78,
-        minChildSize: .45,
-        maxChildSize: .94,
+        initialChildSize: .65,
+        minChildSize: .4,
+        maxChildSize: .9,
         expand: false,
         builder: (context, controller) => ListView(
           controller: controller,
@@ -987,7 +943,7 @@ class _AdvancedFilterSheet extends ConsumerWidget {
           children: <Widget>[
             Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Theme.of(context).colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2)))),
             const SizedBox(height: 16),
-            Row(children: <Widget>[Text('高级筛选', style: Theme.of(context).textTheme.titleLarge), const Spacer(), TextButton(onPressed: onClear, child: const Text('清除全部'))]),
+            Row(children: <Widget>[Text(AppStrings.notebookAdvancedFilter, style: Theme.of(context).textTheme.titleLarge), const Spacer(), TextButton(onPressed: onClear, child: const Text(AppStrings.notebookClearFilters))]),
             _FilterOptionGroup<Subject>(title: '科目', values: Subject.values, selected: subject, label: (value) => value.label, onChanged: (value) => ref.read(selectedSubjectFilterProvider.notifier).state = value),
             _FilterOptionGroup<MistakeCategory>(title: '错因', values: MistakeCategory.values, selected: category, label: (value) => value.label, onChanged: (value) => ref.read(selectedMistakeCategoryFilterProvider.notifier).state = value),
             if (points.isNotEmpty) _FilterOptionGroup<String>(title: '知识点', values: points, selected: knowledge, label: (value) => value, onChanged: (value) => ref.read(selectedKnowledgePointFilterProvider.notifier).state = value),
@@ -1004,7 +960,7 @@ class _AdvancedFilterSheet extends ConsumerWidget {
               onChanged: (value) => ref.read(failedOnlyFilterProvider.notifier).state = value,
             ),
             const SizedBox(height: 8),
-            SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(context), child: const Text('完成'))),
+            SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(context), child: const Text(AppStrings.notebookDone))),
           ],
         ),
       ),
