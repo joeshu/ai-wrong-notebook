@@ -353,6 +353,10 @@ void main() {
     print('DEBUG batchGroup=${container.read(questionBatchGroupsProvider).valueOrNull?[questionBatchRootId(first)]}');
     print('DEBUG current=${container.read(currentQuestionProvider)?.id}');
 
+    final allText = tester.allWidgets.whereType<Text>().map((t) => t.data).toList();
+    print('DEBUG allText containing 同批: ${allText.where((d) => d?.contains('同批') ?? false).toList()}');
+    print('DEBUG allText length=${allText.length} first 30=$allText');
+
     expect(find.byKey(const ValueKey('batchSiblingTitle')), findsOneWidget);
     expect(find.text('同批题目'), findsOneWidget);
     expect(find.text('第 1 题'), findsOneWidget);
