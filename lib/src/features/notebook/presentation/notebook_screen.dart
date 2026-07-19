@@ -737,7 +737,23 @@ class _QuestionCard extends StatelessWidget {
                             ],
                           ],
                         ),
-                        if (_batchLabel(question) != null) ...<Widget>[
+                        Row(
+                          children: <Widget>[
+                            Icon(_dueIcon(question), size: 13, color: _dueColor(context, question)),
+                            const SizedBox(width: 4),
+                            Expanded(child: Text(_dueLabel(question), style: TextStyle(fontSize: 11, color: _dueColor(context, question), fontWeight: FontWeight.w600))),
+                            Text('复习 ${question.reviewCount} 次', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+                          ],
+                        ),
+                        if (question.mistakeCategory != null) ...<Widget>[
+                          const SizedBox(height: 4),
+                          Row(children: <Widget>[
+                            const Icon(CupertinoIcons.exclamationmark_circle, size: 13, color: Color(0xFFEA580C)),
+                            const SizedBox(width: 4),
+                            Text('错因：${question.mistakeCategory.label}', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
+                          ]),
+                        ],
+                        const SizedBox(height: 5),
                           const SizedBox(height: 4),
                           Text(
                             _batchLabel(question)!,
@@ -806,6 +822,23 @@ class _QuestionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  IconData _dueIcon(QuestionRecord question) => question.nextReviewAt == null
+      ? CupertinoIcons.calendar_badge_plus
+      : !question.nextReviewAt!.isAfter(DateTime.now())
+          ? CupertinoIcons.bell_fill : CupertinoIcons.calendar;
+
+  Color _dueColor(BuildContext context, QuestionRecord question) => question.nextReviewAt != null && !question.nextReviewAt!.isAfter(DateTime.now())
+      ? const Color(0xFFEA580C) : Theme.of(context).colorScheme.onSurfaceVariant;
+
+  String _dueLabel(QuestionRecord question) {
+    final next = question.nextReviewAt;
+    if (next == null) return '尚未安排复习';
+    final today = DateTime.now();
+    if (!next.isAfter(today)) return '今天待复习';
+    final days = DateTime(next.year, next.month, next.day).difference(DateTime(today.year, today.month, today.day)).inDays;
+    return days == 1 ? '明天复习' : '$days 天后复习';
   }
 
   String _formatDate(DateTime date) {
