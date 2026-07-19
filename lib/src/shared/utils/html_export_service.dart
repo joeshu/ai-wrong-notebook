@@ -16,8 +16,6 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 /// - 题目文本、答案、解析中的 LaTeX 会被 KaTeX 渲染。
 /// - 错题原图（如果存在）以 base64 内嵌，几何图形等可直接查看。
 class HtmlExportService {
-  HtmlExportService._();
-
   static String? _cachedKatexCss;
   static String? _cachedKatexJs;
 
@@ -341,7 +339,7 @@ class HtmlExportService {
   }
 
   static Future<String> _inlineAllFontFaces(String css) async {
-    final re = RegExp(r"url\(['\"]?fonts/([A-Za-z0-9_\-]+\.woff2)['\"]?\)");
+    final re = RegExp(r'''url\(['"]?fonts/([A-Za-z0-9_\-]+\.woff2)['"]?\)''');
     final filenames = re.allMatches(css).map((m) => m.group(1)!).toSet();
     for (final filename in filenames) {
       try {
@@ -349,7 +347,7 @@ class HtmlExportService {
         final base64 = base64Encode(data.buffer.asUint8List());
         final uri = "data:font/woff2;base64,$base64";
         css = css.replaceAllMapped(
-          RegExp(r"url\(['\"]?fonts/" + RegExp.escape(filename) + r"['\"]?\)"),
+          RegExp(r'''url\(['"]?fonts/''' + RegExp.escape(filename) + r'''['"]?\)'''),
           (_) => "url('$uri')",
         );
       } catch (_) {
