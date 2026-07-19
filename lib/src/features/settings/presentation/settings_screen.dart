@@ -132,8 +132,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-          // 学习内容
-          Text('学习与内容',
+          // 内容
+          Text('内容',
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w600)),
           const SizedBox(height: 12),

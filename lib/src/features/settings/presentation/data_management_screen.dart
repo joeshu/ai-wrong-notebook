@@ -71,6 +71,20 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               onUndo: _lastImport == null ? null : () => _undoLastImport(context, ref),
             ),
             const SizedBox(height: 20),
+            const _SectionTitle('存储概览'),
+            const SizedBox(height: 8),
+            _DataCard(icon: CupertinoIcons.tray, title: '题库总量', trailing: '${questions.length} 题'),
+            const SizedBox(height: 8),
+            _DataCard(
+              icon: CupertinoIcons.clock,
+              title: '复习记录总量',
+              trailingWidget: reviewLogsAsync.when(
+                data: (logs) => Text('${logs.length} 条', style: _trailingStyle(context)),
+                loading: () => const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                error: (_, __) => Text('加载失败', style: _subtitleStyle(context)),
+              ),
+            ),
+            const SizedBox(height: 20),
             const _SectionTitle('学习资料导出'),
             const SizedBox(height: 8),
             _DataCard(
@@ -94,19 +108,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               onTap: questions.isEmpty ? null : () => HtmlExportService.shareHtml(cardContext, questions),
             )),
             const SizedBox(height: 20),
-            const _SectionTitle('存储与清理'),
-            const SizedBox(height: 8),
-            _DataCard(icon: CupertinoIcons.tray, title: '题库总量', trailing: '${questions.length} 题'),
-            const SizedBox(height: 8),
-            _DataCard(
-              icon: CupertinoIcons.clock,
-              title: '复习记录总量',
-              trailingWidget: reviewLogsAsync.when(
-                data: (logs) => Text('${logs.length} 条', style: _trailingStyle(context)),
-                loading: () => const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                error: (_, __) => Text('加载失败', style: _subtitleStyle(context)),
-              ),
-            ),
+            const _SectionTitle('清理与危险操作'),
             const SizedBox(height: 8),
             _DataCard(
               icon: CupertinoIcons.trash,
