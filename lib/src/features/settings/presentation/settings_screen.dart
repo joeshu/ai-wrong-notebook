@@ -147,17 +147,22 @@ class SettingsScreen extends ConsumerWidget {
                   title: '科目管理',
                   onTap: () => context.go('/settings/subjects'),
                 ),
-                Divider(
-                    height: 1, indent: 56, color: colorScheme.outlineVariant),
-                _SettingsListItem(
-                  icon: CupertinoIcons.tray,
-                  iconColor: const Color(0xFFEA580C),
-                  lightIconBg: const Color(0xFFFFF7ED),
-                  title: '数据管理',
-                  subtitle: '导入 / 导出 / 清空',
-                  onTap: () => context.go('/settings/data'),
-                ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('数据与安全',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          _SettingsSection(
+            child: _SettingsListItem(
+              icon: CupertinoIcons.shield_lefthalf_fill,
+              iconColor: const Color(0xFFEA580C),
+              lightIconBg: const Color(0xFFFFF7ED),
+              title: '备份、恢复与存储',
+              subtitle: '完整备份、导入恢复、导出讲义与清理数据',
+              onTap: () => context.go('/settings/data'),
             ),
           ),
         ],

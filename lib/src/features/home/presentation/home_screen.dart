@@ -11,6 +11,7 @@ import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -85,8 +86,8 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            loading: () => const SizedBox(height: 156),
-            error: (_, __) => const SizedBox.shrink(),
+            loading: () => const _TodayPlanSkeleton(),
+            error: (_, __) => AppErrorState(message: '今日计划暂时无法读取。', onRetry: () => ref.invalidate(todayReviewPlanProvider)),
           ),
           const SizedBox(height: 20),
           Text('学习统计', style: Theme.of(context).textTheme.titleLarge),
@@ -95,7 +96,7 @@ class HomeScreen extends ConsumerWidget {
             child: questionsAsync.when(
               data: (questions) => _buildStatsSection(context, questions),
               loading: () => const _StatsGridSkeleton(),
-              error: (e, _) => Text('加载失败: $e'),
+              error: (_, __) => AppErrorState(message: '学习统计暂时无法读取。', onRetry: () => ref.invalidate(questionListProvider)),
             ),
           ),
           mistakeStatsAsync.when(
@@ -234,6 +235,15 @@ class HomeScreen extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _TodayPlanSkeleton extends StatelessWidget {
+  const _TodayPlanSkeleton();
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 150,
+    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(12)),
+  );
 }
 
 class _QuickStartRow extends StatelessWidget {
