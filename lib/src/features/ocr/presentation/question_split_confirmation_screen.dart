@@ -97,7 +97,7 @@ class _QuestionSplitConfirmationScreenState
                                     fontSize: 14, fontWeight: FontWeight.w600)),
                             const SizedBox(height: 2),
                             Text(
-                              '保持当前分析结果页体验，保存前按题整理，方便后续检索、复习和继续练习。',
+                              '保存前按题整理，方便后续检索、复习和继续练习。',
                               style: TextStyle(
                                   fontSize: 12,
                                   color: Theme.of(context)
@@ -178,12 +178,6 @@ class _QuestionSplitConfirmationScreenState
                   const Text('题目列表',
                       style:
                           TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  Text('取消不需要保存的题目，点击卡片切换当前编辑项，底部会保存所有已勾选题目。',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant)),
                   const SizedBox(height: 8),
                   Row(
                     children: <Widget>[
