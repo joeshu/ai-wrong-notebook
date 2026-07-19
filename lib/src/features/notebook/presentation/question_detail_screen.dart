@@ -1588,6 +1588,7 @@ class _BatchSiblingCard extends StatelessWidget {
                   size: 16, color: colorScheme.onSurfaceVariant),
               const SizedBox(width: AppSpace.xs),
               Text('同批题目',
+                  key: const ValueKey('batchSiblingTitle'),
                   style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
