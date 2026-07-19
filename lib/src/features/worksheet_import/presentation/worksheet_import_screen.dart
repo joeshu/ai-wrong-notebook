@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 /// Phase 1 worksheet importer: imports multiple pages and deliberately routes
 /// them through the proven single-page crop/correct/analyse flow. This keeps
@@ -22,6 +23,7 @@ class WorksheetImportScreen extends ConsumerStatefulWidget {
 class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
   final Set<int> _selected = <int>{};
   bool _selectionInitialized = false;
+  bool _restoringSession = true;
 
   @override
   void initState() {
@@ -30,6 +32,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
       if (ref.read(currentWorksheetImportProvider) == null) {
         await restoreWorksheetImport(ref);
       }
+      if (mounted) setState(() => _restoringSession = false);
     });
   }
 
@@ -40,7 +43,18 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     if (session == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('试卷批量导入')),
-        body: const Center(child: Text('未找到待导入的试卷页面')),
+        body: _restoringSession
+            ? const AppLoadingState(label: '正在恢复导入批次…')
+            : AppEmptyState(
+                icon: CupertinoIcons.doc_on_clipboard,
+                title: '没有待处理的试卷',
+                description: '请从“拍照录题”中选择试卷批量导入，或返回首页重新开始。',
+                action: FilledButton.icon(
+                  onPressed: () => context.go('/'),
+                  icon: const Icon(CupertinoIcons.house),
+                  label: const Text('返回首页'),
+                ),
+              ),
       );
     }
     final pages = session.pages
