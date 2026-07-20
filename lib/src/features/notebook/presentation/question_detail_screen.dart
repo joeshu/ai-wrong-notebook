@@ -76,7 +76,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ),
           IconButton(
             icon: Icon(current.isArchived
-                ? CupertinoIcons.box
+                ? CupertinoIcons.archivebox_fill
                 : CupertinoIcons.archivebox),
             tooltip: current.isArchived ? '取消归档' : '归档',
             onPressed: () => current.isArchived

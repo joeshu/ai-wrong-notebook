@@ -687,7 +687,7 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
       id,
       subject,
       originalImagePath,
@@ -708,7 +708,7 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       rootQuestionId,
       splitOrder,
       reflectionNote,
-      archivedAt);
+      archivedAt]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
