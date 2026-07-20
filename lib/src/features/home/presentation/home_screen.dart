@@ -134,6 +134,7 @@ class HomeScreen extends ConsumerWidget {
                   ref.read(failedOnlyFilterProvider.notifier).state = false;
                   context.go('/notebook');
                 },
+                onRetry: () => ref.invalidate(questionListProvider),
               );
             },
             loading: () => const SizedBox.shrink(),
@@ -1001,8 +1002,7 @@ class _TaskActionRow extends StatelessWidget {
         ),
       );
 }
-
-
+class _PendingTaskCard extends StatelessWidget {
   const _PendingTaskCard({
     required this.pendingAi,
     required this.failed,
