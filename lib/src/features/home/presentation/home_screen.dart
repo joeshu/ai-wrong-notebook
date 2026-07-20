@@ -100,6 +100,28 @@ class HomeScreen extends ConsumerWidget {
             onCapture: () => CaptureEntryLauncher.show(context),
             onImportPdf: () => context.push('/worksheet/import'),
           ),
+          const SizedBox(height: AppSpace.md),
+          questionsAsync.when(
+            data: (questions) {
+              final pendingAi = questions.where((q) =>
+                  q.contentStatus == ContentStatus.ready && q.analysisResult == null).length;
+              final failed = questions.where((q) => q.contentStatus == ContentStatus.failed).length;
+              final lowConfidence = questions.where((q) =>
+                  q.ocrConfidence != null && q.ocrConfidence! < 0.7).length;
+              if (pendingAi == 0 && failed == 0 && lowConfidence == 0) {
+                return const SizedBox.shrink();
+              }
+              return _PendingTaskCard(
+                pendingAi: pendingAi,
+                failed: failed,
+                lowConfidence: lowConfidence,
+                onOpenNotebook: () => context.go('/notebook'),
+                onRetry: () => ref.invalidate(questionListProvider),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
           const SizedBox(height: AppSpace.lg),
           Text(AppStrings.homeStatsTitle, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: AppSpace.md),
@@ -933,6 +955,68 @@ class _LowConfidenceHintCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PendingTaskCard extends StatelessWidget {
+  const _PendingTaskCard({
+    required this.pendingAi,
+    required this.failed,
+    required this.lowConfidence,
+    required this.onOpenNotebook,
+    required this.onRetry,
+  });
+
+  final int pendingAi;
+  final int failed;
+  final int lowConfidence;
+  final VoidCallback onOpenNotebook;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final items = <String>[];
+    if (pendingAi > 0) items.add('$pendingAi 道待交给普通 AI 分析');
+    if (failed > 0) items.add('$failed 道识别或分析失败');
+    if (lowConfidence > 0) items.add('$lowConfidence 道识别置信度较低');
+    return AppCard(
+      backgroundColor: scheme.surfaceContainerHighest,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Icon(CupertinoIcons.checklist, color: scheme.primary),
+              const SizedBox(width: AppSpace.sm),
+              const Expanded(
+                child: Text('待处理任务', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+              TextButton(onPressed: onRetry, child: const Text('刷新')),
+            ],
+          ),
+          const SizedBox(height: AppSpace.xs),
+          ...items.map((item) => Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: <Widget>[
+                    Icon(CupertinoIcons.circle_fill, size: 7, color: scheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(item, style: const TextStyle(fontSize: 12))),
+                  ],
+                ),
+              )),
+          const SizedBox(height: AppSpace.sm),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.tonal(
+              onPressed: onOpenNotebook,
+              child: const Text('去错题本处理'),
+            ),
+          ),
+        ],
       ),
     );
   }
