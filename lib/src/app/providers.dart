@@ -17,6 +17,7 @@ import 'package:smart_wrong_notebook/src/data/services/question_region_crop_serv
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/vision_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
