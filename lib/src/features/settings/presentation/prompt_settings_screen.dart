@@ -20,6 +20,7 @@ class _PromptSettingsScreenState extends ConsumerState<PromptSettingsScreen> {
   void initState() {
     super.initState();
     _systemPromptController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   @override
@@ -52,7 +53,6 @@ class _PromptSettingsScreenState extends ConsumerState<PromptSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    _load();
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(

@@ -20,6 +20,7 @@ import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/single_text_field_dialog.dart';
 import 'package:uuid/uuid.dart';
 
 /// Manual multi-region editor. A tap places a question-sized candidate box;
@@ -349,30 +350,15 @@ class _WorksheetRegionEditorScreenState
 
   Future<void> _editRecognizedText(int index) async {
     final region = _regions[index];
-    final controller = TextEditingController(text: region.recognizedText ?? '');
-    final saved = await showDialog<String>(
+    final saved = await showSingleTextFieldDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('编辑第 ${region.detectedNumber ?? index + 1} 题文字'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: TextField(
-            controller: controller,
-            minLines: 5,
-            maxLines: 10,
-            decoration: const InputDecoration(
-              hintText: '可校对文字、公式 LaTex 与表格 Markdown',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('取消')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('采用文字')),
-        ],
-      ),
+      title: '编辑第 ${region.detectedNumber ?? index + 1} 题文字',
+      initialText: region.recognizedText ?? '',
+      minLines: 5,
+      maxLines: 10,
+      hintText: '可校对文字、公式 LaTex 与表格 Markdown',
+      confirmText: '采用文字',
     );
-    controller.dispose();
     if (saved == null || !mounted) return;
     setState(() {
       _regions[index] = region.copyWith(

@@ -16,6 +16,7 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/single_text_field_dialog.dart';
 
 class QuestionDetailScreen extends ConsumerStatefulWidget {
   const QuestionDetailScreen({super.key});
@@ -56,7 +57,6 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     final batchGroupsAsync = ref.watch(questionBatchGroupsProvider);
     final batchGroups = batchGroupsAsync.valueOrNull;
     final batchGroup = batchGroups?[questionBatchRootId(current)];
-    debugPrint('DETAIL tabIndex=${_tabController.index} batchGroupsAsync=$batchGroupsAsync batchGroup=$batchGroup current=${current.id}');
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -217,29 +217,6 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     }
   }
 
-  String _masteryLabel(MasteryLevel level) {
-    switch (level) {
-      case MasteryLevel.newQuestion:
-        return '待复习';
-      case MasteryLevel.reviewing:
-        return '复习中';
-      case MasteryLevel.mastered:
-        return '已掌握';
-    }
-  }
-
-  Color _masteryColor(BuildContext context, MasteryLevel level) {
-    final colorScheme = Theme.of(context).colorScheme;
-    switch (level) {
-      case MasteryLevel.newQuestion:
-        return colorScheme.onSurfaceVariant;
-      case MasteryLevel.reviewing:
-        return AppColors.warning;
-      case MasteryLevel.mastered:
-        return AppColors.success;
-    }
-  }
-
   String? _batchLabel(QuestionRecord question) {
     if (question.parentQuestionId == null && question.rootQuestionId == null) {
       return null;
@@ -347,74 +324,39 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     });
   }
 
-  void _editSource(
+  Future<void> _editSource(
     BuildContext context,
     WidgetRef ref,
     QuestionRecord question,
-  ) {
-    final controller = TextEditingController(text: question.source ?? '');
-    showDialog<void>(
+  ) async {
+    final text = await showSingleTextFieldDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('题目来源'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 30,
-          decoration: const InputDecoration(
-            hintText: '例如：期中考试、课堂作业',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final updated = question.withSource(controller.text);
-              await ref.read(questionRepositoryProvider).update(updated);
-              ref.read(currentQuestionProvider.notifier).state = updated;
-              invalidateQuestionList(ref);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    ).then((_) => controller.dispose());
+      title: '题目来源',
+      initialText: question.source ?? '',
+      autofocus: true,
+      maxLength: 30,
+      hintText: '例如：期中考试、课堂作业',
+    );
+    if (text == null) return;
+    final updated = question.withSource(text);
+    await ref.read(questionRepositoryProvider).update(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
   }
 
-  void _editQuestion(
-      BuildContext context, WidgetRef ref, QuestionRecord question) {
-    final controller = TextEditingController(text: question.correctedText);
-    showDialog<void>(
+  Future<void> _editQuestion(
+      BuildContext context, WidgetRef ref, QuestionRecord question) async {
+    final text = await showSingleTextFieldDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('编辑题目'),
-        content: TextFormField(
-          controller: controller,
-          maxLines: 4,
-          decoration: const InputDecoration(border: OutlineInputBorder()),
-        ),
-        actions: <Widget>[
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          FilledButton(
-            onPressed: () async {
-              final updated = question.copyWith(
-                  normalizedQuestionText: controller.text.trim());
-              await ref.read(questionRepositoryProvider).update(updated);
-              ref.read(currentQuestionProvider.notifier).state = updated;
-              invalidateQuestionList(ref);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-    ).then((_) => controller.dispose());
+      title: '编辑题目',
+      initialText: question.correctedText,
+      maxLines: 4,
+    );
+    if (text == null) return;
+    final updated = question.copyWith(normalizedQuestionText: text);
+    await ref.read(questionRepositoryProvider).update(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
   }
 
   void _confirmDelete(
@@ -627,7 +569,6 @@ class _QuestionTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('QUESTION_TAB built batchGroup=${batchGroup?.rootId} questions=${batchGroup?.questions.length}');
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final result = current.analysisResult;
@@ -1567,7 +1508,6 @@ class _BatchSiblingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    debugPrint('BATCH_CARD built group=${group.questions.length} current=${current.id}');
 
     return AppCard(
       padding: const EdgeInsets.all(AppSpace.md),

@@ -33,6 +33,7 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
     _urlController = TextEditingController();
     _modelController = TextEditingController();
     _apiKeyController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadConfig());
   }
 
   @override
@@ -57,7 +58,6 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
 
   @override
   Widget build(BuildContext context) {
-    _loadConfig();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final success = _testResult?.contains('成功') ?? false;
     final statusColor = success ? AppColors.success : AppColors.warning;

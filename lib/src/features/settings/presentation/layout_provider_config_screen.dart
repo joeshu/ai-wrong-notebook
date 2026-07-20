@@ -22,61 +22,83 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
   ConnectionTestResult? _testResult;
 
   @override
-  void initState() { super.initState(); _url = TextEditingController(); _key = TextEditingController(); _secondaryKey = TextEditingController(); }
+  void initState() {
+    super.initState();
+    _url = TextEditingController();
+    _key = TextEditingController();
+    _secondaryKey = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
   @override
-  void dispose() { _url.dispose(); _key.dispose(); _secondaryKey.dispose(); super.dispose(); }
+  void dispose() {
+    _url.dispose();
+    _key.dispose();
+    _secondaryKey.dispose();
+    super.dispose();
+  }
 
   Future<void> _load() async {
     if (_loaded) return;
     final config = await restoreLayoutProviderConfig(ref);
     if (!mounted) return;
-    setState(() { _type = config.type; _url.text = config.baseUrl; _key.text = config.apiKey; _secondaryKey.text = config.secondaryApiKey; _loaded = true; });
+    setState(() {
+      _type = config.type;
+      _url.text = config.baseUrl;
+      _key.text = config.apiKey;
+      _secondaryKey.text = config.secondaryApiKey;
+      _loaded = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    _load();
     return Scaffold(
       appBar: AppBar(title: const Text('试卷版面识别')),
       body: ListView(padding: const EdgeInsets.all(16), children: <Widget>[
         const Text('候选题框来源', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
-        RadioListTile<LayoutProviderType>(
-          value: LayoutProviderType.currentVision, groupValue: _type,
-          onChanged: (v) => setState(() => _type = v!),
-          title: const Text('当前 AI 视觉模型'),
-          subtitle: const Text('零额外配置；复用 AI 服务商配置生成候选框。'),
+        RadioGroup<LayoutProviderType>(
+          groupValue: _type,
+          onChanged: (v) {
+            if (v != null) setState(() => _type = v);
+          },
+          child: Column(
+            children: <Widget>[
+              RadioListTile<LayoutProviderType>(
+                value: LayoutProviderType.currentVision,
+                title: const Text('当前 AI 视觉模型'),
+                subtitle: const Text('零额外配置；复用 AI 服务商配置生成候选框。'),
+              ),
+              RadioListTile<LayoutProviderType>(
+                value: LayoutProviderType.paddleCloud,
+                title: const Text('PaddleOCR AI Studio（PP-StructureV3）'),
+                subtitle: const Text('云端异步识别；Token 安全存储，不写入备份或日志。'),
+              ),
+              RadioListTile<LayoutProviderType>(
+                value: LayoutProviderType.mineruCloud,
+                title: const Text('MinerU 精准解析（VLM）'),
+                subtitle: const Text('适合公式、多栏和复杂扫描试卷；按题号聚合为候选题框。'),
+              ),
+              RadioListTile<LayoutProviderType>(
+                value: LayoutProviderType.autoCloud,
+                title: const Text('自动：PaddleOCR 优先，MinerU 兜底'),
+                subtitle: const Text('先走快速识别；题框数量、覆盖率或重叠异常时自动升级 VLM。'),
+              ),
+              RadioListTile<LayoutProviderType>(
+                value: LayoutProviderType.customHttp,
+                title: const Text('NAS / MinerU / 自定义 HTTP 服务'),
+                subtitle: const Text('适用于 PP-Structure Docker、MinerU 网关或自建版面服务。'),
+              ),
+              RadioListTile<LayoutProviderType>(
+                value: LayoutProviderType.manualOnly,
+                title: const Text('仅手动框选'),
+                subtitle: const Text('不上传整页试卷到任何版面识别服务。'),
+              ),
+            ],
+          ),
         ),
-        RadioListTile<LayoutProviderType>(
-          value: LayoutProviderType.paddleCloud, groupValue: _type,
-          onChanged: (v) => setState(() => _type = v!),
-          title: const Text('PaddleOCR AI Studio（PP-StructureV3）'),
-          subtitle: const Text('云端异步识别；Token 安全存储，不写入备份或日志。'),
-        ),
-        RadioListTile<LayoutProviderType>(
-          value: LayoutProviderType.mineruCloud, groupValue: _type,
-          onChanged: (v) => setState(() => _type = v!),
-          title: const Text('MinerU 精准解析（VLM）'),
-          subtitle: const Text('适合公式、多栏和复杂扫描试卷；按题号聚合为候选题框。'),
-        ),
-        RadioListTile<LayoutProviderType>(
-          value: LayoutProviderType.autoCloud, groupValue: _type,
-          onChanged: (v) => setState(() => _type = v!),
-          title: const Text('自动：PaddleOCR 优先，MinerU 兜底'),
-          subtitle: const Text('先走快速识别；题框数量、覆盖率或重叠异常时自动升级 VLM。'),
-        ),
-        RadioListTile<LayoutProviderType>(
-          value: LayoutProviderType.customHttp, groupValue: _type,
-          onChanged: (v) => setState(() => _type = v!),
-          title: const Text('NAS / MinerU / 自定义 HTTP 服务'),
-          subtitle: const Text('适用于 PP-Structure Docker、MinerU 网关或自建版面服务。'),
-        ),
-        RadioListTile<LayoutProviderType>(
-          value: LayoutProviderType.manualOnly, groupValue: _type,
-          onChanged: (v) => setState(() => _type = v!),
-          title: const Text('仅手动框选'),
-          subtitle: const Text('不上传整页试卷到任何版面识别服务。'),
-        ),
+        const SizedBox(height: 12),
         _ConfigurationStatusCard(type: _type, apiKey: _key.text, secondaryApiKey: _secondaryKey.text, loaded: _loaded),
         const SizedBox(height: 12),
         _ConnectionTestPanel(

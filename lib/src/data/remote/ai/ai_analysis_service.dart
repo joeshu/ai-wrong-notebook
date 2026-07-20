@@ -14,7 +14,12 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_payload.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
+
+export 'package:smart_wrong_notebook/src/domain/models/ai_analysis_payload.dart';
+
+part 'ai_analysis_service_fake.dart';
 
 enum _ExerciseDomain {
   generic,
@@ -794,119 +799,35 @@ class AiAnalysisService {
     );
     final systemPrompt = await _loadAnalysisSystemPrompt();
 
+    // 分流：图片分支（含高清图重试、紧凑图回退）或纯文本分支；统一在外层做
+    // 一致性校验与异常分类。
     try {
       final isCompositeLanguageAnalysis =
           _isCompositeLanguageAnalysis(correctedText, subjectName);
       if (imagePath != null && File(imagePath).existsSync()) {
         final imageBytes = await File(imagePath).readAsBytes();
-
-        final String imagePrompt;
-        if (isCompositeLanguageAnalysis) {
-          imagePrompt =
-              '$prompt\n\n请按一整道复合题分析，不要拆成多道独立题；英语按空号逐项解析，语文按文常、字词、翻译/释义模块解析。';
-        } else {
-          imagePrompt = prompt;
-        }
-
-        try {
-          final firstMaxTokens = isCompositeLanguageAnalysis ||
-                  shouldAnalyzeImageFirst
-              ? 3000
-              : 2000;
-          final firstImageDetail = isCompositeLanguageAnalysis ||
-                  shouldAnalyzeImageFirst
-              ? 'high'
-              : 'auto';
-          final content = await _requestAiContentWithImage(
-            config: config,
-            systemPrompt: systemPrompt,
-            prompt: imagePrompt,
-            imageBytes: imageBytes,
-            maxTokens: firstMaxTokens,
-            imageDetail: firstImageDetail,
-          );
-          final analysis = await _parseContentWithJsonRetry(
-            firstContent: content,
-            parse: _parseAnalysisResponse,
-            retryContentFetcher: () => _requestAiContentWithImage(
-              config: config,
-              systemPrompt: systemPrompt,
-              prompt: imagePrompt,
-              imageBytes: imageBytes,
-              maxTokens: firstMaxTokens + 500,
-              imageDetail: firstImageDetail,
-              temperature: 0.3,
-            ),
-            stage: 'analysis(image)',
-          );
-          return _ensureAnalysisConsistency(
-            analysis,
-            questionText: correctedText,
-            subjectName: subjectName,
-            imagePath: imagePath,
-            config: config,
-            imageBytes: imageBytes,
-          );
-        } on DioException catch (e) {
-          if (!_shouldRetryWithCompactImage(e) ||
-              !isCompositeLanguageAnalysis && !shouldAnalyzeImageFirst) {
-            rethrow;
-          }
-          debugPrint(
-              '[AiAnalysisService] High detail image analysis failed, retrying compact image request: ${e.type}, status=${e.response?.statusCode}');
-          const compactMaxTokens = 2200;
-          const compactImageDetail = 'auto';
-          final content = await _requestAiContentWithImage(
-            config: config,
-            systemPrompt: systemPrompt,
-            prompt: prompt,
-            imageBytes: imageBytes,
-            maxTokens: compactMaxTokens,
-            imageDetail: compactImageDetail,
-          );
-          final analysis = await _parseContentWithJsonRetry(
-            firstContent: content,
-            parse: _parseAnalysisResponse,
-            retryContentFetcher: () => _requestAiContentWithImage(
-              config: config,
-              systemPrompt: systemPrompt,
-              prompt: prompt,
-              imageBytes: imageBytes,
-              maxTokens: compactMaxTokens + 500,
-              imageDetail: compactImageDetail,
-              temperature: 0.3,
-            ),
-            stage: 'analysis(compact image)',
-          );
-          return _ensureAnalysisConsistency(
-            analysis,
-            questionText: correctedText,
-            subjectName: subjectName,
-            imagePath: imagePath,
-            config: config,
-            imageBytes: imageBytes,
-          );
-        }
-      }
-
-      final firstMaxTokens = isCompositeLanguageAnalysis ? 3000 : 2000;
-      final content = await _requestAiContent(
-        config: config,
-        systemPrompt: systemPrompt,
-        prompt: prompt,
-        maxTokens: firstMaxTokens,
-      );
-      final analysis = await _parseContentWithJsonRetry(
-        firstContent: content,
-        parse: _parseAnalysisResponse,
-        retryContentFetcher: () => _requestAiContent(
+        final analysis = await _analyzeWithImage(
           config: config,
           systemPrompt: systemPrompt,
           prompt: prompt,
-          maxTokens: firstMaxTokens + 500,
-          temperature: 0.3,
-        ),
-        stage: 'analysis(text)',
+          imageBytes: imageBytes,
+          isCompositeLanguageAnalysis: isCompositeLanguageAnalysis,
+          shouldAnalyzeImageFirst: shouldAnalyzeImageFirst,
+        );
+        return _ensureAnalysisConsistency(
+          analysis,
+          questionText: correctedText,
+          subjectName: subjectName,
+          imagePath: imagePath,
+          config: config,
+          imageBytes: imageBytes,
+        );
+      }
+      final analysis = await _analyzeTextOnly(
+        config: config,
+        systemPrompt: systemPrompt,
+        prompt: prompt,
+        isCompositeLanguageAnalysis: isCompositeLanguageAnalysis,
       );
       return _ensureAnalysisConsistency(
         analysis,
@@ -927,6 +848,118 @@ class AiAnalysisService {
       }
       throw AiAnalysisException('AI 解析失败: $e');
     }
+  }
+
+  /// 图片分支：先按高清图（high/auto）请求，失败时若条件满足回退到紧凑图重试。
+  /// 仅返回解析后的 [AnalysisResult]，一致性校验交回主方法统一处理。
+  Future<AnalysisResult> _analyzeWithImage({
+    required AiProviderConfig config,
+    required String systemPrompt,
+    required String prompt,
+    required Uint8List imageBytes,
+    required bool isCompositeLanguageAnalysis,
+    required bool shouldAnalyzeImageFirst,
+  }) async {
+    final String imagePrompt;
+    if (isCompositeLanguageAnalysis) {
+      imagePrompt =
+          '$prompt\n\n请按一整道复合题分析，不要拆成多道独立题；英语按空号逐项解析，语文按文常、字词、翻译/释义模块解析。';
+    } else {
+      imagePrompt = prompt;
+    }
+
+    try {
+      final firstMaxTokens = isCompositeLanguageAnalysis ||
+              shouldAnalyzeImageFirst
+          ? 3000
+          : 2000;
+      final firstImageDetail = isCompositeLanguageAnalysis ||
+              shouldAnalyzeImageFirst
+          ? 'high'
+          : 'auto';
+      final content = await _requestAiContentWithImage(
+        config: config,
+        systemPrompt: systemPrompt,
+        prompt: imagePrompt,
+        imageBytes: imageBytes,
+        maxTokens: firstMaxTokens,
+        imageDetail: firstImageDetail,
+      );
+      return await _parseContentWithJsonRetry(
+        firstContent: content,
+        parse: _parseAnalysisResponse,
+        retryContentFetcher: () => _requestAiContentWithImage(
+          config: config,
+          systemPrompt: systemPrompt,
+          prompt: imagePrompt,
+          imageBytes: imageBytes,
+          maxTokens: firstMaxTokens + 500,
+          imageDetail: firstImageDetail,
+          temperature: 0.3,
+        ),
+        stage: 'analysis(image)',
+      );
+    } on DioException catch (e) {
+      if (!_shouldRetryWithCompactImage(e) ||
+          !isCompositeLanguageAnalysis && !shouldAnalyzeImageFirst) {
+        rethrow;
+      }
+      debugPrint(
+          '[AiAnalysisService] High detail image analysis failed, retrying compact image request: ${e.type}, status=${e.response?.statusCode}');
+      const compactMaxTokens = 2200;
+      const compactImageDetail = 'auto';
+      final content = await _requestAiContentWithImage(
+        config: config,
+        systemPrompt: systemPrompt,
+        prompt: prompt,
+        imageBytes: imageBytes,
+        maxTokens: compactMaxTokens,
+        imageDetail: compactImageDetail,
+      );
+      return await _parseContentWithJsonRetry(
+        firstContent: content,
+        parse: _parseAnalysisResponse,
+        retryContentFetcher: () => _requestAiContentWithImage(
+          config: config,
+          systemPrompt: systemPrompt,
+          prompt: prompt,
+          imageBytes: imageBytes,
+          maxTokens: compactMaxTokens + 500,
+          imageDetail: compactImageDetail,
+          temperature: 0.3,
+        ),
+        stage: 'analysis(compact image)',
+      );
+    }
+  }
+
+  /// 纯文本分支：无图片可用时走此路径。仅返回解析后的 [AnalysisResult]，
+  /// 一致性校验交回主方法统一处理。
+  Future<AnalysisResult> _analyzeTextOnly({
+    required AiProviderConfig config,
+    required String systemPrompt,
+    required String prompt,
+    required bool isCompositeLanguageAnalysis,
+  }) async {
+    final firstMaxTokens = isCompositeLanguageAnalysis ? 3000 : 2000;
+    final content = await _requestAiContent(
+      config: config,
+      systemPrompt: systemPrompt,
+      prompt: prompt,
+      maxTokens: firstMaxTokens,
+    );
+    return _parseContentWithJsonRetry(
+      firstContent: content,
+      parse: _parseAnalysisResponse,
+      retryContentFetcher: () => _requestAiContent(
+        config: config,
+        systemPrompt: systemPrompt,
+        prompt: prompt,
+        maxTokens: firstMaxTokens + 500,
+        temperature: 0.3,
+      ),
+      stage: 'analysis(text)',
+    );
   }
 
   Future<AnalysisResult> _ensureAnalysisConsistency(
@@ -5545,159 +5578,6 @@ class _ConsistencyVerification {
   final String confidence;
   final bool needsManualReview;
   final String reason;
-}
-
-class ParsedAnalysisResult extends AnalysisResult {
-  const ParsedAnalysisResult({
-    required super.finalAnswer,
-    required super.steps,
-    required super.aiTags,
-    required super.knowledgePoints,
-    required super.mistakeReason,
-    required super.studyAdvice,
-    required this.rawContent,
-    super.subject,
-    super.finalAnswerDerivation,
-    super.reconstructedQuestionText,
-    super.visualAssumptions,
-    super.visualAssumptionStatus,
-    super.consistencyStatus,
-    super.consistencyNote,
-    super.wasVerifierUsed,
-  });
-
-  final String rawContent;
-
-  @override
-  AnalysisResult copyWith({
-    Subject? subject,
-    String? finalAnswer,
-    String? finalAnswerDerivation,
-    String? reconstructedQuestionText,
-    VisualAssumptions? visualAssumptions,
-    VisualAssumptionStatus? visualAssumptionStatus,
-    List<String>? steps,
-    List<String>? aiTags,
-    List<String>? knowledgePoints,
-    String? mistakeReason,
-    String? studyAdvice,
-    AnalysisConsistencyStatus? consistencyStatus,
-    String? consistencyNote,
-    bool? wasVerifierUsed,
-  }) {
-    return ParsedAnalysisResult(
-      rawContent: rawContent,
-      subject: subject ?? this.subject,
-      finalAnswer: finalAnswer ?? this.finalAnswer,
-      finalAnswerDerivation:
-          finalAnswerDerivation ?? this.finalAnswerDerivation,
-      reconstructedQuestionText:
-          reconstructedQuestionText ?? this.reconstructedQuestionText,
-      visualAssumptions: visualAssumptions ?? this.visualAssumptions,
-      visualAssumptionStatus:
-          visualAssumptionStatus ?? this.visualAssumptionStatus,
-      steps: steps ?? this.steps,
-      aiTags: aiTags ?? this.aiTags,
-      knowledgePoints: knowledgePoints ?? this.knowledgePoints,
-      mistakeReason: mistakeReason ?? this.mistakeReason,
-      studyAdvice: studyAdvice ?? this.studyAdvice,
-      consistencyStatus: consistencyStatus ?? this.consistencyStatus,
-      consistencyNote: consistencyNote ?? this.consistencyNote,
-      wasVerifierUsed: wasVerifierUsed ?? this.wasVerifierUsed,
-    );
-  }
-}
-
-class CandidateAnalysisPayload {
-  const CandidateAnalysisPayload({
-    required this.candidateId,
-    required this.order,
-    required this.questionText,
-    required this.analysisResult,
-    required this.savedExercises,
-    this.subject,
-    this.aiTags = const [],
-    this.aiKnowledgePoints = const [],
-    this.status = CandidateAnalysisStatus.success,
-    this.errorMessage,
-  });
-
-  const CandidateAnalysisPayload.failed({
-    required this.candidateId,
-    required this.order,
-    required this.questionText,
-    required this.errorMessage,
-  })  : analysisResult = null,
-        savedExercises = const [],
-        subject = null,
-        aiTags = const [],
-        aiKnowledgePoints = const [],
-        status = CandidateAnalysisStatus.failed;
-
-  final String candidateId;
-  final int order;
-  final String questionText;
-  final AnalysisResult? analysisResult;
-  final List<GeneratedExercise> savedExercises;
-  final Subject? subject;
-  final List<String> aiTags;
-  final List<String> aiKnowledgePoints;
-  final CandidateAnalysisStatus status;
-  final String? errorMessage;
-
-  bool get isSuccessful =>
-      status == CandidateAnalysisStatus.success && analysisResult != null;
-}
-
-class _FakeAiAnalysisService extends AiAnalysisService {
-  _FakeAiAnalysisService()
-      : super(settingsRepository: InMemorySettingsRepository());
-
-  @override
-  Future<AiQuestionExtractionResult> extractQuestionStructure({
-    required String subjectName,
-    required String imagePath,
-    String textHint = '',
-    CaptureMode mode = CaptureMode.printed,
-  }) async {
-    final normalized = textHint.isNotEmpty ? textHint : '示例题目文本';
-    final splitResult = await splitQuestionCandidates(
-        text: normalized, subjectName: subjectName);
-    return AiQuestionExtractionResult(
-      extractedQuestionText: normalized,
-      normalizedQuestionText: normalized,
-      subject: _parseSubject(subjectName) ?? Subject.math,
-      splitResult: splitResult,
-    );
-  }
-
-  @override
-  Future<AnalysisResult> analyzeExtractedQuestion({
-    required String correctedText,
-    required String subjectName,
-    String? imagePath,
-  }) async {
-    return _fakeResult();
-  }
-
-  @override
-  Future<AnalysisResult> analyzeQuestion({
-    required String correctedText,
-    required String subjectName,
-    String? imagePath,
-  }) async {
-    return _fakeResult();
-  }
-
-  @override
-  Future<bool> judgeAnswer({
-    required String question,
-    required String userAnswer,
-    required String correctAnswer,
-    List<String>? options,
-  }) async {
-    return userAnswer == correctAnswer;
-  }
 }
 
 class TestAiAnalysisService extends AiAnalysisService {

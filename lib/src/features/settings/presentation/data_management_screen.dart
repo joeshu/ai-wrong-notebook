@@ -22,6 +22,7 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/single_text_field_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DataManagementScreen extends ConsumerStatefulWidget {
@@ -147,30 +148,13 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
 
   /// 重命名导出历史中的文件。
   Future<void> _renameExportFile(BuildContext context, File file) async {
-    final controller = TextEditingController(text: file.uri.pathSegments.last);
-    final newName = await showDialog<String>(
+    final newName = await showSingleTextFieldDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('重命名导出文件'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: '新文件名',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: <Widget>[
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('保存'),
-          ),
-        ],
-      ),
+      title: '重命名导出文件',
+      initialText: file.uri.pathSegments.last,
+      autofocus: true,
+      labelText: '新文件名',
     );
-    controller.dispose();
     if (newName == null || newName.isEmpty) return;
     final safeName = newName.contains('.')
         ? newName
@@ -288,35 +272,15 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
 
   /// 弹出密码输入框；返回 null 表示用户取消。
   Future<String?> _promptForPassword(BuildContext context) async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
+    return showSingleTextFieldDialog(
       context: context,
+      title: '输入密码',
+      autofocus: true,
+      obscureText: true,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('输入密码'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          obscureText: true,
-          decoration: const InputDecoration(
-            labelText: '备份密码',
-            border: OutlineInputBorder(),
-          ),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: <Widget>[
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('确定'),
-          ),
-        ],
-      ),
+      labelText: '备份密码',
+      confirmText: '确定',
     );
-    controller.dispose();
-    return result;
   }
 
   Future<void> _loadLastImport() async {

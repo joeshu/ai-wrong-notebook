@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:image/image.dart' as image;
 
 /// OCR / AI 分析前的图片预处理请求，用于在 isolate 间传递参数。
@@ -42,8 +42,9 @@ Future<Uint8List> preprocessForOcr(
       _preprocessForOcrInIsolate,
       _PreprocessRequest(sourceBytes, enableDeskew, enableBinarize),
     );
-  } catch (_) {
-    // isolate 失败时回退原始字节，避免阻塞主流程
+  } catch (e, st) {
+    // isolate 启动失败或序列化失败时回退原始字节，避免阻塞主流程
+    debugPrint('[ImagePreprocessor] isolate fallback: $e\n$st');
     return sourceBytes;
   }
 }
