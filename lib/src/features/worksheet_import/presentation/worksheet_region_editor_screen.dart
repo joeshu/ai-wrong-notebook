@@ -316,6 +316,7 @@ class _WorksheetRegionEditorScreenState
       }
       // 提前标注当前服务的可读名称，确保 catch 块能拿到。
       pendingProviderLabel = switch (type) {
+        LayoutProviderType.currentVision => '当前视觉模型',
         LayoutProviderType.paddleCloud => 'PaddleOCR PP-StructureV3',
         LayoutProviderType.mineruCloud => 'MinerU VLM',
         LayoutProviderType.autoCloud => 'Auto（自动选择）',
