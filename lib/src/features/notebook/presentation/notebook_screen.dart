@@ -942,7 +942,33 @@ class _QuestionCard extends StatelessWidget {
   Widget _buildStatusBadges(BuildContext context) {
     final children = <Widget>[];
 
-    final difficulty = question.difficulty;
+    final providerTag = question.tags.firstWhere(
+      (tag) => tag.startsWith('layout_provider:'),
+      orElse: () => '',
+    );
+    if (providerTag.isNotEmpty) {
+      children.add(_MetaBadge(
+        label: providerTag.substring('layout_provider:'.length),
+        color: AppColors.successDark,
+        icon: CupertinoIcons.doc_text_search,
+      ));
+    }
+
+    if (question.analysisResult == null &&
+        question.contentStatus == ContentStatus.ready) {
+      children.add(_MetaBadge(
+        label: '待 AI',
+        color: AppColors.primary,
+        icon: CupertinoIcons.sparkles,
+      ));
+    } else if (question.analysisResult != null) {
+      children.add(_MetaBadge(
+        label: 'AI 已分析',
+        color: AppColors.success,
+        icon: CupertinoIcons.checkmark_seal,
+      ));
+    }
+
     if (difficulty != null) {
       children.add(_MetaBadge(
         label: _difficultyLabel(difficulty),
