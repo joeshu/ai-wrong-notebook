@@ -789,7 +789,7 @@ class _GoalEntryCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.medium),
                 ),
                 child: Icon(
-                  CupertinoIcons.flag_checkered,
+                  CupertinoIcons.checkmark_seal,
                   color: colorScheme.onPrimaryContainer,
                   size: 20,
                 ),
