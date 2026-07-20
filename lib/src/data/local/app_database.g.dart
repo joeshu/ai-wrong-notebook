@@ -130,6 +130,18 @@ class $QuestionRecordsTable extends QuestionRecords
   late final GeneratedColumn<int> splitOrder = GeneratedColumn<int>(
       'split_order', aliasedName, true,
       type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _reflectionNoteMeta =
+      const VerificationMeta('reflectionNote');
+  @override
+  late final GeneratedColumn<String> reflectionNote = GeneratedColumn<String>(
+      'reflection_note', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _archivedAtMeta =
+      const VerificationMeta('archivedAt');
+  @override
+  late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
+      'archived_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -150,7 +162,9 @@ class $QuestionRecordsTable extends QuestionRecords
         customTags,
         parentQuestionId,
         rootQuestionId,
-        splitOrder
+        splitOrder,
+        reflectionNote,
+        archivedAt
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -279,6 +293,18 @@ class $QuestionRecordsTable extends QuestionRecords
           splitOrder.isAcceptableOrUnknown(
               data['split_order']!, _splitOrderMeta));
     }
+    if (data.containsKey('reflection_note')) {
+      context.handle(
+          _reflectionNoteMeta,
+          reflectionNote.isAcceptableOrUnknown(
+              data['reflection_note']!, _reflectionNoteMeta));
+    }
+    if (data.containsKey('archived_at')) {
+      context.handle(
+          _archivedAtMeta,
+          archivedAt.isAcceptableOrUnknown(
+              data['archived_at']!, _archivedAtMeta));
+    }
     return context;
   }
 
@@ -326,6 +352,10 @@ class $QuestionRecordsTable extends QuestionRecords
           DriftSqlType.string, data['${effectivePrefix}root_question_id']),
       splitOrder: attachedDatabase.typeMapping
           .read(DriftSqlType.int, data['${effectivePrefix}split_order']),
+      reflectionNote: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}reflection_note']),
+      archivedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}archived_at']),
     );
   }
 
@@ -355,6 +385,8 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
   final String? parentQuestionId;
   final String? rootQuestionId;
   final int? splitOrder;
+  final String? reflectionNote;
+  final DateTime? archivedAt;
   const QuestionRecord(
       {required this.id,
       required this.subject,
@@ -374,7 +406,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       required this.customTags,
       this.parentQuestionId,
       this.rootQuestionId,
-      this.splitOrder});
+      this.splitOrder,
+      this.reflectionNote,
+      this.archivedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -408,6 +442,12 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
     }
     if (!nullToAbsent || splitOrder != null) {
       map['split_order'] = Variable<int>(splitOrder);
+    }
+    if (!nullToAbsent || reflectionNote != null) {
+      map['reflection_note'] = Variable<String>(reflectionNote);
+    }
+    if (!nullToAbsent || archivedAt != null) {
+      map['archived_at'] = Variable<DateTime>(archivedAt);
     }
     return map;
   }
@@ -445,6 +485,12 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       splitOrder: splitOrder == null && nullToAbsent
           ? const Value.absent()
           : Value(splitOrder),
+      reflectionNote: reflectionNote == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reflectionNote),
+      archivedAt: archivedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(archivedAt),
     );
   }
 
@@ -472,6 +518,8 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       parentQuestionId: serializer.fromJson<String?>(json['parentQuestionId']),
       rootQuestionId: serializer.fromJson<String?>(json['rootQuestionId']),
       splitOrder: serializer.fromJson<int?>(json['splitOrder']),
+      reflectionNote: serializer.fromJson<String?>(json['reflectionNote']),
+      archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
     );
   }
   @override
@@ -497,6 +545,8 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       'parentQuestionId': serializer.toJson<String?>(parentQuestionId),
       'rootQuestionId': serializer.toJson<String?>(rootQuestionId),
       'splitOrder': serializer.toJson<int?>(splitOrder),
+      'reflectionNote': serializer.toJson<String?>(reflectionNote),
+      'archivedAt': serializer.toJson<DateTime?>(archivedAt),
     };
   }
 
@@ -519,7 +569,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           String? customTags,
           Value<String?> parentQuestionId = const Value.absent(),
           Value<String?> rootQuestionId = const Value.absent(),
-          Value<int?> splitOrder = const Value.absent()}) =>
+          Value<int?> splitOrder = const Value.absent(),
+          Value<String?> reflectionNote = const Value.absent(),
+          Value<DateTime?> archivedAt = const Value.absent()}) =>
       QuestionRecord(
         id: id ?? this.id,
         subject: subject ?? this.subject,
@@ -547,6 +599,11 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
         rootQuestionId:
             rootQuestionId.present ? rootQuestionId.value : this.rootQuestionId,
         splitOrder: splitOrder.present ? splitOrder.value : this.splitOrder,
+        reflectionNote: reflectionNote.present
+            ? reflectionNote.value
+            : this.reflectionNote,
+        archivedAt:
+            archivedAt.present ? archivedAt.value : this.archivedAt,
       );
   QuestionRecord copyWithCompanion(QuestionRecordsCompanion data) {
     return QuestionRecord(
@@ -592,6 +649,12 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           : this.rootQuestionId,
       splitOrder:
           data.splitOrder.present ? data.splitOrder.value : this.splitOrder,
+      reflectionNote: data.reflectionNote.present
+          ? data.reflectionNote.value
+          : this.reflectionNote,
+      archivedAt: data.archivedAt.present
+          ? data.archivedAt.value
+          : this.archivedAt,
     );
   }
 
@@ -616,7 +679,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           ..write('customTags: $customTags, ')
           ..write('parentQuestionId: $parentQuestionId, ')
           ..write('rootQuestionId: $rootQuestionId, ')
-          ..write('splitOrder: $splitOrder')
+          ..write('splitOrder: $splitOrder, ')
+          ..write('reflectionNote: $reflectionNote, ')
+          ..write('archivedAt: $archivedAt')
           ..write(')'))
         .toString();
   }
@@ -641,7 +706,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       customTags,
       parentQuestionId,
       rootQuestionId,
-      splitOrder);
+      splitOrder,
+      reflectionNote,
+      archivedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -664,7 +731,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           other.customTags == this.customTags &&
           other.parentQuestionId == this.parentQuestionId &&
           other.rootQuestionId == this.rootQuestionId &&
-          other.splitOrder == this.splitOrder);
+          other.splitOrder == this.splitOrder &&
+          other.reflectionNote == this.reflectionNote &&
+          other.archivedAt == this.archivedAt);
 }
 
 class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
@@ -687,6 +756,8 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
   final Value<String?> parentQuestionId;
   final Value<String?> rootQuestionId;
   final Value<int?> splitOrder;
+  final Value<String?> reflectionNote;
+  final Value<DateTime?> archivedAt;
   final Value<int> rowid;
   const QuestionRecordsCompanion({
     this.id = const Value.absent(),
@@ -708,6 +779,8 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     this.parentQuestionId = const Value.absent(),
     this.rootQuestionId = const Value.absent(),
     this.splitOrder = const Value.absent(),
+    this.reflectionNote = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   QuestionRecordsCompanion.insert({
@@ -730,6 +803,8 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     this.parentQuestionId = const Value.absent(),
     this.rootQuestionId = const Value.absent(),
     this.splitOrder = const Value.absent(),
+    this.reflectionNote = const Value.absent(),
+    this.archivedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         subject = Value(subject),
@@ -759,6 +834,8 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     Expression<String>? parentQuestionId,
     Expression<String>? rootQuestionId,
     Expression<int>? splitOrder,
+    Expression<String>? reflectionNote,
+    Expression<DateTime>? archivedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -781,6 +858,8 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       if (parentQuestionId != null) 'parent_question_id': parentQuestionId,
       if (rootQuestionId != null) 'root_question_id': rootQuestionId,
       if (splitOrder != null) 'split_order': splitOrder,
+      if (reflectionNote != null) 'reflection_note': reflectionNote,
+      if (archivedAt != null) 'archived_at': archivedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -805,6 +884,8 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       Value<String?>? parentQuestionId,
       Value<String?>? rootQuestionId,
       Value<int?>? splitOrder,
+      Value<String?>? reflectionNote,
+      Value<DateTime?>? archivedAt,
       Value<int>? rowid}) {
     return QuestionRecordsCompanion(
       id: id ?? this.id,
@@ -826,6 +907,8 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       parentQuestionId: parentQuestionId ?? this.parentQuestionId,
       rootQuestionId: rootQuestionId ?? this.rootQuestionId,
       splitOrder: splitOrder ?? this.splitOrder,
+      reflectionNote: reflectionNote ?? this.reflectionNote,
+      archivedAt: archivedAt ?? this.archivedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -890,6 +973,12 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     if (splitOrder.present) {
       map['split_order'] = Variable<int>(splitOrder.value);
     }
+    if (reflectionNote.present) {
+      map['reflection_note'] = Variable<String>(reflectionNote.value);
+    }
+    if (archivedAt.present) {
+      map['archived_at'] = Variable<DateTime>(archivedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -918,6 +1007,8 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
           ..write('parentQuestionId: $parentQuestionId, ')
           ..write('rootQuestionId: $rootQuestionId, ')
           ..write('splitOrder: $splitOrder, ')
+          ..write('reflectionNote: $reflectionNote, ')
+          ..write('archivedAt: $archivedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2396,6 +2487,8 @@ typedef $$QuestionRecordsTableCreateCompanionBuilder = QuestionRecordsCompanion
   Value<String?> parentQuestionId,
   Value<String?> rootQuestionId,
   Value<int?> splitOrder,
+  Value<String?> reflectionNote,
+  Value<DateTime?> archivedAt,
   Value<int> rowid,
 });
 typedef $$QuestionRecordsTableUpdateCompanionBuilder = QuestionRecordsCompanion
@@ -2419,6 +2512,8 @@ typedef $$QuestionRecordsTableUpdateCompanionBuilder = QuestionRecordsCompanion
   Value<String?> parentQuestionId,
   Value<String?> rootQuestionId,
   Value<int?> splitOrder,
+  Value<String?> reflectionNote,
+  Value<DateTime?> archivedAt,
   Value<int> rowid,
 });
 
@@ -2530,6 +2625,12 @@ class $$QuestionRecordsTableFilterComposer
 
   ColumnFilters<int> get splitOrder => $composableBuilder(
       column: $table.splitOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get reflectionNote => $composableBuilder(
+      column: $table.reflectionNote, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get archivedAt => $composableBuilder(
+      column: $table.archivedAt, builder: (column) => ColumnFilters(column));
 
   Expression<bool> generatedExercisesRefs(
       Expression<bool> Function($$GeneratedExercisesTableFilterComposer f) f) {
@@ -2649,6 +2750,14 @@ class $$QuestionRecordsTableOrderingComposer
 
   ColumnOrderings<int> get splitOrder => $composableBuilder(
       column: $table.splitOrder, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get reflectionNote => $composableBuilder(
+      column: $table.reflectionNote,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
+      column: $table.archivedAt,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$QuestionRecordsTableAnnotationComposer
@@ -2716,6 +2825,12 @@ class $$QuestionRecordsTableAnnotationComposer
 
   GeneratedColumn<int> get splitOrder => $composableBuilder(
       column: $table.splitOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get reflectionNote => $composableBuilder(
+      column: $table.reflectionNote, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
+      column: $table.archivedAt, builder: (column) => column);
 
   Expression<T> generatedExercisesRefs<T extends Object>(
       Expression<T> Function($$GeneratedExercisesTableAnnotationComposer a) f) {
@@ -2805,6 +2920,8 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             Value<String?> parentQuestionId = const Value.absent(),
             Value<String?> rootQuestionId = const Value.absent(),
             Value<int?> splitOrder = const Value.absent(),
+            Value<String?> reflectionNote = const Value.absent(),
+            Value<DateTime?> archivedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               QuestionRecordsCompanion(
@@ -2827,6 +2944,8 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             parentQuestionId: parentQuestionId,
             rootQuestionId: rootQuestionId,
             splitOrder: splitOrder,
+            reflectionNote: reflectionNote,
+            archivedAt: archivedAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -2849,6 +2968,8 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             Value<String?> parentQuestionId = const Value.absent(),
             Value<String?> rootQuestionId = const Value.absent(),
             Value<int?> splitOrder = const Value.absent(),
+            Value<String?> reflectionNote = const Value.absent(),
+            Value<DateTime?> archivedAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               QuestionRecordsCompanion.insert(
@@ -2871,6 +2992,8 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             parentQuestionId: parentQuestionId,
             rootQuestionId: rootQuestionId,
             splitOrder: splitOrder,
+            reflectionNote: reflectionNote,
+            archivedAt: archivedAt,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

@@ -27,6 +27,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   final _searchController = TextEditingController();
   bool _buildingKnowledgePointPractice = false;
   bool _selectionMode = false;
+  bool _showArchived = false;
   final Set<String> _selectedQuestionIds = <String>{};
 
   @override
@@ -396,6 +397,23 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+            child: Row(
+              children: <Widget>[
+                const Icon(CupertinoIcons.archivebox,
+                    size: 14, color: Colors.grey),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text('显示归档', style: TextStyle(fontSize: 12)),
+                ),
+                Switch.adaptive(
+                  value: _showArchived,
+                  onChanged: (value) => setState(() => _showArchived = value),
+                ),
+              ],
+            ),
+          ),
           if (activeFilterLabels.isNotEmpty)
             _ActiveFilterSummary(
               labels: activeFilterLabels,
@@ -406,7 +424,10 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
           Expanded(
             child: questionsAsync.when(
               data: (questions) {
-                if (questions.isEmpty) {
+                final visibleQuestions = _showArchived
+                    ? questions
+                    : questions.where((q) => !q.isArchived).toList();
+                if (visibleQuestions.isEmpty) {
                   return AppEmptyState(
                     icon: CupertinoIcons.question,
                     title: AppStrings.notebookEmptyTitle,
@@ -419,7 +440,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                   );
                 }
                 final hasPracticeAction =
-                    selectedKnowledgePoint != null && questions.isNotEmpty;
+                    selectedKnowledgePoint != null && visibleQuestions.isNotEmpty;
                 return RefreshIndicator(
                   onRefresh: () async {
                     ref.invalidate(questionListProvider);
@@ -428,7 +449,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: AppSpace.lg, vertical: AppSpace.xs),
                     itemCount:
-                        questions.length + (hasPracticeAction ? 1 : 0),
+                        visibleQuestions.length + (hasPracticeAction ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (hasPracticeAction && index == 0) {
                         return Padding(
@@ -438,13 +459,13 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                             isLoading: _buildingKnowledgePointPractice,
                             onStart: () => _startKnowledgePointPractice(
                               selectedKnowledgePoint!,
-                              questions,
+                              visibleQuestions,
                             ),
                           ),
                         );
                       }
                       final questionIndex = index - (hasPracticeAction ? 1 : 0);
-                      final q = questions[questionIndex];
+                      final q = visibleQuestions[questionIndex];
                       return RepaintBoundary(
                         child: _QuestionCard(
                           question: q,
@@ -636,6 +657,7 @@ class _QuestionCard extends StatelessWidget {
     final allTags = [...aiTags, ...customTags];
     final isFailed =
         question.contentStatus.toString().split('.').last == 'failed';
+    final isArchived = (question.isArchived as bool?) ?? false;
 
     return Dismissible(
       key: ValueKey(question.id),
@@ -663,107 +685,110 @@ class _QuestionCard extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 10),
           child: GestureDetector(
             onTap: selectionMode ? onSelect : onTap,
-            child: AppCard(
-              padding: const EdgeInsets.all(AppSpace.md),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  if (selectionMode) ...<Widget>[
-                    Checkbox(value: selected, onChanged: (_) => onSelect()),
-                    const SizedBox(width: 4),
-                  ],
-                  _SubjectAvatar(question: question),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Expanded(
-                              child: Hero(
-                                tag: 'question_text_${question.id}',
-                                child: Material(
-                                  color: Colors.transparent,
-                                  child: MathContentView(
-                                    question.correctedText,
-                                    contentFormat: question.contentFormat,
-                                    mode: MathContentViewMode.compact,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 14),
+            child: Opacity(
+              opacity: isArchived ? 0.55 : 1.0,
+              child: AppCard(
+                padding: const EdgeInsets.all(AppSpace.md),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    if (selectionMode) ...<Widget>[
+                      Checkbox(value: selected, onChanged: (_) => onSelect()),
+                      const SizedBox(width: 4),
+                    ],
+                    _SubjectAvatar(question: question),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Expanded(
+                                child: Hero(
+                                  tag: 'question_text_${question.id}',
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: MathContentView(
+                                      question.correctedText,
+                                      contentFormat: question.contentFormat,
+                                      mode: MathContentViewMode.compact,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                          fontSize: 14),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                            if (primaryAction != null)
-                              IconButton(
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                    minWidth: 28, minHeight: 28),
-                                visualDensity: VisualDensity.compact,
-                                iconSize: 18,
-                                tooltip: primaryAction!.label,
-                                icon: Icon(
-                                  primaryAction!.icon,
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                                onPressed: primaryAction!.onTap,
-                              )
-                            else
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(left: 4, top: 2),
-                                child: Icon(
-                                  CupertinoIcons.chevron_right,
-                                  color: colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.65),
-                                  size: 18,
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpace.xs),
-                        _buildMetaInfo(context, isFailed),
-                        if (allTags.isNotEmpty) ...<Widget>[
-                          const SizedBox(height: AppSpace.xs),
-                          Wrap(
-                            spacing: AppSpace.xs,
-                            runSpacing: AppSpace.xs,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: <Widget>[
-                              ...allTags.take(2).map((tag) {
-                                final isAiTag = aiTags.contains(tag);
-                                return AppTag(
-                                  label: tag,
-                                  textColor: isAiTag
-                                      ? AppColors.accentAmber
-                                      : AppColors.primaryDark,
-                                  backgroundColor: isAiTag
-                                      ? AppColors.accentAmberContainerLight
-                                      : AppColors.primaryContainerLight,
-                                  fontSize: 10,
-                                  onTap: () => onKnowledgePointTap(tag),
-                                );
-                              }),
-                              if (allTags.length > 2)
-                                AppTag(
-                                  label: '+${allTags.length - 2}',
-                                  textColor: colorScheme.onSurfaceVariant,
-                                  backgroundColor:
-                                      colorScheme.surfaceContainerHighest,
-                                  fontSize: 10,
+                              if (primaryAction != null)
+                                IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                      minWidth: 28, minHeight: 28),
+                                  visualDensity: VisualDensity.compact,
+                                  iconSize: 18,
+                                  tooltip: primaryAction!.label,
+                                  icon: Icon(
+                                    primaryAction!.icon,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  onPressed: primaryAction!.onTap,
+                                )
+                              else
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.only(left: 4, top: 2),
+                                  child: Icon(
+                                    CupertinoIcons.chevron_right,
+                                    color: colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.65),
+                                    size: 18,
+                                  ),
                                 ),
                             ],
                           ),
+                          const SizedBox(height: AppSpace.xs),
+                          _buildMetaInfo(context, isFailed, isArchived),
+                          if (allTags.isNotEmpty) ...<Widget>[
+                            const SizedBox(height: AppSpace.xs),
+                            Wrap(
+                              spacing: AppSpace.xs,
+                              runSpacing: AppSpace.xs,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: <Widget>[
+                                ...allTags.take(2).map((tag) {
+                                  final isAiTag = aiTags.contains(tag);
+                                  return AppTag(
+                                    label: tag,
+                                    textColor: isAiTag
+                                        ? AppColors.accentAmber
+                                        : AppColors.primaryDark,
+                                    backgroundColor: isAiTag
+                                        ? AppColors.accentAmberContainerLight
+                                        : AppColors.primaryContainerLight,
+                                    fontSize: 10,
+                                    onTap: () => onKnowledgePointTap(tag),
+                                  );
+                                }),
+                                if (allTags.length > 2)
+                                  AppTag(
+                                    label: '+${allTags.length - 2}',
+                                    textColor: colorScheme.onSurfaceVariant,
+                                    backgroundColor:
+                                        colorScheme.surfaceContainerHighest,
+                                    fontSize: 10,
+                                  ),
+                              ],
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -800,7 +825,7 @@ class _QuestionCard extends StatelessWidget {
     }
   }
 
-  Widget _buildMetaInfo(BuildContext context, bool isFailed) {
+  Widget _buildMetaInfo(BuildContext context, bool isFailed, bool isArchived) {
     final colorScheme = Theme.of(context).colorScheme;
     final masteryColor = _masteryColor(context, question.masteryLevel);
     final dueColor = _dueColor(context, question);
@@ -839,6 +864,18 @@ class _QuestionCard extends StatelessWidget {
       spans.add(const TextSpan(
         text: '待解析',
         style: TextStyle(color: AppColors.warning),
+      ));
+    }
+
+    if (isArchived) {
+      spans.add(const TextSpan(text: ' · '));
+      spans.add(const WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Icon(CupertinoIcons.archivebox, size: 11, color: Colors.grey),
+      ));
+      spans.add(const TextSpan(
+        text: '已归档',
+        style: TextStyle(color: Colors.grey),
       ));
     }
 

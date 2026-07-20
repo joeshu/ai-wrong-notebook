@@ -97,4 +97,125 @@ void main() {
     expect(restored.tags, contains('代数'));
     expect(restored.allTags.any((tag) => tag.startsWith('__system_')), isFalse);
   });
+
+  test('reflection note survives JSON round-trip', () {
+    final now = DateTime(2026, 7, 18);
+    final question = QuestionRecord(
+      id: 'q-reflection',
+      imagePath: '',
+      subject: Subject.math,
+      extractedQuestionText: '题目',
+      normalizedQuestionText: '题目',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+      reflectionNote: '符号判断要谨慎，分式方程要检验增根。',
+    );
+
+    final restored = QuestionRecord.fromJson(question.toJson());
+
+    expect(restored.reflectionNote, '符号判断要谨慎，分式方程要检验增根。');
+  });
+
+  test('reflection note defaults to null and copyWith updates it', () {
+    final now = DateTime(2026, 7, 18);
+    final question = QuestionRecord(
+      id: 'q-reflection-copy',
+      imagePath: '',
+      subject: Subject.math,
+      extractedQuestionText: '题目',
+      normalizedQuestionText: '题目',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+    );
+
+    expect(question.reflectionNote, isNull);
+
+    final updated = question.copyWith(reflectionNote: '新增的反思内容');
+    expect(updated.reflectionNote, '新增的反思内容');
+    expect(question.reflectionNote, isNull,
+        reason: 'copyWith must not mutate the source');
+
+    final restored = QuestionRecord.fromJson(updated.toJson());
+    expect(restored.reflectionNote, '新增的反思内容');
+  });
+
+  test('archivedAt survives JSON round-trip', () {
+    final now = DateTime(2026, 7, 18);
+    final archivedAt = DateTime(2026, 6, 30, 10, 30);
+    final question = QuestionRecord(
+      id: 'q-archived',
+      imagePath: '',
+      subject: Subject.math,
+      extractedQuestionText: '题目',
+      normalizedQuestionText: '题目',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+      archivedAt: archivedAt,
+    );
+
+    final restored = QuestionRecord.fromJson(question.toJson());
+
+    expect(restored.archivedAt, archivedAt);
+    expect(restored.isArchived, isTrue);
+  });
+
+  test('archive/unarchive methods work', () {
+    final now = DateTime(2026, 7, 18);
+    final question = QuestionRecord(
+      id: 'q-archive-toggle',
+      imagePath: '',
+      subject: Subject.math,
+      extractedQuestionText: '题目',
+      normalizedQuestionText: '题目',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+    );
+
+    expect(question.archivedAt, isNull);
+    expect(question.isArchived, isFalse);
+
+    final archived = question.archive();
+    expect(archived.archivedAt, isNotNull);
+    expect(archived.isArchived, isTrue);
+    expect(question.isArchived, isFalse,
+        reason: 'archive must not mutate the source');
+
+    final unarchived = archived.unarchive();
+    expect(unarchived.archivedAt, isNull);
+    expect(unarchived.isArchived, isFalse);
+    expect(archived.isArchived, isTrue,
+        reason: 'unarchive must not mutate the source');
+  });
 }

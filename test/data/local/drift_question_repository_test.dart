@@ -80,4 +80,93 @@ void main() {
     expect(loaded.isFavorite, isTrue);
     expect(loaded.lastReviewedAt, DateTime(2026, 4, 29));
   });
+
+  test('preserves reflection note across save and reload', () async {
+    final now = DateTime(2026, 7, 20);
+    final record = QuestionRecord(
+      id: 'q-reflection',
+      imagePath: '/tmp/q-reflection.jpg',
+      subject: Subject.math,
+      extractedQuestionText: '反比例函数',
+      normalizedQuestionText: '反比例函数',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+      reflectionNote: '这道题考查反比例函数性质，易错点在符号判断。',
+    );
+
+    await repository.saveDraft(record);
+
+    final loaded = await repository.getById('q-reflection');
+
+    expect(loaded, isNotNull);
+    expect(loaded!.reflectionNote,
+        '这道题考查反比例函数性质，易错点在符号判断。');
+  });
+
+  test('persists null reflection note when not set', () async {
+    final now = DateTime(2026, 7, 20);
+    final record = QuestionRecord(
+      id: 'q-no-reflection',
+      imagePath: '/tmp/q-no-reflection.jpg',
+      subject: Subject.math,
+      extractedQuestionText: '一元二次方程',
+      normalizedQuestionText: '一元二次方程',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+    );
+
+    await repository.saveDraft(record);
+
+    final loaded = await repository.getById('q-no-reflection');
+
+    expect(loaded, isNotNull);
+    expect(loaded!.reflectionNote, isNull);
+  });
+
+  test('preserves archivedAt across save and reload', () async {
+    final now = DateTime(2026, 7, 20);
+    final archivedAt = DateTime(2026, 6, 30, 10, 30);
+    final record = QuestionRecord(
+      id: 'q-archived',
+      imagePath: '/tmp/q-archived.jpg',
+      subject: Subject.math,
+      extractedQuestionText: '上学期错题',
+      normalizedQuestionText: '上学期错题',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+      archivedAt: archivedAt,
+    );
+
+    await repository.saveDraft(record);
+
+    final loaded = await repository.getById('q-archived');
+
+    expect(loaded, isNotNull);
+    expect(loaded!.archivedAt, archivedAt);
+    expect(loaded.isArchived, isTrue);
+  });
 }

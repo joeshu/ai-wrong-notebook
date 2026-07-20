@@ -20,6 +20,8 @@ class QuestionRecords extends Table {
   TextColumn get parentQuestionId => text().nullable()();
   TextColumn get rootQuestionId => text().nullable()();
   IntColumn get splitOrder => integer().nullable()();
+  TextColumn get reflectionNote => text().nullable()();
+  DateTimeColumn get archivedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

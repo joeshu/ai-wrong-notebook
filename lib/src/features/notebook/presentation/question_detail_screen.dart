@@ -75,6 +75,15 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
             onPressed: () => _toggleFavorite(context, ref, current),
           ),
           IconButton(
+            icon: Icon(current.isArchived
+                ? CupertinoIcons.box
+                : CupertinoIcons.archivebox),
+            tooltip: current.isArchived ? '取消归档' : '归档',
+            onPressed: () => current.isArchived
+                ? _unarchive(context, ref, current)
+                : _confirmArchive(context, ref, current),
+          ),
+          IconButton(
             icon: Icon(_editing ? CupertinoIcons.check_mark : CupertinoIcons.pencil),
             tooltip: _editing ? '完成编辑' : '编辑题目',
             onPressed: () => setState(() => _editing = !_editing),
@@ -147,6 +156,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
                     context.go('/notebook/question/${question.id}');
                   },
                   onAddTag: () => _showAddTagDialog(context, ref, current),
+                  onEditReflection: () => _editReflection(context, ref, current),
                 ),
                 _AnalysisTab(
                   current: current,
@@ -359,6 +369,26 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     invalidateQuestionList(ref);
   }
 
+  Future<void> _editReflection(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) async {
+    final text = await showSingleTextFieldDialog(
+      context: context,
+      title: '学习反思',
+      initialText: question.reflectionNote ?? '',
+      maxLines: 6,
+      minLines: 3,
+      hintText: '记录你对这道题的反思、总结或易错点…',
+    );
+    if (text == null) return;
+    final updated = question.copyWith(reflectionNote: text);
+    await ref.read(questionRepositoryProvider).update(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
+  }
+
   void _confirmDelete(
       BuildContext context, WidgetRef ref, QuestionRecord question) {
     showDialog<void>(
@@ -502,6 +532,61 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     );
   }
 
+  void _confirmArchive(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('归档这道错题？'),
+        content: const Text('归档后题目默认从错题本列表隐藏，可在"显示归档"中查看，随时可取消归档。'),
+        actions: <Widget>[
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await _archive(context, ref, question);
+            },
+            child: const Text('归档'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _archive(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) async {
+    final updated = question.archive();
+    await ref.read(questionRepositoryProvider).saveDraft(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已归档')),
+    );
+  }
+
+  Future<void> _unarchive(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) async {
+    final updated = question.unarchive();
+    await ref.read(questionRepositoryProvider).saveDraft(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已取消归档')),
+    );
+  }
+
   Future<void> _setMistakeCategory(
     BuildContext context,
     WidgetRef ref,
@@ -555,6 +640,7 @@ class _QuestionTab extends StatelessWidget {
     required this.onEditLearningContext,
     required this.onSelectSibling,
     required this.onAddTag,
+    required this.onEditReflection,
   });
 
   final QuestionRecord current;
@@ -566,6 +652,7 @@ class _QuestionTab extends StatelessWidget {
   final VoidCallback onEditLearningContext;
   final void Function(QuestionRecord) onSelectSibling;
   final VoidCallback onAddTag;
+  final VoidCallback onEditReflection;
 
   @override
   Widget build(BuildContext context) {
@@ -672,6 +759,11 @@ class _QuestionTab extends StatelessWidget {
         ],
         const SizedBox(height: AppSpace.lg),
         _buildOriginalQuestion(context, isDark, colorScheme),
+        const SizedBox(height: AppSpace.lg),
+        _ReflectionNoteCard(
+          note: current.reflectionNote,
+          onEdit: onEditReflection,
+        ),
       ],
     );
   }
@@ -750,6 +842,63 @@ class _QuestionTab extends StatelessWidget {
                 fontSize: 14,
                 color: colorScheme.onSurface,
                 height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReflectionNoteCard extends StatelessWidget {
+  const _ReflectionNoteCard({required this.note, required this.onEdit});
+
+  final String? note;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasNote = note != null && note!.isNotEmpty;
+
+    return AppInfoSection(
+      icon: CupertinoIcons.pencil_ellipsis_rectangle,
+      title: '学习反思',
+      iconColor: AppColors.primary,
+      backgroundColor: AppColors.primaryContainerLight,
+      borderColor: const Color(0xFFC7D2FE),
+      titleColor: AppColors.primaryDark,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: GestureDetector(
+              onTap: onEdit,
+              child: hasNote
+                  ? Text(
+                      note!,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: colorScheme.onSurface,
+                      ),
+                    )
+                  : Text(
+                      '点此添加学习反思…',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          IconButton(
+            icon: const Icon(CupertinoIcons.pencil, size: 18),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: '编辑学习反思',
+            color: colorScheme.onSurfaceVariant,
+            onPressed: onEdit,
           ),
         ],
       ),

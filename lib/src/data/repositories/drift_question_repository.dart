@@ -86,6 +86,8 @@ class DriftQuestionRepository implements QuestionRepository {
               parentQuestionId: Value(record.parentQuestionId),
               rootQuestionId: Value(record.rootQuestionId),
               splitOrder: Value(record.splitOrder),
+              reflectionNote: Value(record.reflectionNote),
+              archivedAt: Value(record.archivedAt),
             ),
           );
 
@@ -252,6 +254,8 @@ class DriftQuestionRepository implements QuestionRepository {
       parentQuestionId: row.parentQuestionId,
       rootQuestionId: row.rootQuestionId,
       splitOrder: row.splitOrder,
+      reflectionNote: row.reflectionNote,
+      archivedAt: row.archivedAt,
     );
   }
 

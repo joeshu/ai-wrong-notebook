@@ -168,6 +168,8 @@ class QuestionRecord {
     this.rootQuestionId,
     this.splitOrder,
     this.studentAnswer,
+    this.reflectionNote,
+    this.archivedAt,
   });
 
   static const favoriteTag = '__system_favorite';
@@ -311,6 +313,10 @@ class QuestionRecord {
       rootQuestionId: _nullableString(json['rootQuestionId']),
       splitOrder: _nullableInt(json['splitOrder']),
       studentAnswer: _nullableString(json['studentAnswer']),
+      reflectionNote: json['reflectionNote'] as String?,
+      archivedAt: json['archivedAt'] != null
+          ? DateTime.parse(json['archivedAt'] as String)
+          : null,
     );
   }
 
@@ -346,6 +352,8 @@ class QuestionRecord {
       'rootQuestionId': rootQuestionId,
       'splitOrder': splitOrder,
       'studentAnswer': studentAnswer,
+      'reflectionNote': reflectionNote,
+      'archivedAt': archivedAt?.toIso8601String(),
     };
   }
 
@@ -375,9 +383,13 @@ class QuestionRecord {
   final String? rootQuestionId;
   final int? splitOrder;
   final String? studentAnswer;
+  final String? reflectionNote;
+  final DateTime? archivedAt;
 
   String get recognizedText => extractedQuestionText;
   String get correctedText => normalizedQuestionText;
+
+  bool get isArchived => archivedAt != null;
 
   List<String> get allTags => [...aiTags, ...customTags];
 
@@ -458,6 +470,8 @@ class QuestionRecord {
     String? rootQuestionId,
     int? splitOrder,
     String? studentAnswer,
+    String? reflectionNote,
+    DateTime? archivedAt,
   }) {
     return QuestionRecord(
       id: id,
@@ -488,6 +502,52 @@ class QuestionRecord {
       rootQuestionId: rootQuestionId ?? this.rootQuestionId,
       splitOrder: splitOrder ?? this.splitOrder,
       studentAnswer: studentAnswer ?? this.studentAnswer,
+      reflectionNote: reflectionNote ?? this.reflectionNote,
+      archivedAt: archivedAt ?? this.archivedAt,
     );
   }
+
+  /// Explicitly sets [archivedAt], allowing null to clear it.
+  ///
+  /// [copyWith] uses `?? this.archivedAt`, which keeps the existing value when
+  /// `null` is passed. To clear the field (i.e. unarchive) we must bypass
+  /// copyWith and construct the record directly.
+  QuestionRecord withArchivedAt(DateTime? value) {
+    return QuestionRecord(
+      id: id,
+      imagePath: imagePath,
+      subject: subject,
+      extractedQuestionText: extractedQuestionText,
+      normalizedQuestionText: normalizedQuestionText,
+      contentFormat: contentFormat,
+      tags: tags,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      lastReviewedAt: lastReviewedAt,
+      nextReviewAt: nextReviewAt,
+      reviewCount: reviewCount,
+      isFavorite: isFavorite,
+      contentStatus: contentStatus,
+      masteryLevel: masteryLevel,
+      analysisResult: analysisResult,
+      savedExercises: savedExercises,
+      aiTags: aiTags,
+      aiKnowledgePoints: aiKnowledgePoints,
+      customTags: customTags,
+      splitResult: splitResult,
+      candidateAnalyses: candidateAnalyses,
+      parentQuestionId: parentQuestionId,
+      rootQuestionId: rootQuestionId,
+      splitOrder: splitOrder,
+      studentAnswer: studentAnswer,
+      reflectionNote: reflectionNote,
+      archivedAt: value,
+    );
+  }
+
+  /// Marks this question as archived (e.g. from a previous semester).
+  QuestionRecord archive() => withArchivedAt(DateTime.now());
+
+  /// Removes the archive marker so the question shows up in the default list.
+  QuestionRecord unarchive() => withArchivedAt(null);
 }
