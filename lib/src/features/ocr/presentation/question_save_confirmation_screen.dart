@@ -35,8 +35,6 @@ class _QuestionSaveConfirmationScreenState
   @override
   Widget build(BuildContext context) {
     final current = ref.watch(currentQuestionProvider);
-    final hasImage =
-        current?.imagePath != null && File(current!.imagePath).existsSync();
 
     if (current == null) {
       return Scaffold(
@@ -44,6 +42,9 @@ class _QuestionSaveConfirmationScreenState
         body: const Center(child: Text('未找到题目记录')),
       );
     }
+
+    final hasImage =
+        current.imagePath.isNotEmpty && File(current.imagePath).existsSync();
 
     final initialText = current.normalizedQuestionText.isNotEmpty
         ? current.normalizedQuestionText

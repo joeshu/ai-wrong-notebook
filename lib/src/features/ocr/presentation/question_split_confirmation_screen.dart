@@ -567,10 +567,10 @@ class _QuestionSplitConfirmationScreenState
     }
     final draft = session.drafts[index];
 
+    final controller = TextEditingController();
     final keyword = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
-        final controller = TextEditingController();
         return AlertDialog(
           title: const Text('在此处拆分'),
           content: SingleChildScrollView(
@@ -623,6 +623,7 @@ class _QuestionSplitConfirmationScreenState
         );
       },
     );
+    controller.dispose();
 
     if (!mounted) return;
     if (keyword == null || keyword.isEmpty) return;

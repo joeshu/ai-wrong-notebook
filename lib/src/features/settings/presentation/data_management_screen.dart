@@ -170,6 +170,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         ],
       ),
     );
+    controller.dispose();
     if (newName == null || newName.isEmpty) return;
     final safeName = newName.contains('.')
         ? newName
@@ -288,7 +289,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   /// 弹出密码输入框；返回 null 表示用户取消。
   Future<String?> _promptForPassword(BuildContext context) async {
     final controller = TextEditingController();
-    return showDialog<String>(
+    final result = await showDialog<String>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
@@ -314,6 +315,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         ],
       ),
     );
+    controller.dispose();
+    return result;
   }
 
   Future<void> _loadLastImport() async {
@@ -1047,16 +1050,23 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     invalidateQuestionList(ref);
     ref.read(currentQuestionProvider.notifier).state = null;
 
-    try {
-      for (final q in all) {
+    var imageDeleteFailures = 0;
+    for (final q in all) {
+      try {
         final file = File(q.imagePath);
         if (await file.exists()) await file.delete();
+      } catch (e) {
+        imageDeleteFailures++;
+        debugPrint('[DataManagement] 删除图片失败 ${q.imagePath}: $e');
       }
-    } catch (_) {}
+    }
 
     if (context.mounted) {
+      final msg = imageDeleteFailures == 0
+          ? '已清空 ${all.length} 道错题'
+          : '已清空 ${all.length} 道错题；$imageDeleteFailures 张图片文件清理失败，可手动清理';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('已清空 ${all.length} 道错题')),
+        SnackBar(content: Text(msg)),
       );
     }
   }

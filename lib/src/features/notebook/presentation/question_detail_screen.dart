@@ -341,7 +341,10 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ],
         ),
       ),
-    );
+    ).then((_) {
+      stageController.dispose();
+      workController.dispose();
+    });
   }
 
   void _editSource(
@@ -380,7 +383,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   void _editQuestion(
@@ -411,7 +414,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   void _confirmDelete(
@@ -508,7 +511,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   Widget _dialogTagChip(String label, Color color) {

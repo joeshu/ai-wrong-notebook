@@ -58,12 +58,12 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   }
 
   Future<void> _startKnowledgePointPractice(
-    BuildContext context,
     String knowledgePoint,
     List<QuestionRecord> questions,
   ) async {
     if (_buildingKnowledgePointPractice) return;
     setState(() => _buildingKnowledgePointPractice = true);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final controller = KnowledgePointPracticeController(
         ref.read(aiAnalysisServiceProvider),
@@ -84,7 +84,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
       context.go('/exercise/practice');
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('专项练习准备失败：$error')),
         );
       }
@@ -437,7 +437,6 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                             knowledgePoint: selectedKnowledgePoint!,
                             isLoading: _buildingKnowledgePointPractice,
                             onStart: () => _startKnowledgePointPractice(
-                              context,
                               selectedKnowledgePoint!,
                               questions,
                             ),
