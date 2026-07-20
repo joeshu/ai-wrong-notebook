@@ -67,6 +67,11 @@ void main() {
     expect(find.text('1 题'), findsOneWidget);
     expect(find.text('复习记录总量'), findsOneWidget);
     expect(find.text('1 条'), findsOneWidget);
+
+    // 「删除所有错题和复习记录，不可恢复」提示位于存储概览上方，需要单独滚动。
+    await tester.ensureVisible(
+        find.text('删除所有错题和复习记录，不可恢复'));
+    await tester.pumpAndSettle();
     expect(find.text('删除所有错题和复习记录，不可恢复'), findsOneWidget);
 
     final clearData = find.text('清空所有数据');
