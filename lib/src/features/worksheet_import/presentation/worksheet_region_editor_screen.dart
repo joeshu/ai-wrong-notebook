@@ -517,7 +517,7 @@ class _WorksheetRegionEditorScreenState
 
 enum _PostRecognitionAiChoice { all, none, perQuestion }
 
-
+class _RegionOverlay extends StatelessWidget {
   const _RegionOverlay({
     required this.region,
     required this.number,
