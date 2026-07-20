@@ -98,6 +98,7 @@ class HomeScreen extends ConsumerWidget {
           const SizedBox(height: AppSpace.md),
           _QuickStartRow(
             onCapture: () => CaptureEntryLauncher.show(context),
+            onImportPdf: () => context.push('/worksheet/import'),
           ),
           const SizedBox(height: AppSpace.lg),
           Text(AppStrings.homeStatsTitle, style: Theme.of(context).textTheme.titleLarge),
@@ -108,6 +109,27 @@ class HomeScreen extends ConsumerWidget {
               loading: () => const _StatsGridSkeleton(),
               error: (_, __) => AppErrorState(message: AppStrings.homeStatsError, onRetry: () => ref.invalidate(questionListProvider)),
             ),
+          ),
+          questionsAsync.when(
+            data: (questions) {
+              final lowConfidenceCount = questions
+                  .where((q) => q.ocrConfidence != null && q.ocrConfidence! < 0.7)
+                  .length;
+              if (lowConfidenceCount == 0) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: AppSpace.lg),
+                child: _LowConfidenceHintCard(
+                  count: lowConfidenceCount,
+                  onTap: () {
+                    ref.read(unmasteredOnlyFilterProvider.notifier).state = false;
+                    ref.read(favoritesOnlyFilterProvider.notifier).state = false;
+                    context.go('/notebook');
+                  },
+                ),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
           mistakeStatsAsync.when(
             data: (stats) => stats.isEmpty
@@ -279,21 +301,40 @@ class _TodayPlanSkeleton extends StatelessWidget {
 }
 
 class _QuickStartRow extends StatelessWidget {
-  const _QuickStartRow({required this.onCapture});
+  const _QuickStartRow({required this.onCapture, required this.onImportPdf});
   final VoidCallback onCapture;
+  final VoidCallback onImportPdf;
   @override
-  Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-    Text(AppStrings.homeQuickStart, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-    const SizedBox(height: AppSpace.sm),
-    SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: onCapture,
-        icon: const Icon(CupertinoIcons.add),
-        label: const Text(AppStrings.homeCapture),
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+      Text(AppStrings.homeQuickStart, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+      const SizedBox(height: AppSpace.sm),
+      Row(
+        children: <Widget>[
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: onCapture,
+              icon: const Icon(CupertinoIcons.add, size: 18),
+              label: const Text(AppStrings.homeCapture),
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onImportPdf,
+              icon: Icon(CupertinoIcons.doc_richtext, size: 18, color: AppColors.accentPurple),
+              label: Text('导入 PDF', style: TextStyle(color: AppColors.accentPurple)),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: colorScheme.outlineVariant),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+        ],
       ),
-    ),
-  ]);
+    ]);
+  }
 }
 
 class _BatchActionCard extends StatelessWidget {
@@ -819,6 +860,76 @@ class _GoalEntryCard extends StatelessWidget {
               ),
               Icon(CupertinoIcons.chevron_right,
                   size: 18, color: colorScheme.onSecondaryContainer),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 首页「低置信度题目」提示卡。当存在 OCR 置信度 < 0.7 的题目时显示，
+/// 引导用户进入错题本校对，避免错误识别内容污染复习流程。
+class _LowConfidenceHintCard extends StatelessWidget {
+  const _LowConfidenceHintCard({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: AppColors.semanticContainer(AppColors.warning, isDark: isDark),
+      borderRadius: BorderRadius.circular(AppRadius.large),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: isDark ? 0.24 : 0.12),
+                  borderRadius: BorderRadius.circular(AppRadius.medium),
+                ),
+                child: const Icon(
+                  CupertinoIcons.exclamationmark_triangle_fill,
+                  color: AppColors.warning,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '$count 道题识别置信度较低',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.warningDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '建议进入错题本校对，避免错题内容有误',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.warningDark.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                CupertinoIcons.chevron_right,
+                size: 16,
+                color: AppColors.warningDark,
+              ),
             ],
           ),
         ),

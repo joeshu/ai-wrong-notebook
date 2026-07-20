@@ -126,6 +126,62 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpace.xl),
+            AppSectionTitle(AppStrings.settingsLearningAnalytics),
+            const SizedBox(height: AppSpace.md),
+            AppCard(
+              child: Column(
+                children: <Widget>[
+                  AppListTile(
+                    icon: CupertinoIcons.chart_bar_alt_fill,
+                    iconColor: AppColors.accentPurple,
+                    iconBackgroundColor: AppColors.accentPurpleContainerLight,
+                    title: AppStrings.settingsSubjectRadar,
+                    subtitle: AppStrings.settingsSubjectRadarSubtitle,
+                    onTap: () => context.go('/settings/subject-radar'),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 56,
+                    color: colorScheme.outlineVariant,
+                  ),
+                  AppListTile(
+                    icon: CupertinoIcons.flame_fill,
+                    iconColor: AppColors.warning,
+                    iconBackgroundColor: AppColors.warningContainerLight,
+                    title: AppStrings.settingsMistakeTrend,
+                    subtitle: AppStrings.settingsMistakeTrendSubtitle,
+                    onTap: () => context.go('/settings/mistake-trend'),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 56,
+                    color: colorScheme.outlineVariant,
+                  ),
+                  AppListTile(
+                    icon: CupertinoIcons.calendar,
+                    iconColor: AppColors.accentTeal,
+                    iconBackgroundColor: AppColors.accentTealContainerLight,
+                    title: AppStrings.settingsWeeklyReport,
+                    subtitle: AppStrings.settingsWeeklyReportSubtitle,
+                    onTap: () => context.go('/settings/weekly-report'),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 56,
+                    color: colorScheme.outlineVariant,
+                  ),
+                  AppListTile(
+                    icon: CupertinoIcons.square_arrow_up,
+                    iconColor: AppColors.info,
+                    iconBackgroundColor: AppColors.infoContainerLight,
+                    title: AppStrings.settingsExportWorkbench,
+                    subtitle: AppStrings.settingsExportWorkbenchSubtitle,
+                    onTap: () => context.go('/settings/export-workbench'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpace.xl),
             AppSectionTitle(AppStrings.settingsDataSecurity),
             const SizedBox(height: AppSpace.md),
             AppCard(

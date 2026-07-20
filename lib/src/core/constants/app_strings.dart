@@ -109,6 +109,17 @@ class AppStrings {
   static const String settingsDataManagement = '备份、恢复与存储';
   static const String settingsDataManagementSubtitle = '完整备份、导入恢复、导出讲义与清理数据';
 
+  // 学习分析
+  static const String settingsLearningAnalytics = '学习分析';
+  static const String settingsSubjectRadar = '学科能力雷达图';
+  static const String settingsSubjectRadarSubtitle = '按科目查看掌握度与薄弱点';
+  static const String settingsMistakeTrend = '错因趋势热力图';
+  static const String settingsMistakeTrendSubtitle = '按月查看错因分布变化';
+  static const String settingsWeeklyReport = '本周学情报告';
+  static const String settingsWeeklyReportSubtitle = '生成复习量与掌握度周报';
+  static const String settingsExportWorkbench = '导出工作台';
+  static const String settingsExportWorkbenchSubtitle = '讲义 / Anki / HTML 等导出';
+
   // Provider config
   static const String providerConfigTitle = 'AI 服务配置';
   static const String providerConfigUrlLabel = 'API 地址';

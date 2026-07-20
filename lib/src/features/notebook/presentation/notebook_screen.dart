@@ -891,14 +891,154 @@ class _QuestionCard extends StatelessWidget {
       ));
     }
 
-    return Text.rich(
-      TextSpan(
-        style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
-        children: spans,
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text.rich(
+          TextSpan(
+            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+            children: spans,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (_hasStatusBadges) ...<Widget>[
+          const SizedBox(height: AppSpace.xs),
+          _buildStatusBadges(context),
+        ],
+      ],
     );
+  }
+
+  /// 是否需要展示状态徽章行（难度 / 作答状态 / 置信度 / 反思笔记 / 判分结果）。
+  bool get _hasStatusBadges =>
+      question.difficulty != null ||
+      question.attemptStatus != null ||
+      (question.ocrConfidence != null && question.ocrConfidence! < 0.7) ||
+      (question.reflectionNote?.isNotEmpty ?? false) ||
+      question.isCorrect != null;
+
+  /// 渲染状态徽章行：用紧凑的色块徽章展示难度/作答状态/置信度/反思/判分。
+  Widget _buildStatusBadges(BuildContext context) {
+    final children = <Widget>[];
+
+    final difficulty = question.difficulty;
+    if (difficulty != null) {
+      children.add(_MetaBadge(
+        label: _difficultyLabel(difficulty),
+        color: _difficultyColor(difficulty),
+      ));
+    }
+
+    final attempt = question.attemptStatus;
+    if (attempt != null && attempt != AttemptStatus.notAttempted) {
+      children.add(_MetaBadge(
+        label: _attemptStatusLabel(attempt),
+        color: _attemptStatusColor(attempt),
+        icon: _attemptStatusIcon(attempt),
+      ));
+    }
+
+    final confidence = question.ocrConfidence;
+    if (confidence != null && confidence < 0.7) {
+      children.add(_MetaBadge(
+        label: '置信度低',
+        color: AppColors.warning,
+        icon: CupertinoIcons.exclamationmark,
+      ));
+    }
+
+    if (question.reflectionNote?.isNotEmpty ?? false) {
+      children.add(_MetaBadge(
+        label: '反思',
+        color: AppColors.accentPurple,
+        icon: CupertinoIcons.pencil_ellipsis_rectangle,
+      ));
+    }
+
+    final isCorrect = question.isCorrect;
+    if (isCorrect != null) {
+      children.add(_MetaBadge(
+        label: isCorrect ? '答对' : '答错',
+        color: isCorrect ? AppColors.success : AppColors.danger,
+        icon: isCorrect
+            ? CupertinoIcons.checkmark_circle_fill
+            : CupertinoIcons.xmark_circle_fill,
+      ));
+    }
+
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Wrap(
+      spacing: AppSpace.xs,
+      runSpacing: AppSpace.xs,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: children,
+    );
+  }
+
+  String _difficultyLabel(QuestionDifficulty difficulty) {
+    switch (difficulty) {
+      case QuestionDifficulty.foundation:
+        return '基础';
+      case QuestionDifficulty.advanced:
+        return '提高';
+      case QuestionDifficulty.challenge:
+        return '挑战';
+      case QuestionDifficulty.custom:
+        return '自定义';
+    }
+  }
+
+  Color _difficultyColor(QuestionDifficulty difficulty) {
+    switch (difficulty) {
+      case QuestionDifficulty.foundation:
+        return AppColors.accentTeal;
+      case QuestionDifficulty.advanced:
+        return AppColors.accentAmber;
+      case QuestionDifficulty.challenge:
+        return AppColors.danger;
+      case QuestionDifficulty.custom:
+        return AppColors.slate;
+    }
+  }
+
+  String _attemptStatusLabel(AttemptStatus status) {
+    switch (status) {
+      case AttemptStatus.notAttempted:
+        return '未作答';
+      case AttemptStatus.wrongAttempt:
+        return '答错';
+      case AttemptStatus.incomplete:
+        return '未完成';
+      case AttemptStatus.unknown:
+        return '作答未知';
+    }
+  }
+
+  Color _attemptStatusColor(AttemptStatus status) {
+    switch (status) {
+      case AttemptStatus.notAttempted:
+        return AppColors.slate;
+      case AttemptStatus.wrongAttempt:
+        return AppColors.danger;
+      case AttemptStatus.incomplete:
+        return AppColors.warning;
+      case AttemptStatus.unknown:
+        return AppColors.slate;
+    }
+  }
+
+  IconData _attemptStatusIcon(AttemptStatus status) {
+    switch (status) {
+      case AttemptStatus.notAttempted:
+        return CupertinoIcons.circle;
+      case AttemptStatus.wrongAttempt:
+        return CupertinoIcons.xmark_circle;
+      case AttemptStatus.incomplete:
+        return CupertinoIcons.exclamationmark_circle;
+      case AttemptStatus.unknown:
+        return CupertinoIcons.question_circle;
+    }
   }
 
   String _formatDate(DateTime date) {
@@ -958,6 +1098,49 @@ String _masteryLabel(MasteryLevel level) {
       return '复习中';
     case MasteryLevel.mastered:
       return '已掌握';
+  }
+}
+
+/// 错题卡片上的紧凑元数据徽章：色块背景 + 可选图标 + 标签。
+/// 用于在列表层快速展示难度 / 作答状态 / 置信度 / 反思笔记 / 判分结果。
+class _MetaBadge extends StatelessWidget {
+  const _MetaBadge({
+    required this.label,
+    required this.color,
+    this.icon,
+  });
+
+  final String label;
+  final Color color;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.22 : 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.small),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (icon != null) ...<Widget>[
+            Icon(icon, size: 9, color: color),
+            const SizedBox(width: 2),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
