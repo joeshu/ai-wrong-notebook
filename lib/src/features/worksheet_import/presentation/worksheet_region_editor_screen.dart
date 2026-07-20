@@ -132,6 +132,7 @@ class _WorksheetRegionEditorScreenState
               onAuto: _isCropping || _isDetecting ? null : () => _detectRegions(page, override: oneShotType),
               onPaddle: _isCropping || _isDetecting || !_hasPaddleToken(layoutConfig) ? null : () => _detectRegions(page, override: LayoutProviderType.paddleCloud),
               onMineru: _isCropping || _isDetecting || !_hasMineruToken(layoutConfig) ? null : () => _detectRegions(page, override: LayoutProviderType.mineruCloud),
+              onOpenSettings: () => context.push('/settings/layout'),
               onManual: _isCropping || _isDetecting ? null : _clearForManual,
               paddleReady: _hasPaddleToken(layoutConfig),
               mineruReady: _hasMineruToken(layoutConfig),
@@ -720,6 +721,7 @@ class _DetectionActionCard extends StatelessWidget {
     required this.onManual,
     required this.paddleReady,
     required this.mineruReady,
+    required this.onOpenSettings,
   });
   final bool isDetecting;
   final String selectedType;
@@ -729,6 +731,7 @@ class _DetectionActionCard extends StatelessWidget {
   final VoidCallback? onManual;
   final bool paddleReady;
   final bool mineruReady;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -754,7 +757,10 @@ class _DetectionActionCard extends StatelessWidget {
         ]),
         if (!paddleReady || !mineruReady) Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: Text('未配置的服务不可用；请到「设置 → 试卷版面识别」填写 Token。', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
+          child: Row(children: <Widget>[
+            const Expanded(child: Text('未配置的服务不可用，请先填写版面识别 Token。', style: TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
+            TextButton(onPressed: onOpenSettings, child: const Text('去设置')),
+          ]),
         ),
       ]),
     ),
