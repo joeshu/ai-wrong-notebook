@@ -290,6 +290,9 @@ class _WorksheetRegionEditorScreenState
 
   Future<void> _detectRegions(QuestionRecord page, {LayoutProviderType? override}) async {
     final startedAt = DateTime.now();
+    // 记录本次识别使用的服务名，失败时仍保留在 _detectionProvider 中，
+    // 让用户清楚是哪个引擎失败，便于切换或重新配置 Token。
+    String? pendingProviderLabel;
     setState(() {
       _isDetecting = true;
       _detectionMessage = override == LayoutProviderType.paddleCloud
@@ -311,6 +314,14 @@ class _WorksheetRegionEditorScreenState
         if (mounted) setState(() => _detectionMessage = '当前设置为仅手动框选；可直接点击页面新增题框。');
         return;
       }
+      // 提前标注当前服务的可读名称，确保 catch 块能拿到。
+      pendingProviderLabel = switch (type) {
+        LayoutProviderType.paddleCloud => 'PaddleOCR PP-StructureV3',
+        LayoutProviderType.mineruCloud => 'MinerU VLM',
+        LayoutProviderType.autoCloud => 'Auto（自动选择）',
+        LayoutProviderType.customHttp => '自定义 HTTP 版面识别',
+        LayoutProviderType.manualOnly => '仅手动框选',
+      };
       final result = type == LayoutProviderType.customHttp
           ? await CustomHttpDocumentLayoutService(effectiveConfig)
               .detectQuestionRegions(imagePath: page.imagePath)
@@ -347,7 +358,12 @@ class _WorksheetRegionEditorScreenState
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _detectionMessage = '自动识别失败：$e。你仍可手动点击页面新增题框。');
+      // 失败时保留服务标签 + 错误原因，让用户知道是哪个引擎失败。
+      setState(() {
+        _detectionProvider = pendingProviderLabel;
+        _detectionMessage = '识别失败（$pendingProviderLabel）：$e\n'
+            '你仍可手动点击页面新增题框，或切换其他识别引擎重试。';
+      });
     } finally {
       if (mounted) setState(() => _isDetecting = false);
     }
@@ -923,23 +939,63 @@ class _RecognitionEvidencePreview extends StatelessWidget {
         child: const Text('原图附件缺失', style: TextStyle(fontSize: 12)),
       );
     }
-    return SizedBox(
-      height: wide ? 150 : 120,
-      width: double.infinity,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(6),
-        child: LayoutBuilder(builder: (context, constraints) {
-          final scale = constraints.maxWidth / rect.width;
-          return Stack(children: <Widget>[
-            Positioned(
-              left: -rect.left * scale,
-              top: -rect.top * scale,
-              width: scale,
-              child: CachedQuestionImage(sourceImagePath, fit: BoxFit.fitWidth),
+    return GestureDetector(
+      onTap: () => _showFullScreenImage(context),
+      child: Stack(
+        children: <Widget>[
+          SizedBox(
+            height: wide ? 150 : 120,
+            width: double.infinity,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LayoutBuilder(builder: (context, constraints) {
+                final scale = constraints.maxWidth / rect.width;
+                return Stack(children: <Widget>[
+                  Positioned(
+                    left: -rect.left * scale,
+                    top: -rect.top * scale,
+                    width: scale,
+                    child: CachedQuestionImage(sourceImagePath, fit: BoxFit.fitWidth),
+                  ),
+                  Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _PreviewBorderPainter()))),
+                ]);
+              }),
             ),
-            Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _PreviewBorderPainter()))),
-          ]);
-        }),
+          ),
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(Icons.zoom_in_rounded, size: 12, color: Colors.white),
+                  SizedBox(width: 2),
+                  Text('点击放大', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 全屏查看原图，支持双指缩放与拖动。
+  void _showFullScreenImage(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: Colors.black87,
+        barrierDismissible: true,
+        pageBuilder: (_, __, ___) => _FullScreenImageViewer(imagePath: sourceImagePath),
+        transitionsBuilder: (_, animation, __, child) =>
+            FadeTransition(opacity: animation, child: child),
       ),
     );
   }
@@ -970,6 +1026,83 @@ class _PreviewBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+
+/// 全屏原图查看器：双指缩放 + 拖动 + 双击放大，点击空白处关闭。
+class _FullScreenImageViewer extends StatefulWidget {
+  const _FullScreenImageViewer({required this.imagePath});
+
+  final String imagePath;
+
+  @override
+  State<_FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
+  final TransformationController _controller = TransformationController();
+  TapDownDetails? _doubleTapDetails;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).maybePop(),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Stack(
+            children: <Widget>[
+              GestureDetector(
+                onDoubleTapDown: (details) => _doubleTapDetails = details,
+                onDoubleTap: _handleDoubleTap,
+                child: InteractiveViewer(
+                  transformationController: _controller,
+                  boundaryMargin: const EdgeInsets.all(double.infinity),
+                  minScale: 0.5,
+                  maxScale: 5.0,
+                  child: Center(
+                    child: CachedQuestionImage(
+                      widget.imagePath,
+                      fit: BoxFit.contain,
+                      errorMessage: '原图加载失败',
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 12,
+                child: SafeArea(
+                  child: IconButton.filledTonal(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleDoubleTap() {
+    final position = _doubleTapDetails?.localPosition ?? Offset.zero;
+    if (_controller.value != 1.0) {
+      _controller.value = Matrix4.identity();
+    } else {
+      _controller.value = Matrix4.identity()
+        ..translate(-position.dx * 2, -position.dy * 2)
+        ..scale(3.0);
+    }
+  }
+}
+
 class _RegionQuality {
   static double evaluate(List<QuestionRegion> regions, int index) {
     final region = regions[index];

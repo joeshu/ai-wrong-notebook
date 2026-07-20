@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
 /// 生成 JSON 格式的错题本导出。
 ///
@@ -36,8 +37,11 @@ class JsonExportService {
       'appVersion': appVersion,
       'exportedAt': DateTime.now().toIso8601String(),
       'questionCount': questions.length,
-      'questions':
-          questions.map((q) => q.toJson()).toList(growable: false),
+      // 归一化字面量 \n（反斜杠+n 两字符，AI 输出残留）为真正换行，
+      // 避免导入端或下游工具看到选项 ABCD 前的字面量 \n 文本。
+      'questions': questions
+          .map((q) => _normalizeQuestionRecordJson(q.toJson()))
+          .toList(growable: false),
     };
     if (includeReviewLogs) {
       data['reviewLogs'] = (reviewLogs ?? const <ReviewLog>[])
@@ -77,5 +81,24 @@ class JsonExportService {
       'result': log.result,
       'masteryAfter': log.masteryAfter.name,
     };
+  }
+
+  /// 归一化 [QuestionRecord.toJson] 输出中的文本字段，统一字面量 `\n` →
+  /// 真正换行符。覆盖题干、AI 解析等所有字符串字段，确保 JSON 导出在
+  /// 下游工具（Excel/Notion/再导入）中显示正常。
+  Map<String, dynamic> _normalizeQuestionRecordJson(Map<String, dynamic> json) {
+    const textFields = <String>{
+      'extractedQuestionText',
+      'normalizedQuestionText',
+      'studentAnswer',
+      'expectedAnswer',
+      'reflectionNote',
+    };
+    return json.map((key, value) {
+      if (textFields.contains(key) && value is String) {
+        return MapEntry(key, LatexNormalizer.normalizeLiteralNewlines(value));
+      }
+      return MapEntry(key, value);
+    });
   }
 }

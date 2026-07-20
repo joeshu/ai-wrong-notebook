@@ -26,6 +26,7 @@ class QuestionRecords extends Table {
   TextColumn get studentAnswer => text().nullable()();
   TextColumn get expectedAnswer => text().nullable()();
   BoolColumn get isCorrect => boolean().nullable()();
+  TextColumn get questionType => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

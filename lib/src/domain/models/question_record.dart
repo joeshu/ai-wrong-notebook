@@ -6,6 +6,7 @@ import 'mastery_level.dart';
 import 'mistake_category.dart';
 import 'question_split_result.dart';
 import 'question_source.dart';
+import 'question_type.dart';
 import 'subject.dart';
 
 enum QuestionContentFormat { plain, latexMixed }
@@ -173,6 +174,7 @@ class QuestionRecord {
     this.reflectionNote,
     this.ocrConfidence,
     this.archivedAt,
+    this.questionType,
   });
 
   static const favoriteTag = '__system_favorite';
@@ -323,6 +325,12 @@ class QuestionRecord {
       archivedAt: json['archivedAt'] != null
           ? DateTime.parse(json['archivedAt'] as String)
           : null,
+      questionType: json['questionType'] != null
+          ? QuestionType.values.firstWhere(
+              (t) => t.name == json['questionType'],
+              orElse: () => QuestionType.other,
+            )
+          : null,
     );
   }
 
@@ -363,6 +371,7 @@ class QuestionRecord {
       'reflectionNote': reflectionNote,
       'ocrConfidence': ocrConfidence,
       'archivedAt': archivedAt?.toIso8601String(),
+      'questionType': questionType?.name,
     };
   }
 
@@ -397,6 +406,7 @@ class QuestionRecord {
   final String? reflectionNote;
   final double? ocrConfidence;
   final DateTime? archivedAt;
+  final QuestionType? questionType;
 
   String get recognizedText => extractedQuestionText;
   String get correctedText => normalizedQuestionText;
@@ -487,6 +497,7 @@ class QuestionRecord {
     String? reflectionNote,
     double? ocrConfidence,
     DateTime? archivedAt,
+    QuestionType? questionType,
   }) {
     return QuestionRecord(
       id: id,
@@ -522,6 +533,7 @@ class QuestionRecord {
       reflectionNote: reflectionNote ?? this.reflectionNote,
       ocrConfidence: ocrConfidence ?? this.ocrConfidence,
       archivedAt: archivedAt ?? this.archivedAt,
+      questionType: questionType ?? this.questionType,
     );
   }
 
@@ -562,6 +574,7 @@ class QuestionRecord {
       isCorrect: isCorrect,
       reflectionNote: reflectionNote,
       archivedAt: value,
+      questionType: questionType,
     );
   }
 
@@ -609,6 +622,7 @@ class QuestionRecord {
       reflectionNote: reflectionNote,
       ocrConfidence: ocrConfidence,
       archivedAt: archivedAt,
+      questionType: questionType,
     );
   }
 
@@ -650,6 +664,7 @@ class QuestionRecord {
       reflectionNote: reflectionNote,
       ocrConfidence: ocrConfidence,
       archivedAt: archivedAt,
+      questionType: questionType,
     );
   }
 }

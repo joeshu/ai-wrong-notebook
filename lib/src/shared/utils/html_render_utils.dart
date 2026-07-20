@@ -3,6 +3,7 @@ import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
 /// HTML 报告渲染工具：被 [HtmlExportService] 与各 [ExportTemplate] 共享。
 ///
@@ -64,8 +65,13 @@ class HtmlRenderUtils {
 
   /// 把包含 LaTeX 分隔符的文本转成 HTML：数学部分用 `<span class="math-...">`
   /// 包裹供 KaTeX 渲染，其余部分转义并保留换行。
+  ///
+  /// 入口先调用 [LatexNormalizer.normalizeLiteralNewlines] 把字面量 `\n`
+  /// （反斜杠+n 两字符，AI 输出残留）转为真正换行符，避免选项 ABCD 前
+  /// 出现字面量 `\n` 文本。覆盖 HTML/PDF/3 模板导出。
   static String mixedTextToHtml(String input) {
-    final normalized = normalizeDelimiters(input);
+    final normalized = normalizeDelimiters(
+        LatexNormalizer.normalizeLiteralNewlines(input));
     final spans = splitMathSpans(normalized);
     final buffer = StringBuffer();
     for (final span in spans) {

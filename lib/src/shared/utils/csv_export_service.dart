@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
 /// 生成 CSV 格式的错题本导出。
 ///
@@ -44,9 +45,10 @@ class CsvExportService {
     for (var i = 0; i < questions.length; i++) {
       final q = questions[i];
       final analysis = q.analysisResult;
-      final questionText = (q.normalizedQuestionText.isNotEmpty
-              ? q.normalizedQuestionText
-              : q.extractedQuestionText)
+      final rawQuestionText = q.normalizedQuestionText.isNotEmpty
+          ? q.normalizedQuestionText
+          : q.extractedQuestionText;
+      final questionText = LatexNormalizer.normalizeLiteralNewlines(rawQuestionText)
           .replaceAll(RegExp(r'\s+'), ' ')
           .trim();
       final truncated = questionText.length > questionTextLimit

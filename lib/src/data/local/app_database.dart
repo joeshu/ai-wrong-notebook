@@ -26,7 +26,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -78,6 +78,10 @@ class AppDatabase extends _$AppDatabase {
                 questionRecords, questionRecords.expectedAnswer);
             await migrator.addColumn(
                 questionRecords, questionRecords.isCorrect);
+          }
+          if (from < 11) {
+            await migrator.addColumn(
+                questionRecords, questionRecords.questionType);
           }
         },
       );

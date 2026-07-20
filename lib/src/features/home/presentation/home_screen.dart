@@ -11,6 +11,7 @@ import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
+import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -201,12 +202,9 @@ class HomeScreen extends ConsumerWidget {
               if (ranked.isEmpty) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(top: AppSpace.lg),
-                child: _WeakPointCard(
-                  points: ranked.take(3).toList(),
-                  onSelect: (point) {
-                    ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
-                    context.go('/notebook');
-                  },
+                child: _WeakPointSection(
+                  ranked: ranked,
+                  questions: questions,
                 ),
               );
             },
@@ -865,36 +863,143 @@ class _RecentQuestionCard extends StatelessWidget {
   }
 }
 
-/// 首页「学习目标与打卡」入口卡片。点击跳转到 `/goals` 详情页，
-/// 在那里可设置每日目标、手动打卡并查看连续打卡日历。
-class _WeakPointCard extends StatelessWidget {
-  const _WeakPointCard({required this.points, required this.onSelect});
-  final List<MapEntry<String, int>> points;
-  final ValueChanged<String> onSelect;
+/// 首页「薄弱知识点与推荐练习」入口卡片。每行支持两件事：
+/// - 点击题数文本区域 → 跳到错题本并按该知识点筛选；
+/// - 点击右侧「专项练习」按钮 → 走 [KnowledgePointPracticeController]
+///   聚合本知识点下所有错题的已有练习题；缺失时由 AI 生成。
+///
+/// 将原本只做"筛选跳转"的入口补成清单要求的"薄弱知识点和推荐练习入口"。
+class _WeakPointSection extends ConsumerStatefulWidget {
+  const _WeakPointSection({required this.ranked, required this.questions});
+  final List<MapEntry<String, int>> ranked;
+  final List<QuestionRecord> questions;
+
+  @override
+  ConsumerState<_WeakPointSection> createState() => _WeakPointSectionState();
+}
+
+class _WeakPointSectionState extends ConsumerState<_WeakPointSection> {
+  String? _practicingPoint;
+
+  Future<void> _startPractice(String knowledgePoint) async {
+    if (_practicingPoint != null) return;
+    setState(() => _practicingPoint = knowledgePoint);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final related = widget.questions
+          .where((q) =>
+              q.masteryLevel != MasteryLevel.mastered &&
+              q.aiKnowledgePoints.contains(knowledgePoint))
+          .toList(growable: false);
+      if (related.isEmpty) {
+        throw StateError('该知识点暂无错题可生成练习');
+      }
+      final controller = KnowledgePointPracticeController(
+        ref.read(aiAnalysisServiceProvider),
+      );
+      final prepared = await controller.buildRound(
+        knowledgePoint: knowledgePoint,
+        questions: related,
+      );
+      await ref.read(questionRepositoryProvider).update(prepared);
+      invalidateQuestionList(ref);
+      ref.read(currentPracticeContextProvider.notifier).state = const PracticeContext(
+        source: PracticeContextSource.notebook,
+        returnRoute: '/',
+      );
+      ref.read(currentQuestionProvider.notifier).state = prepared;
+      if (!mounted) return;
+      context.go('/exercise/practice');
+    } catch (error) {
+      if (mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('专项练习准备失败：$error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _practicingPoint = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    return _WeakPointCard(
+      points: widget.ranked.take(3).toList(),
+      practicingPoint: _practicingPoint,
+      onSelect: (point) {
+        ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
+        context.go('/notebook');
+      },
+      onPractice: _startPractice,
+    );
+  }
+}
+
+class _WeakPointCard extends StatelessWidget {
+  const _WeakPointCard({
+    required this.points,
+    required this.onSelect,
+    required this.onPractice,
+    required this.practicingPoint,
+  });
+  final List<MapEntry<String, int>> points;
+  final ValueChanged<String> onSelect;
+  final ValueChanged<String> onPractice;
+  final String? practicingPoint;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return AppCard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
         Row(children: <Widget>[
           const Icon(CupertinoIcons.scope, size: 18, color: AppColors.warningDark),
           const SizedBox(width: AppSpace.sm),
           const Expanded(child: Text('优先巩固薄弱知识点', style: TextStyle(fontWeight: FontWeight.w700))),
-          Text('点击筛选', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text('点击筛选 / 专项练习', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
         ]),
         const SizedBox(height: AppSpace.sm),
-        ...points.map((entry) => InkWell(
-              onTap: () => onSelect(entry.key),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Row(children: <Widget>[
-                  Expanded(child: Text(entry.key, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  Text('${entry.value} 题', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                  const SizedBox(width: 4),
-                  const Icon(CupertinoIcons.chevron_right, size: 14),
-                ]),
-              ),
-            )),
+        ...points.map((entry) {
+          final isPracticing = practicingPoint == entry.key;
+          return InkWell(
+            onTap: () => onSelect(entry.key),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: Row(children: <Widget>[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text(entry.key, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text('${entry.value} 题', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                TextButton.icon(
+                  onPressed: isPracticing ? null : () => onPractice(entry.key),
+                  icon: isPracticing
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(CupertinoIcons.play_circle, size: 16),
+                  label: Text(isPracticing ? '准备中' : '专项练习'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(CupertinoIcons.chevron_right, size: 14),
+              ]),
+            ),
+          );
+        }),
       ]),
     );
   }

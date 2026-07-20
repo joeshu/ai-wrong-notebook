@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
 import 'export_content_options.dart';
 import 'worksheet_export_mode.dart';
@@ -235,12 +236,16 @@ class MarkdownExportService {
   }
 
   /// 题干文本输出，[QuestionContentFormat.latexMixed] 时保留 `$...$` 语法。
+  ///
+  /// 入口先归一化字面量 `\n`（反斜杠+n 两字符，AI 输出残留）为真正换行，
+  /// 避免选项 ABCD 前出现字面量 `\n` 文本。
   String _formatQuestionText(QuestionRecord q, String text) {
+    final normalized = LatexNormalizer.normalizeLiteralNewlines(text);
     if (q.contentFormat == QuestionContentFormat.latexMixed) {
       // 题干本身已带 `$...$`，原样输出。
-      return text;
+      return normalized;
     }
-    return text;
+    return normalized;
   }
 
   String _masteryLabel(MasteryLevel level) => switch (level) {

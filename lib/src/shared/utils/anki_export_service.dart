@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
 import 'export_content_options.dart';
 
@@ -158,8 +159,11 @@ class AnkiExportService {
   }
 
   /// 转义字段值：HTML 特殊字符 + Tab/换行（避免破坏 TSV 结构）。
+  ///
+  /// 入口先归一化字面量 `\n`（反斜杠+n 两字符，AI 输出残留）为真正换行，
+  /// 再统一替换为 `<br>`，避免选项 ABCD 前出现字面量 `\n` 文本。
   String _escapeField(String input) {
-    return input
+    return LatexNormalizer.normalizeLiteralNewlines(input)
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')

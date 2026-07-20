@@ -166,6 +166,12 @@ class $QuestionRecordsTable extends QuestionRecords
   late final GeneratedColumn<bool> isCorrect = GeneratedColumn<bool>(
       'is_correct', aliasedName, true,
       type: DriftSqlType.bool, requiredDuringInsert: false);
+  static const VerificationMeta _questionTypeMeta =
+      const VerificationMeta('questionType');
+  @override
+  late final GeneratedColumn<String> questionType = GeneratedColumn<String>(
+      'question_type', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -192,7 +198,8 @@ class $QuestionRecordsTable extends QuestionRecords
         ocrConfidence,
         studentAnswer,
         expectedAnswer,
-        isCorrect
+        isCorrect,
+        questionType
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -357,6 +364,12 @@ class $QuestionRecordsTable extends QuestionRecords
           isCorrect.isAcceptableOrUnknown(
               data['is_correct']!, _isCorrectMeta));
     }
+    if (data.containsKey('question_type')) {
+      context.handle(
+          _questionTypeMeta,
+          questionType.isAcceptableOrUnknown(
+              data['question_type']!, _questionTypeMeta));
+    }
     return context;
   }
 
@@ -416,6 +429,8 @@ class $QuestionRecordsTable extends QuestionRecords
           DriftSqlType.string, data['${effectivePrefix}expected_answer']),
       isCorrect: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_correct']),
+      questionType: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}question_type']),
     );
   }
 
@@ -451,6 +466,7 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
   final String? studentAnswer;
   final String? expectedAnswer;
   final bool? isCorrect;
+  final String? questionType;
   const QuestionRecord(
       {required this.id,
       required this.subject,
@@ -476,7 +492,8 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       this.ocrConfidence,
       this.studentAnswer,
       this.expectedAnswer,
-      this.isCorrect});
+      this.isCorrect,
+      this.questionType});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -528,6 +545,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
     }
     if (!nullToAbsent || isCorrect != null) {
       map['is_correct'] = Variable<bool>(isCorrect);
+    }
+    if (!nullToAbsent || questionType != null) {
+      map['question_type'] = Variable<String>(questionType);
     }
     return map;
   }
@@ -583,6 +603,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       isCorrect: isCorrect == null && nullToAbsent
           ? const Value.absent()
           : Value(isCorrect),
+      questionType: questionType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(questionType),
     );
   }
 
@@ -616,6 +639,7 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       studentAnswer: serializer.fromJson<String?>(json['studentAnswer']),
       expectedAnswer: serializer.fromJson<String?>(json['expectedAnswer']),
       isCorrect: serializer.fromJson<bool?>(json['isCorrect']),
+      questionType: serializer.fromJson<String?>(json['questionType']),
     );
   }
   @override
@@ -647,6 +671,7 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       'studentAnswer': serializer.toJson<String?>(studentAnswer),
       'expectedAnswer': serializer.toJson<String?>(expectedAnswer),
       'isCorrect': serializer.toJson<bool?>(isCorrect),
+      'questionType': serializer.toJson<String?>(questionType),
     };
   }
 
@@ -675,7 +700,8 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           Value<double?> ocrConfidence = const Value.absent(),
           Value<String?> studentAnswer = const Value.absent(),
           Value<String?> expectedAnswer = const Value.absent(),
-          Value<bool?> isCorrect = const Value.absent()}) =>
+          Value<bool?> isCorrect = const Value.absent(),
+          Value<String?> questionType = const Value.absent()}) =>
       QuestionRecord(
         id: id ?? this.id,
         subject: subject ?? this.subject,
@@ -715,6 +741,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
         expectedAnswer:
             expectedAnswer.present ? expectedAnswer.value : this.expectedAnswer,
         isCorrect: isCorrect.present ? isCorrect.value : this.isCorrect,
+        questionType: questionType.present
+            ? questionType.value
+            : this.questionType,
       );
   QuestionRecord copyWithCompanion(QuestionRecordsCompanion data) {
     return QuestionRecord(
@@ -777,6 +806,9 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           : this.expectedAnswer,
       isCorrect:
           data.isCorrect.present ? data.isCorrect.value : this.isCorrect,
+      questionType: data.questionType.present
+          ? data.questionType.value
+          : this.questionType,
     );
   }
 
@@ -807,7 +839,8 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           ..write('ocrConfidence: $ocrConfidence, ')
           ..write('studentAnswer: $studentAnswer, ')
           ..write('expectedAnswer: $expectedAnswer, ')
-          ..write('isCorrect: $isCorrect')
+          ..write('isCorrect: $isCorrect, ')
+          ..write('questionType: $questionType')
           ..write(')'))
         .toString();
   }
@@ -838,7 +871,8 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       ocrConfidence,
       studentAnswer,
       expectedAnswer,
-      isCorrect]);
+      isCorrect,
+      questionType]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -867,7 +901,8 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           other.ocrConfidence == this.ocrConfidence &&
           other.studentAnswer == this.studentAnswer &&
           other.expectedAnswer == this.expectedAnswer &&
-          other.isCorrect == this.isCorrect);
+          other.isCorrect == this.isCorrect &&
+          other.questionType == this.questionType);
 }
 
 class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
@@ -896,6 +931,7 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
   final Value<String?> studentAnswer;
   final Value<String?> expectedAnswer;
   final Value<bool?> isCorrect;
+  final Value<String?> questionType;
   final Value<int> rowid;
   const QuestionRecordsCompanion({
     this.id = const Value.absent(),
@@ -923,6 +959,7 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     this.studentAnswer = const Value.absent(),
     this.expectedAnswer = const Value.absent(),
     this.isCorrect = const Value.absent(),
+    this.questionType = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   QuestionRecordsCompanion.insert({
@@ -951,6 +988,7 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     this.studentAnswer = const Value.absent(),
     this.expectedAnswer = const Value.absent(),
     this.isCorrect = const Value.absent(),
+    this.questionType = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         subject = Value(subject),
@@ -986,6 +1024,7 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     Expression<String>? studentAnswer,
     Expression<String>? expectedAnswer,
     Expression<bool>? isCorrect,
+    Expression<String>? questionType,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1014,6 +1053,7 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       if (studentAnswer != null) 'student_answer': studentAnswer,
       if (expectedAnswer != null) 'expected_answer': expectedAnswer,
       if (isCorrect != null) 'is_correct': isCorrect,
+      if (questionType != null) 'question_type': questionType,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1044,6 +1084,7 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       Value<String?>? studentAnswer,
       Value<String?>? expectedAnswer,
       Value<bool?>? isCorrect,
+      Value<String?>? questionType,
       Value<int>? rowid}) {
     return QuestionRecordsCompanion(
       id: id ?? this.id,
@@ -1071,6 +1112,7 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       studentAnswer: studentAnswer ?? this.studentAnswer,
       expectedAnswer: expectedAnswer ?? this.expectedAnswer,
       isCorrect: isCorrect ?? this.isCorrect,
+      questionType: questionType ?? this.questionType,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1153,6 +1195,9 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     if (isCorrect.present) {
       map['is_correct'] = Variable<bool>(isCorrect.value);
     }
+    if (questionType.present) {
+      map['question_type'] = Variable<String>(questionType.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1187,6 +1232,7 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
           ..write('studentAnswer: $studentAnswer, ')
           ..write('expectedAnswer: $expectedAnswer, ')
           ..write('isCorrect: $isCorrect, ')
+          ..write('questionType: $questionType, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2671,6 +2717,7 @@ typedef $$QuestionRecordsTableCreateCompanionBuilder = QuestionRecordsCompanion
   Value<String?> studentAnswer,
   Value<String?> expectedAnswer,
   Value<bool?> isCorrect,
+  Value<String?> questionType,
   Value<int> rowid,
 });
 typedef $$QuestionRecordsTableUpdateCompanionBuilder = QuestionRecordsCompanion
@@ -2700,6 +2747,7 @@ typedef $$QuestionRecordsTableUpdateCompanionBuilder = QuestionRecordsCompanion
   Value<String?> studentAnswer,
   Value<String?> expectedAnswer,
   Value<bool?> isCorrect,
+  Value<String?> questionType,
   Value<int> rowid,
 });
 
@@ -2829,6 +2877,9 @@ class $$QuestionRecordsTableFilterComposer
 
   ColumnFilters<bool> get isCorrect => $composableBuilder(
       column: $table.isCorrect, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get questionType => $composableBuilder(
+      column: $table.questionType, builder: (column) => ColumnFilters(column));
 
   Expression<bool> generatedExercisesRefs(
       Expression<bool> Function($$GeneratedExercisesTableFilterComposer f) f) {
@@ -2972,6 +3023,10 @@ class $$QuestionRecordsTableOrderingComposer
   ColumnOrderings<bool> get isCorrect => $composableBuilder(
       column: $table.isCorrect,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get questionType => $composableBuilder(
+      column: $table.questionType,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$QuestionRecordsTableAnnotationComposer
@@ -3057,6 +3112,9 @@ class $$QuestionRecordsTableAnnotationComposer
 
   GeneratedColumn<bool> get isCorrect => $composableBuilder(
       column: $table.isCorrect, builder: (column) => column);
+
+  GeneratedColumn<String> get questionType => $composableBuilder(
+      column: $table.questionType, builder: (column) => column);
 
   Expression<T> generatedExercisesRefs<T extends Object>(
       Expression<T> Function($$GeneratedExercisesTableAnnotationComposer a) f) {
@@ -3152,6 +3210,7 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             Value<String?> studentAnswer = const Value.absent(),
             Value<String?> expectedAnswer = const Value.absent(),
             Value<bool?> isCorrect = const Value.absent(),
+            Value<String?> questionType = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               QuestionRecordsCompanion(
@@ -3180,6 +3239,7 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             studentAnswer: studentAnswer,
             expectedAnswer: expectedAnswer,
             isCorrect: isCorrect,
+            questionType: questionType,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -3208,6 +3268,7 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             Value<String?> studentAnswer = const Value.absent(),
             Value<String?> expectedAnswer = const Value.absent(),
             Value<bool?> isCorrect = const Value.absent(),
+            Value<String?> questionType = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               QuestionRecordsCompanion.insert(
@@ -3236,6 +3297,7 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             studentAnswer: studentAnswer,
             expectedAnswer: expectedAnswer,
             isCorrect: isCorrect,
+            questionType: questionType,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

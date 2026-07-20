@@ -92,6 +92,7 @@ class DriftQuestionRepository implements QuestionRepository {
               studentAnswer: Value(record.studentAnswer),
               expectedAnswer: Value(record.expectedAnswer),
               isCorrect: Value(record.isCorrect),
+              questionType: Value(record.questionType?.name),
             ),
           );
 
@@ -264,6 +265,12 @@ class DriftQuestionRepository implements QuestionRepository {
       studentAnswer: row.studentAnswer,
       expectedAnswer: row.expectedAnswer,
       isCorrect: row.isCorrect,
+      questionType: row.questionType == null
+          ? null
+          : domain.QuestionType.values.firstWhere(
+              (t) => t.name == row.questionType,
+              orElse: () => domain.QuestionType.other,
+            ),
     );
   }
 

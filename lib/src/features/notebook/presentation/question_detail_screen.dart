@@ -10,6 +10,7 @@ import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/question_type.dart';
 import 'package:smart_wrong_notebook/src/domain/services/auto_grading_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
@@ -196,6 +197,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     final workController = TextEditingController(text: question.studentWork ?? '');
     var difficulty = question.difficulty;
     var attemptStatus = question.attemptStatus;
+    var questionType = question.questionType;
     showDialog<void>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -205,6 +207,28 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: <Widget>[
+                DropdownButtonFormField<QuestionType?>(
+                  value: questionType,
+                  decoration: const InputDecoration(
+                    labelText: '题型',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('未设置')),
+                    DropdownMenuItem(value: QuestionType.singleChoice, child: Text('单选题')),
+                    DropdownMenuItem(value: QuestionType.multipleChoice, child: Text('多选题')),
+                    DropdownMenuItem(value: QuestionType.trueFalse, child: Text('判断题')),
+                    DropdownMenuItem(value: QuestionType.fillIn, child: Text('填空题')),
+                    DropdownMenuItem(value: QuestionType.shortAnswer, child: Text('简答题')),
+                    DropdownMenuItem(value: QuestionType.essay, child: Text('论述题')),
+                    DropdownMenuItem(value: QuestionType.calculation, child: Text('计算题')),
+                    DropdownMenuItem(value: QuestionType.proof, child: Text('证明题')),
+                    DropdownMenuItem(value: QuestionType.experiment, child: Text('实验题')),
+                    DropdownMenuItem(value: QuestionType.other, child: Text('其他题型')),
+                  ],
+                  onChanged: (value) => setState(() => questionType = value),
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: stageController,
                   maxLength: 30,
@@ -264,12 +288,15 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
             FilledButton(
               onPressed: () async {
-                final updated = question.withLearningContext(
+                var updated = question.withLearningContext(
                   learningStage: stageController.text,
                   difficulty: difficulty,
                   attemptStatus: attemptStatus,
                   studentWork: workController.text,
                 );
+                if (updated.questionType != questionType) {
+                  updated = updated.copyWith(questionType: questionType);
+                }
                 await ref.read(questionRepositoryProvider).update(updated);
                 ref.read(currentQuestionProvider.notifier).state = updated;
                 invalidateQuestionList(ref);
@@ -667,11 +694,11 @@ class _RecognitionStatusTags extends StatelessWidget {
     final aiReady = question.analysisResult != null;
     final recognitionLabel = provider ?? (question.imagePath.isNotEmpty ? '已识别' : '未识别');
     final recognitionColor = question.contentStatus == ContentStatus.failed ? AppColors.danger : AppColors.successDark;
-    final learningLabel = switch (question.masteryLevel) {
-      MasteryLevel.newQuestion => '学习：未复习',
-      MasteryLevel.reviewing => '学习：需巩固',
-      MasteryLevel.mastered => '学习：已掌握',
-    };
+    // 学习状态标签与 _MasteryTag 共用同一套口径（文案 + 颜色），
+    // 避免顶部摘要与状态徽章行的学习标签文本/颜色不一致。
+    final learningLabel = '学习：${_masteryLabel(question.masteryLevel)}';
+    final learningColor = _masteryColor(context, question.masteryLevel);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Wrap(
       spacing: AppSpace.sm,
       runSpacing: AppSpace.sm,
@@ -686,7 +713,11 @@ class _RecognitionStatusTags extends StatelessWidget {
           textColor: aiReady ? AppColors.primaryDark : AppColors.slate,
           backgroundColor: aiReady ? AppColors.primaryContainerLight : AppColors.slateContainerLight,
         ),
-        AppTag(label: learningLabel, textColor: AppColors.warningDark, backgroundColor: AppColors.warningContainerLight),
+        AppTag(
+          label: learningLabel,
+          textColor: isDark ? Theme.of(context).colorScheme.onSurface : learningColor,
+          backgroundColor: learningColor.withValues(alpha: isDark ? 0.16 : 0.1),
+        ),
       ],
     );
   }
@@ -792,6 +823,12 @@ class _QuestionTab extends StatelessWidget {
                     textColor: AppColors.primary,
                     backgroundColor: AppColors.primaryContainerLight,
                   ),
+                  if (current.questionType != null)
+                    AppTag(
+                      label: current.questionType!.label,
+                      textColor: AppColors.info,
+                      backgroundColor: AppColors.infoContainerLight,
+                    ),
                   if (result?.subject != null)
                     const AppTag(
                       label: 'AI识别',
@@ -1376,6 +1413,12 @@ class _LearningProfileGrid extends StatelessWidget {
           icon: CupertinoIcons.exclamationmark_triangle,
           label: '错因',
           value: category),
+      _ProfileData(
+          icon: CupertinoIcons.list_bullet,
+          label: '题型',
+          value: question.questionType?.label ?? '未设置',
+          isAction: editing,
+          onTap: onEditLearningContext),
       _ProfileData(
           icon: CupertinoIcons.clock,
           label: '下次复习',
