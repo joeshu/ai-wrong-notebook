@@ -731,8 +731,7 @@ class _RecognitionStatusTags extends StatelessWidget {
     );
   }
 }
-
-
+class _QuestionTab extends StatelessWidget {
   const _QuestionTab({
     required this.current,
     required this.editing,

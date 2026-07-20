@@ -989,7 +989,7 @@ class _PendingTaskCard extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              Icon(CupertinoIcons.checklist, color: scheme.primary),
+              Icon(CupertinoIcons.checkmark_square, color: scheme.primary),
               const SizedBox(width: AppSpace.sm),
               const Expanded(
                 child: Text('待处理任务', style: TextStyle(fontWeight: FontWeight.w700)),

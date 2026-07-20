@@ -780,8 +780,7 @@ class _DetectionResultCard extends StatelessWidget {
     final text = region.recognizedText ?? '';
     return RegExp(r'(?m)(?:^|\s)[A-H][.．、]\s*\S').hasMatch(text);
   });
-
-
+  String _structureSummary(List<QuestionRegion> regions) {
     final counts = <String, int>{};
     for (final region in regions) {
       for (final type in region.recognizedBlockTypes.where((type) => type != '文字')) {
