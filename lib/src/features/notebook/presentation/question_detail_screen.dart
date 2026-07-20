@@ -169,9 +169,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
                   onSetCategory: (category) => _setMistakeCategory(context, ref, current, category),
                   onAddAnalysis: () {
                     ref.read(currentQuestionProvider.notifier).state = current;
-                    context.go(current.contentStatus.toString().split('.').last == 'failed'
-                        ? '/analysis/loading'
-                        : '/capture/correction');
+                    context.go('/analysis/loading');
                   },
                 ),
                 _PracticeTab(current: current),
@@ -702,6 +700,37 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
   }
 }
 
+class _RecognitionStatusTags extends StatelessWidget {
+  const _RecognitionStatusTags({required this.question});
+  final QuestionRecord question;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = question.tags.firstWhere(
+      (tag) => tag.startsWith('layout_provider:'),
+      orElse: () => '',
+    );
+    final provider = source.isEmpty ? null : source.substring('layout_provider:'.length);
+    final aiReady = question.analysisResult != null;
+    final recognitionLabel = provider ?? (question.imagePath.isNotEmpty ? '图片已保留' : '待识别');
+    return Wrap(
+      spacing: AppSpace.sm,
+      runSpacing: AppSpace.sm,
+      children: <Widget>[
+        AppTag(
+          label: '识别：$recognitionLabel',
+          textColor: AppColors.successDark,
+          backgroundColor: AppColors.successContainerLight,
+        ),
+        AppTag(
+          label: aiReady ? 'AI：已分析' : 'AI：未分析',
+          textColor: aiReady ? AppColors.primaryDark : AppColors.slate,
+          backgroundColor: aiReady ? AppColors.primaryContainerLight : AppColors.slateContainerLight,
+        ),
+      ],
+    );
+  }
+}
 class _QuestionTab extends StatelessWidget {
   const _QuestionTab({
     required this.current,
@@ -763,6 +792,7 @@ class _QuestionTab extends StatelessWidget {
                       backgroundColor: AppColors.successContainerLight,
                     ),
                   _MasteryTag(current: current),
+                  _RecognitionStatusTags(question: current),
                   if (_batchLabel(current) != null)
                     AppTag(
                       label: _batchLabel(current)!,
@@ -1495,8 +1525,8 @@ class _AnalysisTab extends StatelessWidget {
               Icon(CupertinoIcons.sparkles,
                   size: 40, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               const SizedBox(height: AppSpace.md),
-              const Text('暂无 AI 解析结果', style: TextStyle(fontSize: 15)),
-              const SizedBox(height: AppSpace.sm),
+              const Text('当前已保存识别结果，可继续交给普通 AI 完成答案、错因、知识点和练习分析。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+              const SizedBox(height: AppSpace.md),
               FilledButton.icon(
                 onPressed: onAddAnalysis,
                 icon: Icon(current.contentStatus.toString().split('.').last == 'failed'

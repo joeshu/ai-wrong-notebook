@@ -17,6 +17,7 @@ import 'package:smart_wrong_notebook/src/data/services/question_region_crop_serv
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
 import 'package:smart_wrong_notebook/src/data/services/vision_document_layout_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
@@ -496,6 +497,12 @@ final StateProvider<bool> favoritesOnlyFilterProvider =
 final StateProvider<bool> failedOnlyFilterProvider =
     StateProvider<bool>((ref) => false);
 
+final StateProvider<bool> pendingAiOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
+final StateProvider<bool> lowConfidenceOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
 final StateProvider<QuestionSort> questionSortProvider =
     StateProvider<QuestionSort>((ref) => QuestionSort.newest);
 
@@ -600,6 +607,8 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
   final dueOnly = ref.watch(dueOnlyFilterProvider);
   final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
   final failedOnly = ref.watch(failedOnlyFilterProvider);
+  final pendingAiOnly = ref.watch(pendingAiOnlyFilterProvider);
+  final lowConfidenceOnly = ref.watch(lowConfidenceOnlyFilterProvider);
   final dateRange = ref.watch(questionDateRangeProvider);
   final source = ref.watch(selectedSourceFilterProvider);
   final learningStage = ref.watch(selectedLearningStageFilterProvider);
@@ -628,6 +637,14 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
             if (favoritesOnly && !q.isFavorite) return false;
             if (failedOnly &&
                 q.contentStatus.toString().split('.').last != 'failed') {
+              return false;
+            }
+            if (pendingAiOnly &&
+                !(q.contentStatus == ContentStatus.ready && q.analysisResult == null)) {
+              return false;
+            }
+            if (lowConfidenceOnly &&
+                !(q.ocrConfidence != null && q.ocrConfidence! < 0.7)) {
               return false;
             }
             if (!_isWithinDateRange(q.createdAt, dateRange, now)) return false;

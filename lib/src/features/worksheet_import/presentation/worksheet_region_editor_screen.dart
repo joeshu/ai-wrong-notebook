@@ -768,6 +768,18 @@ class _DetectionResultCard extends StatelessWidget {
   final Duration? duration;
   final String? warning;
 
+  String _fieldStatus(String label, bool available, {bool warning = false}) {
+    if (available) return '$label · 已识别';
+    return warning ? '$label · 需校对' : '$label · 未检测到';
+  }
+
+  bool _hasBlock(String type) => regions.any((region) =>
+      region.recognizedBlockTypes.any((item) => item.toLowerCase().contains(type.toLowerCase())));
+
+  bool _hasOptionText() => regions.any((region) {
+    final text = region.recognizedText ?? '';
+    return RegExp(r'(?m)(?:^|\s)[A-H][.．、]\s*\S').hasMatch(text);
+  });
   String _structureSummary(List<QuestionRegion> regions) {
     final counts = <String, int>{};
     for (final region in regions) {
@@ -795,7 +807,25 @@ class _DetectionResultCard extends StatelessWidget {
           if (_structureSummary(regions).isNotEmpty)
             Text('结构识别：${_structureSummary(regions)}', style: const TextStyle(fontSize: 12, color: Color(0xFF166534))),
         ],
-        if (warning != null && warning!.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 5), child: Text('提示：$warning', style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412)))),
+        if (warning != null && warning!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Text('提示：$warning', style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412))),
+          ),
+        if (regions.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: <Widget>[
+              _StatusPill(label: _fieldStatus('题干', regions.any((r) => (r.recognizedText ?? '').trim().isNotEmpty))),
+              _StatusPill(label: _fieldStatus('公式', _hasBlock('公式') || regions.any((r) => r.formulas.isNotEmpty), warning: true)),
+              _StatusPill(label: _fieldStatus('选项', _hasOptionText(), warning: true)),
+              _StatusPill(label: _fieldStatus('图形', _hasBlock('图') || _hasBlock('diagram'), warning: true)),
+            ],
+          ),
+        ],
+
         const Padding(padding: EdgeInsets.only(top: 5), child: Text('请检查蓝框边界；可拖动、缩放、删除，或点击试卷增加题框。', style: TextStyle(fontSize: 12, color: Color(0xFF475569)))),
       ]),
     ),
@@ -803,6 +833,24 @@ class _DetectionResultCard extends StatelessWidget {
 }
 
 
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final warning = label.contains('需校对') || label.contains('未检测到');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: warning ? const Color(0xFFFFF7ED) : const Color(0xFFF0FDF4),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: warning ? const Color(0xFFFED7AA) : const Color(0xFFBBF7D0)),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 10, color: warning ? const Color(0xFF9A3412) : const Color(0xFF166534))),
+    );
+  }
+}
 class _RegionQuality {
   static double evaluate(List<QuestionRegion> regions, int index) {
     final region = regions[index];
