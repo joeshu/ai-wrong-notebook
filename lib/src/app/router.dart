@@ -18,6 +18,9 @@ import 'package:smart_wrong_notebook/src/features/settings/presentation/prompt_s
 import 'package:smart_wrong_notebook/src/features/settings/presentation/data_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/export_workbench_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/weekly_report_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_radar_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/mistake_trend_screen.dart';
+import 'package:smart_wrong_notebook/src/features/goals/presentation/goals_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/image_crop_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/question_correction_screen.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_import_screen.dart';
@@ -105,6 +108,14 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                     path: 'weekly-report',
                     builder: (_, __) => const WeeklyReportScreen(),
                   ),
+                  GoRoute(
+                    path: 'subject-radar',
+                    builder: (_, __) => const SubjectRadarScreen(),
+                  ),
+                  GoRoute(
+                    path: 'mistake-trend',
+                    builder: (_, __) => const MistakeTrendScreen(),
+                  ),
                 ],
               ),
             ],
@@ -152,6 +163,9 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
       GoRoute(
           path: '/review/history',
           pageBuilder: (_, __) => _buildPage(const ReviewHistoryScreen())),
+      GoRoute(
+          path: '/goals',
+          pageBuilder: (_, __) => _buildPage(const GoalsScreen())),
     ],
   );
 }

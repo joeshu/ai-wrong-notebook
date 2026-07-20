@@ -127,6 +127,10 @@ class HomeScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.lg),
+            child: _GoalEntryCard(onTap: () => context.go('/goals')),
+          ),
           const SizedBox(height: AppSpace.xl),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -750,6 +754,72 @@ class _RecentQuestionCard extends StatelessWidget {
             trailing: Icon(CupertinoIcons.chevron_right,
                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65)),
             onTap: onTap,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 首页「学习目标与打卡」入口卡片。点击跳转到 `/goals` 详情页，
+/// 在那里可设置每日目标、手动打卡并查看连续打卡日历。
+class _GoalEntryCard extends StatelessWidget {
+  const _GoalEntryCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.secondaryContainer,
+      borderRadius: BorderRadius.circular(AppRadius.large),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.md, vertical: AppSpace.md),
+          child: Row(
+            children: <Widget>[
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(AppRadius.medium),
+                ),
+                child: Icon(
+                  CupertinoIcons.flag_checkered,
+                  color: colorScheme.onPrimaryContainer,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '学习目标与打卡',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '设置每日目标，坚持打卡，养成学习习惯',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(CupertinoIcons.chevron_right,
+                  size: 18, color: colorScheme.onSecondaryContainer),
+            ],
           ),
         ),
       ),
