@@ -849,8 +849,9 @@ class _QuestionTab extends StatelessWidget {
           const SizedBox(height: AppSpace.lg),
           _ExpectedAnswerCard(
             expectedAnswer: current.expectedAnswer,
-            contentFormat: current.contentFormat,
+            studentAnswer: current.studentAnswer,
             isCorrect: current.isCorrect,
+            contentFormat: current.contentFormat,
             onEdit: onEditExpectedAnswer,
             onGrade: onGradeAnswer,
           ),
@@ -1065,6 +1066,7 @@ class _ExpectedAnswerCard extends StatefulWidget {
     required this.expectedAnswer,
     required this.studentAnswer,
     required this.isCorrect,
+    required this.contentFormat,
     required this.onEdit,
     required this.onGrade,
   });
@@ -1072,6 +1074,7 @@ class _ExpectedAnswerCard extends StatefulWidget {
   final String? expectedAnswer;
   final String? studentAnswer;
   final bool? isCorrect;
+  final QuestionContentFormat contentFormat;
   final VoidCallback onEdit;
   final Future<void> Function() onGrade;
 
