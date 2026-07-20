@@ -395,10 +395,15 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                   selected: lowConfidenceOnly,
                   onTap: () => ref.read(lowConfidenceOnlyFilterProvider.notifier).state = !lowConfidenceOnly,
                 ),
+                const SizedBox(width: AppSpace.sm),
+                _Chip(
+                  label: AppStrings.notebookFilterMore,
                   selected: activeFilterLabels.any((label) =>
                       label != AppStrings.notebookFilterDue &&
                       label != AppStrings.notebookFilterUnmastered &&
-                      label != AppStrings.notebookFilterFavorite),
+                      label != AppStrings.notebookFilterFavorite &&
+                      label != '待 AI' &&
+                      label != '待校对'),
                   onTap: () => showModalBottomSheet<void>(
                     context: context,
                     isScrollControlled: true,
