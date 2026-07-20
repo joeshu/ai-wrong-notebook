@@ -368,29 +368,43 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               const Text('导出模板', style: _sectionStyle),
-              for (final item in ExportTemplateType.values)
-                RadioListTile<ExportTemplateType>(
-                  dense: true,
-                  value: item,
-                  groupValue: _templateType,
-                  title: Text(item.label),
-                  subtitle: Text(item.description),
-                  onChanged: (v) {
-                    if (v != null) setState(() => _templateType = v);
-                  },
+              RadioGroup<ExportTemplateType>(
+                groupValue: _templateType,
+                onChanged: (v) {
+                  if (v != null) setState(() => _templateType = v);
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (final item in ExportTemplateType.values)
+                      RadioListTile<ExportTemplateType>(
+                        dense: true,
+                        value: item,
+                        title: Text(item.label),
+                        subtitle: Text(item.description),
+                      ),
+                  ],
                 ),
+              ),
               const Divider(),
               const Text('试卷类型', style: _sectionStyle),
-              for (final item in WorksheetExportMode.values)
-                RadioListTile<WorksheetExportMode>(
-                  dense: true,
-                  value: item,
-                  groupValue: _mode,
-                  title: Text(item.label),
-                  onChanged: (v) {
-                    if (v != null) setState(() => _mode = v);
-                  },
+              RadioGroup<WorksheetExportMode>(
+                groupValue: _mode,
+                onChanged: (v) {
+                  if (v != null) setState(() => _mode = v);
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (final item in WorksheetExportMode.values)
+                      RadioListTile<WorksheetExportMode>(
+                        dense: true,
+                        value: item,
+                        title: Text(item.label),
+                      ),
+                  ],
                 ),
+              ),
               if (widget.allowFilter) ...<Widget>[
                 const Divider(),
                 const Text('按学科筛选（不选=全部）', style: _sectionStyle),
@@ -527,61 +541,89 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
               const Divider(),
               const Text('排版选项', style: _sectionStyle),
               const Text('纸张大小', style: _subSectionStyle),
-              for (final item in PdfPageSize.values)
-                RadioListTile<PdfPageSize>(
-                  dense: true,
-                  value: item,
-                  groupValue: _layoutOptions.pageSize,
-                  title: Text(item.label),
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() => _layoutOptions =
-                          _layoutOptions.copyWith(pageSize: v));
-                    }
-                  },
+              RadioGroup<PdfPageSize>(
+                groupValue: _layoutOptions.pageSize,
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => _layoutOptions =
+                        _layoutOptions.copyWith(pageSize: v));
+                  }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (final item in PdfPageSize.values)
+                      RadioListTile<PdfPageSize>(
+                        dense: true,
+                        value: item,
+                        title: Text(item.label),
+                      ),
+                  ],
                 ),
+              ),
               const Text('方向', style: _subSectionStyle),
-              for (final item in PdfOrientation.values)
-                RadioListTile<PdfOrientation>(
-                  dense: true,
-                  value: item,
-                  groupValue: _layoutOptions.orientation,
-                  title: Text(item.label),
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() => _layoutOptions =
-                          _layoutOptions.copyWith(orientation: v));
-                    }
-                  },
+              RadioGroup<PdfOrientation>(
+                groupValue: _layoutOptions.orientation,
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => _layoutOptions =
+                        _layoutOptions.copyWith(orientation: v));
+                  }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (final item in PdfOrientation.values)
+                      RadioListTile<PdfOrientation>(
+                        dense: true,
+                        value: item,
+                        title: Text(item.label),
+                      ),
+                  ],
                 ),
+              ),
               const Text('边距', style: _subSectionStyle),
-              for (final item in PdfMargin.values)
-                RadioListTile<PdfMargin>(
-                  dense: true,
-                  value: item,
-                  groupValue: _layoutOptions.margin,
-                  title: Text(item.label),
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() => _layoutOptions =
-                          _layoutOptions.copyWith(margin: v));
-                    }
-                  },
+              RadioGroup<PdfMargin>(
+                groupValue: _layoutOptions.margin,
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() =>
+                        _layoutOptions = _layoutOptions.copyWith(margin: v));
+                  }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (final item in PdfMargin.values)
+                      RadioListTile<PdfMargin>(
+                        dense: true,
+                        value: item,
+                        title: Text(item.label),
+                      ),
+                  ],
                 ),
+              ),
               const Text('字号', style: _subSectionStyle),
-              for (final item in PdfFontSize.values)
-                RadioListTile<PdfFontSize>(
-                  dense: true,
-                  value: item,
-                  groupValue: _layoutOptions.fontSize,
-                  title: Text(item.label),
-                  onChanged: (v) {
-                    if (v != null) {
-                      setState(() => _layoutOptions =
-                          _layoutOptions.copyWith(fontSize: v));
-                    }
-                  },
+              RadioGroup<PdfFontSize>(
+                groupValue: _layoutOptions.fontSize,
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() =>
+                        _layoutOptions = _layoutOptions.copyWith(fontSize: v));
+                  }
+                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    for (final item in PdfFontSize.values)
+                      RadioListTile<PdfFontSize>(
+                        dense: true,
+                        value: item,
+                        title: Text(item.label),
+                      ),
+                  ],
                 ),
+              ),
               CheckboxListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
