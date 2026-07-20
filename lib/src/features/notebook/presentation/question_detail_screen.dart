@@ -731,7 +731,54 @@ class _RecognitionStatusTags extends StatelessWidget {
     );
   }
 }
-class _QuestionTab extends StatelessWidget {
+class _RecognitionEvidenceCard extends StatelessWidget {
+  const _RecognitionEvidenceCard({required this.question});
+  final QuestionRecord question;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = question.tags.firstWhere(
+      (tag) => tag.startsWith('layout_provider:'),
+      orElse: () => '',
+    );
+    final provider = source.isEmpty
+        ? (question.imagePath.isNotEmpty ? '图片原题' : '未记录')
+        : source.substring('layout_provider:'.length);
+    final analyzed = question.analysisResult != null;
+    final confidence = question.ocrConfidence;
+    return AppInfoSection(
+      icon: CupertinoIcons.doc_text_search,
+      title: '识别与分析状态',
+      iconColor: AppColors.successDark,
+      backgroundColor: AppColors.successContainerLight,
+      borderColor: const Color(0xFFBBF7D0),
+      titleColor: AppColors.successDark,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Wrap(
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
+            children: <Widget>[
+              AppTag(label: '识别：$provider', textColor: AppColors.successDark, backgroundColor: AppColors.successContainerLight),
+              AppTag(label: analyzed ? 'AI：已分析' : 'AI：未分析', textColor: analyzed ? AppColors.primaryDark : AppColors.slate, backgroundColor: analyzed ? AppColors.primaryContainerLight : AppColors.slateContainerLight),
+              if (confidence != null) AppTag(label: '置信度：${(confidence * 100).round()}%', textColor: confidence < .7 ? AppColors.warningDark : AppColors.successDark, backgroundColor: confidence < .7 ? AppColors.warningContainerLight : AppColors.successContainerLight),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            analyzed
+                ? '识别结果已交给普通 AI，当前可查看答案、错因、知识点和练习。'
+                : '当前仅保存识别结果；可在“分析”页继续交给普通 AI。',
+            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
   const _QuestionTab({
     required this.current,
     required this.editing,
@@ -868,6 +915,8 @@ class _QuestionTab extends StatelessWidget {
         ],
         const SizedBox(height: AppSpace.lg),
         _buildOriginalQuestion(context, isDark, colorScheme),
+        const SizedBox(height: AppSpace.lg),
+        _RecognitionEvidenceCard(question: current),
         if (current.studentAnswer != null &&
             current.studentAnswer!.isNotEmpty) ...<Widget>[
           const SizedBox(height: AppSpace.lg),
