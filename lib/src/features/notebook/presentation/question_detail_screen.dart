@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,57 +184,6 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
         ],
       ),
     );
-  }
-
-  _ConsistencyNoticeData? _consistencyNotice(AnalysisResult result) {
-    switch (result.consistencyStatus) {
-      case AnalysisConsistencyStatus.repaired:
-        if (result.visualAssumptionStatus == VisualAssumptionStatus.needsReview) {
-          return _ConsistencyNoticeData(
-            text: result.consistencyNote.isNotEmpty
-                ? result.consistencyNote
-                : 'AI 已复核答案；图中关键标注含义仍需核对',
-            icon: CupertinoIcons.exclamationmark_triangle,
-            color: AppColors.warning,
-            background: AppColors.warningContainerLight,
-          );
-        }
-        return const _ConsistencyNoticeData(
-          text: 'AI 已复核并修正答案',
-          icon: CupertinoIcons.checkmark_shield,
-          color: AppColors.success,
-          background: Color(0xFFEFFDF5),
-        );
-      case AnalysisConsistencyStatus.needsReview:
-        if (result.visualAssumptionStatus == VisualAssumptionStatus.needsReview) {
-          return _ConsistencyNoticeData(
-            text: result.consistencyNote.isNotEmpty
-                ? result.consistencyNote
-                : '图中关键标注含义需核对，当前为可能解法',
-            icon: CupertinoIcons.exclamationmark_triangle,
-            color: AppColors.warning,
-            background: AppColors.warningContainerLight,
-          );
-        }
-        return const _ConsistencyNoticeData(
-          text: '答案与步骤可能不一致，请核对',
-          icon: CupertinoIcons.exclamationmark_triangle,
-          color: AppColors.warning,
-          background: AppColors.warningContainerLight,
-        );
-      case AnalysisConsistencyStatus.unchecked:
-      case AnalysisConsistencyStatus.consistent:
-      case AnalysisConsistencyStatus.unverifiable:
-        return null;
-    }
-  }
-
-  String? _batchLabel(QuestionRecord question) {
-    if (question.parentQuestionId == null && question.rootQuestionId == null) {
-      return null;
-    }
-    final order = question.splitOrder;
-    return order == null ? '拍照批次' : '拍照批次 · 第 $order 题';
   }
 
   void _editLearningContext(
@@ -1939,7 +1887,6 @@ class _MistakeCategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
