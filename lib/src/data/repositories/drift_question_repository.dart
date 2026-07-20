@@ -2,6 +2,8 @@ import 'package:drift/drift.dart';
 import 'package:smart_wrong_notebook/src/data/local/app_database.dart' as db;
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart'
     as domain;
+import 'package:smart_wrong_notebook/src/domain/models/question_type.dart'
+    as domain;
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';

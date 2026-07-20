@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 /// 错题的题型分类。
 ///
@@ -45,7 +46,7 @@ extension QuestionTypeLabel on QuestionType {
         QuestionType.essay => CupertinoIcons.doc_text,
         QuestionType.calculation => CupertinoIcons.function,
         QuestionType.proof => CupertinoIcons.equal_circle,
-        QuestionType.experiment => CupertinoIcons.flask,
+        QuestionType.experiment => Icons.science,
         QuestionType.other => CupertinoIcons.question,
       };
 }
