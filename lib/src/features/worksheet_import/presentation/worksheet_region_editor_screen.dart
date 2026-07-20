@@ -950,8 +950,8 @@ class _RecognitionEvidencePreview extends StatelessWidget {
           const Text('结构化识别内容', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
           const SizedBox(height: 5),
           _StatusPill(label: stem.trim().isEmpty ? '题干：待校对' : '题干：已识别'),
-          _StatusPill(label: formulas.isEmpty ? '公式：未识别' : '公式：已识别', warning: formulas.isEmpty),
-          _StatusPill(label: tables.isEmpty ? '表格：未识别' : '表格：已识别', warning: tables.isEmpty),
+          _StatusPill(label: formulas.isEmpty ? '公式：未识别' : '公式：已识别'),
+          _StatusPill(label: tables.isEmpty ? '表格：未识别' : '表格：已识别'),
           const SizedBox(height: 5),
           Text(stem.isEmpty ? '暂无题干文字' : stem, maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.35)),
           if (formulas.isNotEmpty) Text('公式 ${formulas.length} 段', style: const TextStyle(fontSize: 10, color: Color(0xFF475569))),
@@ -970,8 +970,7 @@ class _PreviewBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-
-
+class _RegionQuality {
   static double evaluate(List<QuestionRegion> regions, int index) {
     final region = regions[index];
     if (region.source == QuestionRegionSource.manual) return 1;
@@ -997,6 +996,8 @@ class _PreviewBorderPainter extends CustomPainter {
     return union <= 0 ? 0 : intersection / union;
   }
 }
+
+
 
 enum _QuestionListFilter { all, risk, edited, ignored }
 
