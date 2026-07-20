@@ -189,10 +189,31 @@ class HomeScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpace.lg),
-            child: _GoalEntryCard(onTap: () => context.push('/goals')),
+          questionsAsync.when(
+            data: (questions) {
+              final counts = <String, int>{};
+              for (final question in questions.where((q) => q.masteryLevel != MasteryLevel.mastered)) {
+                for (final point in question.aiKnowledgePoints) {
+                  counts[point] = (counts[point] ?? 0) + 1;
+                }
+              }
+              final ranked = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+              if (ranked.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: AppSpace.lg),
+                child: _WeakPointCard(
+                  points: ranked.take(3).toList(),
+                  onSelect: (point) {
+                    ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
+                    context.go('/notebook');
+                  },
+                ),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
+
           const SizedBox(height: AppSpace.xl),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -846,7 +867,40 @@ class _RecentQuestionCard extends StatelessWidget {
 
 /// 首页「学习目标与打卡」入口卡片。点击跳转到 `/goals` 详情页，
 /// 在那里可设置每日目标、手动打卡并查看连续打卡日历。
-class _GoalEntryCard extends StatelessWidget {
+class _WeakPointCard extends StatelessWidget {
+  const _WeakPointCard({required this.points, required this.onSelect});
+  final List<MapEntry<String, int>> points;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+        Row(children: <Widget>[
+          const Icon(CupertinoIcons.scope, size: 18, color: AppColors.warningDark),
+          const SizedBox(width: AppSpace.sm),
+          const Expanded(child: Text('优先巩固薄弱知识点', style: TextStyle(fontWeight: FontWeight.w700))),
+          Text('点击筛选', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ]),
+        const SizedBox(height: AppSpace.sm),
+        ...points.map((entry) => InkWell(
+              onTap: () => onSelect(entry.key),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(children: <Widget>[
+                  Expanded(child: Text(entry.key, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Text('${entry.value} 题', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  const SizedBox(width: 4),
+                  const Icon(CupertinoIcons.chevron_right, size: 14),
+                ]),
+              ),
+            )),
+      ]),
+    );
+  }
+}
+
+
   const _GoalEntryCard({required this.onTap});
 
   final VoidCallback onTap;

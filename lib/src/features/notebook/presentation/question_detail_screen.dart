@@ -8,6 +8,7 @@ import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/services/auto_grading_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
@@ -528,7 +529,11 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ),
           body: Center(
             child: InteractiveViewer(
-              child: CachedQuestionImage(imagePath, highRes: true),
+              child: CachedQuestionImage(
+                imagePath,
+                highRes: true,
+                errorMessage: '附件加载失败：请检查原图文件',
+              ),
             ),
           ),
         ),
@@ -660,21 +665,28 @@ class _RecognitionStatusTags extends StatelessWidget {
     );
     final provider = source.isEmpty ? null : source.substring('layout_provider:'.length);
     final aiReady = question.analysisResult != null;
-    final recognitionLabel = provider ?? (question.imagePath.isNotEmpty ? '图片已保留' : '待识别');
+    final recognitionLabel = provider ?? (question.imagePath.isNotEmpty ? '已识别' : '未识别');
+    final recognitionColor = question.contentStatus == ContentStatus.failed ? AppColors.danger : AppColors.successDark;
+    final learningLabel = switch (question.masteryLevel) {
+      MasteryLevel.newQuestion => '学习：未复习',
+      MasteryLevel.reviewing => '学习：需巩固',
+      MasteryLevel.mastered => '学习：已掌握',
+    };
     return Wrap(
       spacing: AppSpace.sm,
       runSpacing: AppSpace.sm,
       children: <Widget>[
         AppTag(
           label: '识别：$recognitionLabel',
-          textColor: AppColors.successDark,
-          backgroundColor: AppColors.successContainerLight,
+          textColor: recognitionColor,
+          backgroundColor: question.contentStatus == ContentStatus.failed ? AppColors.dangerContainerLight : AppColors.successContainerLight,
         ),
         AppTag(
           label: aiReady ? 'AI：已分析' : 'AI：未分析',
           textColor: aiReady ? AppColors.primaryDark : AppColors.slate,
           backgroundColor: aiReady ? AppColors.primaryContainerLight : AppColors.slateContainerLight,
         ),
+        AppTag(label: learningLabel, textColor: AppColors.warningDark, backgroundColor: AppColors.warningContainerLight),
       ],
     );
   }
@@ -934,6 +946,7 @@ class _QuestionTab extends StatelessWidget {
                         child: CachedQuestionImage(
                           current.imagePath,
                           fit: BoxFit.contain,
+                          errorMessage: current.imagePath.isEmpty ? '附件缺失：未保存原图' : '附件加载失败：请检查原图文件',
                         ),
                       ),
                     ),
