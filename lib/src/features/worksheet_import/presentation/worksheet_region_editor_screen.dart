@@ -865,7 +865,113 @@ class _StatusPill extends StatelessWidget {
     );
   }
 }
-class _RegionQuality {
+class _RecognitionEvidencePreview extends StatelessWidget {
+  const _RecognitionEvidencePreview({
+    required this.sourceImagePath,
+    required this.region,
+    required this.stem,
+    required this.formulas,
+    required this.tables,
+  });
+
+  final String sourceImagePath;
+  final QuestionRegion region;
+  final String stem;
+  final List<String> formulas;
+  final List<String> tables;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceImage = File(sourceImagePath);
+    final imageExists = sourceImage.existsSync();
+    final rect = region.normalizedRect;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 520;
+        final image = _buildImage(context, imageExists, rect, wide);
+        final content = _buildContent(context);
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          ),
+          child: wide
+              ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                  Expanded(child: image),
+                  const SizedBox(width: 10),
+                  Expanded(child: content),
+                ])
+              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+                  image,
+                  const SizedBox(height: 8),
+                  content,
+                ]),
+        );
+      },
+    );
+  }
+
+  Widget _buildImage(BuildContext context, bool exists, Rect rect, bool wide) {
+    if (!exists) {
+      return Container(
+        height: wide ? 150 : 120,
+        alignment: Alignment.center,
+        color: Theme.of(context).colorScheme.surface,
+        child: const Text('原图附件缺失', style: TextStyle(fontSize: 12)),
+      );
+    }
+    return SizedBox(
+      height: wide ? 150 : 120,
+      width: double.infinity,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: LayoutBuilder(builder: (context, constraints) {
+          final scale = constraints.maxWidth / rect.width;
+          return Stack(children: <Widget>[
+            Positioned(
+              left: -rect.left * scale,
+              top: -rect.top * scale,
+              width: scale,
+              child: CachedQuestionImage(sourceImagePath, fit: BoxFit.fitWidth),
+            ),
+            Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _PreviewBorderPainter()))),
+          ]);
+        }),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('结构化识别内容', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+          const SizedBox(height: 5),
+          _StatusPill(label: stem.trim().isEmpty ? '题干：待校对' : '题干：已识别'),
+          _StatusPill(label: formulas.isEmpty ? '公式：未识别' : '公式：已识别', warning: formulas.isEmpty),
+          _StatusPill(label: tables.isEmpty ? '表格：未识别' : '表格：已识别', warning: tables.isEmpty),
+          const SizedBox(height: 5),
+          Text(stem.isEmpty ? '暂无题干文字' : stem, maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.35)),
+          if (formulas.isNotEmpty) Text('公式 ${formulas.length} 段', style: const TextStyle(fontSize: 10, color: Color(0xFF475569))),
+          if (tables.isNotEmpty) Text('表格 ${tables.length} 个', style: const TextStyle(fontSize: 10, color: Color(0xFF475569))),
+        ],
+      );
+}
+
+class _PreviewBorderPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = const Color(0xFF2563EB)..style = PaintingStyle.stroke..strokeWidth = 2;
+    canvas.drawRect(Offset.zero & size, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+
   static double evaluate(List<QuestionRegion> regions, int index) {
     final region = regions[index];
     if (region.source == QuestionRegionSource.manual) return 1;
@@ -1334,6 +1440,13 @@ class _RecognizedQuestionWorkbenchState
       key: ValueKey(region.id),
       padding: const EdgeInsets.all(10),
       children: <Widget>[
+        _RecognitionEvidencePreview(
+          sourceImagePath: sourceImagePath,
+          region: region,
+          stem: stem,
+          formulas: formulas,
+          tables: tables,
+        ),
         Row(children: <Widget>[
           Expanded(child: Text('第 ${region.detectedNumber ?? index + 1} 题详情', style: const TextStyle(fontWeight: FontWeight.w700))),
           ...region.recognizedBlockTypes.where((block) => block != '文字').map(_MiniTypeTag.new),
