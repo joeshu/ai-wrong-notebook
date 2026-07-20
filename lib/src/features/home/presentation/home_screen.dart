@@ -116,7 +116,24 @@ class HomeScreen extends ConsumerWidget {
                 failed: failed,
                 lowConfidence: lowConfidence,
                 onOpenNotebook: () => context.go('/notebook'),
-                onRetry: () => ref.invalidate(questionListProvider),
+                onOpenPendingAi: () {
+                  ref.read(pendingAiOnlyFilterProvider.notifier).state = true;
+                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
+                  ref.read(failedOnlyFilterProvider.notifier).state = false;
+                  context.go('/notebook');
+                },
+                onOpenFailed: () {
+                  ref.read(failedOnlyFilterProvider.notifier).state = true;
+                  ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
+                  context.go('/notebook');
+                },
+                onOpenLowConfidence: () {
+                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = true;
+                  ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+                  ref.read(failedOnlyFilterProvider.notifier).state = false;
+                  context.go('/notebook');
+                },
               );
             },
             loading: () => const SizedBox.shrink(),
@@ -962,12 +979,38 @@ class _LowConfidenceHintCard extends StatelessWidget {
   }
 }
 
-class _PendingTaskCard extends StatelessWidget {
+class _TaskActionRow extends StatelessWidget {
+  const _TaskActionRow({required this.label, required this.icon, required this.color, required this.onTap});
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.small),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(children: <Widget>[
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 12))),
+            const Icon(CupertinoIcons.chevron_right, size: 14),
+          ]),
+        ),
+      );
+}
+
+
   const _PendingTaskCard({
     required this.pendingAi,
     required this.failed,
     required this.lowConfidence,
     required this.onOpenNotebook,
+    required this.onOpenPendingAi,
+    required this.onOpenFailed,
+    required this.onOpenLowConfidence,
     required this.onRetry,
   });
 
@@ -975,6 +1018,9 @@ class _PendingTaskCard extends StatelessWidget {
   final int failed;
   final int lowConfidence;
   final VoidCallback onOpenNotebook;
+  final VoidCallback onOpenPendingAi;
+  final VoidCallback onOpenFailed;
+  final VoidCallback onOpenLowConfidence;
   final VoidCallback onRetry;
 
   @override
@@ -1000,16 +1046,27 @@ class _PendingTaskCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpace.xs),
-          ...items.map((item) => Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: <Widget>[
-                    Icon(CupertinoIcons.circle_fill, size: 7, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(item, style: const TextStyle(fontSize: 12))),
-                  ],
-                ),
-              )),
+          if (pendingAi > 0)
+            _TaskActionRow(
+              label: '$pendingAi 道待交给普通 AI 分析',
+              icon: CupertinoIcons.sparkles,
+              color: scheme.primary,
+              onTap: onOpenPendingAi,
+            ),
+          if (failed > 0)
+            _TaskActionRow(
+              label: '$failed 道识别或分析失败',
+              icon: CupertinoIcons.exclamationmark_triangle,
+              color: AppColors.danger,
+              onTap: onOpenFailed,
+            ),
+          if (lowConfidence > 0)
+            _TaskActionRow(
+              label: '$lowConfidence 道识别置信度较低',
+              icon: CupertinoIcons.eye,
+              color: AppColors.warning,
+              onTap: onOpenLowConfidence,
+            ),
           const SizedBox(height: AppSpace.sm),
           Align(
             alignment: Alignment.centerRight,
