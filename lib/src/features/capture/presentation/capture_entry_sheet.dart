@@ -20,6 +20,45 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
   bool _isLoading = false;
   String? _errorMessage;
   _RecognitionChoice _choice = _RecognitionChoice.ai;
+  // 极速模式开关：拍照/选图后跳过裁剪与校对，直接进入 AI 解析。
+  // 默认 false；启动时从 SettingsRepository 异步加载。
+  bool _isQuickCaptureEnabled = false;
+  bool _quickCaptureSettingLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadQuickCaptureSetting();
+  }
+
+  Future<void> _loadQuickCaptureSetting() async {
+    try {
+      final enabled = await ref
+          .read(settingsRepositoryProvider)
+          .isQuickCaptureEnabled();
+      if (!mounted) return;
+      setState(() {
+        _isQuickCaptureEnabled = enabled;
+        _quickCaptureSettingLoaded = true;
+      });
+    } catch (_) {
+      // 在未初始化 SharedPreferences 的测试环境下读取可能抛出
+      // MissingPluginException，这里默认关闭极速模式即可。
+      if (!mounted) return;
+      setState(() => _quickCaptureSettingLoaded = true);
+    }
+  }
+
+  Future<void> _setQuickCaptureEnabled(bool enabled) async {
+    setState(() => _isQuickCaptureEnabled = enabled);
+    try {
+      await ref
+          .read(settingsRepositoryProvider)
+          .setQuickCaptureEnabled(enabled);
+    } catch (_) {
+      // 持久化失败时不阻塞 UI；用户切换仍生效到当前会话。
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +158,8 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                 '说明：拍照/相册的单题会使用“AI 服务”中的当前模型解析；PaddleOCR 与 MinerU 仅用于“试卷批量导入 → 整页框选切题”的候选题框识别，识别后会显示实际服务名称。',
                 style: TextStyle(fontSize: 11, height: 1.4, color: colorScheme.onSurfaceVariant),
               ),
+              const SizedBox(height: 10),
+              _buildQuickCaptureSwitch(colorScheme),
             ],
             if (_errorMessage != null) ...<Widget>[
               const SizedBox(height: 12),
@@ -169,6 +210,35 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
       return;
     }
     await _pickForDocumentUnderstanding(fromCamera: fromCamera);
+  }
+
+  /// 构建极速模式开关。极速模式开启后，普通 AI 入口的拍照/选图会跳过
+  /// 裁剪与校对页，直接进入 AI 解析加载页。
+  Widget _buildQuickCaptureSwitch(ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        title: const Text(
+          '极速模式',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        subtitle: const Text(
+          '拍照后直接 AI 解析，跳过裁剪与校对',
+          style: TextStyle(fontSize: 11),
+        ),
+        value: _isQuickCaptureEnabled,
+        onChanged: _quickCaptureSettingLoaded
+            ? (value) => _setQuickCaptureEnabled(value)
+            : null,
+      ),
+    );
   }
 
   Future<void> _pickForDocumentUnderstanding({required bool fromCamera}) async {
@@ -299,8 +369,15 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
       if (result.record != null) {
         Navigator.pop(context);
         ref.read(currentQuestionProvider.notifier).state = result.record;
-        debugPrint('[CaptureEntrySheet] Navigating to /capture/crop');
-        router.go('/capture/crop');
+        if (_isQuickCaptureEnabled) {
+          // 极速模式：跳过裁剪、校对、保存确认页，直接进入 AI 解析加载页。
+          // AnalysisLoadingScreen 会读取 currentQuestionProvider 拿到刚拍好的图。
+          debugPrint('[CaptureEntrySheet] Quick mode: navigating to /analysis/loading');
+          router.go('/analysis/loading');
+        } else {
+          debugPrint('[CaptureEntrySheet] Navigating to /capture/crop');
+          router.go('/capture/crop');
+        }
       }
     } catch (e) {
       if (!mounted) return;

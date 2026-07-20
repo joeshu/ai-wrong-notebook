@@ -72,6 +72,17 @@ class SharedPrefsSettingsRepository implements SettingsRepository {
     await _setString('setting_$key', value);
   }
 
+  @override
+  Future<bool> isQuickCaptureEnabled() async {
+    final value = await getString('quick_capture_enabled');
+    return value == 'true';
+  }
+
+  @override
+  Future<void> setQuickCaptureEnabled(bool enabled) async {
+    await setString('quick_capture_enabled', enabled ? 'true' : 'false');
+  }
+
   Future<String?> _getString(String key) async {
     return (await _preferences).getString(key);
   }

@@ -26,14 +26,37 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
   int _step = 0;
   String? _progressText;
   Timer? _stepTimer;
+  // 是否由极速模式进入（拍照后跳过裁剪/校对直接进入解析）。
+  // 失败时若为 true，则提供"重新裁剪 / 重新拍照 / 取消"按钮。
+  bool _isQuickCapture = false;
 
   final _steps = const ['正在识别题目...', '正在理解题意...', '正在生成解析...', '即将完成...'];
 
   @override
   void initState() {
     super.initState();
-    _runAnalysis();
     _animateSteps();
+    // 先读取极速模式标记，再启动解析流程；避免 catch 块读到默认 false
+    // 时显示错误的回退按钮组。
+    _initQuickCaptureThenAnalyze();
+  }
+
+  Future<void> _initQuickCaptureThenAnalyze() async {
+    await _loadQuickCaptureFlag();
+    if (!mounted) return;
+    await _runAnalysis();
+  }
+
+  Future<void> _loadQuickCaptureFlag() async {
+    try {
+      final enabled = await ref
+          .read(settingsRepositoryProvider)
+          .isQuickCaptureEnabled();
+      if (!mounted) return;
+      setState(() => _isQuickCapture = enabled);
+    } catch (_) {
+      // 读取失败时按非极速模式处理（默认 false）。
+    }
   }
 
   void _animateSteps() {
@@ -275,9 +298,12 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       }
       if (mounted) {
         if (_continueWorksheetQueue(failedDraft)) return;
+        // 极速模式下没有"已校对题干"，文案需调整；否则保留原文案。
+        final suffix = _isQuickCapture
+            ? '原图已保存到错题本，可选择重新裁剪、重新拍照，或取消后稍后重试。'
+            : '原图和已校对题干已保存到错题本，可稍后重试或手动补充。';
         setState(() {
-          _errorMessage =
-              '${friendlyAiErrorMessage(e)}\n\n原图和已校对题干已保存到错题本，可稍后重试或手动补充。';
+          _errorMessage = '${friendlyAiErrorMessage(e)}\n\n$suffix';
           _debugInfo = debugInfo;
         });
       }
@@ -390,7 +416,8 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         title: const Text('AI 解析'),
         leading: IconButton(
           icon: const Icon(CupertinoIcons.chevron_left),
-          onPressed: () => context.go('/capture/correction'),
+          // 极速模式下没有校对页可返回，回到首页（用户可重新打开拍照入口）。
+          onPressed: () => context.go(_isQuickCapture ? '/' : '/capture/correction'),
         ),
       ),
       body: _errorMessage != null
@@ -457,36 +484,65 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => context.go('/capture/correction'),
-                  icon: const Icon(CupertinoIcons.pencil),
-                  label: const Text('返回校对'),
-                ),
-                const SizedBox(width: 12),
-                FilledButton(
-                  onPressed: () {
-                    setState(() {
-                      _errorMessage = null;
-                      _progressText = null;
-                      _step = 0;
-                    });
-                    _runAnalysis();
-                    _animateSteps();
-                  },
-                  style: FilledButton.styleFrom(minimumSize: const Size(120, 40)),
-                  child: const Text('重试'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            TextButton.icon(
-              onPressed: () => context.go('/notebook'),
-              icon: const Icon(CupertinoIcons.book),
-              label: const Text('查看已保存草稿'),
-            ),
+            if (_isQuickCapture) ...<Widget>[
+              // 极速模式失败：给"重新裁剪 / 重新拍照 / 取消"三个按钮。
+              // 重新裁剪会带着原图进入裁剪页，让用户走原流程补一遍。
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12,
+                runSpacing: 10,
+                children: <Widget>[
+                  OutlinedButton.icon(
+                    onPressed: () => context.go('/capture/crop'),
+                    icon: const Icon(CupertinoIcons.crop),
+                    label: const Text('重新裁剪'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => context.go('/'),
+                    icon: const Icon(CupertinoIcons.camera),
+                    label: const Text('重新拍照'),
+                    style: FilledButton.styleFrom(
+                        minimumSize: const Size(120, 40)),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => context.go('/notebook'),
+                    icon: const Icon(CupertinoIcons.xmark),
+                    label: const Text('取消'),
+                  ),
+                ],
+              ),
+            ] else ...<Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => context.go('/capture/correction'),
+                    icon: const Icon(CupertinoIcons.pencil),
+                    label: const Text('返回校对'),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: () {
+                      setState(() {
+                        _errorMessage = null;
+                        _progressText = null;
+                        _step = 0;
+                      });
+                      _runAnalysis();
+                      _animateSteps();
+                    },
+                    style: FilledButton.styleFrom(minimumSize: const Size(120, 40)),
+                    child: const Text('重试'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              TextButton.icon(
+                onPressed: () => context.go('/notebook'),
+                icon: const Icon(CupertinoIcons.book),
+                label: const Text('查看已保存草稿'),
+              ),
+            ],
           ],
         ),
       ),

@@ -505,4 +505,15 @@ class _ToolSettingsRepository implements SettingsRepository {
   Future<void> setString(String key, String value) async {
     _strings[key] = value;
   }
+
+  @override
+  Future<bool> isQuickCaptureEnabled() async {
+    final value = await getString('quick_capture_enabled');
+    return value == 'true';
+  }
+
+  @override
+  Future<void> setQuickCaptureEnabled(bool enabled) async {
+    await setString('quick_capture_enabled', enabled ? 'true' : 'false');
+  }
 }
