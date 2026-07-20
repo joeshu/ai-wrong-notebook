@@ -359,8 +359,63 @@ String _nextReviewLabel(DateTime date) {
   return '下次复习 $month-$day $hour:$minute';
 }
 
-class _ReviewCard extends StatelessWidget {
+class _ReviewCard extends StatefulWidget {
   const _ReviewCard({
+    required this.question,
+    required this.onOpen,
+    this.batchLabel,
+  });
+
+  final QuestionRecord question;
+  final VoidCallback onOpen;
+  final String? batchLabel;
+
+  @override
+  State<_ReviewCard> createState() => _ReviewCardState();
+}
+
+class _ReviewCardState extends State<_ReviewCard> {
+  bool _revealed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final result = widget.question.analysisResult;
+    final answer = (widget.question.expectedAnswer?.trim().isNotEmpty ?? false)
+        ? widget.question.expectedAnswer!.trim()
+        : result?.finalAnswer.trim() ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _ReviewCardContent(
+          question: widget.question,
+          onOpen: widget.onOpen,
+          batchLabel: widget.batchLabel,
+        ),
+        const SizedBox(height: AppSpace.xs),
+        OutlinedButton.icon(
+          onPressed: answer.isEmpty ? widget.onOpen : () => setState(() => _revealed = !_revealed),
+          icon: Icon(_revealed ? CupertinoIcons.eye_slash : CupertinoIcons.eye),
+          label: Text(answer.isEmpty ? '打开详情查看并评价' : (_revealed ? '收起答案' : '回忆后查看答案')),
+        ),
+        if (_revealed && answer.isNotEmpty) ...<Widget>[
+          const SizedBox(height: AppSpace.xs),
+          AppInfoSection(
+            icon: CupertinoIcons.checkmark_circle,
+            title: '参考答案',
+            iconColor: AppColors.successDark,
+            backgroundColor: AppColors.successContainerLight,
+            borderColor: const Color(0xFFBBF7D0),
+            titleColor: AppColors.successDark,
+            child: MathContentView(answer, contentFormat: widget.question.contentFormat),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ReviewCardContent extends StatelessWidget {
+  const _ReviewCardContent({
     required this.question,
     required this.onOpen,
     this.batchLabel,
