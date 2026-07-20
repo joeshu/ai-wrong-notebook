@@ -59,6 +59,10 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    // 滚动到「存储概览」区段，避免新增的学情周报卡片把存储卡片挤出视口。
+    await tester.ensureVisible(find.text('题库总量'));
+    await tester.pumpAndSettle();
+
     expect(find.text('题库总量'), findsOneWidget);
     expect(find.text('1 题'), findsOneWidget);
     expect(find.text('复习记录总量'), findsOneWidget);
@@ -78,6 +82,9 @@ void main() {
 
     expect(await questionRepository.listAll(), isEmpty);
     expect(await reviewLogRepository.listAll(), isEmpty);
+    // 清空数据后存储概览会更新为 0；滚动到该区段再断言。
+    await tester.ensureVisible(find.text('题库总量'));
+    await tester.pumpAndSettle();
     expect(find.text('0 题'), findsOneWidget);
     expect(find.text('0 条'), findsOneWidget);
   });

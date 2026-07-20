@@ -215,13 +215,8 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
   /// 构建极速模式开关。极速模式开启后，普通 AI 入口的拍照/选图会跳过
   /// 裁剪与校对页，直接进入 AI 解析加载页。
   Widget _buildQuickCaptureSwitch(ColorScheme colorScheme) {
-    return Container(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
       child: SwitchListTile(
         contentPadding: EdgeInsets.zero,
         dense: true,
