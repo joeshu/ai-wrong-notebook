@@ -20,7 +20,8 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
   static final _questionStart = RegExp(r'^\s*(?:第\s*)?(\d{1,3})\s*(?:[\.．、:：]|[（(])');
 
   @override
-  Future<LayoutDetectionResult> detectQuestionRegions({required String imagePath}) async {
+  Future<LayoutDetectionResult> detectQuestionRegions({required String imagePath, String? pageRanges}) async {
+    // MinerU VLM 接口暂不支持页码范围参数；显式忽略以匹配接口契约。
     if (config.apiKey.trim().isEmpty) throw StateError('请先在“试卷版面识别”中填写 MinerU Token');
     final source = File(imagePath);
     if (!await source.exists()) throw StateError('未找到试卷图片');

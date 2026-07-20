@@ -15,5 +15,6 @@ class LayoutDetectionResult {
 abstract class DocumentLayoutService {
   Future<LayoutDetectionResult> detectQuestionRegions({
     required String imagePath,
+    String? pageRanges,
   });
 }

@@ -13,7 +13,8 @@ class CustomHttpDocumentLayoutService implements DocumentLayoutService {
   final LayoutProviderConfig config;
 
   @override
-  Future<LayoutDetectionResult> detectQuestionRegions({required String imagePath}) async {
+  Future<LayoutDetectionResult> detectQuestionRegions({required String imagePath, String? pageRanges}) async {
+    // 自定义 HTTP 服务接口契约未定义 pageRanges；显式忽略以匹配接口契约。
     if (config.baseUrl.trim().isEmpty) throw StateError('请先配置版面服务地址');
     final dio = Dio(BaseOptions(
       baseUrl: config.baseUrl.replaceFirst(RegExp(r'/$'), ''),

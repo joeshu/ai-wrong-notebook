@@ -10,7 +10,9 @@ class VisionDocumentLayoutService implements DocumentLayoutService {
   @override
   Future<LayoutDetectionResult> detectQuestionRegions({
     required String imagePath,
+    String? pageRanges,
   }) async {
+    // 视觉模型走多模态对话接口，无独立 pageRanges 概念；显式忽略。
     final regions =
         await _aiService.detectWorksheetQuestionRegions(imagePath: imagePath);
     return LayoutDetectionResult(
