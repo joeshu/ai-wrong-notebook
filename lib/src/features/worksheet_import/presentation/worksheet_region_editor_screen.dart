@@ -758,8 +758,16 @@ class _DetectionActionCard extends StatelessWidget {
         if (!paddleReady || !mineruReady) Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Row(children: <Widget>[
-            const Expanded(child: Text('未配置的服务不可用，请先填写版面识别 Token。', style: TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
-            TextButton(onPressed: onOpenSettings, child: const Text('去设置')),
+            const Expanded(
+              child: Text(
+                '未配置的服务不可用，请先填写版面识别 Token。',
+                style: TextStyle(fontSize: 11, color: Color(0xFF9A3412)),
+              ),
+            ),
+            TextButton(
+              onPressed: onOpenSettings,
+              child: const Text('去设置'),
+            ),
           ]),
         ),
       ]),
