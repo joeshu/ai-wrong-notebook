@@ -340,12 +340,63 @@ class _WorksheetRegionEditorScreenState
         _detectionDuration = DateTime.now().difference(startedAt);
         _detectionMessage = '已生成候选框，请逐一检查后确认裁切。';
       });
+      if (override == LayoutProviderType.paddleCloud ||
+          override == LayoutProviderType.mineruCloud) {
+        await _askWhetherToUseAiAfterRecognition();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _detectionMessage = '自动识别失败：$e。你仍可手动点击页面新增题框。');
     } finally {
       if (mounted) setState(() => _isDetecting = false);
     }
+  }
+
+  Future<void> _askWhetherToUseAiAfterRecognition() async {
+    if (!mounted || _regions.isEmpty) return;
+    final choice = await showDialog<_PostRecognitionAiChoice>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('识别完成，是否交给普通 AI？'),
+        content: Text(
+          '已识别 ${_regions.length} 个候选题框及其文字内容。\n\n'
+          '普通 AI 可以继续完成题目理解、公式/几何分析、答案、错因、知识点和举一反三练习；不调用则只保留 ${_detectionProvider ?? 'OCR/文档'} 识别结果。',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              _PostRecognitionAiChoice.none,
+            ),
+            child: const Text('仅保留识别结果'),
+          ),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              _PostRecognitionAiChoice.perQuestion,
+            ),
+            child: const Text('逐题选择'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              _PostRecognitionAiChoice.all,
+            ),
+            child: const Text('全部交给普通 AI'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == _PostRecognitionAiChoice.perQuestion) return;
+    setState(() {
+      for (var index = 0; index < _regions.length; index++) {
+        _regions[index] = _regions[index].copyWith(
+          analyzeWithAi: choice == _PostRecognitionAiChoice.all,
+        );
+      }
+    });
   }
 
   Future<void> _editRecognizedText(int index) async {
@@ -463,6 +514,8 @@ class _WorksheetRegionEditorScreenState
     }
   }
 }
+
+enum _PostRecognitionAiChoice { all, none, perQuestion }
 
 class _RegionOverlay extends StatelessWidget {
   const _RegionOverlay({

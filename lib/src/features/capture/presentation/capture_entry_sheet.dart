@@ -108,17 +108,14 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                   ref.read(captureModeProvider.notifier).state = mode,
             ),
             const SizedBox(height: 12),
-            _RecognitionChoiceSelector(
-              selected: _choice,
-              onChanged: (choice) => setState(() => _choice = choice),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '先上传图片，下一步选择识别引擎：AI、PaddleOCR 或 MinerU。',
+                style: TextStyle(fontSize: 12),
+              ),
             ),
             const SizedBox(height: 12),
-            if (_choice != _RecognitionChoice.ai)
-              Text(
-                '${_choice.label} 会先识别题目、文字、公式、表格与选项，再进入逐题校对；普通 AI 只在你确认后做解析。',
-                style: TextStyle(fontSize: 11, height: 1.4, color: colorScheme.onSurfaceVariant),
-              ),
-            if (_choice != _RecognitionChoice.ai) const SizedBox(height: 10),
             if (_isLoading)
               Container(
                 padding: const EdgeInsets.all(40),
@@ -227,11 +224,102 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
   }
 
   Future<void> _pickWithChoice({required bool fromCamera}) async {
-    if (_choice == _RecognitionChoice.ai) {
-      await _pickAndNavigate(fromCamera: fromCamera);
-      return;
+    final router = GoRouter.of(context);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final capture = ref.read(captureServiceProvider);
+      final result = fromCamera
+          ? await capture.pickFromCamera()
+          : await capture.pickFromGallery();
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (result.isCancelled) return;
+      if (result.errorMessage != null || result.record == null) {
+        setState(() => _errorMessage = '获取图片失败：${result.errorMessage ?? '未返回图片'}');
+        return;
+      }
+
+      final choice = await _showRecognitionChoiceDialog();
+      if (!mounted || choice == null) return;
+      _choice = choice;
+
+      if (choice == _RecognitionChoice.ai) {
+        final config = await ref.read(settingsRepositoryProvider).getAiProviderConfig();
+        if (!mounted) return;
+        if (config == null || config.baseUrl.isEmpty || config.apiKey.isEmpty || config.model.isEmpty) {
+          setState(() => _errorMessage = '请先在设置中配置 AI 服务');
+          return;
+        }
+        Navigator.pop(context);
+        ref.read(currentQuestionProvider.notifier).state = result.record;
+        if (_isQuickCaptureEnabled) {
+          router.go('/analysis/loading');
+        } else {
+          router.go('/capture/crop');
+        }
+        return;
+      }
+
+      final providerType = choice == _RecognitionChoice.paddle
+          ? LayoutProviderType.paddleCloud
+          : LayoutProviderType.mineruCloud;
+      ref.read(oneShotLayoutProviderTypeProvider.notifier).state = providerType;
+      await persistWorksheetImport(ref, WorksheetImportSession(
+        id: const Uuid().v4(),
+        pages: <QuestionRecord>[result.record!],
+        sourcePageIds: <String>{result.record!.id},
+        createdAt: DateTime.now(),
+      ));
+      ref.read(currentQuestionProvider.notifier).state = result.record;
+      if (!mounted) return;
+      Navigator.pop(context);
+      router.go('/worksheet/regions');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = '操作失败: $e';
+      });
     }
-    await _pickForDocumentUnderstanding(fromCamera: fromCamera);
+  }
+
+  Future<_RecognitionChoice?> _showRecognitionChoiceDialog() {
+    return showModalBottomSheet<_RecognitionChoice>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text('选择识别引擎', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text('图片已上传。选择本次用于识别题干、公式、选项和图形的服务。',
+                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 12),
+              ..._RecognitionChoice.values.map((choice) => ListTile(
+                    leading: Icon(
+                      choice == _RecognitionChoice.ai
+                          ? CupertinoIcons.sparkles
+                          : choice == _RecognitionChoice.paddle
+                              ? CupertinoIcons.doc_text_search
+                              : CupertinoIcons.doc_richtext,
+                    ),
+                    title: Text(choice.label),
+                    subtitle: Text(choice.description),
+                    trailing: _choice == choice ? const Icon(CupertinoIcons.checkmark_circle_fill) : null,
+                    onTap: () => Navigator.pop(context, choice),
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// 构建极速模式开关。极速模式开启后，普通 AI 入口的拍照/选图会跳过
