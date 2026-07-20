@@ -169,4 +169,63 @@ void main() {
     expect(loaded!.archivedAt, archivedAt);
     expect(loaded.isArchived, isTrue);
   });
+
+  test('preserves studentAnswer across save and reload', () async {
+    final now = DateTime(2026, 7, 20);
+    final record = QuestionRecord(
+      id: 'q-student-answer',
+      imagePath: '/tmp/q-student-answer.jpg',
+      subject: Subject.math,
+      extractedQuestionText: '解方程 \$x^2 - 1 = 0\$',
+      normalizedQuestionText: '解方程 \$x^2 - 1 = 0\$',
+      contentFormat: QuestionContentFormat.latexMixed,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+      studentAnswer:
+          '由 \$x^2 - 1 = 0\$ 得 \$x^2 = 1\$，所以 \$x = \\pm 1\$。',
+    );
+
+    await repository.saveDraft(record);
+
+    final loaded = await repository.getById('q-student-answer');
+
+    expect(loaded, isNotNull);
+    expect(loaded!.studentAnswer,
+        '由 \$x^2 - 1 = 0\$ 得 \$x^2 = 1\$，所以 \$x = \\pm 1\$。');
+  });
+
+  test('persists null studentAnswer when not set', () async {
+    final now = DateTime(2026, 7, 20);
+    final record = QuestionRecord(
+      id: 'q-no-student-answer',
+      imagePath: '/tmp/q-no-student-answer.jpg',
+      subject: Subject.math,
+      extractedQuestionText: '一元二次方程',
+      normalizedQuestionText: '一元二次方程',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.ready,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: null,
+    );
+
+    await repository.saveDraft(record);
+
+    final loaded = await repository.getById('q-no-student-answer');
+
+    expect(loaded, isNotNull);
+    expect(loaded!.studentAnswer, isNull);
+  });
 }

@@ -142,6 +142,30 @@ class $QuestionRecordsTable extends QuestionRecords
   late final GeneratedColumn<DateTime> archivedAt = GeneratedColumn<DateTime>(
       'archived_at', aliasedName, true,
       type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _ocrConfidenceMeta =
+      const VerificationMeta('ocrConfidence');
+  @override
+  late final GeneratedColumn<double> ocrConfidence = GeneratedColumn<double>(
+      'ocr_confidence', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _studentAnswerMeta =
+      const VerificationMeta('studentAnswer');
+  @override
+  late final GeneratedColumn<String> studentAnswer = GeneratedColumn<String>(
+      'student_answer', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _expectedAnswerMeta =
+      const VerificationMeta('expectedAnswer');
+  @override
+  late final GeneratedColumn<String> expectedAnswer = GeneratedColumn<String>(
+      'expected_answer', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _isCorrectMeta =
+      const VerificationMeta('isCorrect');
+  @override
+  late final GeneratedColumn<bool> isCorrect = GeneratedColumn<bool>(
+      'is_correct', aliasedName, true,
+      type: DriftSqlType.bool, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         id,
@@ -164,7 +188,11 @@ class $QuestionRecordsTable extends QuestionRecords
         rootQuestionId,
         splitOrder,
         reflectionNote,
-        archivedAt
+        archivedAt,
+        ocrConfidence,
+        studentAnswer,
+        expectedAnswer,
+        isCorrect
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -305,6 +333,30 @@ class $QuestionRecordsTable extends QuestionRecords
           archivedAt.isAcceptableOrUnknown(
               data['archived_at']!, _archivedAtMeta));
     }
+    if (data.containsKey('ocr_confidence')) {
+      context.handle(
+          _ocrConfidenceMeta,
+          ocrConfidence.isAcceptableOrUnknown(
+              data['ocr_confidence']!, _ocrConfidenceMeta));
+    }
+    if (data.containsKey('student_answer')) {
+      context.handle(
+          _studentAnswerMeta,
+          studentAnswer.isAcceptableOrUnknown(
+              data['student_answer']!, _studentAnswerMeta));
+    }
+    if (data.containsKey('expected_answer')) {
+      context.handle(
+          _expectedAnswerMeta,
+          expectedAnswer.isAcceptableOrUnknown(
+              data['expected_answer']!, _expectedAnswerMeta));
+    }
+    if (data.containsKey('is_correct')) {
+      context.handle(
+          _isCorrectMeta,
+          isCorrect.isAcceptableOrUnknown(
+              data['is_correct']!, _isCorrectMeta));
+    }
     return context;
   }
 
@@ -356,6 +408,14 @@ class $QuestionRecordsTable extends QuestionRecords
           DriftSqlType.string, data['${effectivePrefix}reflection_note']),
       archivedAt: attachedDatabase.typeMapping.read(
           DriftSqlType.dateTime, data['${effectivePrefix}archived_at']),
+      ocrConfidence: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}ocr_confidence']),
+      studentAnswer: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}student_answer']),
+      expectedAnswer: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}expected_answer']),
+      isCorrect: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}is_correct']),
     );
   }
 
@@ -387,6 +447,10 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
   final int? splitOrder;
   final String? reflectionNote;
   final DateTime? archivedAt;
+  final double? ocrConfidence;
+  final String? studentAnswer;
+  final String? expectedAnswer;
+  final bool? isCorrect;
   const QuestionRecord(
       {required this.id,
       required this.subject,
@@ -408,7 +472,11 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       this.rootQuestionId,
       this.splitOrder,
       this.reflectionNote,
-      this.archivedAt});
+      this.archivedAt,
+      this.ocrConfidence,
+      this.studentAnswer,
+      this.expectedAnswer,
+      this.isCorrect});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -448,6 +516,18 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
     }
     if (!nullToAbsent || archivedAt != null) {
       map['archived_at'] = Variable<DateTime>(archivedAt);
+    }
+    if (!nullToAbsent || ocrConfidence != null) {
+      map['ocr_confidence'] = Variable<double>(ocrConfidence);
+    }
+    if (!nullToAbsent || studentAnswer != null) {
+      map['student_answer'] = Variable<String>(studentAnswer);
+    }
+    if (!nullToAbsent || expectedAnswer != null) {
+      map['expected_answer'] = Variable<String>(expectedAnswer);
+    }
+    if (!nullToAbsent || isCorrect != null) {
+      map['is_correct'] = Variable<bool>(isCorrect);
     }
     return map;
   }
@@ -491,6 +571,18 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       archivedAt: archivedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(archivedAt),
+      ocrConfidence: ocrConfidence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ocrConfidence),
+      studentAnswer: studentAnswer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(studentAnswer),
+      expectedAnswer: expectedAnswer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expectedAnswer),
+      isCorrect: isCorrect == null && nullToAbsent
+          ? const Value.absent()
+          : Value(isCorrect),
     );
   }
 
@@ -520,6 +612,10 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       splitOrder: serializer.fromJson<int?>(json['splitOrder']),
       reflectionNote: serializer.fromJson<String?>(json['reflectionNote']),
       archivedAt: serializer.fromJson<DateTime?>(json['archivedAt']),
+      ocrConfidence: serializer.fromJson<double?>(json['ocrConfidence']),
+      studentAnswer: serializer.fromJson<String?>(json['studentAnswer']),
+      expectedAnswer: serializer.fromJson<String?>(json['expectedAnswer']),
+      isCorrect: serializer.fromJson<bool?>(json['isCorrect']),
     );
   }
   @override
@@ -547,6 +643,10 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       'splitOrder': serializer.toJson<int?>(splitOrder),
       'reflectionNote': serializer.toJson<String?>(reflectionNote),
       'archivedAt': serializer.toJson<DateTime?>(archivedAt),
+      'ocrConfidence': serializer.toJson<double?>(ocrConfidence),
+      'studentAnswer': serializer.toJson<String?>(studentAnswer),
+      'expectedAnswer': serializer.toJson<String?>(expectedAnswer),
+      'isCorrect': serializer.toJson<bool?>(isCorrect),
     };
   }
 
@@ -571,7 +671,11 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           Value<String?> rootQuestionId = const Value.absent(),
           Value<int?> splitOrder = const Value.absent(),
           Value<String?> reflectionNote = const Value.absent(),
-          Value<DateTime?> archivedAt = const Value.absent()}) =>
+          Value<DateTime?> archivedAt = const Value.absent(),
+          Value<double?> ocrConfidence = const Value.absent(),
+          Value<String?> studentAnswer = const Value.absent(),
+          Value<String?> expectedAnswer = const Value.absent(),
+          Value<bool?> isCorrect = const Value.absent()}) =>
       QuestionRecord(
         id: id ?? this.id,
         subject: subject ?? this.subject,
@@ -604,6 +708,13 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
             : this.reflectionNote,
         archivedAt:
             archivedAt.present ? archivedAt.value : this.archivedAt,
+        ocrConfidence:
+            ocrConfidence.present ? ocrConfidence.value : this.ocrConfidence,
+        studentAnswer:
+            studentAnswer.present ? studentAnswer.value : this.studentAnswer,
+        expectedAnswer:
+            expectedAnswer.present ? expectedAnswer.value : this.expectedAnswer,
+        isCorrect: isCorrect.present ? isCorrect.value : this.isCorrect,
       );
   QuestionRecord copyWithCompanion(QuestionRecordsCompanion data) {
     return QuestionRecord(
@@ -655,6 +766,17 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       archivedAt: data.archivedAt.present
           ? data.archivedAt.value
           : this.archivedAt,
+      ocrConfidence: data.ocrConfidence.present
+          ? data.ocrConfidence.value
+          : this.ocrConfidence,
+      studentAnswer: data.studentAnswer.present
+          ? data.studentAnswer.value
+          : this.studentAnswer,
+      expectedAnswer: data.expectedAnswer.present
+          ? data.expectedAnswer.value
+          : this.expectedAnswer,
+      isCorrect:
+          data.isCorrect.present ? data.isCorrect.value : this.isCorrect,
     );
   }
 
@@ -681,7 +803,11 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           ..write('rootQuestionId: $rootQuestionId, ')
           ..write('splitOrder: $splitOrder, ')
           ..write('reflectionNote: $reflectionNote, ')
-          ..write('archivedAt: $archivedAt')
+          ..write('archivedAt: $archivedAt, ')
+          ..write('ocrConfidence: $ocrConfidence, ')
+          ..write('studentAnswer: $studentAnswer, ')
+          ..write('expectedAnswer: $expectedAnswer, ')
+          ..write('isCorrect: $isCorrect')
           ..write(')'))
         .toString();
   }
@@ -708,7 +834,11 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
       rootQuestionId,
       splitOrder,
       reflectionNote,
-      archivedAt]);
+      archivedAt,
+      ocrConfidence,
+      studentAnswer,
+      expectedAnswer,
+      isCorrect]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -733,7 +863,11 @@ class QuestionRecord extends DataClass implements Insertable<QuestionRecord> {
           other.rootQuestionId == this.rootQuestionId &&
           other.splitOrder == this.splitOrder &&
           other.reflectionNote == this.reflectionNote &&
-          other.archivedAt == this.archivedAt);
+          other.archivedAt == this.archivedAt &&
+          other.ocrConfidence == this.ocrConfidence &&
+          other.studentAnswer == this.studentAnswer &&
+          other.expectedAnswer == this.expectedAnswer &&
+          other.isCorrect == this.isCorrect);
 }
 
 class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
@@ -758,6 +892,10 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
   final Value<int?> splitOrder;
   final Value<String?> reflectionNote;
   final Value<DateTime?> archivedAt;
+  final Value<double?> ocrConfidence;
+  final Value<String?> studentAnswer;
+  final Value<String?> expectedAnswer;
+  final Value<bool?> isCorrect;
   final Value<int> rowid;
   const QuestionRecordsCompanion({
     this.id = const Value.absent(),
@@ -781,6 +919,10 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     this.splitOrder = const Value.absent(),
     this.reflectionNote = const Value.absent(),
     this.archivedAt = const Value.absent(),
+    this.ocrConfidence = const Value.absent(),
+    this.studentAnswer = const Value.absent(),
+    this.expectedAnswer = const Value.absent(),
+    this.isCorrect = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   QuestionRecordsCompanion.insert({
@@ -805,6 +947,10 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     this.splitOrder = const Value.absent(),
     this.reflectionNote = const Value.absent(),
     this.archivedAt = const Value.absent(),
+    this.ocrConfidence = const Value.absent(),
+    this.studentAnswer = const Value.absent(),
+    this.expectedAnswer = const Value.absent(),
+    this.isCorrect = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : id = Value(id),
         subject = Value(subject),
@@ -836,6 +982,10 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     Expression<int>? splitOrder,
     Expression<String>? reflectionNote,
     Expression<DateTime>? archivedAt,
+    Expression<double>? ocrConfidence,
+    Expression<String>? studentAnswer,
+    Expression<String>? expectedAnswer,
+    Expression<bool>? isCorrect,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -860,6 +1010,10 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       if (splitOrder != null) 'split_order': splitOrder,
       if (reflectionNote != null) 'reflection_note': reflectionNote,
       if (archivedAt != null) 'archived_at': archivedAt,
+      if (ocrConfidence != null) 'ocr_confidence': ocrConfidence,
+      if (studentAnswer != null) 'student_answer': studentAnswer,
+      if (expectedAnswer != null) 'expected_answer': expectedAnswer,
+      if (isCorrect != null) 'is_correct': isCorrect,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -886,6 +1040,10 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       Value<int?>? splitOrder,
       Value<String?>? reflectionNote,
       Value<DateTime?>? archivedAt,
+      Value<double?>? ocrConfidence,
+      Value<String?>? studentAnswer,
+      Value<String?>? expectedAnswer,
+      Value<bool?>? isCorrect,
       Value<int>? rowid}) {
     return QuestionRecordsCompanion(
       id: id ?? this.id,
@@ -909,6 +1067,10 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
       splitOrder: splitOrder ?? this.splitOrder,
       reflectionNote: reflectionNote ?? this.reflectionNote,
       archivedAt: archivedAt ?? this.archivedAt,
+      ocrConfidence: ocrConfidence ?? this.ocrConfidence,
+      studentAnswer: studentAnswer ?? this.studentAnswer,
+      expectedAnswer: expectedAnswer ?? this.expectedAnswer,
+      isCorrect: isCorrect ?? this.isCorrect,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -979,6 +1141,18 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
     if (archivedAt.present) {
       map['archived_at'] = Variable<DateTime>(archivedAt.value);
     }
+    if (ocrConfidence.present) {
+      map['ocr_confidence'] = Variable<double>(ocrConfidence.value);
+    }
+    if (studentAnswer.present) {
+      map['student_answer'] = Variable<String>(studentAnswer.value);
+    }
+    if (expectedAnswer.present) {
+      map['expected_answer'] = Variable<String>(expectedAnswer.value);
+    }
+    if (isCorrect.present) {
+      map['is_correct'] = Variable<bool>(isCorrect.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1009,6 +1183,10 @@ class QuestionRecordsCompanion extends UpdateCompanion<QuestionRecord> {
           ..write('splitOrder: $splitOrder, ')
           ..write('reflectionNote: $reflectionNote, ')
           ..write('archivedAt: $archivedAt, ')
+          ..write('ocrConfidence: $ocrConfidence, ')
+          ..write('studentAnswer: $studentAnswer, ')
+          ..write('expectedAnswer: $expectedAnswer, ')
+          ..write('isCorrect: $isCorrect, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2489,6 +2667,10 @@ typedef $$QuestionRecordsTableCreateCompanionBuilder = QuestionRecordsCompanion
   Value<int?> splitOrder,
   Value<String?> reflectionNote,
   Value<DateTime?> archivedAt,
+  Value<double?> ocrConfidence,
+  Value<String?> studentAnswer,
+  Value<String?> expectedAnswer,
+  Value<bool?> isCorrect,
   Value<int> rowid,
 });
 typedef $$QuestionRecordsTableUpdateCompanionBuilder = QuestionRecordsCompanion
@@ -2514,6 +2696,10 @@ typedef $$QuestionRecordsTableUpdateCompanionBuilder = QuestionRecordsCompanion
   Value<int?> splitOrder,
   Value<String?> reflectionNote,
   Value<DateTime?> archivedAt,
+  Value<double?> ocrConfidence,
+  Value<String?> studentAnswer,
+  Value<String?> expectedAnswer,
+  Value<bool?> isCorrect,
   Value<int> rowid,
 });
 
@@ -2631,6 +2817,18 @@ class $$QuestionRecordsTableFilterComposer
 
   ColumnFilters<DateTime> get archivedAt => $composableBuilder(
       column: $table.archivedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get ocrConfidence => $composableBuilder(
+      column: $table.ocrConfidence, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get studentAnswer => $composableBuilder(
+      column: $table.studentAnswer, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get expectedAnswer => $composableBuilder(
+      column: $table.expectedAnswer, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get isCorrect => $composableBuilder(
+      column: $table.isCorrect, builder: (column) => ColumnFilters(column));
 
   Expression<bool> generatedExercisesRefs(
       Expression<bool> Function($$GeneratedExercisesTableFilterComposer f) f) {
@@ -2758,6 +2956,22 @@ class $$QuestionRecordsTableOrderingComposer
   ColumnOrderings<DateTime> get archivedAt => $composableBuilder(
       column: $table.archivedAt,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get ocrConfidence => $composableBuilder(
+      column: $table.ocrConfidence,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get studentAnswer => $composableBuilder(
+      column: $table.studentAnswer,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get expectedAnswer => $composableBuilder(
+      column: $table.expectedAnswer,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get isCorrect => $composableBuilder(
+      column: $table.isCorrect,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$QuestionRecordsTableAnnotationComposer
@@ -2831,6 +3045,18 @@ class $$QuestionRecordsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get archivedAt => $composableBuilder(
       column: $table.archivedAt, builder: (column) => column);
+
+  GeneratedColumn<double> get ocrConfidence => $composableBuilder(
+      column: $table.ocrConfidence, builder: (column) => column);
+
+  GeneratedColumn<String> get studentAnswer => $composableBuilder(
+      column: $table.studentAnswer, builder: (column) => column);
+
+  GeneratedColumn<String> get expectedAnswer => $composableBuilder(
+      column: $table.expectedAnswer, builder: (column) => column);
+
+  GeneratedColumn<bool> get isCorrect => $composableBuilder(
+      column: $table.isCorrect, builder: (column) => column);
 
   Expression<T> generatedExercisesRefs<T extends Object>(
       Expression<T> Function($$GeneratedExercisesTableAnnotationComposer a) f) {
@@ -2922,6 +3148,10 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             Value<int?> splitOrder = const Value.absent(),
             Value<String?> reflectionNote = const Value.absent(),
             Value<DateTime?> archivedAt = const Value.absent(),
+            Value<double?> ocrConfidence = const Value.absent(),
+            Value<String?> studentAnswer = const Value.absent(),
+            Value<String?> expectedAnswer = const Value.absent(),
+            Value<bool?> isCorrect = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               QuestionRecordsCompanion(
@@ -2946,6 +3176,10 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             splitOrder: splitOrder,
             reflectionNote: reflectionNote,
             archivedAt: archivedAt,
+            ocrConfidence: ocrConfidence,
+            studentAnswer: studentAnswer,
+            expectedAnswer: expectedAnswer,
+            isCorrect: isCorrect,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -2970,6 +3204,10 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             Value<int?> splitOrder = const Value.absent(),
             Value<String?> reflectionNote = const Value.absent(),
             Value<DateTime?> archivedAt = const Value.absent(),
+            Value<double?> ocrConfidence = const Value.absent(),
+            Value<String?> studentAnswer = const Value.absent(),
+            Value<String?> expectedAnswer = const Value.absent(),
+            Value<bool?> isCorrect = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               QuestionRecordsCompanion.insert(
@@ -2994,6 +3232,10 @@ class $$QuestionRecordsTableTableManager extends RootTableManager<
             splitOrder: splitOrder,
             reflectionNote: reflectionNote,
             archivedAt: archivedAt,
+            ocrConfidence: ocrConfidence,
+            studentAnswer: studentAnswer,
+            expectedAnswer: expectedAnswer,
+            isCorrect: isCorrect,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

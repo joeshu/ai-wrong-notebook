@@ -9,6 +9,8 @@ import 'package:image/image.dart' as img;
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/services/document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/question_number_detector.dart';
 
 /// MinerU precision API adapter. It uploads a local page using a presigned URL,
 /// polls the batch job, then groups MinerU layout blocks by question numbers.
@@ -17,7 +19,20 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
   MineruDocumentLayoutService(this.config);
   final LayoutProviderConfig config;
   static const _base = 'https://mineru.net/api/v4';
-  static final _questionStart = RegExp(r'^\s*(?:第\s*)?(\d{1,3})\s*(?:[\.．、:：]|[（(])');
+
+  /// 提取文本中所有 `$$...$$` 和 `$...$` 包裹的 LaTeX 公式片段。
+  /// 排除 `\$` 转义的情况。返回的字符串保留定界符，便于下游区分行内/块级公式。
+  List<String> _extractFormulas(String text) {
+    final formulas = <String>[];
+    // 先匹配 $$...$$（display），再匹配 $...$（inline）；用 (?<!\\) 排除 \$。
+    final regex = RegExp(
+      r'(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$|(?<!\\)\$([\s\S]*?)(?<!\\)\$',
+    );
+    for (final match in regex.allMatches(text)) {
+      formulas.add(match.group(0)!);
+    }
+    return formulas;
+  }
 
   @override
   Future<LayoutDetectionResult> detectQuestionRegions({required String imagePath, String? pageRanges}) async {
@@ -93,7 +108,7 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
     for (final block in blocks) { if (block.rect.width > 8 && block.rect.height > 8) unique['${block.rect.left.round()},${block.rect.top.round()},${block.rect.right.round()},${block.rect.bottom.round()}'] = block; }
     final sorted = unique.values.toList()..sort((a, b) => a.rect.top.compareTo(b.rect.top));
     final starts = <int>[];
-    for (var i = 0; i < sorted.length; i++) { if (_questionStart.hasMatch(sorted[i].text)) starts.add(i); }
+    for (var i = 0; i < sorted.length; i++) { if (QuestionNumberDetector.instance.hasQuestionNumber(sorted[i].text)) starts.add(i); }
     if (starts.isEmpty) return const <QuestionRegion>[];
     final regions = <QuestionRegion>[];
     for (var group = 0; group < starts.length; group++) {
@@ -110,11 +125,12 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
       regions.add(QuestionRegion(
         id: 'mineru-$group',
         normalizedRect: clip,
-        detectedNumber: _questionStart.firstMatch(sorted[from].text)?.group(1),
+        detectedNumber: QuestionNumberDetector.instance.extractNumber(sorted[from].text),
         recognizedText: questionText.isEmpty ? null : questionText,
+        formulas: _extractFormulas(questionText),
         documentBlocks: groupBlocks.where((block) => block.text.trim().isNotEmpty).map((block) =>
             DocumentBlock(type: _blockType(block.text), content: block.text.trim())).toList(),
-        contentFormatHint: questionText.contains(r'$') || questionText.contains(r'\\') ? 'latexMixed' : 'plain',
+        contentFormatHint: LatexNormalizer.hasFormula(questionText) ? 'latexMixed' : 'plain',
         recognizedBlockTypes: _classifyText(questionText),
         confidence: .75,
         source: QuestionRegionSource.layoutModel,
@@ -127,7 +143,7 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
     if (text.contains('|') && text.split('\n').where((line) => line.contains('|')).length >= 2) {
       return DocumentBlockType.table;
     }
-    if (text.contains(r'$') || text.contains(r'\\') || RegExp(r'[∑√∫≠≤≥]').hasMatch(text)) {
+    if (LatexNormalizer.hasFormula(text)) {
       return DocumentBlockType.formula;
     }
     return DocumentBlockType.text;

@@ -22,6 +22,10 @@ class QuestionRecords extends Table {
   IntColumn get splitOrder => integer().nullable()();
   TextColumn get reflectionNote => text().nullable()();
   DateTimeColumn get archivedAt => dateTime().nullable()();
+  RealColumn get ocrConfidence => real().nullable()();
+  TextColumn get studentAnswer => text().nullable()();
+  TextColumn get expectedAnswer => text().nullable()();
+  BoolColumn get isCorrect => boolean().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

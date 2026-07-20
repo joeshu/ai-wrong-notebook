@@ -10,12 +10,14 @@ import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/services/auto_grading_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/confidence_badge.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/single_text_field_dialog.dart';
 
 class QuestionDetailScreen extends ConsumerStatefulWidget {
@@ -157,6 +159,9 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
                   },
                   onAddTag: () => _showAddTagDialog(context, ref, current),
                   onEditReflection: () => _editReflection(context, ref, current),
+                  onEditStudentAnswer: () => _editStudentAnswer(context, ref, current),
+                  onEditExpectedAnswer: () => _editExpectedAnswer(context, ref, current),
+                  onGradeAnswer: () => _gradeAnswer(context, ref, current),
                 ),
                 _AnalysisTab(
                   current: current,
@@ -387,6 +392,74 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     await ref.read(questionRepositoryProvider).update(updated);
     ref.read(currentQuestionProvider.notifier).state = updated;
     invalidateQuestionList(ref);
+  }
+
+  Future<void> _editStudentAnswer(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) async {
+    final text = await showSingleTextFieldDialog(
+      context: context,
+      title: '我的答案',
+      initialText: question.studentAnswer ?? '',
+      maxLines: 8,
+      minLines: 3,
+      hintText: '记录你的作答过程（支持 LaTeX 公式）…',
+    );
+    if (text == null) return;
+    final updated = question.copyWith(studentAnswer: text);
+    await ref.read(questionRepositoryProvider).saveDraft(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
+  }
+
+  Future<void> _editExpectedAnswer(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) async {
+    final text = await showSingleTextFieldDialog(
+      context: context,
+      title: '标准答案',
+      initialText: question.expectedAnswer ?? '',
+      maxLines: 8,
+      minLines: 3,
+      hintText: '填写标准答案（支持 LaTeX 公式）…',
+    );
+    if (text == null) return;
+    final updated = question.withExpectedAnswer(text);
+    await ref.read(questionRepositoryProvider).saveDraft(updated);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
+  }
+
+  Future<void> _gradeAnswer(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) async {
+    final service = AutoGradingService(
+      ref.read(aiAnalysisServiceProvider),
+      ref.read(questionRepositoryProvider),
+    );
+    try {
+      final isCorrect = await service.gradeQuestion(question);
+      // gradeQuestion 内部已通过 saveDraft 写回 isCorrect；这里同步刷新当前
+      // 题目快照，避免 UI 等待 watchAll() 推送。
+      final updated = question.withIsCorrect(isCorrect);
+      ref.read(currentQuestionProvider.notifier).state = updated;
+      invalidateQuestionList(ref);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(isCorrect ? '判分结果：正确' : '判分结果：错误')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('判分失败：$e')),
+      );
+    }
   }
 
   void _confirmDelete(
@@ -641,6 +714,9 @@ class _QuestionTab extends StatelessWidget {
     required this.onSelectSibling,
     required this.onAddTag,
     required this.onEditReflection,
+    required this.onEditStudentAnswer,
+    required this.onEditExpectedAnswer,
+    required this.onGradeAnswer,
   });
 
   final QuestionRecord current;
@@ -653,6 +729,9 @@ class _QuestionTab extends StatelessWidget {
   final void Function(QuestionRecord) onSelectSibling;
   final VoidCallback onAddTag;
   final VoidCallback onEditReflection;
+  final VoidCallback onEditStudentAnswer;
+  final VoidCallback onEditExpectedAnswer;
+  final VoidCallback onGradeAnswer;
 
   @override
   Widget build(BuildContext context) {
@@ -759,6 +838,23 @@ class _QuestionTab extends StatelessWidget {
         ],
         const SizedBox(height: AppSpace.lg),
         _buildOriginalQuestion(context, isDark, colorScheme),
+        if (current.studentAnswer != null &&
+            current.studentAnswer!.isNotEmpty) ...<Widget>[
+          const SizedBox(height: AppSpace.lg),
+          _StudentAnswerCard(
+            answer: current.studentAnswer!,
+            contentFormat: current.contentFormat,
+            onEdit: onEditStudentAnswer,
+          ),
+          const SizedBox(height: AppSpace.lg),
+          _ExpectedAnswerCard(
+            expectedAnswer: current.expectedAnswer,
+            contentFormat: current.contentFormat,
+            isCorrect: current.isCorrect,
+            onEdit: onEditExpectedAnswer,
+            onGrade: onGradeAnswer,
+          ),
+        ],
         const SizedBox(height: AppSpace.lg),
         _ReflectionNoteCard(
           note: current.reflectionNote,
@@ -787,6 +883,10 @@ class _QuestionTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          if (current.ocrConfidence != null) ...<Widget>[
+            ConfidenceBadge(confidence: current.ocrConfidence, compact: true),
+            const SizedBox(height: AppSpace.sm),
+          ],
           if (current.imagePath.isNotEmpty) ...<Widget>[
             GestureDetector(
               onTap: () => showFullImage(current.imagePath),
@@ -899,6 +999,231 @@ class _ReflectionNoteCard extends StatelessWidget {
             tooltip: '编辑学习反思',
             color: colorScheme.onSurfaceVariant,
             onPressed: onEdit,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StudentAnswerCard extends StatelessWidget {
+  const _StudentAnswerCard({
+    required this.answer,
+    required this.contentFormat,
+    required this.onEdit,
+  });
+
+  final String answer;
+  final QuestionContentFormat contentFormat;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return AppInfoSection(
+      icon: CupertinoIcons.doc_richtext,
+      title: '我的答案',
+      iconColor: AppColors.accentTeal,
+      backgroundColor: AppColors.accentTealContainerLight,
+      borderColor: const Color(0xFF99F6E4),
+      titleColor: AppColors.accentTeal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: MathContentView(
+              answer,
+              contentFormat: contentFormat,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.5,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          IconButton(
+            icon: const Icon(CupertinoIcons.pencil, size: 18),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: '编辑我的答案',
+            color: colorScheme.onSurfaceVariant,
+            onPressed: onEdit,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 标准答案卡片，附带 AI 判分入口与判分结果徽章。
+///
+/// 仅当题目已有学生作答时显示（判分才有意义），由父组件控制显示条件。
+class _ExpectedAnswerCard extends StatefulWidget {
+  const _ExpectedAnswerCard({
+    required this.expectedAnswer,
+    required this.contentFormat,
+    required this.isCorrect,
+    required this.onEdit,
+    required this.onGrade,
+  });
+
+  final String? expectedAnswer;
+  final QuestionContentFormat contentFormat;
+  final bool? isCorrect;
+  final VoidCallback onEdit;
+  final VoidCallback onGrade;
+
+  @override
+  State<_ExpectedAnswerCard> createState() => _ExpectedAnswerCardState();
+}
+
+class _ExpectedAnswerCardState extends State<_ExpectedAnswerCard> {
+  bool _grading = false;
+
+  Future<void> _handleGrade() async {
+    if (_grading) return;
+    setState(() => _grading = true);
+    try {
+      await widget.onGrade();
+    } finally {
+      if (mounted) {
+        setState(() => _grading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final hasAnswer =
+        widget.expectedAnswer != null && widget.expectedAnswer!.isNotEmpty;
+
+    return AppInfoSection(
+      icon: CupertinoIcons.checkmark_seal,
+      title: '标准答案',
+      iconColor: AppColors.primary,
+      backgroundColor: AppColors.primaryContainerLight,
+      borderColor: const Color(0xFFC7D2FE),
+      titleColor: AppColors.primaryDark,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: hasAnswer
+                    ? MathContentView(
+                        widget.expectedAnswer!,
+                        contentFormat: widget.contentFormat,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.5,
+                          color: colorScheme.onSurface,
+                        ),
+                      )
+                    : GestureDetector(
+                        onTap: widget.onEdit,
+                        child: Text(
+                          '点此填写标准答案，用于 AI 判分…',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              IconButton(
+                icon: const Icon(CupertinoIcons.pencil, size: 18),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: '编辑标准答案',
+                color: colorScheme.onSurfaceVariant,
+                onPressed: widget.onEdit,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
+          Row(
+            children: <Widget>[
+              if (widget.isCorrect != null) ...<Widget>[
+                _buildCorrectnessBadge(widget.isCorrect!),
+                const SizedBox(width: AppSpace.sm),
+                OutlinedButton.icon(
+                  onPressed: _grading ? null : _handleGrade,
+                  icon: _grading
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(CupertinoIcons.arrow_2_circlepath,
+                          size: 14),
+                  label: Text(_grading ? '判分中' : '重新判分'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 28),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ] else
+                FilledButton.icon(
+                  onPressed: _grading ? null : _handleGrade,
+                  icon: _grading
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(CupertinoIcons.sparkles, size: 14),
+                  label: Text(_grading ? '判分中…' : 'AI 判分'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCorrectnessBadge(bool isCorrect) {
+    final color =
+        isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(
+            isCorrect
+                ? CupertinoIcons.checkmark_circle_fill
+                : CupertinoIcons.xmark_circle_fill,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            isCorrect ? '判分正确' : '判分错误',
+            style: TextStyle(
+                fontSize: 11, color: color, fontWeight: FontWeight.w500),
           ),
         ],
       ),

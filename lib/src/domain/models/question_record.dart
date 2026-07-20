@@ -168,7 +168,10 @@ class QuestionRecord {
     this.rootQuestionId,
     this.splitOrder,
     this.studentAnswer,
+    this.expectedAnswer,
+    this.isCorrect,
     this.reflectionNote,
+    this.ocrConfidence,
     this.archivedAt,
   });
 
@@ -313,7 +316,10 @@ class QuestionRecord {
       rootQuestionId: _nullableString(json['rootQuestionId']),
       splitOrder: _nullableInt(json['splitOrder']),
       studentAnswer: _nullableString(json['studentAnswer']),
+      expectedAnswer: json['expectedAnswer'] as String?,
+      isCorrect: json['isCorrect'] as bool?,
       reflectionNote: json['reflectionNote'] as String?,
+      ocrConfidence: (json['ocrConfidence'] as num?)?.toDouble(),
       archivedAt: json['archivedAt'] != null
           ? DateTime.parse(json['archivedAt'] as String)
           : null,
@@ -352,7 +358,10 @@ class QuestionRecord {
       'rootQuestionId': rootQuestionId,
       'splitOrder': splitOrder,
       'studentAnswer': studentAnswer,
+      'expectedAnswer': expectedAnswer,
+      'isCorrect': isCorrect,
       'reflectionNote': reflectionNote,
+      'ocrConfidence': ocrConfidence,
       'archivedAt': archivedAt?.toIso8601String(),
     };
   }
@@ -383,7 +392,10 @@ class QuestionRecord {
   final String? rootQuestionId;
   final int? splitOrder;
   final String? studentAnswer;
+  final String? expectedAnswer;
+  final bool? isCorrect;
   final String? reflectionNote;
+  final double? ocrConfidence;
   final DateTime? archivedAt;
 
   String get recognizedText => extractedQuestionText;
@@ -470,7 +482,10 @@ class QuestionRecord {
     String? rootQuestionId,
     int? splitOrder,
     String? studentAnswer,
+    String? expectedAnswer,
+    bool? isCorrect,
     String? reflectionNote,
+    double? ocrConfidence,
     DateTime? archivedAt,
   }) {
     return QuestionRecord(
@@ -502,7 +517,10 @@ class QuestionRecord {
       rootQuestionId: rootQuestionId ?? this.rootQuestionId,
       splitOrder: splitOrder ?? this.splitOrder,
       studentAnswer: studentAnswer ?? this.studentAnswer,
+      expectedAnswer: expectedAnswer ?? this.expectedAnswer,
+      isCorrect: isCorrect ?? this.isCorrect,
       reflectionNote: reflectionNote ?? this.reflectionNote,
+      ocrConfidence: ocrConfidence ?? this.ocrConfidence,
       archivedAt: archivedAt ?? this.archivedAt,
     );
   }
@@ -540,6 +558,8 @@ class QuestionRecord {
       rootQuestionId: rootQuestionId,
       splitOrder: splitOrder,
       studentAnswer: studentAnswer,
+      expectedAnswer: expectedAnswer,
+      isCorrect: isCorrect,
       reflectionNote: reflectionNote,
       archivedAt: value,
     );
@@ -550,4 +570,86 @@ class QuestionRecord {
 
   /// Removes the archive marker so the question shows up in the default list.
   QuestionRecord unarchive() => withArchivedAt(null);
+
+  /// Explicitly sets [expectedAnswer], allowing null to clear it.
+  ///
+  /// [copyWith] uses `?? this.expectedAnswer`, which keeps the existing value
+  /// when `null` is passed. To clear the field we must bypass copyWith and
+  /// construct the record directly.
+  QuestionRecord withExpectedAnswer(String? value) {
+    return QuestionRecord(
+      id: id,
+      imagePath: imagePath,
+      subject: subject,
+      extractedQuestionText: extractedQuestionText,
+      normalizedQuestionText: normalizedQuestionText,
+      contentFormat: contentFormat,
+      tags: tags,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      lastReviewedAt: lastReviewedAt,
+      nextReviewAt: nextReviewAt,
+      reviewCount: reviewCount,
+      isFavorite: isFavorite,
+      contentStatus: contentStatus,
+      masteryLevel: masteryLevel,
+      analysisResult: analysisResult,
+      savedExercises: savedExercises,
+      aiTags: aiTags,
+      aiKnowledgePoints: aiKnowledgePoints,
+      customTags: customTags,
+      splitResult: splitResult,
+      candidateAnalyses: candidateAnalyses,
+      parentQuestionId: parentQuestionId,
+      rootQuestionId: rootQuestionId,
+      splitOrder: splitOrder,
+      studentAnswer: studentAnswer,
+      expectedAnswer: value,
+      isCorrect: isCorrect,
+      reflectionNote: reflectionNote,
+      ocrConfidence: ocrConfidence,
+      archivedAt: archivedAt,
+    );
+  }
+
+  /// Explicitly sets [isCorrect], allowing null to clear it.
+  ///
+  /// [copyWith] uses `?? this.isCorrect`, which keeps the existing value when
+  /// `null` is passed. To clear the field we must bypass copyWith and
+  /// construct the record directly.
+  QuestionRecord withIsCorrect(bool? value) {
+    return QuestionRecord(
+      id: id,
+      imagePath: imagePath,
+      subject: subject,
+      extractedQuestionText: extractedQuestionText,
+      normalizedQuestionText: normalizedQuestionText,
+      contentFormat: contentFormat,
+      tags: tags,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      lastReviewedAt: lastReviewedAt,
+      nextReviewAt: nextReviewAt,
+      reviewCount: reviewCount,
+      isFavorite: isFavorite,
+      contentStatus: contentStatus,
+      masteryLevel: masteryLevel,
+      analysisResult: analysisResult,
+      savedExercises: savedExercises,
+      aiTags: aiTags,
+      aiKnowledgePoints: aiKnowledgePoints,
+      customTags: customTags,
+      splitResult: splitResult,
+      candidateAnalyses: candidateAnalyses,
+      parentQuestionId: parentQuestionId,
+      rootQuestionId: rootQuestionId,
+      splitOrder: splitOrder,
+      studentAnswer: studentAnswer,
+      expectedAnswer: expectedAnswer,
+      isCorrect: value,
+      reflectionNote: reflectionNote,
+      ocrConfidence: ocrConfidence,
+      archivedAt: archivedAt,
+    );
+  }
 }

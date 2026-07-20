@@ -2253,19 +2253,21 @@ class AiAnalysisService {
     switch (mode) {
       case CaptureMode.handwritten:
         buffer.writeln(
-            '本次录入模式：手写解答。请忠实转录图片中的手写内容，包括学生的解答过程和错误步骤。不要纠正错误，原样转录。返回的 studentAnswer 字段必须包含完整手写内容；extractedQuestionText、normalizedQuestionText 留空字符串或仅记录可辨识的印刷题干。');
+            '本次录入模式：手写解答。本图为手写作答，请把学生写在题上的作答内容完整转录到 studentAnswer 字段（保留原始格式，包括公式 LaTeX），包括学生的解答过程和错误步骤。不要纠正错误，原样转录。返回的 studentAnswer 字段必须包含完整手写内容；extractedQuestionText、normalizedQuestionText 留空字符串或仅记录可辨识的印刷题干。');
         buffer.writeln(
             '请输出 subject、extractedQuestionText、normalizedQuestionText、studentAnswer。方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
         break;
       case CaptureMode.mixed:
         buffer.writeln(
-            '本次录入模式：混合。请同时识别印刷题干（写入 extractedQuestionText / normalizedQuestionText）和手写批注（写入 studentAnswer）。手写部分原样转录，包括错误步骤，不要纠正。');
+            '本次录入模式：混合。本图同时包含印刷题干和手写作答，请把学生写在题上的作答内容完整转录到 studentAnswer 字段（保留原始格式，包括公式 LaTeX），同时识别印刷题干写入 extractedQuestionText / normalizedQuestionText。手写部分原样转录，包括错误步骤，不要纠正。');
         buffer.writeln(
             '请输出 subject、extractedQuestionText、normalizedQuestionText、studentAnswer。方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
         break;
       case CaptureMode.printed:
         buffer.writeln(
             '请输出 subject、extractedQuestionText、normalizedQuestionText。方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
+        buffer.writeln(
+            '如有学生作答痕迹（即使是手写），也请转录到 studentAnswer 字段，保留原始格式（包括公式 LaTeX）。');
         break;
     }
     return buffer.toString();

@@ -154,6 +154,17 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                 onTap: _pickWorksheetPages,
               ),
               const SizedBox(height: 10),
+              _EntryOption(
+                icon: CupertinoIcons.doc_richtext,
+                iconColor: const Color(0xFF8B5CF6),
+                iconBg: isDark
+                    ? const Color(0xFF8B5CF6).withValues(alpha: 0.16)
+                    : const Color(0xFFF5F3FF),
+                label: 'PDF 试卷导入',
+                description: '选择 PDF 文件，自动按页切题',
+                onTap: _pickPdfWorksheet,
+              ),
+              const SizedBox(height: 10),
               Text(
                 '说明：拍照/相册的单题会使用“AI 服务”中的当前模型解析；PaddleOCR 与 MinerU 仅用于“试卷批量导入 → 整页框选切题”的候选题框识别，识别后会显示实际服务名称。',
                 style: TextStyle(fontSize: 11, height: 1.4, color: colorScheme.onSurfaceVariant),
@@ -305,6 +316,46 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
       setState(() {
         _isLoading = false;
         _errorMessage = '导入试卷页面失败: $e';
+      });
+    }
+  }
+
+  /// PDF 试卷导入：选 PDF → 每页转图片 → 进入 WorksheetImportSession 多页切题流程。
+  ///
+  /// 复用 [_pickWorksheetPages] 的下游链路（persistWorksheetImport →
+  /// /worksheet/import）；只是把"多选图片"换成了"选单个 PDF，逐页渲染为图片"。
+  /// `oneShotLayoutProviderTypeProvider` 同样置空，让用户在切题页选择
+  /// PaddleOCR / MinerU / 普通 AI。
+  Future<void> _pickPdfWorksheet() async {
+    ref.read(oneShotLayoutProviderTypeProvider.notifier).state = null;
+    final router = GoRouter.of(context);
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final pages =
+          await ref.read(captureServiceProvider).pickPdfFromGallery();
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (pages.isEmpty) return;
+      await persistWorksheetImport(
+        ref,
+        WorksheetImportSession(
+          id: const Uuid().v4(),
+          pages: pages,
+          sourcePageIds: pages.map((page) => page.id).toSet(),
+          createdAt: DateTime.now(),
+        ),
+      );
+      Navigator.pop(context);
+      router.go('/worksheet/import');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'PDF 导入失败：$e';
       });
     }
   }

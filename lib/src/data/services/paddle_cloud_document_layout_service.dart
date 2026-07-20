@@ -8,6 +8,8 @@ import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/services/document_layout_service.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/question_number_detector.dart';
 
 /// Adapter for PaddleOCR AI Studio's asynchronous PP-StructureV3 API.
 /// The API key is supplied through [LayoutProviderConfig] and is stored only
@@ -215,10 +217,22 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
     return _fallbackBlockRegions(<_PaddleBlock>[_PaddleBlock(const Rect.fromLTWH(0, 0, 1, 1), text)]);
   }
 
-  static final _questionStart = RegExp(r'^\s*(?:第\s*)?(\d{1,3})\s*(?:[\.．、:：]|[（(])');
-
   @visibleForTesting
   List<QuestionRegion> extractRegionsForTesting(String jsonl) => _extractRegions(jsonl);
+
+  /// 提取文本中所有 `$$...$$` 和 `$...$` 包裹的 LaTeX 公式片段。
+  /// 排除 `\$` 转义的情况。返回的字符串保留定界符，便于下游区分行内/块级公式。
+  List<String> _extractFormulas(String text) {
+    final formulas = <String>[];
+    // 先匹配 $$...$$（display），再匹配 $...$（inline）；用 (?<!\\) 排除 \$。
+    final regex = RegExp(
+      r'(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$|(?<!\\)\$([\s\S]*?)(?<!\\)\$',
+    );
+    for (final match in regex.allMatches(text)) {
+      formulas.add(match.group(0)!);
+    }
+    return formulas;
+  }
 
   List<QuestionRegion> _extractRegions(String jsonl) {
     final blocks = <_PaddleBlock>[];
@@ -245,7 +259,7 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
       });
     final starts = <int>[];
     for (var index = 0; index < ordered.length; index++) {
-      if (_questionStart.hasMatch(ordered[index].text)) starts.add(index);
+      if (QuestionNumberDetector.instance.hasQuestionNumber(ordered[index].text)) starts.add(index);
     }
     if (starts.isEmpty) return _fallbackBlockRegions(ordered);
 
@@ -260,11 +274,12 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
       regions.add(QuestionRegion(
         id: 'paddle-question-$group',
         normalizedRect: rect,
-        detectedNumber: _questionStart.firstMatch(ordered[from].text)?.group(1),
+        detectedNumber: QuestionNumberDetector.instance.extractNumber(ordered[from].text),
         recognizedText: text.isEmpty ? null : text,
+        formulas: _extractFormulas(text),
         documentBlocks: questionBlocks.where((block) => block.text.trim().isNotEmpty).map((block) =>
             DocumentBlock(type: _blockType(block.text), content: block.text.trim())).toList(),
-        contentFormatHint: text.contains(r'$') || text.contains(r'\\') ? 'latexMixed' : 'plain',
+        contentFormatHint: LatexNormalizer.hasFormula(text) ? 'latexMixed' : 'plain',
         recognizedBlockTypes: _classifyText(text),
         confidence: .76,
         source: QuestionRegionSource.layoutModel,
@@ -277,7 +292,7 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
     if (text.contains('|') && text.split('\n').where((line) => line.contains('|')).length >= 2) {
       return DocumentBlockType.table;
     }
-    if (text.contains(r'$') || text.contains(r'\\') || RegExp(r'[∑√∫≠≤≥]').hasMatch(text)) {
+    if (LatexNormalizer.hasFormula(text)) {
       return DocumentBlockType.formula;
     }
     return DocumentBlockType.text;
@@ -293,7 +308,8 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
             id: 'paddle-block-${entry.key}',
             normalizedRect: entry.value.rect,
             recognizedText: entry.value.text.isEmpty ? null : entry.value.text,
-            contentFormatHint: entry.value.text.contains(r'$') || entry.value.text.contains(r'\\') ? 'latexMixed' : 'plain',
+            formulas: _extractFormulas(entry.value.text),
+            contentFormatHint: LatexNormalizer.hasFormula(entry.value.text) ? 'latexMixed' : 'plain',
             recognizedBlockTypes: _classifyText(entry.value.text),
             confidence: .55,
             source: QuestionRegionSource.layoutModel,

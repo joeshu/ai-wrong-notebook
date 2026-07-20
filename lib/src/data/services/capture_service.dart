@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
+import 'package:smart_wrong_notebook/src/data/services/pdf_to_images_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/image_preprocessor.dart';
@@ -33,6 +35,7 @@ class CaptureService {
 
   final ImageStorageService _storage;
   final ImagePicker _picker = ImagePicker();
+  final PdfToImagesService _pdfService = PdfToImagesService();
 
   Future<CaptureResult> pickFromCamera() async {
     try {
@@ -100,6 +103,53 @@ class CaptureService {
       return records;
     } catch (e) {
       debugPrint('[CaptureService] Worksheet gallery error: $e');
+      rethrow;
+    }
+  }
+
+  /// 选择 PDF 文件并把每页转为图片草稿。
+  ///
+  /// 调用 [PdfToImagesService.convertPdfToImages] 把 PDF 渲染成临时 PNG，
+  /// 再复用 [_saveToDraft] 把每页图片持久化到应用目录并生成 [QuestionRecord]，
+  /// 流程与 [pickMultipleFromGallery] 一致：调用方拿到 records 后即可走
+  /// `WorksheetImportSession` 多页切题流程。
+  ///
+  /// [maxPages] 限制最多渲染多少页，避免超大 PDF 拖垮内存（默认 50）。
+  /// 返回空列表表示用户取消选择；其它错误抛出。
+  Future<List<QuestionRecord>> pickPdfFromGallery({
+    int maxPages = 50,
+  }) async {
+    try {
+      debugPrint('[CaptureService] Opening file picker for PDF...');
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const <String>['pdf'],
+        withData: false,
+      );
+      if (result == null || result.files.isEmpty) {
+        return const <QuestionRecord>[];
+      }
+      final pdfPath = result.files.first.path;
+      if (pdfPath == null) {
+        return const <QuestionRecord>[];
+      }
+
+      final imagePaths = await _pdfService.convertPdfToImages(
+        pdfPath,
+        maxPages: maxPages,
+      );
+      if (imagePaths.isEmpty) {
+        return const <QuestionRecord>[];
+      }
+
+      final records = <QuestionRecord>[];
+      for (final path in imagePaths) {
+        records.add(await _saveToDraft(XFile(path)));
+      }
+      debugPrint('[CaptureService] PDF imported ${records.length} pages');
+      return records;
+    } catch (e) {
+      debugPrint('[CaptureService] PDF import error: $e');
       rethrow;
     }
   }

@@ -432,6 +432,7 @@ class _WorksheetRegionEditorScreenState
             ..addAll(region.recognizedBlockTypes.isEmpty ? const <String>[] : <String>['document_blocks:${region.recognizedBlockTypes.join('+')}'])),
           parentQuestionId: source.id,
           rootQuestionId: source.rootQuestionId ?? source.id,
+          ocrConfidence: region.confidence,
         ));
       }
       final worksheet = ref.read(currentWorksheetImportProvider);

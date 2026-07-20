@@ -88,6 +88,10 @@ class DriftQuestionRepository implements QuestionRepository {
               splitOrder: Value(record.splitOrder),
               reflectionNote: Value(record.reflectionNote),
               archivedAt: Value(record.archivedAt),
+              ocrConfidence: Value(record.ocrConfidence),
+              studentAnswer: Value(record.studentAnswer),
+              expectedAnswer: Value(record.expectedAnswer),
+              isCorrect: Value(record.isCorrect),
             ),
           );
 
@@ -256,6 +260,10 @@ class DriftQuestionRepository implements QuestionRepository {
       splitOrder: row.splitOrder,
       reflectionNote: row.reflectionNote,
       archivedAt: row.archivedAt,
+      ocrConfidence: row.ocrConfidence,
+      studentAnswer: row.studentAnswer,
+      expectedAnswer: row.expectedAnswer,
+      isCorrect: row.isCorrect,
     );
   }
 
