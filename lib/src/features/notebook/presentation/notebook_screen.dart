@@ -969,6 +969,7 @@ class _QuestionCard extends StatelessWidget {
       ));
     }
 
+    final difficulty = question.difficulty;
     if (difficulty != null) {
       children.add(_MetaBadge(
         label: _difficultyLabel(difficulty),

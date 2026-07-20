@@ -607,6 +607,7 @@ class _MistakeCategorySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final total = stats.values.fold(0, (int sum, int v) => sum + v);
     final ranked = stats.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
