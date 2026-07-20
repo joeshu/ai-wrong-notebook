@@ -19,6 +19,7 @@ class CachedQuestionImage extends StatefulWidget {
     this.maxWidth = 1400,
     this.highRes = false,
     this.borderRadius,
+    this.errorMessage,
   });
 
   final String path;
@@ -30,7 +31,7 @@ class CachedQuestionImage extends StatefulWidget {
 
   /// 可选圆角，包装在 ClipRRect 里。
   final BorderRadius? borderRadius;
-
+  final String? errorMessage;
   @override
   State<CachedQuestionImage> createState() => _CachedQuestionImageState();
 
@@ -131,7 +132,16 @@ class _CachedQuestionImageState extends State<CachedQuestionImage> {
     } else if (_bytes != null) {
       content = Image.memory(_bytes!, fit: widget.fit);
     } else {
-      content = const Icon(Icons.broken_image_outlined);
+      content = Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          const Icon(Icons.broken_image_outlined),
+          if (widget.errorMessage != null) ...<Widget>[
+            const SizedBox(height: 6),
+            Text(widget.errorMessage!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11)),
+          ],
+        ],
+      );
     }
     if (widget.borderRadius != null) {
       return ClipRRect(borderRadius: widget.borderRadius!, child: content);

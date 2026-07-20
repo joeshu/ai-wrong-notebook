@@ -8,6 +8,7 @@ import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
+import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
@@ -359,8 +360,99 @@ String _nextReviewLabel(DateTime date) {
   return '下次复习 $month-$day $hour:$minute';
 }
 
-class _ReviewCard extends StatelessWidget {
+class _ReviewCard extends ConsumerStatefulWidget {
   const _ReviewCard({
+    required this.question,
+    required this.onOpen,
+    this.batchLabel,
+  });
+
+  final QuestionRecord question;
+  final VoidCallback onOpen;
+  final String? batchLabel;
+
+  @override
+  ConsumerState<_ReviewCard> createState() => _ReviewCardState();
+}
+
+class _ReviewCardState extends ConsumerState<_ReviewCard> {
+  bool _revealed = false;
+  bool _rating = false;
+
+  Future<void> _rate(ReviewRating rating) async {
+    if (_rating) return;
+    setState(() => _rating = true);
+    final controller = ReviewController(
+      repository: ref.read(questionRepositoryProvider),
+      logRepository: ref.read(reviewLogRepositoryProvider),
+    );
+    try {
+      switch (rating) {
+        case ReviewRating.forgot:
+          await controller.markForgot(widget.question.id);
+        case ReviewRating.hard:
+          await controller.markReviewing(widget.question.id);
+        case ReviewRating.easy:
+          await controller.markMastered(widget.question.id);
+      }
+      invalidateQuestionList(ref);
+      if (mounted) setState(() => _rating = false);
+    } catch (_) {
+      if (mounted) setState(() => _rating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final result = widget.question.analysisResult;
+    final answer = (widget.question.expectedAnswer?.trim().isNotEmpty ?? false)
+        ? widget.question.expectedAnswer!.trim()
+        : result?.finalAnswer.trim() ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _ReviewCardContent(
+          question: widget.question,
+          onOpen: widget.onOpen,
+          batchLabel: widget.batchLabel,
+        ),
+        const SizedBox(height: AppSpace.xs),
+        OutlinedButton.icon(
+          onPressed: answer.isEmpty ? widget.onOpen : () => setState(() => _revealed = !_revealed),
+          icon: Icon(_revealed ? CupertinoIcons.eye_slash : CupertinoIcons.eye),
+          label: Text(answer.isEmpty ? '打开详情查看并评价' : (_revealed ? '收起答案' : '回忆后查看答案')),
+        ),
+        if (_revealed && answer.isNotEmpty) ...<Widget>[
+          const SizedBox(height: AppSpace.xs),
+          AppInfoSection(
+            icon: CupertinoIcons.checkmark_circle,
+            title: '参考答案',
+            iconColor: AppColors.successDark,
+            backgroundColor: AppColors.successContainerLight,
+            borderColor: const Color(0xFFBBF7D0),
+            titleColor: AppColors.successDark,
+            child: MathContentView(answer, contentFormat: widget.question.contentFormat),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text('回忆结果', style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: AppSpace.xs),
+          Row(
+            children: <Widget>[
+              Expanded(child: OutlinedButton(onPressed: _rating ? null : () => _rate(ReviewRating.forgot), child: const Text('忘记'))),
+              const SizedBox(width: AppSpace.xs),
+              Expanded(child: OutlinedButton(onPressed: _rating ? null : () => _rate(ReviewRating.hard), child: const Text('模糊'))),
+              const SizedBox(width: AppSpace.xs),
+              Expanded(child: FilledButton(onPressed: _rating ? null : () => _rate(ReviewRating.easy), child: const Text('掌握'))),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ReviewCardContent extends StatelessWidget {
+  const _ReviewCardContent({
     required this.question,
     required this.onOpen,
     this.batchLabel,

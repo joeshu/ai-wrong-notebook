@@ -116,6 +116,24 @@ class HomeScreen extends ConsumerWidget {
                 failed: failed,
                 lowConfidence: lowConfidence,
                 onOpenNotebook: () => context.go('/notebook'),
+                onOpenPendingAi: () {
+                  ref.read(pendingAiOnlyFilterProvider.notifier).state = true;
+                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
+                  ref.read(failedOnlyFilterProvider.notifier).state = false;
+                  context.go('/notebook');
+                },
+                onOpenFailed: () {
+                  ref.read(failedOnlyFilterProvider.notifier).state = true;
+                  ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
+                  context.go('/notebook');
+                },
+                onOpenLowConfidence: () {
+                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = true;
+                  ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+                  ref.read(failedOnlyFilterProvider.notifier).state = false;
+                  context.go('/notebook');
+                },
                 onRetry: () => ref.invalidate(questionListProvider),
               );
             },
@@ -171,10 +189,31 @@ class HomeScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpace.lg),
-            child: _GoalEntryCard(onTap: () => context.push('/goals')),
+          questionsAsync.when(
+            data: (questions) {
+              final counts = <String, int>{};
+              for (final question in questions.where((q) => q.masteryLevel != MasteryLevel.mastered)) {
+                for (final point in question.aiKnowledgePoints) {
+                  counts[point] = (counts[point] ?? 0) + 1;
+                }
+              }
+              final ranked = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+              if (ranked.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: AppSpace.lg),
+                child: _WeakPointCard(
+                  points: ranked.take(3).toList(),
+                  onSelect: (point) {
+                    ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
+                    context.go('/notebook');
+                  },
+                ),
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
+
           const SizedBox(height: AppSpace.xl),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -607,12 +646,14 @@ class _MistakeCategorySummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final total = stats.values.fold(0, (int sum, int v) => sum + v);
     final ranked = stats.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final top = ranked.take(3).toList();
 
     return AppCard(
+      backgroundColor: scheme.surfaceContainerHighest,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -826,6 +867,38 @@ class _RecentQuestionCard extends StatelessWidget {
 
 /// 首页「学习目标与打卡」入口卡片。点击跳转到 `/goals` 详情页，
 /// 在那里可设置每日目标、手动打卡并查看连续打卡日历。
+class _WeakPointCard extends StatelessWidget {
+  const _WeakPointCard({required this.points, required this.onSelect});
+  final List<MapEntry<String, int>> points;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+        Row(children: <Widget>[
+          const Icon(CupertinoIcons.scope, size: 18, color: AppColors.warningDark),
+          const SizedBox(width: AppSpace.sm),
+          const Expanded(child: Text('优先巩固薄弱知识点', style: TextStyle(fontWeight: FontWeight.w700))),
+          Text('点击筛选', style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ]),
+        const SizedBox(height: AppSpace.sm),
+        ...points.map((entry) => InkWell(
+              onTap: () => onSelect(entry.key),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(children: <Widget>[
+                  Expanded(child: Text(entry.key, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Text('${entry.value} 题', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  const SizedBox(width: 4),
+                  const Icon(CupertinoIcons.chevron_right, size: 14),
+                ]),
+              ),
+            )),
+      ]),
+    );
+  }
+}
 class _GoalEntryCard extends StatelessWidget {
   const _GoalEntryCard({required this.onTap});
 
@@ -960,12 +1033,37 @@ class _LowConfidenceHintCard extends StatelessWidget {
   }
 }
 
+class _TaskActionRow extends StatelessWidget {
+  const _TaskActionRow({required this.label, required this.icon, required this.color, required this.onTap});
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.small),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(children: <Widget>[
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 8),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 12))),
+            const Icon(CupertinoIcons.chevron_right, size: 14),
+          ]),
+        ),
+      );
+}
 class _PendingTaskCard extends StatelessWidget {
   const _PendingTaskCard({
     required this.pendingAi,
     required this.failed,
     required this.lowConfidence,
     required this.onOpenNotebook,
+    required this.onOpenPendingAi,
+    required this.onOpenFailed,
+    required this.onOpenLowConfidence,
     required this.onRetry,
   });
 
@@ -973,6 +1071,9 @@ class _PendingTaskCard extends StatelessWidget {
   final int failed;
   final int lowConfidence;
   final VoidCallback onOpenNotebook;
+  final VoidCallback onOpenPendingAi;
+  final VoidCallback onOpenFailed;
+  final VoidCallback onOpenLowConfidence;
   final VoidCallback onRetry;
 
   @override
@@ -998,16 +1099,27 @@ class _PendingTaskCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpace.xs),
-          ...items.map((item) => Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: <Widget>[
-                    Icon(CupertinoIcons.circle_fill, size: 7, color: scheme.primary),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(item, style: const TextStyle(fontSize: 12))),
-                  ],
-                ),
-              )),
+          if (pendingAi > 0)
+            _TaskActionRow(
+              label: '$pendingAi 道待交给普通 AI 分析',
+              icon: CupertinoIcons.sparkles,
+              color: scheme.primary,
+              onTap: onOpenPendingAi,
+            ),
+          if (failed > 0)
+            _TaskActionRow(
+              label: '$failed 道识别或分析失败',
+              icon: CupertinoIcons.exclamationmark_triangle,
+              color: AppColors.danger,
+              onTap: onOpenFailed,
+            ),
+          if (lowConfidence > 0)
+            _TaskActionRow(
+              label: '$lowConfidence 道识别置信度较低',
+              icon: CupertinoIcons.eye,
+              color: AppColors.warning,
+              onTap: onOpenLowConfidence,
+            ),
           const SizedBox(height: AppSpace.sm),
           Align(
             alignment: Alignment.centerRight,

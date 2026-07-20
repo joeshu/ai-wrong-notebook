@@ -932,15 +932,42 @@ class _QuestionCard extends StatelessWidget {
 
   /// 是否需要展示状态徽章行（难度 / 作答状态 / 置信度 / 反思笔记 / 判分结果）。
   bool get _hasStatusBadges =>
-      question.difficulty != null ||
-      question.attemptStatus != null ||
-      (question.ocrConfidence != null && question.ocrConfidence! < 0.7) ||
-      (question.reflectionNote?.isNotEmpty ?? false) ||
-      question.isCorrect != null;
+      this.question.difficulty != null ||
+      this.question.attemptStatus != null ||
+      (this.question.ocrConfidence != null && this.question.ocrConfidence! < 0.7) ||
+      (this.question.reflectionNote?.isNotEmpty ?? false) ||
+      this.question.isCorrect != null;
 
   /// 渲染状态徽章行：用紧凑的色块徽章展示难度/作答状态/置信度/反思/判分。
   Widget _buildStatusBadges(BuildContext context) {
     final children = <Widget>[];
+
+    final providerTag = question.tags.firstWhere(
+      (tag) => tag.startsWith('layout_provider:'),
+      orElse: () => '',
+    );
+    if (providerTag.isNotEmpty) {
+      children.add(_MetaBadge(
+        label: providerTag.substring('layout_provider:'.length),
+        color: AppColors.successDark,
+        icon: CupertinoIcons.doc_text_search,
+      ));
+    }
+
+    if (question.analysisResult == null &&
+        question.contentStatus == ContentStatus.ready) {
+      children.add(_MetaBadge(
+        label: '待 AI',
+        color: AppColors.primary,
+        icon: CupertinoIcons.sparkles,
+      ));
+    } else if (question.analysisResult != null) {
+      children.add(_MetaBadge(
+        label: 'AI 已分析',
+        color: AppColors.success,
+        icon: CupertinoIcons.checkmark_seal,
+      ));
+    }
 
     final difficulty = question.difficulty;
     if (difficulty != null) {

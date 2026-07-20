@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +8,7 @@ import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/services/auto_grading_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
@@ -185,57 +185,6 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
         ],
       ),
     );
-  }
-
-  _ConsistencyNoticeData? _consistencyNotice(AnalysisResult result) {
-    switch (result.consistencyStatus) {
-      case AnalysisConsistencyStatus.repaired:
-        if (result.visualAssumptionStatus == VisualAssumptionStatus.needsReview) {
-          return _ConsistencyNoticeData(
-            text: result.consistencyNote.isNotEmpty
-                ? result.consistencyNote
-                : 'AI 已复核答案；图中关键标注含义仍需核对',
-            icon: CupertinoIcons.exclamationmark_triangle,
-            color: AppColors.warning,
-            background: AppColors.warningContainerLight,
-          );
-        }
-        return const _ConsistencyNoticeData(
-          text: 'AI 已复核并修正答案',
-          icon: CupertinoIcons.checkmark_shield,
-          color: AppColors.success,
-          background: Color(0xFFEFFDF5),
-        );
-      case AnalysisConsistencyStatus.needsReview:
-        if (result.visualAssumptionStatus == VisualAssumptionStatus.needsReview) {
-          return _ConsistencyNoticeData(
-            text: result.consistencyNote.isNotEmpty
-                ? result.consistencyNote
-                : '图中关键标注含义需核对，当前为可能解法',
-            icon: CupertinoIcons.exclamationmark_triangle,
-            color: AppColors.warning,
-            background: AppColors.warningContainerLight,
-          );
-        }
-        return const _ConsistencyNoticeData(
-          text: '答案与步骤可能不一致，请核对',
-          icon: CupertinoIcons.exclamationmark_triangle,
-          color: AppColors.warning,
-          background: AppColors.warningContainerLight,
-        );
-      case AnalysisConsistencyStatus.unchecked:
-      case AnalysisConsistencyStatus.consistent:
-      case AnalysisConsistencyStatus.unverifiable:
-        return null;
-    }
-  }
-
-  String? _batchLabel(QuestionRecord question) {
-    if (question.parentQuestionId == null && question.rootQuestionId == null) {
-      return null;
-    }
-    final order = question.splitOrder;
-    return order == null ? '拍照批次' : '拍照批次 · 第 $order 题';
   }
 
   void _editLearningContext(
@@ -580,7 +529,11 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ),
           body: Center(
             child: InteractiveViewer(
-              child: CachedQuestionImage(imagePath, highRes: true),
+              child: CachedQuestionImage(
+                imagePath,
+                highRes: true,
+                errorMessage: '附件加载失败：请检查原图文件',
+              ),
             ),
           ),
         ),
@@ -712,25 +665,79 @@ class _RecognitionStatusTags extends StatelessWidget {
     );
     final provider = source.isEmpty ? null : source.substring('layout_provider:'.length);
     final aiReady = question.analysisResult != null;
-    final recognitionLabel = provider ?? (question.imagePath.isNotEmpty ? '图片已保留' : '待识别');
+    final recognitionLabel = provider ?? (question.imagePath.isNotEmpty ? '已识别' : '未识别');
+    final recognitionColor = question.contentStatus == ContentStatus.failed ? AppColors.danger : AppColors.successDark;
+    final learningLabel = switch (question.masteryLevel) {
+      MasteryLevel.newQuestion => '学习：未复习',
+      MasteryLevel.reviewing => '学习：需巩固',
+      MasteryLevel.mastered => '学习：已掌握',
+    };
     return Wrap(
       spacing: AppSpace.sm,
       runSpacing: AppSpace.sm,
       children: <Widget>[
         AppTag(
           label: '识别：$recognitionLabel',
-          textColor: AppColors.successDark,
-          backgroundColor: AppColors.successContainerLight,
+          textColor: recognitionColor,
+          backgroundColor: question.contentStatus == ContentStatus.failed ? AppColors.dangerContainerLight : AppColors.successContainerLight,
         ),
         AppTag(
           label: aiReady ? 'AI：已分析' : 'AI：未分析',
           textColor: aiReady ? AppColors.primaryDark : AppColors.slate,
           backgroundColor: aiReady ? AppColors.primaryContainerLight : AppColors.slateContainerLight,
         ),
+        AppTag(label: learningLabel, textColor: AppColors.warningDark, backgroundColor: AppColors.warningContainerLight),
       ],
     );
   }
 }
+class _RecognitionEvidenceCard extends StatelessWidget {
+  const _RecognitionEvidenceCard({required this.question});
+  final QuestionRecord question;
+
+  @override
+  Widget build(BuildContext context) {
+    final source = question.tags.firstWhere(
+      (tag) => tag.startsWith('layout_provider:'),
+      orElse: () => '',
+    );
+    final provider = source.isEmpty
+        ? (question.imagePath.isNotEmpty ? '图片原题' : '未记录')
+        : source.substring('layout_provider:'.length);
+    final analyzed = question.analysisResult != null;
+    final confidence = question.ocrConfidence;
+    return AppInfoSection(
+      icon: CupertinoIcons.doc_text_search,
+      title: '识别与分析状态',
+      iconColor: AppColors.successDark,
+      backgroundColor: AppColors.successContainerLight,
+      borderColor: const Color(0xFFBBF7D0),
+      titleColor: AppColors.successDark,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Wrap(
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
+            children: <Widget>[
+              AppTag(label: '识别：$provider', textColor: AppColors.successDark, backgroundColor: AppColors.successContainerLight),
+              AppTag(label: analyzed ? 'AI：已分析' : 'AI：未分析', textColor: analyzed ? AppColors.primaryDark : AppColors.slate, backgroundColor: analyzed ? AppColors.primaryContainerLight : AppColors.slateContainerLight),
+              if (confidence != null) AppTag(label: '置信度：${(confidence * 100).round()}%', textColor: confidence < .7 ? AppColors.warningDark : AppColors.successDark, backgroundColor: confidence < .7 ? AppColors.warningContainerLight : AppColors.successContainerLight),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            analyzed
+                ? '识别结果已交给普通 AI，当前可查看答案、错因、知识点和练习。'
+                : '当前仅保存识别结果；可在“分析”页继续交给普通 AI。',
+            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _QuestionTab extends StatelessWidget {
   const _QuestionTab({
     required this.current,
@@ -868,6 +875,8 @@ class _QuestionTab extends StatelessWidget {
         ],
         const SizedBox(height: AppSpace.lg),
         _buildOriginalQuestion(context, isDark, colorScheme),
+        const SizedBox(height: AppSpace.lg),
+        _RecognitionEvidenceCard(question: current),
         if (current.studentAnswer != null &&
             current.studentAnswer!.isNotEmpty) ...<Widget>[
           const SizedBox(height: AppSpace.lg),
@@ -937,6 +946,7 @@ class _QuestionTab extends StatelessWidget {
                         child: CachedQuestionImage(
                           current.imagePath,
                           fit: BoxFit.contain,
+                          errorMessage: current.imagePath.isEmpty ? '附件缺失：未保存原图' : '附件加载失败：请检查原图文件',
                         ),
                       ),
                     ),
@@ -1890,7 +1900,6 @@ class _MistakeCategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
