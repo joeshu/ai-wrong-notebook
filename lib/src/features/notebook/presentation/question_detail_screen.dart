@@ -731,7 +731,7 @@ class _QuestionTab extends StatelessWidget {
   final VoidCallback onEditReflection;
   final VoidCallback onEditStudentAnswer;
   final VoidCallback onEditExpectedAnswer;
-  final VoidCallback onGradeAnswer;
+  final Future<void> Function() onGradeAnswer;
 
   @override
   Widget build(BuildContext context) {
@@ -1063,17 +1063,17 @@ class _StudentAnswerCard extends StatelessWidget {
 class _ExpectedAnswerCard extends StatefulWidget {
   const _ExpectedAnswerCard({
     required this.expectedAnswer,
-    required this.contentFormat,
+    required this.studentAnswer,
     required this.isCorrect,
     required this.onEdit,
     required this.onGrade,
   });
 
   final String? expectedAnswer;
-  final QuestionContentFormat contentFormat;
+  final String? studentAnswer;
   final bool? isCorrect;
   final VoidCallback onEdit;
-  final VoidCallback onGrade;
+  final Future<void> Function() onGrade;
 
   @override
   State<_ExpectedAnswerCard> createState() => _ExpectedAnswerCardState();

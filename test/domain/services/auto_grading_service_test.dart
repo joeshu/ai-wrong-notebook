@@ -12,7 +12,7 @@ import 'package:smart_wrong_notebook/src/domain/services/auto_grading_service.da
 /// 或在 [throwException] 为 true 时模拟判分失败。
 class _StubAiAnalysisService extends AiAnalysisService {
   _StubAiAnalysisService({
-    required this.result,
+    this.result = false,
     this.throwException = false,
   }) : super(settingsRepository: InMemorySettingsRepository());
 
