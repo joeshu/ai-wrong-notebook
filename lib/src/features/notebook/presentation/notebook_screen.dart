@@ -187,6 +187,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     ref.read(dueOnlyFilterProvider.notifier).state = false;
     ref.read(favoritesOnlyFilterProvider.notifier).state = false;
     ref.read(failedOnlyFilterProvider.notifier).state = false;
+    ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+    ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
     ref.read(questionDateRangeProvider.notifier).state = QuestionDateRange.all;
     ref.read(selectedSourceFilterProvider.notifier).state = null;
     ref.read(selectedLearningStageFilterProvider.notifier).state = null;
@@ -236,6 +238,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     final dueOnly = ref.watch(dueOnlyFilterProvider);
     final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
     final failedOnly = ref.watch(failedOnlyFilterProvider);
+    final pendingAiOnly = ref.watch(pendingAiOnlyFilterProvider);
+    final lowConfidenceOnly = ref.watch(lowConfidenceOnlyFilterProvider);
     final dateRange = ref.watch(questionDateRangeProvider);
     final selectedSource = ref.watch(selectedSourceFilterProvider);
     final sources = ref.watch(allSourcesProvider).valueOrNull ?? const <String>[];
@@ -256,6 +260,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
       if (dueOnly) '待复习',
       if (favoritesOnly) '收藏',
       if (failedOnly) '待处理',
+      if (pendingAiOnly) '待 AI 分析',
+      if (lowConfidenceOnly) '待校对',
       if (dateRange == QuestionDateRange.last7Days) '近 7 天',
       if (dateRange == QuestionDateRange.last30Days) '近 30 天',
       if (selectedSource != null) '来源：$selectedSource',
@@ -379,7 +385,16 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 ),
                 const SizedBox(width: AppSpace.sm),
                 _Chip(
-                  label: AppStrings.notebookFilterMore,
+                  label: '待 AI',
+                  selected: pendingAiOnly,
+                  onTap: () => ref.read(pendingAiOnlyFilterProvider.notifier).state = !pendingAiOnly,
+                ),
+                const SizedBox(width: AppSpace.sm),
+                _Chip(
+                  label: '待校对',
+                  selected: lowConfidenceOnly,
+                  onTap: () => ref.read(lowConfidenceOnlyFilterProvider.notifier).state = !lowConfidenceOnly,
+                ),
                   selected: activeFilterLabels.any((label) =>
                       label != AppStrings.notebookFilterDue &&
                       label != AppStrings.notebookFilterUnmastered &&

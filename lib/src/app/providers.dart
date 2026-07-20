@@ -496,6 +496,12 @@ final StateProvider<bool> favoritesOnlyFilterProvider =
 final StateProvider<bool> failedOnlyFilterProvider =
     StateProvider<bool>((ref) => false);
 
+final StateProvider<bool> pendingAiOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
+final StateProvider<bool> lowConfidenceOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
 final StateProvider<QuestionSort> questionSortProvider =
     StateProvider<QuestionSort>((ref) => QuestionSort.newest);
 
@@ -600,6 +606,8 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
   final dueOnly = ref.watch(dueOnlyFilterProvider);
   final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
   final failedOnly = ref.watch(failedOnlyFilterProvider);
+  final pendingAiOnly = ref.watch(pendingAiOnlyFilterProvider);
+  final lowConfidenceOnly = ref.watch(lowConfidenceOnlyFilterProvider);
   final dateRange = ref.watch(questionDateRangeProvider);
   final source = ref.watch(selectedSourceFilterProvider);
   final learningStage = ref.watch(selectedLearningStageFilterProvider);
@@ -628,6 +636,14 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
             if (favoritesOnly && !q.isFavorite) return false;
             if (failedOnly &&
                 q.contentStatus.toString().split('.').last != 'failed') {
+              return false;
+            }
+            if (pendingAiOnly &&
+                !(q.contentStatus == ContentStatus.ready && q.analysisResult == null)) {
+              return false;
+            }
+            if (lowConfidenceOnly &&
+                !(q.ocrConfidence != null && q.ocrConfidence! < 0.7)) {
               return false;
             }
             if (!_isWithinDateRange(q.createdAt, dateRange, now)) return false;
