@@ -613,6 +613,7 @@ class _MistakeCategorySummary extends StatelessWidget {
     final top = ranked.take(3).toList();
 
     return AppCard(
+      backgroundColor: scheme.surfaceContainerHighest,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
