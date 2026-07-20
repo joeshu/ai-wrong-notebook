@@ -372,7 +372,7 @@ class _ReviewCard extends ConsumerStatefulWidget {
   final String? batchLabel;
 
   @override
-  State<_ReviewCard> createState() => _ReviewCardState();
+  ConsumerState<_ReviewCard> createState() => _ReviewCardState();
 }
 
 class _ReviewCardState extends ConsumerState<_ReviewCard> {

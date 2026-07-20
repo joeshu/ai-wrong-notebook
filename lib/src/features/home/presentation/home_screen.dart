@@ -899,8 +899,7 @@ class _WeakPointCard extends StatelessWidget {
     );
   }
 }
-
-
+class _GoalEntryCard extends StatelessWidget {
   const _GoalEntryCard({required this.onTap});
 
   final VoidCallback onTap;
