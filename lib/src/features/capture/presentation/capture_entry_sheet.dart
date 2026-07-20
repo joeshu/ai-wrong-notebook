@@ -82,13 +82,24 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              '录入错题',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                Text(
+                  '录入错题',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.xmark, size: 20),
+                  tooltip: '关闭',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             _CaptureModeSelector(

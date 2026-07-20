@@ -1727,6 +1727,18 @@ class AiAnalysisService {
 
   String _normalizeExtractedQuestionText(String text) {
     final normalized = text
+        // 修复 AI 在 JSON 字符串中输出字面量 \n（反斜杠+n 两字符）的问题。
+        // 提示词要求"换行写成 \\n"，_repairInvalidJsonStringEscapes 为保护
+        // LaTeX 命令会把 \n+字母 转义为字面量 \n，但 \nA/\nB/\nC/\nD（选项
+        // 字母）并非 LaTeX 命令。这里仅排除真正以 \n 开头的 LaTeX 命令首字母
+        // （a=nabla, e=ne/neg/neq/nexists/newline, g=ngeq/ngtr,
+        // l=nleq/nless/nleft..., L=nLeft..., m=nmid, r=nrightarrow,
+        // R=nRightarrow, s=nsupseteq/nsq..., t=ntriangle..., u=nu），
+        // 其余 \n+字符 视为换行。
+        .replaceAllMapped(
+          RegExp(r'\\n(?![aeglLmrRstu])'),
+          (_) => '\n',
+        )
         .replaceAllMapped(
           RegExp(r'begin\{(cases|aligned)\}([\s\S]*?)end\{(?:cases|aligned)\}'),
           (match) {
@@ -1757,7 +1769,8 @@ class AiAnalysisService {
         .replaceAllMapped(
           RegExp(r'\\?mathrm([A-Za-zΩ]+)(\^-?\d+)?'),
           (match) => '\\mathrm{${match.group(1)}}${match.group(2) ?? ''}',
-        );
+        )
+        .trim();
   }
 
   bool _isCompositeLanguageAnalysis(String text, String subjectName) {

@@ -129,7 +129,7 @@ class HomeScreen extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.only(top: AppSpace.lg),
-            child: _GoalEntryCard(onTap: () => context.go('/goals')),
+            child: _GoalEntryCard(onTap: () => context.push('/goals')),
           ),
           const SizedBox(height: AppSpace.xl),
           Row(
