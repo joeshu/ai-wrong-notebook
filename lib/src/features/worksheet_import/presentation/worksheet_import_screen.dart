@@ -10,6 +10,8 @@ import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+
 /// Phase 1 worksheet importer: imports multiple pages and deliberately routes
 /// them through the proven single-page crop/correct/analyse flow. This keeps
 /// every page reviewable before any AI request is made.
@@ -24,17 +26,11 @@ class WorksheetImportScreen extends ConsumerStatefulWidget {
 class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
   final Set<int> _selected = <int>{};
   bool _selectionInitialized = false;
-  bool _restoringSession = true;
+  bool _restoringSession = false;
 
   @override
   void initState() {
     super.initState();
-    Future<void>(() async {
-      if (ref.read(currentWorksheetImportProvider) == null) {
-        await restoreWorksheetImport(ref);
-      }
-      if (mounted) setState(() => _restoringSession = false);
-    });
   }
 
   @override
@@ -125,6 +121,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
               ocrDraftCount: ocrDraftCount,
               pendingCount: queuedQuestions.length - readyCount - failedCount,
               failedCount: failedCount,
+              autoAnalyzing: autoAnalyzing,
             ),
             Row(
               children: <Widget>[
@@ -143,10 +140,21 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
               ],
             ),
             const SizedBox(height: 8),
+            if (session.processedSourcePageCount > 0 && session.processedSourcePageCount < session.sourcePageCount)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _resumeFromLastProcessed(pages),
+                  icon: const Icon(CupertinoIcons.play_circle),
+                  label: Text('继续处理（已完成 ${session.processedSourcePageCount}/${session.sourcePageCount} 页）'),
+                  style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
+                ),
+              ),
             ...pages.asMap().entries.map((entry) => _PageTile(
                   page: entry.value,
                   index: entry.key,
                   selected: _selected.contains(entry.key),
+                  processed: session.isSourcePageProcessed(entry.value.id),
                   onChanged: (value) => setState(() {
                     if (value) {
                       _selected.add(entry.key);
@@ -173,6 +181,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                 onRetryFailed: () => _retryFailedQuestions(queuedQuestions),
                 onAnalyzeDrafts: () => _analyzeOcrDrafts(queuedQuestions),
                 onOpen: _openQueuedQuestion,
+                onRetryQuestion: _retryQuestion,
               ),
             if (queuedQuestions.isNotEmpty) const SizedBox(height: 12),
             OutlinedButton.icon(
@@ -279,6 +288,17 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     }
   }
 
+  Future<void> _retryQuestion(QuestionRecord question) async {
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet == null) return;
+    final next = worksheet.pages.map((item) => item.id == question.id
+        ? item.copyWith(contentStatus: ContentStatus.processing) : item).toList();
+    await persistWorksheetImport(ref, worksheet.copyWith(pages: next));
+    final updated = next.firstWhere((item) => item.id == question.id);
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    if (mounted) context.go('/analysis/loading');
+  }
+
   Future<void> _retryFailedQuestions(List<QuestionRecord> queuedQuestions) async {
     final failed = queuedQuestions.where((item) => item.contentStatus == ContentStatus.failed).toList();
     if (failed.isEmpty) return;
@@ -354,9 +374,37 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     _startPage(pages[index]);
   }
 
+  void _resumeFromLastProcessed(List<QuestionRecord> pages) {
+    final session = ref.read(currentWorksheetImportProvider);
+    if (session == null) return;
+    final lastId = session.lastProcessedId;
+    if (lastId != null) {
+      final lastIndex = pages.indexWhere((p) => p.id == lastId);
+      if (lastIndex != -1 && lastIndex < pages.length - 1) {
+        _startPage(pages[lastIndex + 1]);
+        return;
+      }
+    }
+    final unprocessed = pages.where((p) => !session.isSourcePageProcessed(p.id)).toList();
+    if (unprocessed.isNotEmpty) {
+      _startPage(unprocessed.first);
+    }
+  }
+
   void _startPage(QuestionRecord page) {
     ref.read(currentQuestionProvider.notifier).state = page;
     context.go('/capture/crop');
+  }
+
+  Future<void> _markPageProcessed(String pageId) async {
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet == null) return;
+    if (worksheet.isSourcePageProcessed(pageId)) return;
+    final updated = worksheet.copyWith(
+      processedSourcePageIds: {...worksheet.processedSourcePageIds, pageId},
+      lastProcessedId: pageId,
+    );
+    await persistWorksheetImport(ref, updated);
   }
 }
 
@@ -367,6 +415,7 @@ class _PageTile extends StatelessWidget {
     required this.selected,
     required this.onChanged,
     required this.onTap,
+    this.processed = false,
   });
 
   final QuestionRecord page;
@@ -374,6 +423,7 @@ class _PageTile extends StatelessWidget {
   final bool selected;
   final ValueChanged<bool> onChanged;
   final VoidCallback onTap;
+  final bool processed;
 
   @override
   Widget build(BuildContext context) {
@@ -400,7 +450,17 @@ class _PageTile extends StatelessWidget {
                 width: 72,
                 height: 88,
                 child: available
-                    ? CachedQuestionImage(page.imagePath, fit: BoxFit.cover)
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: <Widget>[
+                          CachedQuestionImage(page.imagePath, fit: BoxFit.cover),
+                          if (processed)
+                            Container(
+                              color: AppColors.success.withValues(alpha: 0.7),
+                              child: const Center(child: Icon(CupertinoIcons.checkmark, color: Colors.white, size: 32)),
+                            ),
+                        ],
+                      )
                     : const ColoredBox(color: Color(0xFFE5E7EB)),
               ),
             ),
@@ -409,10 +469,25 @@ class _PageTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                Text('第 ${index + 1} 页', style: const TextStyle(fontWeight: FontWeight.w600)),
+                Row(
+                  children: <Widget>[
+                    Text('第 ${index + 1} 页', style: const TextStyle(fontWeight: FontWeight.w600)),
+                    if (processed)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: AppTag(
+                          label: '已处理',
+                          textColor: AppColors.success,
+                          backgroundColor: AppColors.success.withValues(alpha: 0.15),
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 4),
-                Text(available ? '点击进入裁切和校对' : '原图不可用',
-                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                Text(
+                  available ? (processed ? '已完成裁切，可点击查看' : '点击进入裁切和校对') : '原图不可用',
+                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
               ],
             )),
             const Icon(CupertinoIcons.chevron_right, size: 18),
@@ -438,6 +513,7 @@ class _QueueSummaryCard extends StatelessWidget {
     required this.onRetryFailed,
     required this.onAnalyzeDrafts,
     required this.onOpen,
+    required this.onRetryQuestion,
   });
 
   final List<QuestionRecord> questions;
@@ -452,6 +528,7 @@ class _QueueSummaryCard extends StatelessWidget {
   final VoidCallback onRetryFailed;
   final VoidCallback onAnalyzeDrafts;
   final ValueChanged<QuestionRecord> onOpen;
+  final ValueChanged<QuestionRecord> onRetryQuestion;
 
   @override
   Widget build(BuildContext context) {
@@ -512,6 +589,8 @@ class _QueueSummaryCard extends StatelessWidget {
                 index: entry.key,
                 question: entry.value,
                 onOpen: () => onOpen(entry.value),
+                onRetry: entry.value.contentStatus == ContentStatus.failed ? () => onRetryQuestion(entry.value) : null,
+                autoAnalyzing: autoAnalyzing,
               )),
         ],
       ]),
@@ -520,31 +599,47 @@ class _QueueSummaryCard extends StatelessWidget {
 }
 
 class _QueueQuestionTile extends StatelessWidget {
-  const _QueueQuestionTile({required this.index, required this.question, required this.onOpen});
+  const _QueueQuestionTile({
+    required this.index,
+    required this.question,
+    required this.onOpen,
+    this.onRetry,
+    this.autoAnalyzing = false,
+  });
+
   final int index;
   final QuestionRecord question;
   final VoidCallback onOpen;
+  final VoidCallback? onRetry;
+  final bool autoAnalyzing;
 
   @override
   Widget build(BuildContext context) {
     final status = question.contentStatus;
     final isOcrDraft = status == ContentStatus.ready && question.analysisResult == null;
+    final isFailed = status == ContentStatus.failed;
+    final isProcessing = status == ContentStatus.processing;
+
     final color = isOcrDraft
-        ? const Color(0xFF2563EB)
+        ? AppColors.info
         : status == ContentStatus.ready
-        ? const Color(0xFF16A34A)
-        : status == ContentStatus.failed
-            ? const Color(0xFFEA580C)
-            : const Color(0xFF64748B);
+        ? AppColors.success
+        : isFailed
+            ? AppColors.danger
+            : AppColors.info;
+
     final label = isOcrDraft
         ? 'OCR 草稿'
         : status == ContentStatus.ready
         ? '已分析'
-        : status == ContentStatus.failed
-            ? '待处理'
-            : '待分析';
+        : isFailed
+            ? '识别失败'
+            : isProcessing
+                ? '分析中'
+                : '待分析';
+
     return InkWell(
-      onTap: onOpen,
+      onTap: isProcessing ? null : onOpen,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 7),
@@ -554,14 +649,28 @@ class _QueueQuestionTile extends StatelessWidget {
             height: 22,
             alignment: Alignment.center,
             decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(11)),
-            child: Text('${index + 1}', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+            child: isProcessing
+                ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
+                : Text('${index + 1}', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(question.correctedText.trim().isEmpty ? '题图待识别' : question.correctedText.trim(),
-              maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
+          Expanded(child: Text(
+            question.correctedText.trim().isEmpty ? '题图待识别' : question.correctedText.trim(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: isProcessing ? Theme.of(context).colorScheme.onSurfaceVariant : null),
+          )),
           const SizedBox(width: 8),
           Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
-          const Icon(CupertinoIcons.chevron_right, size: 14),
+          const SizedBox(width: 6),
+          if (isFailed && onRetry != null && !autoAnalyzing)
+            IconButton(
+              icon: const Icon(CupertinoIcons.arrow_clockwise, size: 16),
+              tooltip: '重试识别',
+              onPressed: onRetry,
+            )
+          else if (!isProcessing)
+            const Icon(CupertinoIcons.chevron_right, size: 14),
         ]),
       ),
     );
@@ -570,7 +679,17 @@ class _QueueQuestionTile extends StatelessWidget {
 
 
 class _ImportOverviewCard extends StatelessWidget {
-  const _ImportOverviewCard({required this.pageCount, required this.selectedPageCount, required this.questionCount, required this.readyCount, required this.ocrDraftCount, required this.pendingCount, required this.failedCount});
+  const _ImportOverviewCard({
+    required this.pageCount,
+    required this.selectedPageCount,
+    required this.questionCount,
+    required this.readyCount,
+    required this.ocrDraftCount,
+    required this.pendingCount,
+    required this.failedCount,
+    required this.autoAnalyzing,
+  });
+
   final int pageCount;
   final int selectedPageCount;
   final int questionCount;
@@ -578,11 +697,13 @@ class _ImportOverviewCard extends StatelessWidget {
   final int ocrDraftCount;
   final int pendingCount;
   final int failedCount;
+  final bool autoAnalyzing;
 
   @override
   Widget build(BuildContext context) {
     final analyzedCount = readyCount - ocrDraftCount;
     final total = analyzedCount + ocrDraftCount + pendingCount + failedCount;
+
     return Card(
       margin: EdgeInsets.zero,
       color: const Color(0xFFF8FAFC),
@@ -596,31 +717,37 @@ class _ImportOverviewCard extends StatelessWidget {
             Text('已选 $selectedPageCount 页', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
           ]),
           const SizedBox(height: 10),
-          Wrap(spacing: 4, runSpacing: 8, children: <Widget>[
-            SizedBox(width: 76, child: _OverviewMetric(label: '已分析', value: analyzedCount, color: const Color(0xFF16A34A))),
-            SizedBox(width: 76, child: _OverviewMetric(label: 'OCR 草稿', value: ocrDraftCount, color: const Color(0xFF2563EB))),
-            SizedBox(width: 76, child: _OverviewMetric(label: '待处理', value: pendingCount, color: const Color(0xFF64748B))),
-            SizedBox(width: 76, child: _OverviewMetric(label: '失败/重试', value: failedCount, color: const Color(0xFFEA580C))),
-          ]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: <Widget>[
+              Column(children: <Widget>[
+                Text('$analyzedCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF16A34A))),
+                const SizedBox(height: 2),
+                const Text('已分析', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+              ]),
+              Column(children: <Widget>[
+                Text('$ocrDraftCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
+                const SizedBox(height: 2),
+                const Text('OCR 草稿', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+              ]),
+              Column(children: <Widget>[
+                Text('$pendingCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
+                const SizedBox(height: 2),
+                const Text('待处理', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+              ]),
+              Column(children: <Widget>[
+                Text('$failedCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
+                const SizedBox(height: 2),
+                const Text('失败', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+              ]),
+            ],
+          ),
           if (total > 0) ...<Widget>[
             const SizedBox(height: 10),
             ClipRRect(borderRadius: BorderRadius.circular(4), child: LinearProgressIndicator(value: analyzedCount / total, minHeight: 7, backgroundColor: const Color(0xFFE2E8F0), color: const Color(0xFF16A34A))),
-          ] else
-            const Padding(padding: EdgeInsets.only(top: 6), child: Text('确认题框后，题目会出现在这里并显示分析进度。', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),),
+          ],
         ]),
       ),
     );
   }
-}
-
-class _OverviewMetric extends StatelessWidget {
-  const _OverviewMetric({required this.label, required this.value, required this.color});
-  final String label;
-  final int value;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => Column(children: <Widget>[
-    Text('$value', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: color)),
-    Text(label, style: const TextStyle(fontSize: 11)),
-  ]);
 }

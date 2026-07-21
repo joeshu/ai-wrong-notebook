@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
@@ -77,7 +78,6 @@ void main() {
     expect(file.existsSync(), isTrue);
     final bytes = await file.readAsBytes();
     expect(bytes, isNotEmpty);
-    // PDF magic bytes: %PDF-1.x
     final magic = String.fromCharCodes(bytes.take(4));
     expect(magic, '%PDF');
   });
@@ -103,5 +103,98 @@ void main() {
     final bytes = await file.readAsBytes();
     expect(bytes, isNotEmpty);
     expect(String.fromCharCodes(bytes.take(4)), '%PDF');
+  });
+
+  test('generatePdf with formula content produces valid PDF', () async {
+    final questions = <QuestionRecord>[
+      QuestionRecord.draft(
+        id: 'q-formula',
+        imagePath: '',
+        subject: Subject.math,
+        recognizedText: r'解方程 $x^2 + 2x - 3 = 0$',
+      ).copyWith(
+        contentFormat: QuestionContentFormat.latexMixed,
+        analysisResult: const AnalysisResult(
+          finalAnswer: r'$x = 1$ 或 $x = -3$',
+          steps: <String>[r'使用求根公式：$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$'],
+        ),
+      ),
+    ];
+
+    final file = await PdfExportService.generatePdf(
+      questions,
+      title: '公式测试',
+      mode: WorksheetExportMode.practice,
+    );
+
+    final bytes = await file.readAsBytes();
+    expect(bytes, isNotEmpty);
+    expect(String.fromCharCodes(bytes.take(4)), '%PDF');
+  });
+
+  test('generatePdf with table content produces valid PDF', () async {
+    final questions = <QuestionRecord>[
+      QuestionRecord.draft(
+        id: 'q-table',
+        imagePath: '',
+        subject: Subject.math,
+        recognizedText: '''计算以下数据的平均值：
+| 序号 | 数值 |
+| --- | --- |
+| 1 | 10 |
+| 2 | 20 |
+| 3 | 30 |''',
+      ).copyWith(
+        analysisResult: const AnalysisResult(
+          finalAnswer: '20',
+          steps: <String>['(10+20+30)/3 = 20'],
+        ),
+      ),
+    ];
+
+    final file = await PdfExportService.generatePdf(
+      questions,
+      title: '表格测试',
+      mode: WorksheetExportMode.practice,
+    );
+
+    final bytes = await file.readAsBytes();
+    expect(bytes, isNotEmpty);
+    expect(String.fromCharCodes(bytes.take(4)), '%PDF');
+  });
+
+  test('generatePdf with failed status question produces valid PDF', () async {
+    final questions = <QuestionRecord>[
+      QuestionRecord.draft(
+        id: 'q-failed',
+        imagePath: '',
+        subject: Subject.math,
+        recognizedText: '识别失败的题目',
+      ).copyWith(contentStatus: ContentStatus.failed),
+    ];
+
+    final file = await PdfExportService.generatePdf(
+      questions,
+      title: '失败状态测试',
+      mode: WorksheetExportMode.practice,
+    );
+
+    final bytes = await file.readAsBytes();
+    expect(bytes, isNotEmpty);
+    expect(String.fromCharCodes(bytes.take(4)), '%PDF');
+  });
+
+  test('generatePdf with all modes produces valid PDFs', () async {
+    final questions = _sampleQuestions();
+    for (final mode in WorksheetExportMode.values) {
+      final file = await PdfExportService.generatePdf(
+        questions,
+        title: '模式测试 - ${mode.name}',
+        mode: mode,
+      );
+      final bytes = await file.readAsBytes();
+      expect(bytes, isNotEmpty, reason: 'Mode ${mode.name} produced empty PDF');
+      expect(String.fromCharCodes(bytes.take(4)), '%PDF', reason: 'Mode ${mode.name} produced invalid PDF');
+    }
   });
 }

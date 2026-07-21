@@ -9,6 +9,8 @@ import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
 
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
+
 /// Selects and orders a subset of the local question bank for export.
 /// The next slice adds per-mode PDF layouts; this screen deliberately keeps
 /// selection local and never uploads question data.
@@ -26,6 +28,8 @@ class _WorksheetWorkbenchScreenState
   final _order = <String>[];
   String _query = '';
   bool _draftApplied = false;
+  ContentStatus? _statusFilter;
+  bool _showFilters = false;
 
   List<QuestionRecord> _selected(List<QuestionRecord> all) {
     final byId = {for (final item in all) item.id: item};
@@ -40,6 +44,13 @@ class _WorksheetWorkbenchScreenState
         _selectedIds.add(question.id);
         _order.add(question.id);
       }
+    });
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _query = '';
+      _statusFilter = null;
     });
   }
 
@@ -76,24 +87,90 @@ class _WorksheetWorkbenchScreenState
           if (questions.isEmpty) {
             return _EmptyWorkbenchState(onAdd: () => context.go('/'));
           }
+
+          final readyCount = questions.where((q) => q.contentStatus == ContentStatus.ready).length;
+          final processingCount = questions.where((q) => q.contentStatus == ContentStatus.processing).length;
+          final failedCount = questions.where((q) => q.contentStatus == ContentStatus.failed).length;
+
           final filtered = questions.where((question) {
             final text = '${question.normalizedQuestionText} '
                 '${question.subject.label} ${question.learningStage ?? ''} '
                 '${question.source ?? ''}'.toLowerCase();
-            return text.contains(_query.toLowerCase());
+            final matchesQuery = text.contains(_query.toLowerCase());
+            final matchesStatus = _statusFilter == null || question.contentStatus == _statusFilter;
+            return matchesQuery && matchesStatus;
           }).toList();
           final selected = _selected(questions);
+
+          final hasActiveFilters = _query.isNotEmpty || _statusFilter != null;
+
           return Column(children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: TextField(
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(CupertinoIcons.search),
-                  hintText: '搜索题干、学科、来源或年级',
-                  border: const OutlineInputBorder(),
-                  suffixText: '已选 ${selected.length} 题',
-                ),
-                onChanged: (value) => setState(() => _query = value.trim()),
+              child: Column(
+                children: <Widget>[
+                  TextField(
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(CupertinoIcons.search),
+                      hintText: '搜索题干、学科、来源或年级',
+                      border: const OutlineInputBorder(),
+                      suffixText: '已选 ${selected.length} 题',
+                      suffixIcon: hasActiveFilters
+                          ? IconButton(
+                              icon: const Icon(CupertinoIcons.xmark),
+                              onPressed: _clearFilters,
+                            )
+                          : null,
+                    ),
+                    onChanged: (value) => setState(() => _query = value.trim()),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: <Widget>[
+                      Text('筛选（共 ${questions.length} 题）', style: Theme.of(context).textTheme.labelMedium),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () => setState(() => _showFilters = !_showFilters),
+                        child: Text(_showFilters ? '收起筛选' : '展开筛选'),
+                      ),
+                    ],
+                  ),
+                  if (_showFilters) ...<Widget>[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: <Widget>[
+                        _FilterChip(
+                          label: '全部',
+                          count: questions.length,
+                          selected: _statusFilter == null,
+                          onSelected: () => setState(() => _statusFilter = null),
+                        ),
+                        _FilterChip(
+                          label: '已识别',
+                          count: readyCount,
+                          color: AppColors.success,
+                          selected: _statusFilter == ContentStatus.ready,
+                          onSelected: () => setState(() => _statusFilter = ContentStatus.ready),
+                        ),
+                        _FilterChip(
+                          label: '分析中',
+                          count: processingCount,
+                          color: AppColors.warning,
+                          selected: _statusFilter == ContentStatus.processing,
+                          onSelected: () => setState(() => _statusFilter = ContentStatus.processing),
+                        ),
+                        _FilterChip(
+                          label: '识别失败',
+                          count: failedCount,
+                          color: AppColors.danger,
+                          selected: _statusFilter == ContentStatus.failed,
+                          onSelected: () => setState(() => _statusFilter = ContentStatus.failed),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
             ),
             if (selected.isNotEmpty)
@@ -247,4 +324,43 @@ class _EmptyWorkbenchState extends StatelessWidget {
       ]),
     ),
   );
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onSelected,
+    this.color,
+  });
+
+  final String label;
+  final int count;
+  final bool selected;
+  final VoidCallback onSelected;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textColor = selected ? Colors.white : (color ?? scheme.onSurface);
+    final bgColor = selected ? (color ?? scheme.primary) : Colors.transparent;
+    final borderColor = selected ? (color ?? scheme.primary) : scheme.outlineVariant;
+
+    return ActionChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(label, style: TextStyle(fontSize: 12, color: textColor)),
+          const SizedBox(width: 4),
+          Text('$count', style: TextStyle(fontSize: 11, color: selected ? Colors.white : scheme.onSurfaceVariant)),
+        ],
+      ),
+      backgroundColor: bgColor,
+      side: BorderSide(color: borderColor),
+      selected: selected,
+      onPressed: onSelected,
+    );
+  }
 }

@@ -8,24 +8,39 @@ class WorksheetImportSession {
     required this.pages,
     required this.sourcePageIds,
     required this.createdAt,
+    this.processedSourcePageIds = const <String>{},
+    this.lastProcessedId,
   });
 
   final String id;
-  /// Remaining work: source pages plus cropped, independently analysable items.
   final List<QuestionRecord> pages;
-  /// Immutable IDs of the original full-page images. Other items are question
-  /// candidates created from a confirmed region.
   final Set<String> sourcePageIds;
   final DateTime createdAt;
 
+  final Set<String> processedSourcePageIds;
+
+  final String? lastProcessedId;
+
   int get pageCount => pages.length;
 
-  WorksheetImportSession copyWith({List<QuestionRecord>? pages}) {
+  int get sourcePageCount => sourcePageIds.length;
+
+  int get processedSourcePageCount => processedSourcePageIds.length;
+
+  bool isSourcePageProcessed(String pageId) => processedSourcePageIds.contains(pageId);
+
+  WorksheetImportSession copyWith({
+    List<QuestionRecord>? pages,
+    Set<String>? processedSourcePageIds,
+    String? lastProcessedId,
+  }) {
     return WorksheetImportSession(
       id: id,
       pages: pages ?? this.pages,
       sourcePageIds: sourcePageIds,
       createdAt: createdAt,
+      processedSourcePageIds: processedSourcePageIds ?? this.processedSourcePageIds,
+      lastProcessedId: lastProcessedId ?? this.lastProcessedId,
     );
   }
 }
