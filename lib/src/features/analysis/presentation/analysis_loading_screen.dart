@@ -755,8 +755,12 @@ class _LoadingViewState extends State<_LoadingView>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colorScheme = Theme.of(context).colorScheme;
+    final accent = const Color(0xFF6366F1);
+    final hasProgress = widget.progressText != null;
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -765,8 +769,8 @@ class _LoadingViewState extends State<_LoadingView>
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFF6366F1).withValues(alpha: 0.18)
+                color: isDark
+                    ? accent.withValues(alpha: 0.18)
                     : const Color(0xFFEEF2FF),
                 borderRadius: BorderRadius.circular(44),
               ),
@@ -774,8 +778,8 @@ class _LoadingViewState extends State<_LoadingView>
                 animation: _controller,
                 builder: (_, __) => Transform.rotate(
                   angle: _controller.value * 2 * 3.14159,
-                  child: const Icon(CupertinoIcons.smiley,
-                      size: 44, color: Color(0xFF6366F1)),
+                  child: Icon(_stepIcon(widget.step),
+                      size: 44, color: accent),
                 ),
               ),
             ),
@@ -785,22 +789,104 @@ class _LoadingViewState extends State<_LoadingView>
               color: Color(0xFF6366F1),
             ),
             const SizedBox(height: 28),
+            // 阶段进度条：4 个圆点 + 当前阶段高亮
+            if (!hasProgress) ...<Widget>[
+              _StageIndicator(
+                steps: widget.steps,
+                current: widget.step,
+                accent: accent,
+                dimColor: colorScheme.outlineVariant,
+              ),
+              const SizedBox(height: 20),
+            ],
             Text(
-              widget.progressText ?? widget.steps[widget.step],
+              hasProgress
+                  ? widget.progressText!
+                  : '阶段 ${widget.step + 1}/${widget.steps.length}：${widget.steps[widget.step]}',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              widget.progressText != null
+              hasProgress
                   ? '多题并行分析中，请稍候...'
                   : 'AI 正在生成学习分析，请稍候...',
               style: TextStyle(
                   fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  color: colorScheme.onSurfaceVariant),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  /// 各阶段对应图标，让用户从图标就能判断当前在做什么。
+  IconData _stepIcon(int step) {
+    const icons = <IconData>[
+      CupertinoIcons.doc_text_search,  // 识别题目
+      CupertinoIcons.lightbulb,         // 理解题意
+      CupertinoIcons.wand_stars,        // 生成解析
+      CupertinoIcons.checkmark_seal,    // 即将完成
+    ];
+    return icons[step.clamp(0, icons.length - 1)];
+  }
+}
+
+/// 横向阶段进度指示器：4 个圆点 + 连接线，当前阶段高亮。
+///
+/// 替换原来仅靠文案滚动的展示，让用户一眼看到总进度与当前位置，
+/// 减少长时间等待的焦虑感。
+class _StageIndicator extends StatelessWidget {
+  const _StageIndicator({
+    required this.steps,
+    required this.current,
+    required this.accent,
+    required this.dimColor,
+  });
+
+  final List<String> steps;
+  final int current;
+  final Color accent;
+  final Color dimColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List<Widget>.generate(steps.length * 2 - 1, (i) {
+        if (i.isOdd) {
+          // 连接线
+          final filled = i < current * 2 + 1;
+          return Container(
+            width: 18,
+            height: 2,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            color: filled ? accent : dimColor,
+          );
+        }
+        final idx = i ~/ 2;
+        final isDone = idx < current;
+        final isCurrent = idx == current;
+        final color = isCurrent
+            ? accent
+            : isDone
+                ? accent.withValues(alpha: 0.6)
+                : dimColor;
+        return Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: isCurrent ? accent : (isDone ? color : null),
+            border: Border.all(color: color, width: 1.5),
+            shape: BoxShape.circle,
+          ),
+          child: isDone
+              ? const Icon(CupertinoIcons.checkmark,
+                  size: 8, color: Colors.white)
+              : null,
+        );
+      }),
     );
   }
 }

@@ -1197,18 +1197,60 @@ class _OcrContentCard extends StatelessWidget {
     return tables;
   }
 
+  /// 从校对文本中提取选项行。
+  /// 支持 `A. xxx`、`A) xxx`、`(A) xxx`、`A、xxx` 等格式。
+  /// 不区分大小写，字母限定 A-F（覆盖 90% 以上题目）。
+  List<String> _extractOptions(String text) {
+    final regex = RegExp(r'^\s*[\(]?([A-Fa-f])[\).、]\s+(.+)$');
+    final options = <String>[];
+    for (final line in text.split('\n')) {
+      final match = regex.firstMatch(line);
+      if (match != null) {
+        options.add('${match.group(1)!.toUpperCase()}. ${match.group(2)}');
+      }
+    }
+    // 至少 2 条才算选项，避免误把单行 "A. 苹果" 当选项
+    return options.length >= 2 ? options : const <String>[];
+  }
+
+  /// 检测题干中是否包含图形相关关键词，给出图形识别状态提示。
+  /// 返回 null 表示无图形相关内容；返回字符串为状态描述。
+  String? _detectFigureStatus(String text) {
+    final keywords = <String>[
+      '如图', '下图', '上图', '图所示', '图①', '图②', '图③', '图 1', '图 2',
+      '几何图', '坐标系', '数轴', '函数图象', '函数图像', '示意图',
+      '△', '∠', '⊙', '▱', '梯形', '矩形', '正方形', '圆',
+    ];
+    final lower = text.toLowerCase();
+    for (final kw in keywords) {
+      if (lower.contains(kw.toLowerCase())) {
+        return '题干含图形相关描述（关键词：$kw）。当前仅识别文字，'
+            '图形细节请对照原图核对；AI 分析会基于原图做视觉推断。';
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final original = question.extractedQuestionText;
     final corrected = question.normalizedQuestionText;
+    final aiReconstructed = question.aiReconstructedText;
     final hasDiff = original != corrected && original.isNotEmpty;
     final formulas = _extractFormulas(corrected);
     final tables = _extractTables(corrected);
+    final options = _extractOptions(corrected);
+    final figureNote = _detectFigureStatus(corrected);
 
-    // 若原文与校对后一致且无公式表格，不显示空卡片
-    if (!hasDiff && formulas.isEmpty && tables.isEmpty) {
+    // 若原文与校对后一致且无结构化内容、无 AI 重构，不显示空卡片
+    if (!hasDiff &&
+        formulas.isEmpty &&
+        tables.isEmpty &&
+        options.isEmpty &&
+        figureNote == null &&
+        (aiReconstructed == null || aiReconstructed.isEmpty)) {
       return const SizedBox.shrink();
     }
 
@@ -1263,18 +1305,48 @@ class _OcrContentCard extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: colorScheme.onSurface, height: 1.4),
             ),
           ],
+          if (aiReconstructed != null && aiReconstructed.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            Text('AI 重构题干',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.success)),
+            const SizedBox(height: AppSpace.xs),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpace.sm),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.success.withValues(alpha: 0.12)
+                    : AppColors.successContainerLight,
+                borderRadius: BorderRadius.circular(AppRadius.small),
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+              ),
+              child: MathContentView(
+                aiReconstructed,
+                contentFormat: QuestionContentFormat.latexMixed,
+                style: TextStyle(fontSize: 12, color: isDark ? colorScheme.onSurface : AppColors.successDark, height: 1.4),
+              ),
+            ),
+          ],
           if (formulas.isNotEmpty) ...<Widget>[
             const SizedBox(height: AppSpace.md),
             Text('公式（${formulas.length}）',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
             const SizedBox(height: AppSpace.xs),
             ...formulas.map((item) => Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text('ƒ $item',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace')),
+                  padding: const EdgeInsets.only(top: 4, bottom: 4),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(AppRadius.small),
+                    ),
+                    child: MathContentView(
+                      item,
+                      contentFormat: QuestionContentFormat.latexMixed,
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+                    ),
+                  ),
                 )),
           ],
           if (tables.isNotEmpty) ...<Widget>[
@@ -1283,16 +1355,156 @@ class _OcrContentCard extends StatelessWidget {
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
             const SizedBox(height: AppSpace.xs),
             ...tables.map((table) => Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(table,
-                      style: TextStyle(
-                          fontSize: 10,
-                          color: colorScheme.onSurfaceVariant,
-                          fontFamily: 'monospace',
-                          height: 1.3)),
+                  padding: const EdgeInsets.only(top: 4, bottom: 4),
+                  child: _MarkdownTablePreview(source: table),
                 )),
           ],
+          if (options.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            Text('选项（${options.length}）',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: AppSpace.xs),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpace.sm),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(AppRadius.small),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: options
+                    .map((opt) => Padding(
+                          padding: const EdgeInsets.only(top: 2, bottom: 2),
+                          child: MathContentView(
+                            opt,
+                            contentFormat: question.contentFormat,
+                            style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+          if (figureNote != null) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpace.sm),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.accentAmber.withValues(alpha: 0.12)
+                    : AppColors.accentAmberContainerLight,
+                borderRadius: BorderRadius.circular(AppRadius.small),
+                border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Icon(CupertinoIcons.rectangle_dashed, size: 14, color: AppColors.accentAmber),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      figureNote,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isDark ? colorScheme.onSurface : const Color(0xFF92400E),
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// Markdown 表格预览：把 `|` 分隔的文本渲染成 Table widget。
+///
+/// 与 worksheet_region_editor_screen 的 _MarkdownTablePreview 行为一致，
+/// 详情页用于展示从 normalizedQuestionText 提取的表格段。
+class _MarkdownTablePreview extends StatelessWidget {
+  const _MarkdownTablePreview({required this.source});
+
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final rows = source.trim().split('\n').where((l) => l.trim().isNotEmpty).toList();
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    // 第二行若是分隔行（|---|---|），跳过渲染但保留列对齐
+    final hasSeparator = rows.length >= 2 &&
+        RegExp(r'^\s*\|?[\s\-:|]+\|?\s*$').hasMatch(rows[1]) &&
+        rows[1].contains('-');
+    final dataRows = hasSeparator
+        ? <String>[rows[0], ...rows.sublist(2)]
+        : rows;
+
+    List<String> splitRow(String line) {
+      var s = line.trim();
+      if (s.startsWith('|')) s = s.substring(1);
+      if (s.endsWith('|')) s = s.substring(0, s.length - 1);
+      return s.split('|').map((c) => c.trim()).toList();
+    }
+
+    final parsed = dataRows.map(splitRow).toList();
+    if (parsed.isEmpty) return const SizedBox.shrink();
+    final colCount = parsed.map((r) => r.length).reduce((a, b) => a > b ? a : b);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpace.sm),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppRadius.small),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Table(
+          defaultColumnWidth: const IntrinsicColumnWidth(),
+          border: TableBorder(
+            horizontalInside: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+              width: 0.5,
+            ),
+            verticalInside: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+              width: 0.5,
+            ),
+          ),
+          children: parsed.asMap().entries.map((entry) {
+            final isHeader = entry.key == 0;
+            final cells = List<String>.generate(colCount,
+                (i) => i < entry.value.length ? entry.value[i] : '');
+            return TableRow(
+              children: cells
+                  .map((c) => Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpace.sm, vertical: 4),
+                        child: MathContentView(
+                          c,
+                          contentFormat: QuestionContentFormat.latexMixed,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isHeader
+                                ? colorScheme.primary
+                                : colorScheme.onSurface,
+                            fontWeight:
+                                isHeader ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -1822,6 +2034,171 @@ class _ProfileTile extends StatelessWidget {
   }
 }
 
+/// AI 分析输入快照：展示当时发给 AI 的题干文本与原图可用性，
+/// 让用户清楚 AI 是基于什么材料得出的结论。
+///
+/// 由于 QuestionRecord 没有持久化"AI 输入文本/是否用图"字段，这里
+/// 从现有字段推断：
+/// - 输入文本：默认文字模式用 `normalizedQuestionText`（校对后），
+///   视觉模式用 `extractedQuestionText`（OCR 原文）。两者一致时只展示一段。
+/// - 原图可用性：检查 imagePath 非空且文件存在。
+/// - AI 重构：若 `aiReconstructedText` 非空，提示 AI 重写了题干。
+class _AiInputSnapshotCard extends StatelessWidget {
+  const _AiInputSnapshotCard({required this.question});
+
+  final QuestionRecord question;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final corrected = question.normalizedQuestionText;
+    final original = question.extractedQuestionText;
+    final aiReconstructed = question.aiReconstructedText;
+    final hasImage = question.imagePath.isNotEmpty &&
+        File(question.imagePath).existsSync();
+    final sameText = original == corrected;
+
+    return AppInfoSection(
+      icon: CupertinoIcons.doc_text_search,
+      title: 'AI 分析输入',
+      iconColor: AppColors.slate,
+      backgroundColor: isDark ? colorScheme.surface : AppColors.slateContainerLight,
+      borderColor: isDark
+          ? AppColors.slate.withValues(alpha: 0.28)
+          : const Color(0xFFCBD5E1),
+      titleColor: AppColors.slate,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          // 输入模式标签
+          Wrap(
+            spacing: AppSpace.xs,
+            runSpacing: AppSpace.xs,
+            children: <Widget>[
+              _SnapshotChip(
+                label: hasImage ? '原图可用' : '无原图',
+                icon: hasImage
+                    ? CupertinoIcons.photo
+                    : CupertinoIcons.photo_slash,
+                color: hasImage ? AppColors.success : AppColors.danger,
+              ),
+              _SnapshotChip(
+                label: sameText ? '文字模式（校对文本）' : '视觉模式（OCR 原文）',
+                icon: CupertinoIcons.textformat,
+                color: AppColors.info,
+              ),
+              if (aiReconstructed != null && aiReconstructed.isNotEmpty)
+                _SnapshotChip(
+                  label: 'AI 已重构题干',
+                  icon: CupertinoIcons.wand_stars,
+                  color: AppColors.accentAmber,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
+          // 输入文本：默认展示校对文本；若与原文不一致，额外展示原文
+          Text('发送给 AI 的题干',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurfaceVariant)),
+          const SizedBox(height: AppSpace.xs),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(AppSpace.sm),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(AppRadius.small),
+            ),
+            child: MathContentView(
+              sameText ? corrected : original,
+              contentFormat: question.contentFormat,
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurface, height: 1.4),
+            ),
+          ),
+          if (!sameText) ...<Widget>[
+            const SizedBox(height: AppSpace.xs),
+            Text('（视觉模式同时发送原图与 OCR 原文）',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
+                    color: colorScheme.onSurfaceVariant)),
+          ],
+          if (aiReconstructed != null && aiReconstructed.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            Text('AI 重构后的题干',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.accentAmber)),
+            const SizedBox(height: AppSpace.xs),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpace.sm),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? AppColors.accentAmber.withValues(alpha: 0.12)
+                    : AppColors.accentAmberContainerLight,
+                borderRadius: BorderRadius.circular(AppRadius.small),
+                border: Border.all(
+                    color: AppColors.accentAmber.withValues(alpha: 0.3)),
+              ),
+              child: MathContentView(
+                aiReconstructed,
+                contentFormat: QuestionContentFormat.latexMixed,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? colorScheme.onSurface : const Color(0xFF92400E),
+                    height: 1.4),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SnapshotChip extends StatelessWidget {
+  const _SnapshotChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _AnalysisTab extends StatelessWidget {
   const _AnalysisTab({
     required this.current,
@@ -1902,6 +2279,8 @@ class _AnalysisTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpace.lg),
       children: <Widget>[
+        _AiInputSnapshotCard(question: current),
+        const SizedBox(height: AppSpace.md),
         AppInfoSection(
           icon: result!.visualAssumptionStatus == VisualAssumptionStatus.needsReview
               ? CupertinoIcons.exclamationmark_triangle
