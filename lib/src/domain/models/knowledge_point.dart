@@ -52,10 +52,13 @@ class KnowledgePoint {
   /// 名称 + 别名的全量匹配集合（小写），用于 AI 映射。
   List<String> get allNames => <String>[name, ...aliases];
 
+  /// 哨兵对象，用于区分"未传入"与"传入 null"。
+  static const Object _sentinel = Object();
+
   KnowledgePoint copyWith({
     String? name,
     List<String>? aliases,
-    String? parentId,
+    Object? parentId = _sentinel,
     Subject? subject,
     String? grade,
     bool? enabled,
@@ -66,7 +69,9 @@ class KnowledgePoint {
       id: id,
       name: name ?? this.name,
       aliases: aliases ?? this.aliases,
-      parentId: parentId ?? this.parentId,
+      parentId: identical(parentId, _sentinel)
+          ? this.parentId
+          : parentId as String?,
       subject: subject ?? this.subject,
       grade: grade ?? this.grade,
       enabled: enabled ?? this.enabled,
