@@ -9,6 +9,8 @@ import 'package:smart_wrong_notebook/src/app/router.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/drift_settings_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/drift_question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/drift_review_log_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/data/migrations/legacy_data_migration.dart';
@@ -25,12 +27,18 @@ void main() async {
   final settingsRepo = DriftSettingsRepository(db);
   final questionRepo = DriftQuestionRepository(db);
   final reviewLogRepo = DriftReviewLogRepository(db);
+  // Phase 4 知识点迁移依赖：播种受控知识点树，把现有题目的
+  // aiKnowledgePoints 自由文本映射为结构化关联。迁移幂等，失败可重试。
+  final knowledgePointRepo = KnowledgePointRepository();
+  final questionKnowledgeLinkRepo = QuestionKnowledgeLinkRepository();
   await LegacyDataMigration(
     settings: settingsRepo,
     questions: questionRepo,
     legacyQuestions: SharedPrefsQuestionRepository(),
     reviewLogs: reviewLogRepo,
     legacyReviewLogs: SharedPrefsReviewLogRepository(),
+    knowledgePointRepo: knowledgePointRepo,
+    questionKnowledgeLinkRepo: questionKnowledgeLinkRepo,
   ).migrateIfNeeded();
 
   // 在构建 router 之前先同步加载 onboarding 状态，避免启动闪烁。
@@ -48,6 +56,8 @@ void main() async {
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
         questionRepositoryProvider.overrideWithValue(questionRepo),
         reviewLogRepositoryProvider.overrideWithValue(reviewLogRepo),
+        knowledgePointRepositoryProvider.overrideWithValue(knowledgePointRepo),
+        questionKnowledgeLinkRepositoryProvider.overrideWithValue(questionKnowledgeLinkRepo),
         onboardingNotifierProvider.overrideWithValue(onboardingNotifier),
         // 注意：不要 override aiAnalysisServiceProvider，让它使用 settingsRepo
         imageStorageServiceProvider.overrideWithValue(ImageStorageService()),
@@ -60,7 +70,7 @@ void main() async {
           themeMode: ref.watch(themeModeProvider),
           routerConfig: router,
           debugShowCheckedModeBanner: false,
-          localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+          localizations: const <LocalizationsDelegate<dynamic>>[
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,

@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/data/migrations/legacy_data_migration.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
@@ -9,7 +12,7 @@ import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/repositories/review_log_repository.dart';
 
-QuestionRecord _question(String id) {
+QuestionRecord _question(String id, {List<String> aiKnowledgePoints = const []}) {
   final now = DateTime(2026);
   return QuestionRecord(
     id: id,
@@ -27,6 +30,7 @@ QuestionRecord _question(String id) {
     contentStatus: ContentStatus.ready,
     masteryLevel: MasteryLevel.newQuestion,
     analysisResult: null,
+    aiKnowledgePoints: aiKnowledgePoints,
   );
 }
 
@@ -57,12 +61,16 @@ void main() {
     required QuestionRepository legacyQuestions,
     required ReviewLogRepository reviewLogs,
     required ReviewLogRepository legacyReviewLogs,
+    KnowledgePointRepository? knowledgePointRepo,
+    QuestionKnowledgeLinkRepository? questionKnowledgeLinkRepo,
   }) => LegacyDataMigration(
         settings: settings,
         questions: questions,
         legacyQuestions: legacyQuestions,
         reviewLogs: reviewLogs,
         legacyReviewLogs: legacyReviewLogs,
+        knowledgePointRepo: knowledgePointRepo,
+        questionKnowledgeLinkRepo: questionKnowledgeLinkRepo,
       );
 
   test('imports legacy questions and review logs once', () async {
@@ -117,5 +125,126 @@ void main() {
     await job.migrateIfNeeded();
     expect((await questions.listAll()).single.id, 'legacy-question');
     expect(await settings.getString(LegacyDataMigration.questionMigrationKey), 'done');
+  });
+
+  group('knowledge point links migration', () {
+    setUp(() {
+      // 知识点仓库和关联仓库都用 SharedPreferences，需要干净的 mock。
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+    });
+
+    test('seeds builtin tree and links aiKnowledgePoints to controlled nodes',
+        () async {
+      final settings = InMemorySettingsRepository();
+      final questions = InMemoryQuestionRepository();
+      // 题目带「二次函数」，对应内置知识点 kp_math_functions_quadratic
+      await questions.saveDraft(_question(
+        'q-1',
+        aiKnowledgePoints: const <String>['二次函数'],
+      ));
+      final kpRepo = KnowledgePointRepository();
+      final linkRepo = QuestionKnowledgeLinkRepository();
+
+      await migration(
+        settings: settings,
+        questions: questions,
+        legacyQuestions: InMemoryQuestionRepository(),
+        reviewLogs: InMemoryReviewLogRepository(),
+        legacyReviewLogs: InMemoryReviewLogRepository(),
+        knowledgePointRepo: kpRepo,
+        questionKnowledgeLinkRepo: linkRepo,
+      ).migrateIfNeeded();
+
+      // 内置知识点树已播种
+      expect((await kpRepo.loadAll()), isNotEmpty);
+      // 关联已创建并指向受控节点
+      final links = await linkRepo.linksForQuestion('q-1');
+      expect(links, hasLength(1));
+      expect(links.first.knowledgePointId, 'kp_math_functions_quadratic');
+      expect(links.first.source.name, 'migrated');
+      // 迁移标记已写入
+      expect(
+        await settings.getString(LegacyDataMigration.knowledgePointMigrationKey),
+        'done',
+      );
+    });
+
+    test('skips knowledge point migration when repos not injected', () async {
+      final settings = InMemorySettingsRepository();
+      final questions = InMemoryQuestionRepository();
+      await questions.saveDraft(_question(
+        'q-1',
+        aiKnowledgePoints: const <String>['二次函数'],
+      ));
+
+      await migration(
+        settings: settings,
+        questions: questions,
+        legacyQuestions: InMemoryQuestionRepository(),
+        reviewLogs: InMemoryReviewLogRepository(),
+        legacyReviewLogs: InMemoryReviewLogRepository(),
+        // 不注入 knowledgePointRepo / questionKnowledgeLinkRepo
+      ).migrateIfNeeded();
+
+      // 未注入时不应写迁移标记
+      expect(
+        await settings.getString(LegacyDataMigration.knowledgePointMigrationKey),
+        isNull,
+      );
+    });
+
+    test('idempotent: second run does not duplicate links', () async {
+      final settings = InMemorySettingsRepository();
+      final questions = InMemoryQuestionRepository();
+      await questions.saveDraft(_question(
+        'q-1',
+        aiKnowledgePoints: const <String>['二次函数'],
+      ));
+      final kpRepo = KnowledgePointRepository();
+      final linkRepo = QuestionKnowledgeLinkRepository();
+
+      final job = migration(
+        settings: settings,
+        questions: questions,
+        legacyQuestions: InMemoryQuestionRepository(),
+        reviewLogs: InMemoryReviewLogRepository(),
+        legacyReviewLogs: InMemoryReviewLogRepository(),
+        knowledgePointRepo: kpRepo,
+        questionKnowledgeLinkRepo: linkRepo,
+      );
+      await job.migrateIfNeeded();
+      await job.migrateIfNeeded();
+
+      // 重复运行仍只有一条关联（replaceLinksForQuestion 覆盖）
+      final links = await linkRepo.linksForQuestion('q-1');
+      expect(links, hasLength(1));
+    });
+
+    test('skips questions without aiKnowledgePoints', () async {
+      final settings = InMemorySettingsRepository();
+      final questions = InMemoryQuestionRepository();
+      await questions.saveDraft(_question('q-empty'));
+      final kpRepo = KnowledgePointRepository();
+      final linkRepo = QuestionKnowledgeLinkRepository();
+
+      await migration(
+        settings: settings,
+        questions: questions,
+        legacyQuestions: InMemoryQuestionRepository(),
+        reviewLogs: InMemoryReviewLogRepository(),
+        legacyReviewLogs: InMemoryReviewLogRepository(),
+        knowledgePointRepo: kpRepo,
+        questionKnowledgeLinkRepo: linkRepo,
+      ).migrateIfNeeded();
+
+      // 无 aiKnowledgePoints 的题目不应产生关联
+      final links = await linkRepo.linksForQuestion('q-empty');
+      expect(links, isEmpty);
+      // 但迁移标记仍应写入
+      expect(
+        await settings.getString(LegacyDataMigration.knowledgePointMigrationKey),
+        'done',
+      );
+    });
   });
 }
