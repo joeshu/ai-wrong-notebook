@@ -174,33 +174,35 @@ final FutureProvider<List<WeakPointRecommendation>>
 
   final reviewStatsByQuestion = <String, ReviewStats>{};
   for (final log in logs) {
-    final stats = reviewStatsByQuestion[log.questionId] ??
+    final stats = reviewStatsByQuestion[log.questionRecordId] ??
         ReviewStats(forgotCount: 0, hardCount: 0, easyCount: 0);
-    switch (log.rating) {
-      case ReviewRating.forgot:
-        reviewStatsByQuestion[log.questionId] = ReviewStats(
+    // ReviewLog.result 是字符串：'forgot' / 'reviewing' / 'mastered' / 'reset'
+    switch (log.result) {
+      case 'forgot':
+        reviewStatsByQuestion[log.questionRecordId] = ReviewStats(
           forgotCount: stats.forgotCount + 1,
           hardCount: stats.hardCount,
           easyCount: stats.easyCount,
           recentReviewDates: <DateTime>[...stats.recentReviewDates, log.reviewedAt],
         );
         break;
-      case ReviewRating.hard:
-        reviewStatsByQuestion[log.questionId] = ReviewStats(
+      case 'reviewing':
+        reviewStatsByQuestion[log.questionRecordId] = ReviewStats(
           forgotCount: stats.forgotCount,
           hardCount: stats.hardCount + 1,
           easyCount: stats.easyCount,
           recentReviewDates: <DateTime>[...stats.recentReviewDates, log.reviewedAt],
         );
         break;
-      case ReviewRating.easy:
-        reviewStatsByQuestion[log.questionId] = ReviewStats(
+      case 'mastered':
+        reviewStatsByQuestion[log.questionRecordId] = ReviewStats(
           forgotCount: stats.forgotCount,
           hardCount: stats.hardCount,
           easyCount: stats.easyCount + 1,
           recentReviewDates: <DateTime>[...stats.recentReviewDates, log.reviewedAt],
         );
         break;
+      // 'reset' 或其他值不计入统计
     }
   }
 
