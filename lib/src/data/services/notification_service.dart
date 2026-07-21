@@ -1,7 +1,10 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
-import 'package:timezone/data/latest_all.dart' as tz_data;
+// 两个 timezone 子包共用 `tz` 前缀（flutter_local_notifications 推荐
+// 写法）：data/latest_all 暴露 initializeTimeZones，timezone 暴露
+// local / getLocation / TZDateTime / UTC 等。这样 tz.local 才可用。
+import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 /// 错题本复习提醒通知服务。
@@ -52,13 +55,14 @@ class NotificationService {
 
   /// 初始化 timezone 数据并设置本地时区。
   ///
-  /// timezone 包默认 `tz.local` 为 UTC，需要显式设置才能正确按本地时区
-  /// 调度。由于项目未引入 flutter_native_timezone，这里通过
-  /// [DateTime.timeZoneOffset] 推算偏移量并匹配最接近的 IANA 时区名。
-  /// 失败时回退到 UTC（用户感知为提醒时间与本地有偏移）。
+  /// timezone 包默认 `tz.local` 为 UTC，需要显式调用
+  /// [tz.setLocalLocation] 设置才能正确按本地时区调度。由于项目未引入
+  /// flutter_native_timezone，这里通过 [DateTime.timeZoneOffset] 推算
+  /// 偏移量并匹配最接近的 IANA 时区名。失败时回退到 UTC（用户感知为
+  /// 提醒时间与本地有偏移）。
   Future<void> _ensureTimeZoneInitialized() async {
     if (_timeZoneInitialized) return;
-    tz_data.initializeTimeZones();
+    tz.initializeTimeZones();
     // 通过当前 UTC 偏移查找匹配时区。Asia/Shanghai (UTC+8) 是最常见的
     // 国内场景，作为偏移匹配失败时的兜底默认值。
     final offset = DateTime.now().timeZoneOffset;
@@ -83,7 +87,7 @@ class NotificationService {
         // 该时区名无效，跳过。
       }
     }
-    tz.local = matched ?? tz.UTC;
+    tz.setLocalLocation(matched ?? tz.UTC);
     _timeZoneInitialized = true;
   }
 
@@ -163,6 +167,10 @@ class NotificationService {
         iOS: DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      // iOS 要求显式声明日期解释方式：absoluteTime 表示按调度时刻的
+      // 绝对时间触发，不受设备时区变化影响（与 Android 行为对齐）。
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
     return true;
