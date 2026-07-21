@@ -148,7 +148,8 @@ class KnowledgePointMappingService {
       }
     }
 
-    final links = bestByKp.values.map((match) {
+    final links = bestByKp.values.toList().asMap().entries.map((entry) {
+      final match = entry.value;
       return QuestionKnowledgeLink(
         questionId: questionId,
         knowledgePointId: match.knowledgePointId!,
@@ -160,7 +161,31 @@ class KnowledgePointMappingService {
     }).toList();
 
     if (links.isNotEmpty) {
-      await _linkRepo.replaceLinksForQuestion(questionId, links);
+      // Phase 6-3：保留之前的 primary 知识点（若仍在新关联中），
+      // 否则把第一条设为 primary。一题最多一条 isPrimary=true。
+      final oldLinks = await _linkRepo.linksForQuestion(questionId);
+      final oldPrimaryId = oldLinks
+          .where((l) => l.isPrimary)
+          .firstOrNull
+          ?.knowledgePointId;
+      final hasOldPrimaryInNew =
+          oldPrimaryId != null && links.any((l) => l.knowledgePointId == oldPrimaryId);
+      final newLinks = links.asMap().entries.map((entry) {
+        final link = entry.value;
+        final shouldBePrimary =
+            hasOldPrimaryInNew ? link.knowledgePointId == oldPrimaryId : entry.key == 0;
+        if (link.isPrimary == shouldBePrimary) return link;
+        return QuestionKnowledgeLink(
+          questionId: link.questionId,
+          knowledgePointId: link.knowledgePointId,
+          source: link.source,
+          confidence: link.confidence,
+          evidence: link.evidence,
+          createdAt: link.createdAt,
+          isPrimary: shouldBePrimary,
+        );
+      }).toList();
+      await _linkRepo.replaceLinksForQuestion(questionId, newLinks);
     }
 
     // Phase 4-C：把未匹配文本写入待确认队列，供 UI 手动映射。

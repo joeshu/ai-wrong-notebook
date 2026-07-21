@@ -2367,6 +2367,8 @@ class _AnalysisTab extends StatelessWidget {
             children: result!.knowledgePoints.map((p) => _KnowledgePointItem(text: p)).toList(),
           ),
         ],
+        // Phase 6-3：结构化知识点关联区（主知识点 + 关联列表 + 添加/操作）
+        _StructuredKnowledgeLinksCard(questionId: current.id),
         // Phase 4-C：待确认知识点（AI 返回但未匹配到受控节点的文本）
         _PendingKnowledgePointsCard(questionId: current.id),
         if (result!.steps.isNotEmpty) ...<Widget>[

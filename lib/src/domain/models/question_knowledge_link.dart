@@ -15,6 +15,10 @@ enum LinkSource {
 /// Phase 4 基础模型：建立结构化的三元关联（题目 × 知识点 × 错因），
 /// 替代原先仅靠 `aiKnowledgePoints` 字符串数组的松散关系。关联记录
 /// 保存来源、置信度和证据，支持后续的掌握度统计和推荐评分。
+///
+/// Phase 6-3 新增 [isPrimary]：标记主知识点（一题最多一条 primary）。
+/// 旧数据缺失该字段时反序列化为 `false`，UI 层会把第一条关联当作
+/// primary 的 fallback 展示，避免历史数据被迫迁移。
 class QuestionKnowledgeLink {
   QuestionKnowledgeLink({
     required this.questionId,
@@ -23,6 +27,7 @@ class QuestionKnowledgeLink {
     this.confidence,
     this.evidence,
     required this.createdAt,
+    this.isPrimary = false,
   });
 
   /// 关联的题目 ID。
@@ -42,6 +47,9 @@ class QuestionKnowledgeLink {
 
   final DateTime createdAt;
 
+  /// 是否为主知识点。一题最多一条 [isPrimary] 为 `true` 的关联。
+  final bool isPrimary;
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'questionId': questionId,
@@ -50,6 +58,7 @@ class QuestionKnowledgeLink {
       'confidence': confidence,
       'evidence': evidence,
       'createdAt': createdAt.toIso8601String(),
+      'isPrimary': isPrimary,
     };
   }
 
@@ -64,12 +73,14 @@ class QuestionKnowledgeLink {
       confidence: (json['confidence'] as num?)?.toDouble(),
       evidence: json['evidence'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      isPrimary: (json['isPrimary'] as bool?) ?? false,
     );
   }
 
   @override
   String toString() =>
-      'QuestionKnowledgeLink($questionId → $knowledgePointId, ${source.name})';
+      'QuestionKnowledgeLink($questionId → $knowledgePointId, ${source.name}, '
+      'primary=$isPrimary)';
 
   @override
   bool operator ==(Object other) =>

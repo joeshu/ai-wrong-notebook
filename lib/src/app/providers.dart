@@ -805,6 +805,68 @@ final FutureProviderFamily<List<ReviewLog>, String>
   return ref.read(reviewLogRepositoryProvider).getByQuestionId(questionId);
 });
 
+/// 题目—知识点结构化关联视图（Phase 6-3）。
+///
+/// 把 [QuestionKnowledgeLink] 与 [KnowledgePoint] 名称、知识点掌握度
+/// （从 [weakPointRecommendationsProvider] 取，无题目关联时为 null）
+/// 合并成单条 UI 视图，供详情页「知识点关联」区块直接渲染。
+class StructuredKnowledgeLinkView {
+  const StructuredKnowledgeLinkView({
+    required this.link,
+    required this.knowledgePoint,
+    this.masteryPercentage,
+  });
+
+  final QuestionKnowledgeLink link;
+  final KnowledgePoint knowledgePoint;
+
+  /// 知识点掌握度百分比 0–100。无题目关联或未参与计算时为 null。
+  final double? masteryPercentage;
+
+  bool get isPrimary => link.isPrimary;
+}
+
+/// 按题目 ID 查询结构化关联列表（含知识点名 + 掌握度）。
+///
+/// 监听 [_listVersionProvider] 以便关联变更（add/remove/setPrimary）
+/// 后自动刷新。
+final FutureProviderFamily<List<StructuredKnowledgeLinkView>, String>
+    structuredKnowledgeLinksProvider =
+        FutureProviderFamily<List<StructuredKnowledgeLinkView>, String>(
+            (ref, questionId) async {
+  ref.watch(_listVersionProvider);
+  final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+  final kpRepo = ref.read(knowledgePointRepositoryProvider);
+  final links = await linkRepo.linksForQuestion(questionId);
+  if (links.isEmpty) return const <StructuredKnowledgeLinkView>[];
+
+  final allPoints = await kpRepo.loadAll();
+  final kpById = {for (final kp in allPoints) kp.id: kp};
+
+  // 掌握度从 weakPointRecommendationsProvider 取（仅有题目关联的知识点）。
+  final recommendations =
+      ref.read(weakPointRecommendationsProvider).maybeWhen(
+            data: (r) => r,
+            orElse: () => const <WeakPointRecommendation>[],
+          );
+  final masteryByKp = <String, double>{
+    for (final r in recommendations)
+      if (r.mastery != null) r.knowledgePointId: r.mastery!.masteryPercentage,
+  };
+
+  final views = <StructuredKnowledgeLinkView>[];
+  for (final link in links) {
+    final kp = kpById[link.knowledgePointId];
+    if (kp == null) continue;
+    views.add(StructuredKnowledgeLinkView(
+      link: link,
+      knowledgePoint: kp,
+      masteryPercentage: masteryByKp[link.knowledgePointId],
+    ));
+  }
+  return views;
+});
+
 class QuestionBatchGroup {
   const QuestionBatchGroup({required this.rootId, required this.questions});
 

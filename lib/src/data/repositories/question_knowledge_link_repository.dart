@@ -81,6 +81,9 @@ class QuestionKnowledgeLinkRepository {
   }
 
   /// 移除指定关联。返回是否实际移除。
+  ///
+  /// Phase 6-3：若移除的是主关联且仍有其他关联，自动把剩余首条设为主关联，
+  /// 保证一题始终有一个主关联（除非关联全部移除）。
   Future<bool> removeLink(String questionId, String knowledgePointId) async {
     await _ensureLoaded();
     final questionLinks = _byQuestion[questionId];
@@ -88,9 +91,14 @@ class QuestionKnowledgeLinkRepository {
     final index = questionLinks
         .indexWhere((l) => l.knowledgePointId == knowledgePointId);
     if (index == -1) return false;
-    questionLinks.removeAt(index);
+    final removed = questionLinks.removeAt(index);
     final kpLinks = _byKp[knowledgePointId];
     kpLinks?.removeWhere((l) => l.questionId == questionId);
+    if (removed.isPrimary && questionLinks.isNotEmpty) {
+      // 调用 setPrimary 会自动 _persist；剩余首条已在 questionLinks 中。
+      await setPrimary(questionId, questionLinks.first.knowledgePointId);
+      return true;
+    }
     await _persist();
     return true;
   }
@@ -133,6 +141,33 @@ class QuestionKnowledgeLinkRepository {
       _index(link);
     }
     await _persist();
+  }
+
+  /// Phase 6-3：把指定知识点设为该题的主知识点。
+  ///
+  /// 同题其它关联的 [QuestionKnowledgeLink.isPrimary] 会被置为 `false`，
+  /// 保证一题最多一条 primary。若指定关联不存在则什么都不做。
+  Future<void> setPrimary(String questionId, String knowledgePointId) async {
+    await _ensureLoaded();
+    final links = _byQuestion[questionId];
+    if (links == null) return;
+    final hasTarget =
+        links.any((l) => l.knowledgePointId == knowledgePointId);
+    if (!hasTarget) return;
+    final newLinks = links.map((link) {
+      final shouldBePrimary = link.knowledgePointId == knowledgePointId;
+      if (link.isPrimary == shouldBePrimary) return link;
+      return QuestionKnowledgeLink(
+        questionId: link.questionId,
+        knowledgePointId: link.knowledgePointId,
+        source: link.source,
+        confidence: link.confidence,
+        evidence: link.evidence,
+        createdAt: link.createdAt,
+        isPrimary: shouldBePrimary,
+      );
+    }).toList();
+    await replaceLinksForQuestion(questionId, newLinks);
   }
 
   /// 获取全部关联（用于统计聚合）。
