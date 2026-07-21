@@ -22,6 +22,7 @@ import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_
 import 'package:smart_wrong_notebook/src/features/settings/presentation/mistake_trend_screen.dart';
 import 'package:smart_wrong_notebook/src/features/goals/presentation/goals_screen.dart';
 import 'package:smart_wrong_notebook/src/features/knowledge_tree/presentation/knowledge_point_detail_screen.dart';
+import 'package:smart_wrong_notebook/src/features/knowledge_tree/presentation/knowledge_tree_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/knowledge_tree/presentation/knowledge_tree_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/add_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/image_crop_screen.dart';
@@ -189,6 +190,11 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
             knowledgePointId: state.pathParameters['id']!,
           ),
         ),
+      ),
+      GoRoute(
+        path: '/knowledge-tree/manage',
+        pageBuilder: (_, __) =>
+            _buildPage(const KnowledgeTreeManagementScreen()),
       ),
     ],
   );

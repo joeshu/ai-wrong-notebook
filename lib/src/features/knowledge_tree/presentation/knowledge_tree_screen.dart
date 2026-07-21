@@ -27,7 +27,16 @@ class _KnowledgeTreeScreenState extends ConsumerState<KnowledgeTreeScreen> {
   Widget build(BuildContext context) {
     final overviewAsync = ref.watch(knowledgeTreeOverviewProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.knowledgeTreeTab)),
+      appBar: AppBar(
+        title: const Text(AppStrings.knowledgeTreeTab),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(CupertinoIcons.pencil),
+            tooltip: '管理知识树',
+            onPressed: () => context.push('/knowledge-tree/manage'),
+          ),
+        ],
+      ),
       body: overviewAsync.when(
         loading: () => const AppLoadingState(),
         error: (e, _) => AppErrorState(message: '知识树加载失败：$e'),
