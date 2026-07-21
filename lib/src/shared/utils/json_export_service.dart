@@ -65,9 +65,10 @@ class JsonExportService {
       // 避免导入端或下游工具看到选项 ABCD 前的字面量 \n 文本。
       'questions': questions
           .map((q) {
-            final paths = options.includeKnowledgeTree
-                ? knowledgeTreePaths?[q.id]
-                : null;
+            List<String>? paths;
+            if (options.includeKnowledgeTree && knowledgeTreePaths != null) {
+              paths = knowledgeTreePaths[q.id];
+            }
             return _normalizeQuestionRecordJson(
               q.toJson(),
               knowledgeTreePaths: paths,
