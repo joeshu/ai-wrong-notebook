@@ -11,6 +11,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/mistake_knowledge_lin
 import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/layout_provider_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/worksheet_draft_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/repositories/review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/data/services/capture_service.dart';
@@ -34,6 +35,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_split_session.da
 import 'package:smart_wrong_notebook/src/domain/models/recommendation.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mapping_service.dart';
@@ -375,6 +377,19 @@ Future<void> persistLayoutProviderConfig(
 
 final StateProvider<List<String>> worksheetDraftQuestionIdsProvider =
     StateProvider<List<String>>((ref) => const <String>[]);
+
+/// 组卷草稿与历史组卷仓库（Phase 5）。
+final Provider<WorksheetDraftRepository> worksheetDraftRepositoryProvider =
+    Provider<WorksheetDraftRepository>((ref) {
+  return WorksheetDraftRepository();
+});
+
+/// 所有已保存的组卷草稿（按 updatedAt 降序）。
+/// 在工作台「历史」对话框中消费；保存/删除后调用 invalidate 刷新。
+final FutureProvider<List<WorksheetDraft>> savedWorksheetDraftsProvider =
+    FutureProvider<List<WorksheetDraft>>((ref) {
+  return ref.watch(worksheetDraftRepositoryProvider).loadAll();
+});
 
 final StateProvider<WorksheetImportSession?> currentWorksheetImportProvider =
     StateProvider<WorksheetImportSession?>((ref) => null);
