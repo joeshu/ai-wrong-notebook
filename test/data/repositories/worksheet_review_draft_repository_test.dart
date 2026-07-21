@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,7 +85,7 @@ void main() {
         },
       ];
       SharedPreferences.setMockInitialValues(<String, Object>{
-        'worksheet_review_draft_v1_page1': legacyJson.toString(),
+        'worksheet_review_draft_v1_page1': jsonEncode(legacyJson),
       });
 
       final restored = await repo.load('page1');

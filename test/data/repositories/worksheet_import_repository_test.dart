@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
@@ -94,7 +96,7 @@ void main() {
         'createdAt': DateTime(2026, 7, 21).toIso8601String(),
       };
       SharedPreferences.setMockInitialValues(<String, Object>{
-        'worksheet_import_session_v1': legacyJson.toString(),
+        'worksheet_import_session_v1': jsonEncode(legacyJson),
       });
 
       final restored = await repo.load();
