@@ -2534,7 +2534,7 @@ class _StructuredKnowledgeLinksCard extends ConsumerWidget {
                 child: Column(
                   children: <Widget>[
                     Icon(
-                      CupertinoIcons.tag_slash,
+                      CupertinoIcons.tag,
                       size: 28,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -2767,7 +2767,6 @@ class _StructuredKnowledgeLinkRow extends ConsumerWidget {
             PopupMenuButton<String>(
               tooltip: '更多操作',
               icon: const Icon(CupertinoIcons.ellipsis, size: 18),
-              visualDensity: VisualDensity.compact,
               onSelected: (value) {
                 switch (value) {
                   case 'set_primary':

@@ -34,6 +34,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_type.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/pending_knowledge_point_mapping.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/question_knowledge_link.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/recommendation.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
@@ -851,7 +852,7 @@ final FutureProviderFamily<List<StructuredKnowledgeLinkView>, String>
           );
   final masteryByKp = <String, double>{
     for (final r in recommendations)
-      if (r.mastery != null) r.knowledgePointId: r.mastery!.masteryPercentage,
+      if (r.mastery != null) r.recommendation.knowledgePointId: r.mastery!.masteryPercentage,
   };
 
   final views = <StructuredKnowledgeLinkView>[];
