@@ -2515,7 +2515,7 @@ class _StructuredKnowledgeLinksCard extends ConsumerWidget {
         linksAsync.when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: AppSpace.lg),
-            child: Center(child: CupertinoActivityIndicator()),
+            child: Center(child: Text('加载中…')),
           ),
           error: (e, _) => Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
@@ -3304,7 +3304,7 @@ class _ReviewHistoryTimeline extends StatelessWidget {
           logsAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(vertical: AppSpace.lg),
-              child: Center(child: CupertinoActivityIndicator()),
+              child: Center(child: Text('加载中…')),
             ),
             error: (e, _) => Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
