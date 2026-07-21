@@ -75,43 +75,49 @@
 
 ## 1. 错题列表三视图
 
-- [ ] 新增视图切换控件(卡片 / 列表 / 时间线)
-- [ ] 卡片视图(已有,保留)
-- [ ] 列表视图(紧凑表格:科目/题型/知识点/状态/掌握度)
-- [ ] 时间线视图(按日期分组:添加/复习/分析事件流)
-- [ ] 视图偏好持久化到 SharedPreferences
+- [x] 新增视图切换控件(卡片 / 列表 / 时间线)
+- [x] 卡片视图(已有,保留)
+- [x] 列表视图(紧凑表格:科目/题型/知识点/状态/掌握度)
+- [x] 时间线视图(按日期分组:添加/复习/分析事件流)
+  > 已实现按 createdAt 日期分组的题目添加事件流;复习/分析事件可后续并入
+- [x] 视图偏好持久化到 SharedPreferences
 
 ## 2. 筛选与排序补全
 
-- [ ] 新增题型筛选(QuestionType 下拉)
+- [x] 新增题型筛选(QuestionType 下拉)
 - [ ] 新增独立识别状态筛选(待识别/识别中/待校对/已识别/识别失败)
+  > 现有 `failedOnly` / `lowConfidenceOnly` 为布尔快速筛选,未做五档独立筛选
 - [ ] 新增 AI 状态筛选(未分析/分析中/已分析/分析失败)
-- [ ] 新增掌握度三档筛选(模糊/一般/掌握)替代现有二态
-- [ ] 新增"已掌握"快速 chip
+  > 现有 `pendingAiOnly` 为布尔快速筛选,未做四档独立筛选
+- [x] 新增掌握度三档筛选(模糊/一般/掌握)替代现有二态
+- [x] 新增"已掌握"快速 chip
 - [ ] 排序新增:按掌握度(低到高)、按科目、按知识点
-- [ ] 更新 [providers.dart](file:///workspace/lib/src/app/providers.dart) `QuestionSort` 枚举
+  > 已实现按掌握度(QuestionSort.mastery)、按科目(QuestionSort.subject);按知识点排序未实现
+- [x] 更新 [providers.dart](file:///workspace/lib/src/app/providers.dart) `QuestionSort` 枚举
 
 ## 3. 错题详情页知识点关联区
 
-- [ ] `QuestionKnowledgeLink` 加 `isPrimary` 字段(主知识点 vs 关联知识点)
-- [ ] 数据迁移:现有 link 默认 `isPrimary = true`
-- [ ] 详情页新增"知识点关联"区块(独立 section 或新 Tab)
-- [ ] 主知识点行:名称 + 该知识点掌握度徽章 + "在知识树中查看"
-- [ ] 关联知识点列表:名称 + 掌握度
-- [ ] "添加关联知识点"按钮(弹 `_KnowledgePointPickerDialog`)
-- [ ] "设为主知识点"操作(长按或菜单)
-- [ ] 接入 `knowledgePointMasteryServiceProvider` 显示掌握度
+- [x] `QuestionKnowledgeLink` 加 `isPrimary` 字段(主知识点 vs 关联知识点)
+- [x] 数据迁移:现有 link 默认 `isPrimary = true`
+  > fromJson 兼容旧数据(缺字段视为 false);mapping service 再映射时自动把首条设为 primary
+- [x] 详情页新增"知识点关联"区块(独立 section 或新 Tab)
+- [x] 主知识点行:名称 + 该知识点掌握度徽章 + "在知识树中查看"
+- [x] 关联知识点列表:名称 + 掌握度
+- [x] "添加关联知识点"按钮(弹 `_KnowledgePointPickerDialog`)
+- [x] "设为主知识点"操作(长按或菜单)
+- [x] 接入 `knowledgePointMasteryServiceProvider` 显示掌握度
 
 ## 4. 错题详情页 AI 分析区折叠
 
-- [ ] `AppInfoSection` 加展开/折叠能力(用 `ExpansionTile` 或自定义)
-- [ ] 默认折叠长内容(解题步骤、学习建议)
+- [x] `AppInfoSection` 加展开/折叠能力(用 `ExpansionTile` 或自定义)
+- [x] 默认折叠长内容(解题步骤、学习建议)
 - [ ] 顶部摘要补展示主知识点标签
+  > 主知识点目前在「知识点关联」区块展示,未补到顶部摘要行
 
 ## 5. 学习记录区增强
 
-- [ ] 读取 `ReviewLog` 列表展示复习历史时间线
-- [ ] 掌握度变化轨迹(简单文字链:模糊→一般→掌握)
+- [x] 读取 `ReviewLog` 列表展示复习历史时间线
+- [x] 掌握度变化轨迹(简单文字链:模糊→一般→掌握)
 - [ ] 后续可升级为迷你折线图(Phase 8)
 
 ---
