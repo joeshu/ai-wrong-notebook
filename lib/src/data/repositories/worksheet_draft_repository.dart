@@ -31,7 +31,8 @@ class WorksheetDraftRepository {
   }
 
   Future<void> save(WorksheetDraft draft) async {
-    final all = await loadAll();
+    // loadAll 可能返回 const 空列表或不可变视图，用 toList() 复制为可变列表。
+    final all = (await loadAll()).toList(growable: true);
     final existingIdx = all.indexWhere((d) => d.id == draft.id);
     if (existingIdx >= 0) {
       // 更新：保留原 createdAt
@@ -46,7 +47,7 @@ class WorksheetDraftRepository {
   }
 
   Future<void> delete(String id) async {
-    final all = await loadAll();
+    final all = (await loadAll()).toList(growable: true);
     all.removeWhere((d) => d.id == id);
     await _writeAll(all);
   }
