@@ -228,10 +228,12 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         }
       }
 
+      // AI 重构题干视为"校对后文本"，只更新 normalizedQuestionText，
+      // 保留 extractedQuestionText（OCR 原文）以便详情页展示 OCR vs 校对后对照。
+      // 之前的实现同时覆盖两个字段，导致对照失效（两者相等）。
       if (firstSuccessfulCandidate == null &&
           analysis.reconstructedQuestionText.trim().isNotEmpty) {
         working = working.copyWith(
-          extractedQuestionText: analysis.reconstructedQuestionText,
           normalizedQuestionText: analysis.reconstructedQuestionText,
         );
       }
