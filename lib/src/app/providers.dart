@@ -25,11 +25,13 @@ import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.da
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
+import 'package:smart_wrong_notebook/src/domain/models/knowledge_point_mastery.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
+import 'package:smart_wrong_notebook/src/domain/models/recommendation.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
@@ -117,6 +119,149 @@ final Provider<RecommendationService> recommendationServiceProvider =
     Provider<RecommendationService>((ref) {
   return RecommendationService();
 });
+
+/// 首页薄弱知识点推荐列表。
+///
+/// 聚合题目-知识点关联、复习日志和掌握度计算，调用
+/// [RecommendationService.generate] 生成可解释推荐。依赖
+/// [questionListProvider] 和 [reviewLogListProvider] 响应式刷新。
+///
+/// 返回值按推荐评分降序排列。无结构化关联数据时返回空列表
+/// （首页 UI 会回退到旧的字符串 aiKnowledgePoints 统计）。
+final FutureProvider<List<WeakPointRecommendation>>
+    weakPointRecommendationsProvider =
+    FutureProvider<List<WeakPointRecommendation>>((ref) async {
+  // watch 响应式 provider，数据变更自动重算
+  final questionsAsync = ref.watch(questionListProvider);
+  final logsAsync = ref.watch(reviewLogListProvider);
+  final questions = questionsAsync.maybeWhen(
+    data: (q) => q,
+    orElse: () => const <QuestionRecord>[],
+  );
+  final logs = logsAsync.maybeWhen(
+    data: (l) => l,
+    orElse: () => const <ReviewLog>[],
+  );
+  if (questions.isEmpty) return const <WeakPointRecommendation>[];
+
+  final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+  final kpRepo = ref.read(knowledgePointRepositoryProvider);
+  final masteryService = ref.read(knowledgePointMasteryServiceProvider);
+  final recommendationService = ref.read(recommendationServiceProvider);
+
+  // 1. 按知识点 ID 分组题目
+  final allLinks = await linkRepo.allLinks();
+  if (allLinks.isEmpty) return const <WeakPointRecommendation>[];
+
+  final questionIdsByKp = <String, Set<String>>{};
+  for (final link in allLinks) {
+    questionIdsByKp
+        .putIfAbsent(link.knowledgePointId, () => <String>{})
+        .add(link.questionId);
+  }
+
+  // 2. 计算每个知识点的掌握度
+  final questionMap = {for (final q in questions) q.id: q};
+  final questionsByKp = <String, List<QuestionRecord>>{};
+  for (final entry in questionIdsByKp.entries) {
+    final related = entry.value
+        .map((id) => questionMap[id])
+        .whereType<QuestionRecord>()
+        .toList();
+    if (related.isNotEmpty) questionsByKp[entry.key] = related;
+  }
+  if (questionsByKp.isEmpty) return const <WeakPointRecommendation>[];
+
+  final reviewStatsByQuestion = <String, ReviewStats>{};
+  for (final log in logs) {
+    final stats = reviewStatsByQuestion[log.questionId] ??
+        ReviewStats(forgotCount: 0, hardCount: 0, easyCount: 0);
+    switch (log.rating) {
+      case ReviewRating.forgot:
+        reviewStatsByQuestion[log.questionId] = ReviewStats(
+          forgotCount: stats.forgotCount + 1,
+          hardCount: stats.hardCount,
+          easyCount: stats.easyCount,
+          recentReviewDates: <DateTime>[...stats.recentReviewDates, log.reviewedAt],
+        );
+        break;
+      case ReviewRating.hard:
+        reviewStatsByQuestion[log.questionId] = ReviewStats(
+          forgotCount: stats.forgotCount,
+          hardCount: stats.hardCount + 1,
+          easyCount: stats.easyCount,
+          recentReviewDates: <DateTime>[...stats.recentReviewDates, log.reviewedAt],
+        );
+        break;
+      case ReviewRating.easy:
+        reviewStatsByQuestion[log.questionId] = ReviewStats(
+          forgotCount: stats.forgotCount,
+          hardCount: stats.hardCount,
+          easyCount: stats.easyCount + 1,
+          recentReviewDates: <DateTime>[...stats.recentReviewDates, log.reviewedAt],
+        );
+        break;
+    }
+  }
+
+  final masteries = await masteryService.calculateBatch(
+    questionsByKp: questionsByKp,
+    reviewStatsByQuestion: reviewStatsByQuestion,
+  );
+  final masteryByKp = {for (final m in masteries) m.knowledgePointId: m};
+
+  // 3. 生成推荐
+  final inputs = <RecommendationInput>[];
+  for (final mastery in masteries) {
+    if (mastery.totalQuestions == 0) continue;
+    final relatedQuestions = questionsByKp[mastery.knowledgePointId] ?? const [];
+    inputs.add(RecommendationInput(
+      knowledgePointId: mastery.knowledgePointId,
+      mastery: mastery,
+      questionIds: relatedQuestions.map((q) => q.id).toList(),
+      errorQuestionIds: relatedQuestions
+          .where((q) => q.masteryLevel != MasteryLevel.mastered)
+          .map((q) => q.id)
+          .toList(),
+    ));
+  }
+  if (inputs.isEmpty) return const <WeakPointRecommendation>[];
+
+  final recommendations = await recommendationService.generate(inputs: inputs);
+
+  // 4. 关联知识点名称和掌握度
+  final kpNameById = {for (final kp in await kpRepo.loadAll()) kp.id: kp.name};
+  return recommendations.map((rec) {
+    final mastery = masteryByKp[rec.knowledgePointId];
+    final pendingReview = questionsByKp[rec.knowledgePointId]
+            ?.where((q) =>
+                q.masteryLevel == MasteryLevel.reviewing ||
+                q.masteryLevel == MasteryLevel.newQuestion)
+            .length ??
+        0;
+    return WeakPointRecommendation(
+      recommendation: rec,
+      knowledgePointName: kpNameById[rec.knowledgePointId] ?? rec.knowledgePointId,
+      mastery: mastery,
+      pendingReviewCount: pendingReview,
+    );
+  }).toList();
+});
+
+/// 首页薄弱知识点推荐条目（含推荐、知识点名、掌握度）。
+class WeakPointRecommendation {
+  const WeakPointRecommendation({
+    required this.recommendation,
+    required this.knowledgePointName,
+    required this.mastery,
+    required this.pendingReviewCount,
+  });
+
+  final Recommendation recommendation;
+  final String knowledgePointName;
+  final KnowledgePointMastery? mastery;
+  final int pendingReviewCount;
+}
 
 final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((ref) {

@@ -869,6 +869,10 @@ class _RecentQuestionCard extends StatelessWidget {
 ///   聚合本知识点下所有错题的已有练习题；缺失时由 AI 生成。
 ///
 /// 将原本只做"筛选跳转"的入口补成清单要求的"薄弱知识点和推荐练习入口"。
+///
+/// 优先展示 [weakPointRecommendationsProvider] 返回的可解释推荐
+/// （含掌握度、推荐原因）；无结构化关联数据时回退到旧的字符串
+/// aiKnowledgePoints 统计。
 class _WeakPointSection extends ConsumerStatefulWidget {
   const _WeakPointSection({required this.ranked, required this.questions});
   final List<MapEntry<String, int>> ranked;
@@ -881,16 +885,32 @@ class _WeakPointSection extends ConsumerStatefulWidget {
 class _WeakPointSectionState extends ConsumerState<_WeakPointSection> {
   String? _practicingPoint;
 
-  Future<void> _startPractice(String knowledgePoint) async {
+  Future<void> _startPractice({
+    required String knowledgePointId,
+    required String displayName,
+    bool useControlledId = false,
+  }) async {
     if (_practicingPoint != null) return;
-    setState(() => _practicingPoint = knowledgePoint);
+    setState(() => _practicingPoint = knowledgePointId);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final related = widget.questions
-          .where((q) =>
-              q.masteryLevel != MasteryLevel.mastered &&
-              q.aiKnowledgePoints.contains(knowledgePoint))
-          .toList(growable: false);
+      List<QuestionRecord> related;
+      if (useControlledId) {
+        // 通过结构化关联查题
+        final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+        final questionIds = await linkRepo.questionIdsForKnowledgePoint(knowledgePointId);
+        final idSet = questionIds.toSet();
+        related = widget.questions
+            .where((q) => q.masteryLevel != MasteryLevel.mastered && idSet.contains(q.id))
+            .toList(growable: false);
+      } else {
+        // 回退：字符串匹配旧 aiKnowledgePoints
+        related = widget.questions
+            .where((q) =>
+                q.masteryLevel != MasteryLevel.mastered &&
+                q.aiKnowledgePoints.contains(knowledgePointId))
+            .toList(growable: false);
+      }
       if (related.isEmpty) {
         throw StateError('该知识点暂无错题可生成练习');
       }
@@ -898,7 +918,7 @@ class _WeakPointSectionState extends ConsumerState<_WeakPointSection> {
         ref.read(aiAnalysisServiceProvider),
       );
       final prepared = await controller.buildRound(
-        knowledgePoint: knowledgePoint,
+        knowledgePoint: displayName,
         questions: related,
       );
       await ref.read(questionRepositoryProvider).update(prepared);
@@ -923,28 +943,146 @@ class _WeakPointSectionState extends ConsumerState<_WeakPointSection> {
 
   @override
   Widget build(BuildContext context) {
-    return _WeakPointCard(
-      points: widget.ranked.take(3).toList(),
-      practicingPoint: _practicingPoint,
-      onSelect: (point) {
-        ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
-        context.go('/notebook');
+    final recommendationsAsync = ref.watch(weakPointRecommendationsProvider);
+    return recommendationsAsync.when(
+      data: (recommendations) {
+        if (recommendations.isEmpty) {
+          // 无结构化关联数据，回退到字符串统计
+          return _WeakPointCard(
+            rows: widget.ranked
+                .take(3)
+                .map((entry) => _WeakPointRow(
+                      key: entry.key,
+                      displayName: entry.key,
+                      questionCount: entry.value,
+                      masteryPercentage: null,
+                      reason: null,
+                      pendingReviewCount: null,
+                      useControlledId: false,
+                    ))
+                .toList(),
+            practicingPoint: _practicingPoint,
+            onSelect: (point) {
+              ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
+              context.go('/notebook');
+            },
+            onPractice: (row) => _startPractice(
+              knowledgePointId: row.key,
+              displayName: row.displayName,
+              useControlledId: row.useControlledId,
+            ),
+          );
+        }
+        // 优先用可解释推荐
+        return _WeakPointCard(
+          rows: recommendations
+              .take(3)
+              .map((rec) => _WeakPointRow(
+                    key: rec.recommendation.knowledgePointId,
+                    displayName: rec.knowledgePointName,
+                    questionCount: rec.recommendation.relatedQuestionIds.length,
+                    masteryPercentage: rec.mastery?.masteryPercentage,
+                    reason: rec.recommendation.reasons.isNotEmpty
+                        ? rec.recommendation.reasons.first
+                        : null,
+                    pendingReviewCount: rec.pendingReviewCount,
+                    useControlledId: true,
+                  ))
+              .toList(),
+          practicingPoint: _practicingPoint,
+          onSelect: (point) {
+            ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
+            context.go('/notebook');
+          },
+          onPractice: (row) => _startPractice(
+            knowledgePointId: row.key,
+            displayName: row.displayName,
+            useControlledId: row.useControlledId,
+          ),
+        );
       },
-      onPractice: _startPractice,
+      loading: () => _WeakPointCard(
+        rows: widget.ranked
+            .take(3)
+            .map((entry) => _WeakPointRow(
+                  key: entry.key,
+                  displayName: entry.key,
+                  questionCount: entry.value,
+                  masteryPercentage: null,
+                  reason: null,
+                  pendingReviewCount: null,
+                  useControlledId: false,
+                ))
+            .toList(),
+        practicingPoint: _practicingPoint,
+        onSelect: (point) {
+          ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
+          context.go('/notebook');
+        },
+        onPractice: (row) => _startPractice(
+          knowledgePointId: row.key,
+          displayName: row.displayName,
+          useControlledId: row.useControlledId,
+        ),
+      ),
+      error: (_, __) => _WeakPointCard(
+        rows: widget.ranked
+            .take(3)
+            .map((entry) => _WeakPointRow(
+                  key: entry.key,
+                  displayName: entry.key,
+                  questionCount: entry.value,
+                  masteryPercentage: null,
+                  reason: null,
+                  pendingReviewCount: null,
+                  useControlledId: false,
+                ))
+            .toList(),
+        practicingPoint: _practicingPoint,
+        onSelect: (point) {
+          ref.read(selectedKnowledgePointFilterProvider.notifier).state = point;
+          context.go('/notebook');
+        },
+        onPractice: (row) => _startPractice(
+          knowledgePointId: row.key,
+          displayName: row.displayName,
+          useControlledId: row.useControlledId,
+        ),
+      ),
     );
   }
 }
 
+/// 薄弱知识点行数据（统一推荐模式和字符串回退模式）。
+class _WeakPointRow {
+  const _WeakPointRow({
+    required this.key,
+    required this.displayName,
+    required this.questionCount,
+    required this.masteryPercentage,
+    required this.reason,
+    required this.pendingReviewCount,
+    required this.useControlledId,
+  });
+  final String key;
+  final String displayName;
+  final int questionCount;
+  final double? masteryPercentage;
+  final String? reason;
+  final int? pendingReviewCount;
+  final bool useControlledId;
+}
+
 class _WeakPointCard extends StatelessWidget {
   const _WeakPointCard({
-    required this.points,
+    required this.rows,
     required this.onSelect,
     required this.onPractice,
     required this.practicingPoint,
   });
-  final List<MapEntry<String, int>> points;
+  final List<_WeakPointRow> rows;
   final ValueChanged<String> onSelect;
-  final ValueChanged<String> onPractice;
+  final ValueChanged<_WeakPointRow> onPractice;
   final String? practicingPoint;
 
   @override
@@ -959,10 +1097,10 @@ class _WeakPointCard extends StatelessWidget {
           Text('点击筛选 / 专项练习', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
         ]),
         const SizedBox(height: AppSpace.sm),
-        ...points.map((entry) {
-          final isPracticing = practicingPoint == entry.key;
+        ...rows.map((row) {
+          final isPracticing = practicingPoint == row.key;
           return InkWell(
-            onTap: () => onSelect(entry.key),
+            onTap: () => onSelect(row.displayName),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 5),
               child: Row(children: <Widget>[
@@ -971,14 +1109,43 @@ class _WeakPointCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
-                      Text(entry.key, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text('${entry.value} 题', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                      Text(row.displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 2,
+                        children: <Widget>[
+                          Text(
+                            '${row.questionCount} 题',
+                            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                          ),
+                          if (row.masteryPercentage != null)
+                            Text(
+                              '掌握度 ${row.masteryPercentage!.toStringAsFixed(0)}%',
+                              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                            ),
+                          if (row.pendingReviewCount != null && row.pendingReviewCount! > 0)
+                            Text(
+                              '待复习 ${row.pendingReviewCount} 题',
+                              style: TextStyle(fontSize: 12, color: AppColors.warningDark),
+                            ),
+                        ],
+                      ),
+                      if (row.reason != null) ...<Widget>[
+                        const SizedBox(height: 2),
+                        Text(
+                          row.reason!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 const SizedBox(width: AppSpace.sm),
                 TextButton.icon(
-                  onPressed: isPracticing ? null : () => onPractice(entry.key),
+                  onPressed: isPracticing ? null : () => onPractice(row),
                   icon: isPracticing
                       ? const SizedBox(
                           width: 14,
