@@ -1,9 +1,6 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
-import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_region_editor_screen.dart';
 
 QuestionRegion _region({
@@ -91,7 +88,7 @@ void main() {
 
     test('题框占整页面积过大', () {
       final region = _region(
-        rect: const Rect.fromLTWH(0.05, 0.05, 0.92, 0.92), // area ≈ 0.846
+        rect: const Rect.fromLTWH(0.02, 0.02, 0.96, 0.96), // area ≈ 0.92
         text: '题干',
       );
       final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
