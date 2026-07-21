@@ -809,8 +809,8 @@ class _QuestionTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpace.lg),
       children: <Widget>[
-        if (_statusBanner(current) != null) ...<Widget>[
-          _statusBanner(current)!,
+        if (_statusBanner(context, current) != null) ...<Widget>[
+          _statusBanner(context, current)!,
           const SizedBox(height: AppSpace.md),
         ],
         AppCard(
@@ -1034,7 +1034,7 @@ class _QuestionTab extends StatelessWidget {
 
   /// 顶部状态横幅：识别失败 / 附件缺失 / 低置信度。
   /// 只在出现问题时显示，无问题时返回 null 不占空间。
-  Widget? _statusBanner(QuestionRecord question) {
+  Widget? _statusBanner(BuildContext context, QuestionRecord question) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final List<Widget> alerts = <Widget>[];
 
@@ -1042,7 +1042,7 @@ class _QuestionTab extends StatelessWidget {
       alerts.add(_BannerItem(
         icon: CupertinoIcons.exclamationmark_triangle_fill,
         text: '识别失败：已保留原图与校对题干，可在「分析」页重试 AI 解析',
-        color: AppColors.error,
+        color: AppColors.danger,
         backgroundColor: isDark ? const Color(0xFF3B1414) : const Color(0xFFFEF2F2),
       ));
     }
@@ -1050,7 +1050,7 @@ class _QuestionTab extends StatelessWidget {
       alerts.add(_BannerItem(
         icon: CupertinoIcons.photo,
         text: '附件缺失：未保存原图，仅保留识别文本与 AI 分析',
-        color: AppColors.error,
+        color: AppColors.danger,
         backgroundColor: isDark ? const Color(0xFF3B1414) : const Color(0xFFFEF2F2),
       ));
     } else if (question.ocrConfidence != null && question.ocrConfidence! < 0.7) {
@@ -1150,7 +1150,7 @@ class _OcrContentCard extends StatelessWidget {
     }
 
     return AppInfoSection(
-      icon: CupertinoIcons.text_justleft,
+      icon: Icons.compare_arrows,
       title: 'OCR 识别内容对照',
       iconColor: AppColors.info,
       backgroundColor: isDark ? colorScheme.surface : AppColors.infoContainerLight,
