@@ -155,7 +155,7 @@ class _WorksheetRegionEditorScreenState
               ? null
               : FilledButton.icon(
                   onPressed: () => _reselectPageImage(page),
-                  icon: const Icon(CupertinoIcons.photo_on_rectangles),
+                  icon: const Icon(CupertinoIcons.photo_on_rectangle),
                   label: const Text('重新选图'),
                 ),
         ),
