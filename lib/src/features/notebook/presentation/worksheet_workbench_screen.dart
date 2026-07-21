@@ -5,14 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
+import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
 import 'package:uuid/uuid.dart';
-
-import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 
 /// Selects and orders a subset of the local question bank for export.
 /// The next slice adds per-mode PDF layouts; this screen deliberately keeps
@@ -31,7 +30,7 @@ class _WorksheetWorkbenchScreenState
   final _order = <String>[];
   String _query = '';
   bool _draftApplied = false;
-  ContentStatus? _statusFilter;
+  QuestionDisplayStatus? _statusFilter;
   bool _showFilters = false;
 
   /// 最近一次从已选区移除的题目（用于撤销）。
@@ -249,13 +248,16 @@ class _WorksheetWorkbenchScreenState
           }
 
           final readyCount = questions
-              .where((q) => q.contentStatus == ContentStatus.ready)
+              .where((q) => inferQuestionDisplayStatus(q) == QuestionDisplayStatus.analyzed)
+              .length;
+          final recognizedCount = questions
+              .where((q) => inferQuestionDisplayStatus(q) == QuestionDisplayStatus.recognized)
               .length;
           final processingCount = questions
-              .where((q) => q.contentStatus == ContentStatus.processing)
+              .where((q) => inferQuestionDisplayStatus(q).isInProgress)
               .length;
           final failedCount = questions
-              .where((q) => q.contentStatus == ContentStatus.failed)
+              .where((q) => inferQuestionDisplayStatus(q).isFailed)
               .length;
 
           final filtered = questions.where((question) {
@@ -263,8 +265,8 @@ class _WorksheetWorkbenchScreenState
                 '${question.subject.label} ${question.learningStage ?? ''} '
                 '${question.source ?? ''}'.toLowerCase();
             final matchesQuery = text.contains(_query.toLowerCase());
-            final matchesStatus =
-                _statusFilter == null || question.contentStatus == _statusFilter;
+            final matchesStatus = _statusFilter == null ||
+                inferQuestionDisplayStatus(question) == _statusFilter;
             return matchesQuery && matchesStatus;
           }).toList();
           final selected = _selected(questions);
@@ -347,28 +349,38 @@ class _WorksheetWorkbenchScreenState
                               setState(() => _statusFilter = null),
                         ),
                         _FilterChip(
-                          label: '已识别',
+                          label: '已分析',
                           count: readyCount,
                           color: AppColors.success,
-                          selected: _statusFilter == ContentStatus.ready,
-                          onSelected: () => setState(
-                              () => _statusFilter = ContentStatus.ready),
+                          selected: _statusFilter == QuestionDisplayStatus.analyzed,
+                          onSelected: () => setState(() =>
+                              _statusFilter = QuestionDisplayStatus.analyzed),
                         ),
                         _FilterChip(
-                          label: '分析中',
+                          label: '待 AI',
+                          count: recognizedCount,
+                          color: AppColors.primary,
+                          selected: _statusFilter == QuestionDisplayStatus.recognized,
+                          onSelected: () => setState(() =>
+                              _statusFilter = QuestionDisplayStatus.recognized),
+                        ),
+                        _FilterChip(
+                          label: '处理中',
                           count: processingCount,
                           color: AppColors.warning,
-                          selected: _statusFilter == ContentStatus.processing,
-                          onSelected: () => setState(
-                              () => _statusFilter = ContentStatus.processing),
+                          selected: _statusFilter != null &&
+                              _statusFilter!.isInProgress,
+                          onSelected: () => setState(() =>
+                              _statusFilter = QuestionDisplayStatus.recognizing),
                         ),
                         _FilterChip(
-                          label: '识别失败',
+                          label: '失败',
                           count: failedCount,
                           color: AppColors.danger,
-                          selected: _statusFilter == ContentStatus.failed,
-                          onSelected: () => setState(
-                              () => _statusFilter = ContentStatus.failed),
+                          selected: _statusFilter != null &&
+                              _statusFilter!.isFailed,
+                          onSelected: () => setState(() =>
+                              _statusFilter = QuestionDisplayStatus.recognitionFailed),
                         ),
                       ],
                     ),

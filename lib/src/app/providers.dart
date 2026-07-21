@@ -43,6 +43,7 @@ import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_managem
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mastery_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/recommendation_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
+import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 
 // --- Repository providers (default implementations) ---
 
@@ -895,12 +896,12 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
             }
             if (dueOnly && !scheduler.isDue(q)) return false;
             if (favoritesOnly && !q.isFavorite) return false;
-            if (failedOnly &&
-                q.contentStatus.toString().split('.').last != 'failed') {
+            if (failedOnly && !inferQuestionDisplayStatus(q).isFailed) {
               return false;
             }
             if (pendingAiOnly &&
-                !(q.contentStatus == ContentStatus.ready && q.analysisResult == null)) {
+                inferQuestionDisplayStatus(q) !=
+                    QuestionDisplayStatus.recognized) {
               return false;
             }
             if (lowConfidenceOnly &&

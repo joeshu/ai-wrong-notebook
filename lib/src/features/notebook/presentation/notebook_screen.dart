@@ -12,6 +12,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
+import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
@@ -202,7 +203,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     WidgetRef ref,
     QuestionRecord question,
   ) {
-    if (question.contentStatus == ContentStatus.failed) {
+    if (question.contentStatus == ContentStatus.failed ||
+        question.contentStatus == ContentStatus.analysisFailed) {
       return _CardPrimaryAction(label: '重新分析', icon: CupertinoIcons.arrow_clockwise, onTap: () {
         ref.read(currentQuestionProvider.notifier).state = question;
         context.go('/notebook/question/${question.id}');
@@ -675,8 +677,8 @@ class _QuestionCard extends StatelessWidget {
     final aiTags = question.aiTags ?? <String>[];
     final customTags = question.customTags ?? <String>[];
     final allTags = [...aiTags, ...customTags];
-    final isFailed =
-        question.contentStatus.toString().split('.').last == 'failed';
+    final displayStatus = inferQuestionDisplayStatus(question);
+    final isFailed = displayStatus.isFailed;
     final isArchived = (question.isArchived as bool?) ?? false;
 
     return Dismissible(
@@ -771,7 +773,7 @@ class _QuestionCard extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: AppSpace.xs),
-                          _buildMetaInfo(context, isFailed, isArchived),
+                          _buildMetaInfo(context, displayStatus, isArchived),
                           if (allTags.isNotEmpty) ...<Widget>[
                             const SizedBox(height: AppSpace.xs),
                             Wrap(
@@ -845,8 +847,10 @@ class _QuestionCard extends StatelessWidget {
     }
   }
 
-  Widget _buildMetaInfo(BuildContext context, bool isFailed, bool isArchived) {
+  Widget _buildMetaInfo(
+      BuildContext context, QuestionDisplayStatus displayStatus, bool isArchived) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final masteryColor = _masteryColor(context, question.masteryLevel);
     final dueColor = _dueColor(context, question);
     final showMastery = question.masteryLevel != MasteryLevel.newQuestion;
@@ -874,16 +878,29 @@ class _QuestionCard extends StatelessWidget {
       ));
     }
 
-    if (isFailed) {
+    if (displayStatus.isFailed) {
+      final failedColor = AppColors.danger;
       spans.add(const TextSpan(text: ' · '));
-      spans.add(const WidgetSpan(
+      spans.add(WidgetSpan(
         alignment: PlaceholderAlignment.middle,
         child: Icon(CupertinoIcons.exclamationmark_triangle_fill,
-            size: 11, color: AppColors.warning),
+            size: 11, color: failedColor),
       ));
-      spans.add(const TextSpan(
-        text: '待解析',
-        style: TextStyle(color: AppColors.warning),
+      spans.add(TextSpan(
+        text: displayStatus.label,
+        style: TextStyle(color: failedColor),
+      ));
+    } else if (displayStatus.isInProgress) {
+      final inProgressColor = isDark ? AppColors.info : AppColors.primary;
+      spans.add(const TextSpan(text: ' · '));
+      spans.add(WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: Icon(CupertinoIcons.ellipsis_indicator,
+            size: 11, color: inProgressColor),
+      ));
+      spans.add(TextSpan(
+        text: displayStatus.label,
+        style: TextStyle(color: inProgressColor),
       ));
     }
 
@@ -924,7 +941,7 @@ class _QuestionCard extends StatelessWidget {
         ),
         if (_hasStatusBadges) ...<Widget>[
           const SizedBox(height: AppSpace.xs),
-          _buildStatusBadges(context),
+          _buildStatusBadges(context, displayStatus),
         ],
       ],
     );
@@ -939,7 +956,8 @@ class _QuestionCard extends StatelessWidget {
       this.question.isCorrect != null;
 
   /// 渲染状态徽章行：用紧凑的色块徽章展示难度/作答状态/置信度/反思/判分。
-  Widget _buildStatusBadges(BuildContext context) {
+  Widget _buildStatusBadges(
+      BuildContext context, QuestionDisplayStatus displayStatus) {
     final children = <Widget>[];
 
     final providerTag = question.tags.firstWhere(
@@ -954,14 +972,13 @@ class _QuestionCard extends StatelessWidget {
       ));
     }
 
-    if (question.analysisResult == null &&
-        question.contentStatus == ContentStatus.ready) {
+    if (displayStatus == QuestionDisplayStatus.recognized) {
       children.add(_MetaBadge(
         label: '待 AI',
         color: AppColors.primary,
         icon: CupertinoIcons.sparkles,
       ));
-    } else if (question.analysisResult != null) {
+    } else if (displayStatus == QuestionDisplayStatus.analyzed) {
       children.add(_MetaBadge(
         label: 'AI 已分析',
         color: AppColors.success,

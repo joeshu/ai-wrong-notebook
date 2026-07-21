@@ -7,11 +7,11 @@ import 'package:smart_wrong_notebook/src/common/widgets/stats_chart.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
-import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
+import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -25,11 +25,10 @@ class HomeScreen extends ConsumerWidget {
     final todayPlanAsync = ref.watch(todayReviewPlanProvider);
     final mistakeStatsAsync = ref.watch(mistakeCategoryStatsProvider);
     final worksheetSession = ref.watch(currentWorksheetImportProvider);
-    final hasPendingBatch = worksheetSession?.pages.any((item) =>
-            item.contentStatus == ContentStatus.processing ||
-            item.contentStatus == ContentStatus.failed ||
-            (item.contentStatus == ContentStatus.ready &&
-                item.analysisResult == null)) ??
+    final hasPendingBatch = worksheetSession?.pages.any((item) {
+          final status = inferQuestionDisplayStatus(item);
+          return status.isInProgress || status.isFailed || status == QuestionDisplayStatus.recognized;
+        }) ??
         false;
 
     return SafeArea(
@@ -105,8 +104,8 @@ class HomeScreen extends ConsumerWidget {
           questionsAsync.when(
             data: (questions) {
               final pendingAi = questions.where((q) =>
-                  q.contentStatus == ContentStatus.ready && q.analysisResult == null).length;
-              final failed = questions.where((q) => q.contentStatus == ContentStatus.failed).length;
+                  inferQuestionDisplayStatus(q) == QuestionDisplayStatus.recognized).length;
+              final failed = questions.where((q) => inferQuestionDisplayStatus(q).isFailed).length;
               final lowConfidence = questions.where((q) =>
                   q.ocrConfidence != null && q.ocrConfidence! < 0.7).length;
               if (pendingAi == 0 && failed == 0 && lowConfidence == 0) {
@@ -403,9 +402,11 @@ class _BatchActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final all = session.pages;
-    final failed = all.where((item) => item.contentStatus == ContentStatus.failed).length;
-    final drafts = all.where((item) => item.contentStatus == ContentStatus.ready && item.analysisResult == null).length;
-    final pending = all.where((item) => item.contentStatus == ContentStatus.processing).length;
+    final failed = all.where((item) => inferQuestionDisplayStatus(item).isFailed).length;
+    final drafts = all.where((item) =>
+        inferQuestionDisplayStatus(item) == QuestionDisplayStatus.recognized).length;
+    final pending = all.where((item) =>
+        inferQuestionDisplayStatus(item).isInProgress).length;
     final remaining = failed + drafts + pending;
     final primaryAction = failed > 0
         ? AppStrings.homeBatchRetry
@@ -1352,7 +1353,7 @@ class _PendingTaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final items = <String>[];
-    if (pendingAi > 0) items.add('$pendingAi 道待交给普通 AI 分析');
+    if (pendingAi > 0) items.add('$pendingAi 道待 AI 分析');
     if (failed > 0) items.add('$failed 道识别或分析失败');
     if (lowConfidence > 0) items.add('$lowConfidence 道识别置信度较低');
     return AppCard(
@@ -1373,7 +1374,7 @@ class _PendingTaskCard extends StatelessWidget {
           const SizedBox(height: AppSpace.xs),
           if (pendingAi > 0)
             _TaskActionRow(
-              label: '$pendingAi 道待交给普通 AI 分析',
+              label: '$pendingAi 道待 AI 分析',
               icon: CupertinoIcons.sparkles,
               color: scheme.primary,
               onTap: onOpenPendingAi,

@@ -14,6 +14,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_type.dart';
 import 'package:smart_wrong_notebook/src/domain/services/auto_grading_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
+import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
@@ -691,27 +692,55 @@ class _RecognitionStatusTags extends StatelessWidget {
       orElse: () => '',
     );
     final provider = source.isEmpty ? null : source.substring('layout_provider:'.length);
-    final aiReady = question.analysisResult != null;
-    final recognitionLabel = provider ?? (question.imagePath.isNotEmpty ? '已识别' : '未识别');
-    final recognitionColor = question.contentStatus == ContentStatus.failed ? AppColors.danger : AppColors.successDark;
+    // 统一用 QuestionDisplayStatus 推导识别/AI 文案与配色，
+    // 与首页、题卡、批量任务保持一致，避免各页面硬编码口径分裂。
+    final displayStatus = inferQuestionDisplayStatus(question);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final recognitionLabel = provider ??
+        (question.imagePath.isNotEmpty ? '已识别' : '未识别');
     // 学习状态标签与 _MasteryTag 共用同一套口径（文案 + 颜色），
     // 避免顶部摘要与状态徽章行的学习标签文本/颜色不一致。
     final learningLabel = '学习：${_masteryLabel(question.masteryLevel)}';
     final learningColor = _masteryColor(context, question.masteryLevel);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Wrap(
       spacing: AppSpace.sm,
       runSpacing: AppSpace.sm,
       children: <Widget>[
         AppTag(
           label: '识别：$recognitionLabel',
-          textColor: recognitionColor,
-          backgroundColor: question.contentStatus == ContentStatus.failed ? AppColors.dangerContainerLight : AppColors.successContainerLight,
+          textColor: displayStatus.isFailed
+              ? AppColors.danger
+              : AppColors.successDark,
+          backgroundColor: displayStatus.isFailed
+              ? (isDark
+                  ? AppColors.danger.withValues(alpha: 0.24)
+                  : AppColors.dangerContainerLight)
+              : (isDark
+                  ? AppColors.success.withValues(alpha: 0.24)
+                  : AppColors.successContainerLight),
         ),
         AppTag(
-          label: aiReady ? 'AI：已分析' : 'AI：未分析',
-          textColor: aiReady ? AppColors.primaryDark : AppColors.slate,
-          backgroundColor: aiReady ? AppColors.primaryContainerLight : AppColors.slateContainerLight,
+          label: displayStatus == QuestionDisplayStatus.analyzed
+              ? 'AI：已分析'
+              : (displayStatus == QuestionDisplayStatus.analysisFailed
+                  ? 'AI：分析失败'
+                  : 'AI：未分析'),
+          textColor: displayStatus == QuestionDisplayStatus.analyzed
+              ? AppColors.primaryDark
+              : (displayStatus == QuestionDisplayStatus.analysisFailed
+                  ? AppColors.danger
+                  : AppColors.slate),
+          backgroundColor: displayStatus == QuestionDisplayStatus.analyzed
+              ? (isDark
+                  ? AppColors.primary.withValues(alpha: 0.24)
+                  : AppColors.primaryContainerLight)
+              : (displayStatus == QuestionDisplayStatus.analysisFailed
+                  ? (isDark
+                      ? AppColors.danger.withValues(alpha: 0.24)
+                      : AppColors.dangerContainerLight)
+                  : (isDark
+                      ? AppColors.slate.withValues(alpha: 0.24)
+                      : AppColors.slateContainerLight)),
         ),
         AppTag(
           label: learningLabel,
@@ -719,52 +748,6 @@ class _RecognitionStatusTags extends StatelessWidget {
           backgroundColor: learningColor.withValues(alpha: isDark ? 0.16 : 0.1),
         ),
       ],
-    );
-  }
-}
-class _RecognitionEvidenceCard extends StatelessWidget {
-  const _RecognitionEvidenceCard({required this.question});
-  final QuestionRecord question;
-
-  @override
-  Widget build(BuildContext context) {
-    final source = question.tags.firstWhere(
-      (tag) => tag.startsWith('layout_provider:'),
-      orElse: () => '',
-    );
-    final provider = source.isEmpty
-        ? (question.imagePath.isNotEmpty ? '图片原题' : '未记录')
-        : source.substring('layout_provider:'.length);
-    final analyzed = question.analysisResult != null;
-    final confidence = question.ocrConfidence;
-    return AppInfoSection(
-      icon: CupertinoIcons.doc_text_search,
-      title: '识别与分析状态',
-      iconColor: AppColors.successDark,
-      backgroundColor: AppColors.successContainerLight,
-      borderColor: const Color(0xFFBBF7D0),
-      titleColor: AppColors.successDark,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Wrap(
-            spacing: AppSpace.sm,
-            runSpacing: AppSpace.sm,
-            children: <Widget>[
-              AppTag(label: '识别：$provider', textColor: AppColors.successDark, backgroundColor: AppColors.successContainerLight),
-              AppTag(label: analyzed ? 'AI：已分析' : 'AI：未分析', textColor: analyzed ? AppColors.primaryDark : AppColors.slate, backgroundColor: analyzed ? AppColors.primaryContainerLight : AppColors.slateContainerLight),
-              if (confidence != null) AppTag(label: '置信度：${(confidence * 100).round()}%', textColor: confidence < .7 ? AppColors.warningDark : AppColors.successDark, backgroundColor: confidence < .7 ? AppColors.warningContainerLight : AppColors.successContainerLight),
-            ],
-          ),
-          const SizedBox(height: AppSpace.sm),
-          Text(
-            analyzed
-                ? '识别结果已交给普通 AI，当前可查看答案、错因、知识点和练习。'
-                : '当前仅保存识别结果；可在“分析”页继续交给普通 AI。',
-            style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -919,7 +902,6 @@ class _QuestionTab extends StatelessWidget {
         const SizedBox(height: AppSpace.lg),
         _OcrContentCard(question: current),
         const SizedBox(height: AppSpace.lg),
-        _RecognitionEvidenceCard(question: current),
         if (current.studentAnswer != null &&
             current.studentAnswer!.isNotEmpty) ...<Widget>[
           const SizedBox(height: AppSpace.lg),
@@ -1038,12 +1020,36 @@ class _QuestionTab extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final List<Widget> alerts = <Widget>[];
 
-    if (question.contentStatus == ContentStatus.failed) {
+    final displayStatus = inferQuestionDisplayStatus(question);
+    if (displayStatus == QuestionDisplayStatus.recognitionFailed) {
+      final reason = question.lastAnalysisError;
       alerts.add(_BannerItem(
         icon: CupertinoIcons.exclamationmark_triangle_fill,
-        text: '识别失败：已保留原图与校对题干，可在「分析」页重试 AI 解析',
+        text: reason != null && reason.isNotEmpty
+            ? '识别失败：$reason\n原图已保留，可重试或切换识别引擎'
+            : '识别失败：已保留原图，可在「分析」页重试或切换识别引擎',
         color: AppColors.danger,
         backgroundColor: isDark ? const Color(0xFF3B1414) : const Color(0xFFFEF2F2),
+      ));
+    } else if (displayStatus == QuestionDisplayStatus.analysisFailed) {
+      final reason = question.lastAnalysisError;
+      alerts.add(_BannerItem(
+        icon: CupertinoIcons.exclamationmark_triangle_fill,
+        text: reason != null && reason.isNotEmpty
+            ? 'AI 分析失败：$reason\n已保留原图与校对题干，可重试或切换 AI 引擎'
+            : 'AI 分析失败：已保留原图与校对题干，可在「分析」页重试',
+        color: AppColors.danger,
+        backgroundColor: isDark ? const Color(0xFF3B1414) : const Color(0xFFFEF2F2),
+      ));
+    } else if (displayStatus == QuestionDisplayStatus.recognizing ||
+        displayStatus == QuestionDisplayStatus.analyzing) {
+      alerts.add(_BannerItem(
+        icon: CupertinoIcons.hourglass,
+        text: displayStatus == QuestionDisplayStatus.recognizing
+            ? '识别中：正在识别题目内容'
+            : '分析中：AI 正在生成解析',
+        color: AppColors.info,
+        backgroundColor: isDark ? const Color(0xFF0B1B3A) : const Color(0xFFE0F2FE),
       ));
     }
     if (question.imagePath.isEmpty) {
@@ -1778,22 +1784,55 @@ class _AnalysisTab extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (result == null) {
+      final displayStatus = inferQuestionDisplayStatus(current);
+      final isAnalysisFailed =
+          displayStatus == QuestionDisplayStatus.analysisFailed;
+      final isRecognitionFailed =
+          displayStatus == QuestionDisplayStatus.recognitionFailed;
+      final hasError = current.lastAnalysisError != null &&
+          current.lastAnalysisError!.isNotEmpty;
       return SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpace.lg),
         child: AppCard(
           child: Column(
             children: <Widget>[
-              Icon(CupertinoIcons.sparkles,
-                  size: 40, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+              Icon(
+                  isAnalysisFailed || isRecognitionFailed
+                      ? CupertinoIcons.exclamationmark_triangle
+                      : CupertinoIcons.sparkles,
+                  size: 40,
+                  color: (isAnalysisFailed || isRecognitionFailed
+                          ? AppColors.danger
+                          : colorScheme.onSurface)
+                      .withValues(alpha: 0.6)),
               const SizedBox(height: AppSpace.md),
-              const Text('当前已保存识别结果，可继续交给普通 AI 完成答案、错因、知识点和练习分析。', textAlign: TextAlign.center, style: TextStyle(fontSize: 12)),
+              Text(
+                isAnalysisFailed
+                    ? (hasError
+                        ? 'AI 分析失败：${current.lastAnalysisError}\n已保留原图与校对题干，可重试或切换 AI 引擎'
+                        : 'AI 分析失败：已保留原图与校对题干，可重试')
+                    : isRecognitionFailed
+                        ? (hasError
+                            ? '识别失败：${current.lastAnalysisError}\n原图已保留，可重试或切换识别引擎'
+                            : '识别失败：原图已保留，可重试')
+                        : '当前已保存识别结果，可继续交给普通 AI 完成答案、错因、知识点和练习分析。',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: (isAnalysisFailed || isRecognitionFailed)
+                      ? AppColors.danger
+                      : colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: AppSpace.md),
               FilledButton.icon(
                 onPressed: onAddAnalysis,
-                icon: Icon(current.contentStatus.toString().split('.').last == 'failed'
-                    ? CupertinoIcons.arrow_2_circlepath
-                    : CupertinoIcons.camera),
-                label: Text(current.contentStatus.toString().split('.').last == 'failed'
+                icon: Icon(
+                    isAnalysisFailed || isRecognitionFailed
+                        ? CupertinoIcons.arrow_2_circlepath
+                        : CupertinoIcons.camera,
+                    size: 18),
+                label: Text(isAnalysisFailed || isRecognitionFailed
                     ? '重试 AI 解析'
                     : '去添加'),
               ),

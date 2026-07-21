@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
+import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
@@ -72,14 +73,12 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     final queuedQuestions = session.pages
         .where((page) => !session.sourcePageIds.contains(page.id))
         .toList();
-    final readyCount = queuedQuestions
-        .where((item) => item.contentStatus == ContentStatus.ready)
-        .length;
-    final ocrDraftCount = queuedQuestions
-        .where((item) => item.contentStatus == ContentStatus.ready && item.analysisResult == null)
-        .length;
+    final readyCount = queuedQuestions.where((item) =>
+        inferQuestionDisplayStatus(item) == QuestionDisplayStatus.analyzed).length;
+    final ocrDraftCount = queuedQuestions.where((item) =>
+        inferQuestionDisplayStatus(item) == QuestionDisplayStatus.recognized).length;
     final failedCount = queuedQuestions
-        .where((item) => item.contentStatus == ContentStatus.failed)
+        .where((item) => inferQuestionDisplayStatus(item).isFailed)
         .length;
     final scheme = Theme.of(context).colorScheme;
 
@@ -254,7 +253,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
   }
 
   Future<void> _openQueuedQuestion(QuestionRecord question) async {
-    if (question.contentStatus == ContentStatus.ready && question.analysisResult == null) {
+    if (inferQuestionDisplayStatus(question) == QuestionDisplayStatus.recognized) {
       final worksheet = ref.read(currentWorksheetImportProvider);
       if (worksheet != null) {
         final next = worksheet.pages.map((item) => item.id == question.id
@@ -267,15 +266,16 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
       return;
     }
     ref.read(currentQuestionProvider.notifier).state = question;
-    context.go(question.contentStatus == ContentStatus.ready
+    final status = inferQuestionDisplayStatus(question);
+    context.go(status == QuestionDisplayStatus.analyzed ||
+        status == QuestionDisplayStatus.recognized
         ? '/analysis/result'
         : '/analysis/loading');
   }
 
   Future<void> _saveReadyQuestions(List<QuestionRecord> queuedQuestions) async {
-    final ready = queuedQuestions
-        .where((item) => item.contentStatus == ContentStatus.ready)
-        .toList();
+    final ready = queuedQuestions.where((item) =>
+        inferQuestionDisplayStatus(item) == QuestionDisplayStatus.analyzed).toList();
     if (ready.isEmpty) return;
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -310,7 +310,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
   }
 
   Future<void> _retryFailedQuestions(List<QuestionRecord> queuedQuestions) async {
-    final failed = queuedQuestions.where((item) => item.contentStatus == ContentStatus.failed).toList();
+    final failed = queuedQuestions.where((item) => inferQuestionDisplayStatus(item).isFailed).toList();
     if (failed.isEmpty) return;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -338,7 +338,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
 
   Future<void> _analyzeOcrDrafts(List<QuestionRecord> queuedQuestions) async {
     final drafts = queuedQuestions.where((item) =>
-        item.contentStatus == ContentStatus.ready && item.analysisResult == null).toList();
+        inferQuestionDisplayStatus(item) == QuestionDisplayStatus.recognized).toList();
     if (drafts.isEmpty) return;
     final worksheet = ref.read(currentWorksheetImportProvider);
     if (worksheet != null) {
@@ -356,10 +356,18 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
 
   Future<void> _startAllQueuedQuestions(List<QuestionRecord> queuedQuestions) async {
     final next = queuedQuestions.firstWhere(
-      (item) => item.contentStatus != ContentStatus.ready &&
-          item.contentStatus != ContentStatus.failed,
+      (item) {
+        final status = inferQuestionDisplayStatus(item);
+        return status != QuestionDisplayStatus.analyzed &&
+            status != QuestionDisplayStatus.recognized &&
+            !status.isFailed;
+      },
       orElse: () => queuedQuestions.firstWhere(
-        (item) => item.contentStatus != ContentStatus.ready,
+        (item) {
+          final status = inferQuestionDisplayStatus(item);
+          return status != QuestionDisplayStatus.analyzed &&
+              status != QuestionDisplayStatus.recognized;
+        },
         orElse: () => queuedQuestions.first,
       ),
     );
@@ -685,17 +693,19 @@ class _QueueSummaryCard extends StatelessWidget {
           const SizedBox(height: 10),
           const Text('本批结果', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
           const SizedBox(height: 6),
-          ...questions.asMap().entries.map((entry) => _QueueQuestionTile(
-                index: entry.key,
-                question: entry.value,
-                onOpen: () => onOpen(entry.value),
-                onRetry: entry.value.contentStatus == ContentStatus.failed ? () => onRetryQuestion(entry.value) : null,
-                onReedit: (entry.value.contentStatus == ContentStatus.ready &&
-                        entry.value.analysisResult == null)
-                    ? () => onReeditQuestion(entry.value)
-                    : null,
-                autoAnalyzing: autoAnalyzing,
-              )),
+          ...questions.asMap().entries.map((entry) {
+            final displayStatus = inferQuestionDisplayStatus(entry.value);
+            return _QueueQuestionTile(
+              index: entry.key,
+              question: entry.value,
+              onOpen: () => onOpen(entry.value),
+              onRetry: displayStatus.isFailed ? () => onRetryQuestion(entry.value) : null,
+              onReedit: displayStatus == QuestionDisplayStatus.recognized
+                  ? () => onReeditQuestion(entry.value)
+                  : null,
+              autoAnalyzing: autoAnalyzing,
+            );
+          }),
         ],
       ]),
     );
@@ -722,28 +732,33 @@ class _QueueQuestionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = question.contentStatus;
-    final isOcrDraft = status == ContentStatus.ready && question.analysisResult == null;
-    final isFailed = status == ContentStatus.failed;
-    final isProcessing = status == ContentStatus.processing;
+    final displayStatus = inferQuestionDisplayStatus(question);
+    final isFailed = displayStatus.isFailed;
+    final isProcessing = displayStatus.isInProgress;
+    final isOcrDraft = displayStatus == QuestionDisplayStatus.recognized;
 
-    final color = isOcrDraft
-        ? AppColors.info
-        : status == ContentStatus.ready
-        ? AppColors.success
-        : isFailed
-            ? AppColors.danger
-            : AppColors.info;
-
-    final label = isOcrDraft
-        ? 'OCR 草稿'
-        : status == ContentStatus.ready
-        ? '已分析'
-        : isFailed
-            ? '识别失败'
-            : isProcessing
-                ? '分析中'
-                : '待分析';
+    final Color color;
+    final String label;
+    switch (displayStatus) {
+      case QuestionDisplayStatus.recognizing:
+        color = AppColors.info;
+        label = '识别中';
+      case QuestionDisplayStatus.analyzing:
+        color = AppColors.info;
+        label = '分析中';
+      case QuestionDisplayStatus.recognized:
+        color = AppColors.info;
+        label = 'OCR 草稿';
+      case QuestionDisplayStatus.analyzed:
+        color = AppColors.success;
+        label = '已分析';
+      case QuestionDisplayStatus.recognitionFailed:
+        color = AppColors.danger;
+        label = '识别失败';
+      case QuestionDisplayStatus.analysisFailed:
+        color = AppColors.danger;
+        label = '分析失败';
+    }
 
     return InkWell(
       onTap: isProcessing ? null : onOpen,
@@ -773,7 +788,7 @@ class _QueueQuestionTile extends StatelessWidget {
           if (isFailed && onRetry != null && !autoAnalyzing)
             IconButton(
               icon: const Icon(CupertinoIcons.arrow_clockwise, size: 16),
-              tooltip: '重试识别',
+              tooltip: '重试',
               onPressed: onRetry,
             )
           else if (isOcrDraft && onReedit != null && !autoAnalyzing)
