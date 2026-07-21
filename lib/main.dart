@@ -15,6 +15,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_review_log_repository.dart';
 import 'package:smart_wrong_notebook/src/data/migrations/legacy_data_migration.dart';
 import 'package:smart_wrong_notebook/src/data/local/app_database.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
 import 'package:smart_wrong_notebook/src/app/theme/app_theme.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/katex_math_view.dart';
@@ -41,6 +42,12 @@ void main() async {
     questionKnowledgeLinkRepo: questionKnowledgeLinkRepo,
   ).migrateIfNeeded();
 
+  // 跨进程恢复：App 被系统杀掉后，启动时从持久化仓库读回未完成的导入批次，
+  // 避免批次状态丢失。通过 override 注入初始值，UI 即可显示"继续处理"入口。
+  final worksheetImportRepo = WorksheetImportRepository();
+  final restoredWorksheetImport =
+      await loadWorksheetImportSession(worksheetImportRepo);
+
   // 在构建 router 之前先同步加载 onboarding 状态，避免启动闪烁。
   final onboardingNotifier = OnboardingNotifier(initialDone: false);
   await onboardingNotifier.loadFromSettings(settingsRepo.getString);
@@ -58,6 +65,8 @@ void main() async {
         reviewLogRepositoryProvider.overrideWithValue(reviewLogRepo),
         knowledgePointRepositoryProvider.overrideWithValue(knowledgePointRepo),
         questionKnowledgeLinkRepositoryProvider.overrideWithValue(questionKnowledgeLinkRepo),
+        worksheetImportRepositoryProvider.overrideWithValue(worksheetImportRepo),
+        currentWorksheetImportProvider.overrideWith((_) => restoredWorksheetImport),
         onboardingNotifierProvider.overrideWithValue(onboardingNotifier),
         // 注意：不要 override aiAnalysisServiceProvider，让它使用 settingsRepo
         imageStorageServiceProvider.overrideWithValue(ImageStorageService()),

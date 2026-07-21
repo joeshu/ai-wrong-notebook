@@ -379,10 +379,22 @@ final StateProvider<List<String>> worksheetDraftQuestionIdsProvider =
 final StateProvider<WorksheetImportSession?> currentWorksheetImportProvider =
     StateProvider<WorksheetImportSession?>((ref) => null);
 
+/// 从持久化仓库恢复上次未完成的导入批次。
+///
+/// 在 app 启动时调用，避免 App 被系统杀掉后批次状态丢失。
+/// 返回恢复的 session（同时写入 [currentWorksheetImportProvider]）；
+/// 无草稿时返回 null。
 Future<WorksheetImportSession?> restoreWorksheetImport(WidgetRef ref) async {
   final restored = await ref.read(worksheetImportRepositoryProvider).load();
   ref.read(currentWorksheetImportProvider.notifier).state = restored;
   return restored;
+}
+
+/// 仅读取持久化仓库中的批次，不依赖 WidgetRef。
+/// 用于 app 启动时（ProviderScope 尚未建立）预加载批次。
+Future<WorksheetImportSession?> loadWorksheetImportSession(
+    WorksheetImportRepository repository) async {
+  return repository.load();
 }
 
 Future<void> persistWorksheetImport(
