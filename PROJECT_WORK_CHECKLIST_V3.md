@@ -303,10 +303,10 @@
 
 - [ ] 评估是否废弃 `question_correction_screen`(实为预览页)
   > 待后续
-- [ ] `question_save_confirmation_screen` 接入 `FieldStatus` 5 态徽章
-  > FieldStatus + StatusPill 已抽离到 `shared/widgets/status_pill.dart`,具备接入条件;实际接入待后续
-- [ ] `question_split_confirmation_screen` 接入 `FieldStatus` 5 态徽章
-  > 同上
+- [x] `question_save_confirmation_screen` 接入 `FieldStatus` 5 态徽章
+  > 标题"确认题目内容"旁加 StatusPill,label='题干',status 由 _questionFieldStatus(QuestionRecord) 判定:文本空→missing,ocrConfidence<0.6→needsReview,否则 recognized
+- [x] `question_split_confirmation_screen` 接入 `FieldStatus` 5 态徽章
+  > 题目列表每条 draft 卡片末尾加 StatusPill(label='题N');"当前题目内容"标题旁也加 StatusPill(label='当前题');status 由 draft.text 是否空 + draft.canSave 判定:空→missing,canSave=true→recognized,否则 needsReview
 - [ ] 三屏统一提供 LaTeX 公式独立编辑入口
   > 待后续(目前项目无专门 LaTeX 编辑器,都用 TextField + `$...$` 标记)
 - [ ] 三屏统一提供"重新识别/换引擎"入口(条件显示)
@@ -370,8 +370,12 @@
 - [ ] 筛选支持按掌握度三档
 - [ ] 筛选支持按难度(QuestionDifficulty)
 - [ ] 筛选条件持久化(下次进入保留上次筛选)
-- [ ] 服务层接入 4 个新字段(6 个导出服务读取 includeOcrText/includeAiAnalysis/includeReviewHistory/includeKnowledgeTree)
-  > 延后:HTML/PDF/Markdown/Anki/CSV/JSON 6 个导出服务读取新字段输出对应内容,工作量较大,作为 Phase 11+ 后续工作
+- [x] 服务层接入 4 个新字段(6 个导出服务读取 includeOcrText/includeAiAnalysis/includeReviewHistory/includeKnowledgeTree)
+  > MarkdownExportService.generateMarkdown 加 reviewLogs/knowledgeTreePaths 参数,_writeQuestion 按 4 个开关输出 OCR 原文/完整 AI 分析(JSON 代码块)/复习历史时间线/知识点树路径
+  > JsonExportService.generateJson 加 contentOptions 参数(语义对齐,旧的 includeReviewLogs 保留为兼容)+ knowledgeTreePaths 挂到每条 question 的 `knowledgeTreePaths` 字段
+  > CsvExportService.generateCsv 加 contentOptions 参数,表头/行按选项动态裁剪基础列+追加扩展列(OCR原文/AI分析)
+  > AnkiExportService._buildBack 加 includeOcrText 输出段落(analysisResult 为 null 时也输出)
+  > export_workbench_screen._exportFormat 按需预查 reviewLogs(全量) + _buildKnowledgeTreePaths(逐题拼面包屑) 并传给下游 4 个服务(HTML 也传 reviewLogs)
 
 ## 5. PDF 排版优化
 

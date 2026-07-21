@@ -106,7 +106,15 @@ class AnkiExportService {
 
   String _buildBack(QuestionRecord q, ExportContentOptions contentOptions) {
     final analysis = q.analysisResult;
-    if (analysis == null) return '';
+    if (analysis == null) {
+      // Phase 11-4：即使没有 AI 分析，OCR 原文开关打开时也输出一段。
+      if (contentOptions.includeOcrText &&
+          q.extractedQuestionText.isNotEmpty &&
+          q.extractedQuestionText != q.normalizedQuestionText) {
+        return '<b>OCR 原文：</b>${_escapeField(q.extractedQuestionText)}';
+      }
+      return '';
+    }
     final parts = <String>[];
     if (contentOptions.includeCorrectAnswer &&
         analysis.finalAnswer.isNotEmpty) {
@@ -134,6 +142,12 @@ class AnkiExportService {
     }
     if (contentOptions.includeStudyAdvice && analysis.studyAdvice.isNotEmpty) {
       parts.add('<b>学习建议：</b>${_escapeField(analysis.studyAdvice)}');
+    }
+    // Phase 11-4：OCR 识别原文（与正面校对文本对照）。
+    if (contentOptions.includeOcrText &&
+        q.extractedQuestionText.isNotEmpty &&
+        q.extractedQuestionText != q.normalizedQuestionText) {
+      parts.add('<b>OCR 原文：</b>${_escapeField(q.extractedQuestionText)}');
     }
     return parts.join('<br><br>');
   }

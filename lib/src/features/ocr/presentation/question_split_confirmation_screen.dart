@@ -9,6 +9,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/status_pill.dart';
 
 const _mathPreviewFormat = QuestionContentFormat.latexMixed;
 
@@ -311,6 +312,16 @@ class _QuestionSplitConfirmationScreenState
                                   color: Theme.of(context)
                                       .colorScheme
                                       .outlineVariant),
+                              // Phase 10-4：每条拆分候选题旁加 FieldStatus 徽章，
+                              // 直观展示该候选题的识别状态。
+                              StatusPill(
+                                label: '题${index + 1}',
+                                status: draft.text.trim().isEmpty
+                                    ? FieldStatus.missing
+                                    : (draft.canSave
+                                        ? FieldStatus.recognized
+                                        : FieldStatus.needsReview),
+                              ),
                             ],
                           ),
                         ),
@@ -339,6 +350,16 @@ class _QuestionSplitConfirmationScreenState
                         const Text('当前题目内容',
                             style: TextStyle(
                                 fontSize: 14, fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 8),
+                        // Phase 10-4：当前激活题目也接 FieldStatus 徽章。
+                        StatusPill(
+                          label: '当前题',
+                          status: activeDraft.text.trim().isEmpty
+                              ? FieldStatus.missing
+                              : (activeDraft.canSave
+                                  ? FieldStatus.recognized
+                                  : FieldStatus.needsReview),
+                        ),
                         const Spacer(),
                         Text('第 ${safeIndex + 1} 题',
                             style: TextStyle(

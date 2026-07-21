@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:intl/intl.dart';
@@ -5,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
@@ -21,15 +23,39 @@ import 'worksheet_export_mode.dart';
 /// - 末尾统计：总题数、按学科分布、按掌握度分布
 class MarkdownExportService {
   /// 生成 Markdown 文本，调用方负责后续分享或写文件。
+  ///
+  /// [reviewLogs] 当 [ExportContentOptions.includeReviewHistory] 为 true 时
+  /// 用于输出每题的复习历史时间线，调用方应预查并按 [QuestionRecord.id]
+  /// 索引传入；为 null 时即使开关打开也不会输出复习历史。
+  ///
+  /// [knowledgeTreePaths] 当 [ExportContentOptions.includeKnowledgeTree] 为
+  /// true 时用于输出每题的知识点树面包屑路径，key 为 questionId，value 为
+  /// 形如 `数学 > 代数 > 二次方程` 的路径字符串列表；为 null 时即使开关
+  /// 打开也不会输出知识点路径。
   Future<String> generateMarkdown({
     required List<QuestionRecord> questions,
     required WorksheetExportMode mode,
     required ExportContentOptions contentOptions,
     String? studentName,
     String? className,
+    List<ReviewLog>? reviewLogs,
+    Map<String, List<String>>? knowledgeTreePaths,
   }) async {
     final dateStr = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
     final buffer = StringBuffer();
+
+    // 按 questionId 索引复习历史，避免每次循环重新过滤。
+    final reviewLogsByQuestion = <String, List<ReviewLog>>{};
+    if (reviewLogs != null) {
+      for (final log in reviewLogs) {
+        reviewLogsByQuestion
+            .putIfAbsent(log.questionRecordId, () => [])
+            .add(log);
+      }
+      for (final list in reviewLogsByQuestion.values) {
+        list.sort((a, b) => a.reviewedAt.compareTo(b.reviewedAt));
+      }
+    }
 
     // ── 文件头 ──────────────────────────────────────────────────────────
     buffer.writeln('# 错题本整理报告');
@@ -61,7 +87,10 @@ class MarkdownExportService {
       for (final q in list) {
         globalIndex++;
         _writeQuestion(buffer, globalIndex, q,
-            mode: mode, contentOptions: contentOptions);
+            mode: mode,
+            contentOptions: contentOptions,
+            reviewLogs: reviewLogsByQuestion[q.id],
+            knowledgeTreePaths: knowledgeTreePaths?[q.id]);
       }
     }
 
@@ -93,6 +122,8 @@ class MarkdownExportService {
     QuestionRecord q, {
     required WorksheetExportMode mode,
     required ExportContentOptions contentOptions,
+    List<ReviewLog>? reviewLogs,
+    List<String>? knowledgeTreePaths,
   }) {
     final questionText = q.normalizedQuestionText.isNotEmpty
         ? q.normalizedQuestionText
@@ -110,6 +141,14 @@ class MarkdownExportService {
     // 题图
     if (contentOptions.includeImage && q.imagePath.isNotEmpty) {
       buffer.writeln('![题目](${q.imagePath})');
+      buffer.writeln();
+    }
+
+    // Phase 11-4：OCR 识别原文（与用户校对后的题干对照，便于校对场景）。
+    if (contentOptions.includeOcrText &&
+        q.extractedQuestionText.isNotEmpty &&
+        q.extractedQuestionText != q.normalizedQuestionText) {
+      buffer.writeln('**OCR 原文：** ${q.extractedQuestionText}');
       buffer.writeln();
     }
 
@@ -162,9 +201,38 @@ class MarkdownExportService {
       }
     }
 
+    // Phase 11-4：完整 AI 分析原文（结构化 JSON 代码块）。
+    // 与上面分段字段不同：本字段输出 AnalysisResult 完整序列化，
+    // 便于离线复盘 AI 推理质量。
+    if (contentOptions.includeAiAnalysis && q.analysisResult != null) {
+      final json = q.analysisResult!.toJson();
+      const encoder = JsonEncoder.withIndent('  ');
+      buffer.writeln('**完整 AI 分析：**');
+      buffer.writeln();
+      buffer.writeln('```json');
+      buffer.writeln(encoder.convert(json));
+      buffer.writeln('```');
+      buffer.writeln();
+    }
+
     // 复习次数
     if (contentOptions.includeReviewCount && q.reviewCount > 0) {
       buffer.writeln('**复习次数：** ${q.reviewCount}');
+      buffer.writeln();
+    }
+
+    // Phase 11-4：复习历史时间线（含每次复习日期、评分、掌握度）。
+    // 与 includeReviewCount（仅次数）不同：本字段输出全部 ReviewLog。
+    if (contentOptions.includeReviewHistory &&
+        reviewLogs != null &&
+        reviewLogs.isNotEmpty) {
+      buffer.writeln('**复习历史：**');
+      buffer.writeln();
+      for (final log in reviewLogs) {
+        final date = DateFormat('yyyy-MM-dd HH:mm').format(log.reviewedAt);
+        buffer.writeln(
+            '- $date · ${log.result} · ${_masteryLabel(log.masteryAfter)}');
+      }
       buffer.writeln();
     }
 
@@ -185,6 +253,19 @@ class MarkdownExportService {
       if (q.nextReviewAt != null) {
         buffer.writeln(
             '**下次复习：** ${DateFormat('yyyy-MM-dd').format(q.nextReviewAt!)}');
+      }
+      buffer.writeln();
+    }
+
+    // Phase 11-4：知识点树路径（形如 `数学 > 代数 > 二次方程`）。
+    // 与 includeKnowledgePoints（仅名称）不同：本字段输出完整层级路径。
+    if (contentOptions.includeKnowledgeTree &&
+        knowledgeTreePaths != null &&
+        knowledgeTreePaths.isNotEmpty) {
+      buffer.writeln('**知识点树路径：**');
+      buffer.writeln();
+      for (final path in knowledgeTreePaths) {
+        buffer.writeln('- $path');
       }
       buffer.writeln();
     }

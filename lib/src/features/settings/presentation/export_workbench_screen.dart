@@ -5,7 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/anki_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/csv_export_service.dart';
@@ -629,6 +632,34 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     // use_build_context_synchronously 警告。
     final messenger = ScaffoldMessenger.of(context);
     final renderBox = context.findRenderObject() as RenderBox?;
+
+    // Phase 11-4：按需预查扩展数据，避免在不需要时付出查询代价。
+    // - reviewLogs：当 includeReviewHistory 打开时，从仓库取全量复习日志。
+    // - knowledgeTreePaths：当 includeKnowledgeTree 打开时，逐题查询关联
+    //   知识点并拼接面包屑路径。两项数据预查一次后供下游 6 个服务复用。
+    final List<ReviewLog> reviewLogs;
+    final Map<String, List<String>> knowledgeTreePaths;
+    if (contentOptions.includeReviewHistory ||
+        contentOptions.includeKnowledgeTree) {
+      final reviewLogRepo = ref.read(reviewLogRepositoryProvider);
+      final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+      final kpRepo = ref.read(knowledgePointRepositoryProvider);
+      if (contentOptions.includeReviewHistory) {
+        reviewLogs = await reviewLogRepo.listAll();
+      } else {
+        reviewLogs = const <ReviewLog>[];
+      }
+      if (contentOptions.includeKnowledgeTree) {
+        knowledgeTreePaths =
+            await _buildKnowledgeTreePaths(questions, linkRepo, kpRepo);
+      } else {
+        knowledgeTreePaths = const <String, List<String>>{};
+      }
+    } else {
+      reviewLogs = const <ReviewLog>[];
+      knowledgeTreePaths = const <String, List<String>>{};
+    }
+
     // 工作台已在外层显示进度对话框，这里直接调用底层生成接口，
     // 不再走 shareHtml / sharePdf —— 它们各自会再弹一个进度对话框，
     // 与工作台外层对话框叠加，且 Share.shareXFiles await 期间内层对话框
@@ -643,6 +674,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           watermark: watermark,
           layoutOptions: options.layoutOptions,
           templateType: options.templateType,
+          reviewLogs: reviewLogs,
           onProgress: (done, total) {
             // 0..1 表示当前格式内部进度，由外层换算到整体进度。
             progress.value = total == 0 ? 1 : done / total;
@@ -687,6 +719,8 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           contentOptions: contentOptions,
           studentName: studentInfo?.name,
           className: studentInfo?.className,
+          reviewLogs: reviewLogs,
+          knowledgeTreePaths: knowledgeTreePaths,
         );
         await MarkdownExportService().shareMarkdown(
             md, _buildFileName('md', options: options));
@@ -700,19 +734,60 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
             ankiText, _buildFileName('txt', options: options));
         break;
       case ExportFormat.csv:
-        final csv = await CsvExportService().generateCsv(questions: questions);
+        final csv = await CsvExportService().generateCsv(
+          questions: questions,
+          contentOptions: contentOptions,
+        );
         await CsvExportService()
             .shareCsv(csv, _buildFileName('csv', options: options));
         break;
       case ExportFormat.json:
         final json = await JsonExportService().generateJson(
           questions: questions,
-          includeReviewLogs: true,
+          contentOptions: contentOptions,
+          reviewLogs: reviewLogs,
+          knowledgeTreePaths: knowledgeTreePaths,
         );
         await JsonExportService()
             .shareJson(json, _buildFileName('json', options: options));
         break;
     }
+  }
+
+  /// Phase 11-4：为每道题目拼接知识点树面包屑路径。
+  ///
+  /// 流程：`linksForQuestion(q.id)` 拿到该题关联的全部 KnowledgePoint ID
+  /// → 对每个 ID 调 `ancestorPath(id)` 拿到"自身→根"列表 → 反转为
+  /// "根→叶"顺序 → 用 ` > ` 拼接节点名。
+  ///
+  /// 返回 `Map<questionId, List<path>>`，path 形如
+  /// `数学 > 代数 > 二次方程`。一题可关联多个知识点，故 value 是 List。
+  Future<Map<String, List<String>>> _buildKnowledgeTreePaths(
+    List<QuestionRecord> questions,
+    QuestionKnowledgeLinkRepository linkRepo,
+    KnowledgePointRepository kpRepo,
+  ) async {
+    final result = <String, List<String>>{};
+    for (final q in questions) {
+      final links = await linkRepo.linksForQuestion(q.id);
+      if (links.isEmpty) continue;
+      final paths = <String>[];
+      for (final link in links) {
+        final ancestors = await kpRepo.ancestorPath(link.knowledgePointId);
+        if (ancestors.isEmpty) continue;
+        // ancestorPath 返回"自身→根"顺序，反转得到"根→叶"。
+        final breadcrumb = ancestors
+            .reversed
+            .map((kp) => kp.name)
+            .where((name) => name.isNotEmpty)
+            .join(' > ');
+        if (breadcrumb.isNotEmpty) paths.add(breadcrumb);
+      }
+      if (paths.isNotEmpty) {
+        result[q.id] = paths;
+      }
+    }
+    return result;
   }
 
   /// 调起系统分享单文件，桌面端 share_plus 失败时回退到系统默认打开。

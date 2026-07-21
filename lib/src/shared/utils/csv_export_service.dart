@@ -9,6 +9,8 @@ import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
+import 'export_content_options.dart';
+
 /// 生成 CSV 格式的错题本导出。
 ///
 /// - 表头：题号,学科,题干,知识点,错因,掌握度,难度,复习次数,收藏,
@@ -22,25 +24,34 @@ class CsvExportService {
   static const int questionTextLimit = 200;
 
   /// 生成 CSV 文本（不含 BOM，BOM 在写文件时由 [shareCsv] 添加）。
+  ///
+  /// [contentOptions] 控制可选列的输出：
+  /// - 默认（无 contentOptions 或字段缺失）输出全部 12 列，与历史行为一致
+  /// - 扩展列（OCR 原文 / 完整 AI 分析）默认关闭，仅在对应开关打开时追加列
   Future<String> generateCsv({
     required List<QuestionRecord> questions,
+    ExportContentOptions? contentOptions,
   }) async {
+    final options = contentOptions ?? const ExportContentOptions();
     final buffer = StringBuffer();
-    // 表头
-    buffer.writeln([
+    // 表头：基础 12 列按选项动态裁剪，扩展列在末尾按开关追加。
+    final header = <String>[
       '题号',
       '学科',
       '题干',
-      '知识点',
-      '错因',
+      if (options.includeKnowledgePoints) '知识点',
+      if (options.includeMistakeReason) '错因',
       '掌握度',
       '难度',
-      '复习次数',
-      '收藏',
-      '创建日期',
-      '上次复习日期',
-      '下次复习日期',
-    ].map(_escapeCsvField).join(','));
+      if (options.includeReviewCount) '复习次数',
+      if (options.includeFavoriteMark) '收藏',
+      if (options.includeDates) '创建日期',
+      if (options.includeDates) '上次复习日期',
+      if (options.includeDates) '下次复习日期',
+      if (options.includeOcrText) 'OCR原文',
+      if (options.includeAiAnalysis) 'AI分析',
+    ];
+    buffer.writeln(header.map(_escapeCsvField).join(','));
 
     for (var i = 0; i < questions.length; i++) {
       final q = questions[i];
@@ -61,20 +72,29 @@ class CsvExportService {
       final mastery = _masteryLabel(q.masteryLevel);
       final difficulty = _difficultyLabel(q.difficulty);
 
-      buffer.writeln([
+      final row = <String>[
         (i + 1).toString(),
         q.subject.label,
         truncated,
-        kps,
-        mistakeReason,
+        if (options.includeKnowledgePoints) kps,
+        if (options.includeMistakeReason) mistakeReason,
         mastery,
         difficulty,
-        q.reviewCount.toString(),
-        q.isFavorite ? '是' : '否',
-        _formatDate(q.createdAt),
-        _formatDate(q.lastReviewedAt),
-        _formatDate(q.nextReviewAt),
-      ].map(_escapeCsvField).join(','));
+        if (options.includeReviewCount) q.reviewCount.toString(),
+        if (options.includeFavoriteMark) (q.isFavorite ? '是' : '否'),
+        if (options.includeDates) _formatDate(q.createdAt),
+        if (options.includeDates) _formatDate(q.lastReviewedAt),
+        if (options.includeDates) _formatDate(q.nextReviewAt),
+        if (options.includeOcrText)
+          LatexNormalizer.normalizeLiteralNewlines(q.extractedQuestionText)
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim(),
+        if (options.includeAiAnalysis && analysis != null)
+          analysis.finalAnswer.isEmpty
+              ? ''
+              : '答案:${analysis.finalAnswer};步骤:${analysis.steps.length}步',
+      ];
+      buffer.writeln(row.map(_escapeCsvField).join(','));
     }
 
     return buffer.toString();

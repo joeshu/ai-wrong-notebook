@@ -10,6 +10,7 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/duplicate_detector.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/status_pill.dart';
 
 class QuestionSaveConfirmationScreen extends ConsumerStatefulWidget {
   const QuestionSaveConfirmationScreen({super.key});
@@ -208,12 +209,23 @@ class _QuestionSaveConfirmationScreenState
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      '确认题目内容',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
+                    Row(
+                      children: <Widget>[
+                        Text(
+                          '确认题目内容',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 8),
+                        // Phase 10-4：接入统一 FieldStatus 徽章，
+                        // 直观展示题干识别状态。OCR 置信度 < 0.6 视为待校对。
+                        StatusPill(
+                          label: '题干',
+                          status: _questionFieldStatus(current),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -348,6 +360,23 @@ class _QuestionSaveConfirmationScreenState
         ),
       ),
     );
+  }
+
+  /// Phase 10-4：根据题目 OCR 置信度与文本非空判断题干字段状态。
+  ///
+  /// - normalizedQuestionText 为空 → [FieldStatus.missing]（未识别）
+  /// - 文本非空 且 ocrConfidence < 0.6 → [FieldStatus.needsReview]（待校对）
+  /// - 文本非空 且 ocrConfidence >= 0.6 或置信度未知 → [FieldStatus.recognized]
+  FieldStatus _questionFieldStatus(QuestionRecord q) {
+    final text = q.normalizedQuestionText.isNotEmpty
+        ? q.normalizedQuestionText
+        : q.extractedQuestionText;
+    if (text.trim().isEmpty) return FieldStatus.missing;
+    final confidence = q.ocrConfidence;
+    if (confidence != null && confidence < 0.6) {
+      return FieldStatus.needsReview;
+    }
+    return FieldStatus.recognized;
   }
 
   /// 是否需要在保存前再提示一次相似题确认。
