@@ -746,7 +746,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     final now = DateTime.now();
     final datePart =
         '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-    return '${templatePart}_$subjectPart_$datePart.$extension';
+    return '${templatePart}_${subjectPart}_$datePart.$extension';
   }
 
   /// 学科范围标签：单学科返回学科名，多学科返回"多学科"，空题库返回"空"。
