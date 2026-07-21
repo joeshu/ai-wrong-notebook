@@ -226,13 +226,19 @@ void main() {
         ),
       ];
 
-      final recs = await service.generate(inputs: inputs);
+      final recs = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
       expect(recs, isNotEmpty);
 
       // Ignore the first recommendation
       await service.ignore(recs.first.id);
 
-      final recsAfterIgnore = await service.generate(inputs: inputs);
+      final recsAfterIgnore = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
       expect(
         recsAfterIgnore.any((r) => r.id == recs.first.id),
         isFalse,
@@ -249,10 +255,16 @@ void main() {
         ),
       ];
 
-      final recs = await service.generate(inputs: inputs);
+      final recs = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
       await service.markInvalid(recs.first.id);
 
-      final recsAfter = await service.generate(inputs: inputs);
+      final recsAfter = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
       expect(recsAfter.any((r) => r.id == recs.first.id), isFalse);
     });
 
@@ -266,11 +278,17 @@ void main() {
         ),
       ];
 
-      final recs = await service.generate(inputs: inputs);
+      final recs = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
       await service.ignore(recs.first.id);
       await service.clearIgnored();
 
-      final recsAfter = await service.generate(inputs: inputs);
+      final recsAfter = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
       expect(recsAfter.any((r) => r.id == recs.first.id), isTrue);
     });
   });
