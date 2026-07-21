@@ -292,8 +292,9 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
     }
   }
 
-  Future<LayoutProviderType?> _showRecognitionChoiceDialog() {
-    final layoutConfig = restoreLayoutProviderConfig(ref);
+  Future<LayoutProviderType?> _showRecognitionChoiceDialog() async {
+    final layoutConfig = await restoreLayoutProviderConfig(ref);
+    if (!mounted) return null;
     return EngineChoiceSheet.show(
       context,
       config: layoutConfig,
