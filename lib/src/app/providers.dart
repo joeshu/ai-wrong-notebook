@@ -33,6 +33,7 @@ import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mapping_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 
 // --- Repository providers (default implementations) ---
@@ -73,6 +74,15 @@ final FutureProvider<List<KnowledgePoint>> knowledgePointTreeProvider =
 void invalidateKnowledgePointTree(WidgetRef ref) {
   ref.read(_knowledgePointVersionProvider.notifier).state++;
 }
+
+/// 知识点映射服务（Phase 4）：AI 自由文本 → 受控知识点 ID。
+final Provider<KnowledgePointMappingService> knowledgePointMappingServiceProvider =
+    Provider<KnowledgePointMappingService>((ref) {
+  return KnowledgePointMappingService(
+    ref.read(knowledgePointRepositoryProvider),
+    ref.read(questionKnowledgeLinkRepositoryProvider),
+  );
+});
 
 final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((ref) {
