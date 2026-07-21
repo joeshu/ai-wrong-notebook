@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
@@ -151,7 +154,9 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
                   current: current,
                   editing: _editing,
                   batchGroup: batchGroup,
-                  showFullImage: (path) => _showFullImage(context, path),
+                  showFullImage: (path, filename) =>
+                      _showFullImage(context, path, filename),
+                  onReselectImage: () => _reselectImage(context, ref, current),
                   onToggleFavorite: () => _toggleFavorite(context, ref, current),
                   onEditSource: () => _editSource(context, ref, current),
                   onEditLearningContext: () => _editLearningContext(context, ref, current),
@@ -545,7 +550,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
     );
   }
 
-  void _showFullImage(BuildContext context, String imagePath) {
+  void _showFullImage(BuildContext context, String imagePath, String? filename) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
@@ -553,20 +558,66 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             foregroundColor: Colors.white,
-            title: const Text('原图'),
+            title: Text(filename != null && filename.isNotEmpty
+                ? '原图 · $filename'
+                : '原图'),
           ),
           body: Center(
             child: InteractiveViewer(
               child: CachedQuestionImage(
                 imagePath,
                 highRes: true,
-                errorMessage: '附件加载失败：请检查原图文件',
+                filename: filename,
               ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  /// 详情页重新选图：保留题目其它字段，仅替换 imagePath 并持久化。
+  ///
+  /// 与批量导入页不同，这里走错题本仓库而不是 worksheet 会话，因为题目
+  /// 已经落库。旧文件若仍存在则清理；不阻塞主流程。
+  Future<void> _reselectImage(
+    BuildContext context,
+    WidgetRef ref,
+    QuestionRecord question,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final XFile? picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2560,
+      maxHeight: 2560,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+    try {
+      final storage = ref.read(imageStorageServiceProvider);
+      final newPath = await storage.saveImage(File(picked.path));
+      final oldPath = question.imagePath;
+      // 重置识别状态为 processing，提示用户重新走识别流程；同时清空失败原因。
+      final updated = question.copyWith(
+        imagePath: newPath,
+        contentStatus: ContentStatus.processing,
+        ocrConfidence: null,
+      ).withLastAnalysisError(null);
+      await ref.read(questionRepositoryProvider).update(updated);
+      ref.read(currentQuestionProvider.notifier).state = updated;
+      invalidateQuestionList(ref);
+      if (oldPath.isNotEmpty && oldPath != newPath) {
+        await storage.deleteImage(oldPath);
+      }
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(
+        content: Text('已重新选图，识别状态已重置，可重新识别'),
+        duration: Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('重新选图失败: $e')));
+    }
   }
 
   Future<void> _toggleFavorite(
@@ -758,6 +809,7 @@ class _QuestionTab extends StatelessWidget {
     required this.editing,
     required this.batchGroup,
     required this.showFullImage,
+    required this.onReselectImage,
     required this.onToggleFavorite,
     required this.onEditSource,
     required this.onEditLearningContext,
@@ -772,7 +824,11 @@ class _QuestionTab extends StatelessWidget {
   final QuestionRecord current;
   final bool editing;
   final QuestionBatchGroup? batchGroup;
-  final void Function(String) showFullImage;
+  /// 放大查看原图。第二个参数为原图文件名，可为空。
+  final void Function(String path, String? filename) showFullImage;
+  /// 重新选图入口，由详情页 state 提供。
+  /// 缩略图/放大态附件加载失败时，让用户重新绑定原图。
+  final VoidCallback onReselectImage;
   final VoidCallback onToggleFavorite;
   final VoidCallback onEditSource;
   final VoidCallback onEditLearningContext;
@@ -954,7 +1010,7 @@ class _QuestionTab extends StatelessWidget {
           ],
           if (current.imagePath.isNotEmpty) ...<Widget>[
             GestureDetector(
-              onTap: () => showFullImage(current.imagePath),
+              onTap: () => showFullImage(current.imagePath, current.originalImageFilename),
               child: Container(
                 height: 160,
                 decoration: BoxDecoration(
@@ -971,7 +1027,8 @@ class _QuestionTab extends StatelessWidget {
                         child: CachedQuestionImage(
                           current.imagePath,
                           fit: BoxFit.contain,
-                          errorMessage: current.imagePath.isEmpty ? '附件缺失：未保存原图' : '附件加载失败：请检查原图文件',
+                          onReselect: onReselectImage,
+                          filename: current.originalImageFilename,
                         ),
                       ),
                     ),
