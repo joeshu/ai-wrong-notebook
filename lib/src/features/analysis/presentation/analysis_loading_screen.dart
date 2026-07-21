@@ -8,8 +8,10 @@ import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
 
 class AnalysisLoadingScreen extends ConsumerStatefulWidget {
@@ -29,6 +31,12 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
   // 是否由极速模式进入（拍照后跳过裁剪/校对直接进入解析）。
   // 失败时若为 true，则提供"重新裁剪 / 重新拍照 / 取消"按钮。
   bool _isQuickCapture = false;
+  // 是否处于"超时可恢复"状态。Dio 自身超时会抛 AiAnalysisException 走通用失败路径；
+  // 这里再加一层总超时保险，避免极端慢响应让加载页无限旋转。
+  bool _isTimeout = false;
+  Timer? _timeoutTimer;
+  // 上层总超时阈值。超过 Dio receiveTimeout (240s) 即不合理，给一个更早的兜底。
+  static const _analysisTimeout = Duration(seconds: 120);
 
   final _steps = const ['正在识别题目...', '正在理解题意...', '正在生成解析...', '即将完成...'];
 
@@ -77,7 +85,30 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
   @override
   void dispose() {
     _stepTimer?.cancel();
+    _timeoutTimer?.cancel();
     super.dispose();
+  }
+
+  /// 启动总超时计时器。若超过 [_analysisTimeout] 仍未完成，强制进入
+  /// 超时可恢复状态，避免 Dio 慢响应导致加载页无限旋转。
+  void _startTimeoutTimer() {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = Timer(_analysisTimeout, () {
+      if (!mounted) return;
+      // 已经在错误/成功态时不再覆盖。
+      if (_errorMessage != null) return;
+      setState(() {
+        _isTimeout = true;
+        _stepTimer?.cancel();
+        _errorMessage = '识别超时（已等待 ${_analysisTimeout.inSeconds} 秒）。'
+            '可重试当前引擎，或切换到其他识别引擎。';
+      });
+    });
+  }
+
+  void _clearTimeoutTimer() {
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
   }
 
   Future<void> _runAnalysis() async {
@@ -87,11 +118,23 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       return;
     }
 
+    // 重置超时态并启动总超时计时器。
+    if (_isTimeout || _errorMessage != null) {
+      setState(() {
+        _isTimeout = false;
+        _errorMessage = null;
+        _progressText = null;
+        _step = 0;
+      });
+    }
+    _startTimeoutTimer();
+
     final reusable = await _findReusableLocalAnalysis(current);
     if (reusable != null) {
       ref.read(currentQuestionProvider.notifier).state = reusable;
       if (mounted) {
         _stepTimer?.cancel();
+        _clearTimeoutTimer();
         context.go('/analysis/result');
       }
       return;
@@ -275,6 +318,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       );
       ref.read(currentQuestionProvider.notifier).state = updated;
       await _replaceWorksheetQueueItem(updated);
+      _clearTimeoutTimer();
 
       if (mounted) {
         _stepTimer?.cancel();
@@ -287,6 +331,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         context.go('/analysis/result');
       }
     } on AiAnalysisException catch (e) {
+      _clearTimeoutTimer();
       // AI 不可用时也必须保留原图和用户已校对的题干。saveDraft 是幂等
       // upsert，既覆盖同 ID 的处理中草稿，也兼容首次保存。
       final failedDraft = current.copyWith(contentStatus: ContentStatus.failed);
@@ -302,9 +347,10 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         if (_continueWorksheetQueue(failedDraft)) return;
         // 极速模式下没有"已校对题干"，文案需调整；否则保留原文案。
         final suffix = _isQuickCapture
-            ? '原图已保存到错题本，可选择重新裁剪、重新拍照，或取消后稍后重试。'
-            : '原图和已校对题干已保存到错题本，可稍后重试或手动补充。';
+            ? '原图已保存到错题本，可重试、切换引擎，或重新裁剪/重新拍照。'
+            : '原图和已校对题干已保存到错题本，可重试、切换引擎，或稍后手动补充。';
         setState(() {
+          _isTimeout = false;
           _errorMessage = '${friendlyAiErrorMessage(e)}\n\n$suffix';
           _debugInfo = debugInfo;
         });
@@ -486,70 +532,181 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            if (_isQuickCapture) ...<Widget>[
-              // 极速模式失败：给"重新裁剪 / 重新拍照 / 取消"三个按钮。
-              // 重新裁剪会带着原图进入裁剪页，让用户走原流程补一遍。
+            // 主操作行：重试 + 切换引擎。所有失败场景（含极速模式和超时态）
+            // 都提供"重试"和"切换引擎"两个核心恢复入口。
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              children: <Widget>[
+                FilledButton.icon(
+                  onPressed: _retry,
+                  icon: const Icon(CupertinoIcons.arrow_clockwise),
+                  label: const Text('重试'),
+                  style: FilledButton.styleFrom(
+                      minimumSize: const Size(120, 40)),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _showEngineSwitchDialog,
+                  icon: const Icon(CupertinoIcons.arrow_2_squarepath),
+                  label: const Text('切换引擎'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // 次要操作：极速模式给"重新裁剪/重新拍照"，非极速给"返回校对"。
+            if (_isQuickCapture)
               Wrap(
                 alignment: WrapAlignment.center,
                 spacing: 12,
                 runSpacing: 10,
                 children: <Widget>[
-                  OutlinedButton.icon(
+                  TextButton.icon(
                     onPressed: () => context.go('/capture/crop'),
                     icon: const Icon(CupertinoIcons.crop),
                     label: const Text('重新裁剪'),
                   ),
-                  FilledButton.icon(
+                  TextButton.icon(
                     onPressed: () => context.go('/'),
                     icon: const Icon(CupertinoIcons.camera),
                     label: const Text('重新拍照'),
-                    style: FilledButton.styleFrom(
-                        minimumSize: const Size(120, 40)),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => context.go('/notebook'),
-                    icon: const Icon(CupertinoIcons.xmark),
-                    label: const Text('取消'),
                   ),
                 ],
-              ),
-            ] else ...<Widget>[
+              )
+            else
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  OutlinedButton.icon(
+                children: <Widget>[
+                  TextButton.icon(
                     onPressed: () => context.go('/capture/correction'),
                     icon: const Icon(CupertinoIcons.pencil),
                     label: const Text('返回校对'),
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: () {
-                      setState(() {
-                        _errorMessage = null;
-                        _progressText = null;
-                        _step = 0;
-                      });
-                      _runAnalysis();
-                      _animateSteps();
-                    },
-                    style: FilledButton.styleFrom(minimumSize: const Size(120, 40)),
-                    child: const Text('重试'),
+                  TextButton.icon(
+                    onPressed: () => context.go('/notebook'),
+                    icon: const Icon(CupertinoIcons.book),
+                    label: const Text('查看已保存草稿'),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
-              TextButton.icon(
-                onPressed: () => context.go('/notebook'),
-                icon: const Icon(CupertinoIcons.book),
-                label: const Text('查看已保存草稿'),
-              ),
-            ],
           ],
         ),
       ),
     );
   }
+
+  void _retry() {
+    setState(() {
+      _errorMessage = null;
+      _progressText = null;
+      _step = 0;
+    });
+    _runAnalysis();
+    _animateSteps();
+  }
+
+  /// 弹出引擎选择器，让用户在普通 AI / PaddleOCR / MinerU 间切换。
+  /// - 选 AI：等同 [_retry]（重跑当前 AI 服务）。
+  /// - 选 PaddleOCR/MinerU：设置一次性 provider type，确保当前题目在
+  ///   worksheet session 中，跳转 `/worksheet/regions` 走文档识别流程。
+  Future<void> _showEngineSwitchDialog() async {
+    final choice = await showModalBottomSheet<_EngineChoice>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text('切换识别引擎',
+                  style:
+                      TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(
+                '当前题目识别失败或超时。可重试当前引擎，或切换到其他引擎继续识别。',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 12),
+              ..._EngineChoice.values.map((item) => ListTile(
+                    leading: Icon(item.icon),
+                    title: Text(item.label),
+                    subtitle: Text(item.description),
+                    onTap: () => Navigator.pop(ctx, item),
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+
+    switch (choice) {
+      case _EngineChoice.ai:
+        _retry();
+      case _EngineChoice.paddle:
+        await _switchToWorksheetEngine(LayoutProviderType.paddleCloud);
+      case _EngineChoice.mineru:
+        await _switchToWorksheetEngine(LayoutProviderType.mineruCloud);
+    }
+  }
+
+  /// 切换到 PaddleOCR/MinerU 文档识别流程。
+  /// 若当前题目已在 worksheet session 中（典型：从 capture 进入），直接
+  /// 复用；否则把当前题目加入现有 session（或新建一个），再跳转。
+  Future<void> _switchToWorksheetEngine(LayoutProviderType type) async {
+    final current = ref.read(currentQuestionProvider);
+    if (current == null) {
+      if (mounted) context.go('/');
+      return;
+    }
+    ref.read(oneShotLayoutProviderTypeProvider.notifier).state = type;
+
+    final existing = ref.read(currentWorksheetImportProvider);
+    final alreadyInSession =
+        existing != null && existing.pages.any((p) => p.id == current.id);
+    if (!alreadyInSession) {
+      // WorksheetImportSession 的 sourcePageIds 是 final，无法通过 copyWith
+      // 修改，因此这里直接构造新会话。保留已有 pages 以避免丢历史草稿。
+      final pages = <QuestionRecord>[
+        ...?existing?.pages,
+        current,
+      ];
+      final sourcePageIds = <String>{
+        ...?existing?.sourcePageIds,
+        current.id,
+      };
+      await persistWorksheetImport(
+        ref,
+        WorksheetImportSession(
+          id: existing?.id ?? '',
+          pages: pages,
+          sourcePageIds: sourcePageIds,
+          createdAt: existing?.createdAt ?? DateTime.now(),
+        ),
+      );
+    }
+    if (mounted) context.go('/worksheet/regions');
+  }
+}
+
+enum _EngineChoice {
+  ai('普通 AI', '重新调用当前 AI 服务重试'),
+  paddle('PaddleOCR', '文档识别：文字、公式、表格、选项'),
+  mineru('MinerU', 'VLM 文档理解：复杂公式、多栏试卷');
+
+  const _EngineChoice(this.label, this.description);
+  final String label;
+  final String description;
+
+  IconData get icon => switch (this) {
+        _EngineChoice.ai => CupertinoIcons.sparkles,
+        _EngineChoice.paddle => CupertinoIcons.doc_text_search,
+        _EngineChoice.mineru => CupertinoIcons.doc_richtext,
+      };
 }
 
 class _LoadingView extends StatefulWidget {
