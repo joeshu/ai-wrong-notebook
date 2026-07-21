@@ -1,3 +1,5 @@
+import 'dart:math' show Random;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,9 @@ import 'package:smart_wrong_notebook/src/features/review/presentation/review_con
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+
+/// Phase 7-1：复习模式——顺序 / 随机 / 专项。
+enum ReviewMode { sequential, random, focused }
 
 class ReviewScreen extends ConsumerStatefulWidget {
   const ReviewScreen({super.key});
@@ -34,6 +39,15 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
   /// 连续复习模式：评价完成后自动滚动到下一题。
   bool _continuousMode = false;
+
+  /// Phase 7-1：复习模式（顺序 / 随机 / 专项）。
+  ReviewMode _mode = ReviewMode.sequential;
+
+  /// Phase 7-1：专项模式选中的知识点 ID（来自薄弱点 TOP 卡片）。
+  String? _focusedKpId;
+
+  /// Phase 7-1：随机模式种子，进入随机模式时设置一次，避免每次 build 重新打乱。
+  int _randomSeed = 0;
 
   /// 待复习列表的滚动控制器，用于支持「下一题」自动滚动。
   final ScrollController _pendingScrollController = ScrollController();
@@ -60,6 +74,61 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
+  }
+
+  /// Phase 7-1：切换复习模式。
+  /// 进入随机模式时如果种子未设置，则初始化为当前时间戳，确保本次会话内顺序稳定。
+  void _changeMode(ReviewMode next) {
+    setState(() {
+      _mode = next;
+      if (next == ReviewMode.random && _randomSeed == 0) {
+        _randomSeed = DateTime.now().millisecondsSinceEpoch;
+      }
+      // 离开专项模式时清空选中知识点，回到全量待复习。
+      if (next != ReviewMode.focused) {
+        _focusedKpId = null;
+      }
+    });
+  }
+
+  /// Phase 7-1：开始某个薄弱知识点的专项复习。
+  void _startFocused(String kpId) {
+    setState(() {
+      _focusedKpId = kpId;
+      _mode = ReviewMode.focused;
+    });
+  }
+
+  /// Phase 7-1：根据当前模式对待复习列表进行重排或过滤。
+  List<QuestionRecord> _applyReviewMode(
+    List<QuestionRecord> pending,
+    Set<String>? focusedQuestionIds,
+  ) {
+    switch (_mode) {
+      case ReviewMode.sequential:
+        if (pending.length <= 1) return List<QuestionRecord>.of(pending);
+        final sorted = List<QuestionRecord>.of(pending)
+          ..sort((a, b) {
+            final an = a.nextReviewAt;
+            final bn = b.nextReviewAt;
+            if (an == null && bn == null) return 0;
+            if (an == null) return 1;
+            if (bn == null) return -1;
+            return an.compareTo(bn);
+          });
+        return sorted;
+      case ReviewMode.random:
+        final shuffled = List<QuestionRecord>.of(pending)
+          ..shuffle(Random(_randomSeed));
+        return shuffled;
+      case ReviewMode.focused:
+        if (focusedQuestionIds == null || focusedQuestionIds.isEmpty) {
+          return const <QuestionRecord>[];
+        }
+        return pending
+            .where((q) => focusedQuestionIds.contains(q.id))
+            .toList();
+    }
   }
 
   void _showSummaryDialog() {
@@ -137,16 +206,53 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     final questionsAsync = ref.watch(questionListProvider);
     final reviewLogsAsync = ref.watch(reviewLogListProvider);
     final batchGroups = ref.watch(questionBatchGroupsProvider).valueOrNull;
+    // Phase 7-3：连续复习天数来自 todayReviewPlanProvider（已实现 streakDays）。
+    final planAsync = ref.watch(todayReviewPlanProvider);
+    // Phase 7-1：薄弱点 TOP 列表，用于专项复习入口卡。
+    final weakPointsAsync = ref.watch(weakPointRecommendationsProvider);
 
     return questionsAsync.when(
       data: (questions) {
         const scheduler = ReviewScheduleService();
         final pending = questions.where(scheduler.isDue).toList();
         final scheduled = questions.where((q) => !scheduler.isDue(q)).toList();
-        final reviewedToday = _reviewedToday(
-          reviewLogsAsync.valueOrNull ?? const <ReviewLog>[],
-        );
+        final logs = reviewLogsAsync.valueOrNull ?? const <ReviewLog>[];
+        final reviewedToday = _reviewedToday(logs);
         final todayTarget = pending.length + reviewedToday;
+
+        // Phase 7-3：复习统计——近 7 天复习题数 / 掌握率 / 连续复习天数。
+        final last7DaysReviews = _reviewedLast7Days(logs);
+        final masteredCount = questions
+            .where((q) => q.masteryLevel == MasteryLevel.mastered)
+            .length;
+        final masteryRate = questions.isEmpty
+            ? 0
+            : (masteredCount / questions.length * 100).round();
+        final streakDays = planAsync.valueOrNull?.streakDays ?? 0;
+
+        // Phase 7-1：解析薄弱点 TOP5 + 当前专项模式下选中的题目集合。
+        final weakPoints = weakPointsAsync.valueOrNull ?? const <WeakPointRecommendation>[];
+        final topWeakPoints = weakPoints.take(5).toList();
+        Set<String>? focusedQuestionIds;
+        String? focusedKpName;
+        if (_mode == ReviewMode.focused && _focusedKpId != null) {
+          WeakPointRecommendation? match;
+          for (final w in weakPoints) {
+            if (w.recommendation.knowledgePointId == _focusedKpId) {
+              match = w;
+              break;
+            }
+          }
+          if (match != null) {
+            focusedQuestionIds = match.recommendation.relatedQuestionIds.toSet();
+            focusedKpName = match.knowledgePointName;
+          } else {
+            // 薄弱点列表已变更（如评分后该 KP 不再薄弱），退出专项模式。
+            focusedQuestionIds = const <String>{};
+            focusedKpName = _focusedKpId;
+          }
+        }
+        final displayPending = _applyReviewMode(pending, focusedQuestionIds);
 
         // 首次拿到待复习列表时记录初始数量，用于判断本次会话是否全部完成。
         if (_initialPending == 0 && pending.isNotEmpty) {
@@ -215,14 +321,32 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                     scheduled: scheduled.length,
                     reviewedToday: reviewedToday,
                     todayTarget: todayTarget,
+                    last7DaysReviews: last7DaysReviews,
+                    masteryRate: masteryRate,
+                    streakDays: streakDays,
                   ),
                 ),
+                // Phase 7-1：复习模式选择 + 薄弱点专项入口。
+                _ReviewModeBar(
+                  mode: _mode,
+                  focusedKpName: focusedKpName,
+                  onModeChanged: _changeMode,
+                  onExitFocused: () => _changeMode(ReviewMode.sequential),
+                ),
+                if (_mode != ReviewMode.focused && topWeakPoints.isNotEmpty)
+                  _WeakPointEntries(
+                    weakPoints: topWeakPoints,
+                    pending: pending,
+                    onSelect: _startFocused,
+                  ),
                 Expanded(
                   child: TabBarView(
                     children: <Widget>[
                       _ReviewQuestionList(
-                        questions: pending,
-                        emptyMessage: AppStrings.reviewEmptyPending,
+                        questions: displayPending,
+                        emptyMessage: _mode == ReviewMode.focused
+                            ? '该知识点暂无待复习题目，可切换到其他模式或选择另一知识点。'
+                            : AppStrings.reviewEmptyPending,
                         batchGroups: batchGroups,
                         ref: ref,
                         onRated: _onRated,
@@ -297,6 +421,22 @@ int _reviewedToday(List<ReviewLog> logs, {DateTime? now}) {
   return ids.length;
 }
 
+/// Phase 7-3：近 7 天（含今天）复习过的不同题目数，用于复习统计卡。
+int _reviewedLast7Days(List<ReviewLog> logs, {DateTime? now}) {
+  final day = now ?? DateTime.now();
+  final today = DateTime(day.year, day.month, day.day);
+  final weekAgo = today.subtract(const Duration(days: 6)); // 含今天共 7 天
+  final ids = <String>{};
+  for (final log in logs) {
+    final at = log.reviewedAt.toLocal();
+    final logDay = DateTime(at.year, at.month, at.day);
+    if (!logDay.isBefore(weekAgo) && !logDay.isAfter(today)) {
+      ids.add(log.questionRecordId);
+    }
+  }
+  return ids.length;
+}
+
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.total,
@@ -304,6 +444,9 @@ class _SummaryCard extends StatelessWidget {
     required this.scheduled,
     required this.reviewedToday,
     required this.todayTarget,
+    required this.last7DaysReviews,
+    required this.masteryRate,
+    required this.streakDays,
   });
 
   final int total;
@@ -312,9 +455,23 @@ class _SummaryCard extends StatelessWidget {
   final int reviewedToday;
   final int todayTarget;
 
+  /// Phase 7-3：近 7 天复习过的不同题目数。
+  final int last7DaysReviews;
+
+  /// Phase 7-3：整体掌握率（0-100）。
+  final int masteryRate;
+
+  /// Phase 7-3：连续复习天数（来自 todayReviewPlanProvider.streakDays）。
+  final int streakDays;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final masteryColor = masteryRate >= 60
+        ? AppColors.success
+        : masteryRate >= 30
+            ? AppColors.warning
+            : AppColors.danger;
 
     return AppCard(
       borderRadius: AppRadius.large,
@@ -354,6 +511,28 @@ class _SummaryCard extends StatelessWidget {
                   value: '$total', label: '总错题', color: colorScheme.onSurface),
             ],
           ),
+          const SizedBox(height: AppSpace.md),
+          // Phase 7-3：复习统计第二行——近 7 天复习数 / 掌握率 / 连续天数。
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: <Widget>[
+              _MiniStat(
+                value: '$last7DaysReviews',
+                label: '近7天复习',
+                color: colorScheme.primary,
+              ),
+              _MiniStat(
+                value: '$masteryRate%',
+                label: '掌握率',
+                color: masteryColor,
+              ),
+              _MiniStat(
+                value: '$streakDays',
+                label: '连续天',
+                color: AppColors.accentAmber,
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpace.lg),
           Text(
             todayTarget == 0
@@ -367,6 +546,262 @@ class _SummaryCard extends StatelessWidget {
             minHeight: 7,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Phase 7-1：复习模式选择条 + 专项模式提示。
+class _ReviewModeBar extends StatelessWidget {
+  const _ReviewModeBar({
+    required this.mode,
+    required this.focusedKpName,
+    required this.onModeChanged,
+    required this.onExitFocused,
+  });
+
+  final ReviewMode mode;
+  final String? focusedKpName;
+  final ValueChanged<ReviewMode> onModeChanged;
+  final VoidCallback onExitFocused;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpace.lg, 0, AppSpace.lg, AppSpace.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          SegmentedButton<ReviewMode>(
+            segments: const <ButtonSegment<ReviewMode>>[
+              ButtonSegment<ReviewMode>(
+                  value: ReviewMode.sequential,
+                  icon: Icon(CupertinoIcons.sort_down, size: 16),
+                  label: Text('顺序')),
+              ButtonSegment<ReviewMode>(
+                  value: ReviewMode.random,
+                  icon: Icon(CupertinoIcons.shuffle, size: 16),
+                  label: Text('随机')),
+              ButtonSegment<ReviewMode>(
+                  value: ReviewMode.focused,
+                  icon: Icon(CupertinoIcons.scope, size: 16),
+                  label: Text('专项')),
+            ],
+            selected: <ReviewMode>{mode},
+            onSelectionChanged: (Set<ReviewMode> selection) =>
+                onModeChanged(selection.first),
+          ),
+          if (mode == ReviewMode.focused) ...<Widget>[
+            const SizedBox(height: AppSpace.xs),
+            Row(
+              children: <Widget>[
+                Icon(CupertinoIcons.scope, size: 14, color: colorScheme.primary),
+                const SizedBox(width: AppSpace.xs),
+                Expanded(
+                  child: Text(
+                    focusedKpName == null
+                        ? '正在专项复习'
+                        : '正在专项复习：$focusedKpName',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: onExitFocused,
+                  icon: const Icon(CupertinoIcons.xmark, size: 14),
+                  label: const Text('退出专项', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+                    minimumSize: const Size(0, 28),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Phase 7-1：薄弱点专项复习入口卡（横向滚动，TOP5）。
+class _WeakPointEntries extends StatelessWidget {
+  const _WeakPointEntries({
+    required this.weakPoints,
+    required this.pending,
+    required this.onSelect,
+  });
+
+  final List<WeakPointRecommendation> weakPoints;
+  final List<QuestionRecord> pending;
+  final ValueChanged<String> onSelect;
+
+  /// 计算该薄弱知识点下当前待复习的题目数（精确反映「现在开始专项」会看到的题数）。
+  int _dueCountFor(WeakPointRecommendation weak) {
+    final ids = weak.recommendation.relatedQuestionIds.toSet();
+    if (ids.isEmpty) return weak.pendingReviewCount;
+    return pending.where((q) => ids.contains(q.id)).length;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return SizedBox(
+      height: 76,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+        itemCount: weakPoints.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpace.sm),
+        itemBuilder: (context, index) {
+          final w = weakPoints[index];
+          final dueCount = _dueCountFor(w);
+          final masteryPct = w.mastery?.masteryPercentage.round() ?? 0;
+          final masteryColor = masteryPct >= 60
+              ? AppColors.success
+              : masteryPct >= 30
+                  ? AppColors.warning
+                  : AppColors.danger;
+          return _WeakPointEntryCard(
+            name: w.knowledgePointName,
+            dueCount: dueCount,
+            masteryPct: masteryPct,
+            masteryColor: masteryColor,
+            isDark: isDark,
+            colorScheme: colorScheme,
+            onTap: dueCount > 0
+                ? () => onSelect(w.recommendation.knowledgePointId)
+                : null,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _WeakPointEntryCard extends StatelessWidget {
+  const _WeakPointEntryCard({
+    required this.name,
+    required this.dueCount,
+    required this.masteryPct,
+    required this.masteryColor,
+    required this.isDark,
+    required this.colorScheme,
+    required this.onTap,
+  });
+
+  final String name;
+  final int dueCount;
+  final int masteryPct;
+  final Color masteryColor;
+  final bool isDark;
+  final ColorScheme colorScheme;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onTap == null;
+    final bg = disabled
+        ? (isDark ? colorScheme.surfaceContainerHighest : const Color(0xFFF1F5F9))
+        : (isDark
+            ? masteryColor.withValues(alpha: 0.14)
+            : masteryColor.withValues(alpha: 0.08));
+    final border = disabled
+        ? colorScheme.outlineVariant.withValues(alpha: 0.5)
+        : masteryColor.withValues(alpha: 0.45);
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(AppRadius.medium),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        child: Container(
+          width: 168,
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.md, vertical: AppSpace.sm),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.medium),
+            border: Border.all(color: border, width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: disabled
+                            ? colorScheme.onSurfaceVariant
+                            : colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: masteryColor.withValues(alpha: isDark ? 0.18 : 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$masteryPct%',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: masteryColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                disabled ? '暂无待复习' : '待复习 $dueCount 题',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: disabled ? colorScheme.onSurfaceVariant : masteryColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: <Widget>[
+                  Icon(
+                    disabled
+                        ? CupertinoIcons.lock
+                        : CupertinoIcons.play_circle_fill,
+                    size: 12,
+                    color: disabled ? colorScheme.onSurfaceVariant : masteryColor,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    disabled ? '稍后再练' : '开始专项',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: disabled ? colorScheme.onSurfaceVariant : masteryColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -582,6 +1017,12 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
         ReviewRating.easy => await controller.markMastered(widget.question.id),
       };
       invalidateQuestionList(ref);
+      // Phase 7-4：显式刷新薄弱点推荐与知识树快照，确保评分后首页薄弱
+      // 卡片、知识树页面即时更新。weakPointRecommendationsProvider 内部
+      // 会调用 KnowledgePointMasteryService.calculateBatch 重算相关知识点
+      // 掌握度，从而闭合「复习 → 掌握度更新 → 推荐刷新」回路。
+      ref.invalidate(weakPointRecommendationsProvider);
+      ref.invalidate(knowledgeTreeOverviewProvider);
       widget.onRated?.call(rating);
       if (mounted) {
         setState(() {

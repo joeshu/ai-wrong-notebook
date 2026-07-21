@@ -122,34 +122,35 @@
 
 ---
 
-# Phase 7:复习中心闭环(P1)
+# Phase 7:复习中心闭环(P1) ✅ 基本完成
 
 ## 1. 复习模式切换
 
-- [ ] 复习中心顶部新增模式选择:顺序 / 随机 / 专项
-- [ ] 顺序模式:按 nextReviewAt 升序
-- [ ] 随机模式:打乱顺序
-- [ ] 专项模式:从薄弱知识点 TOP 列表选择,加载该知识点题目
-- [ ] 薄弱点专项复习入口卡(显示 TOP5 + 题数 + "开始专项")
+- [x] 复习中心顶部新增模式选择:顺序 / 随机 / 专项
+- [x] 顺序模式:按 nextReviewAt 升序(nulls 后置)
+- [x] 随机模式:打乱顺序(本次会话内种子稳定,避免每次 build 重排)
+- [x] 专项模式:从薄弱知识点 TOP 列表选择,加载该知识点题目(过滤 pending 到 `Recommendation.relatedQuestionIds` 集合)
+- [x] 薄弱点专项复习入口卡(显示 TOP5 + 当前待复习题数 + 掌握度胶囊 + "开始专项";无待复习时禁用)
 
 ## 2. 复习界面作答步骤
 
-- [ ] 题目展示后加"作答"输入框(文本/选择)
-- [ ] "提交作答"按钮 → 显示答案与解析 → 对照评价
+- [ ] 题目展示后加"作答"输入框(文本/选择)— 延后
+- [ ] "提交作答"按钮 → 显示答案与解析 → 对照评价 — 延后
 - [ ] 作答记录写入 `ReviewLog`(可选,延后)
 
 ## 3. 复习统计
 
-- [ ] 近 7 天复习数(从 `ReviewLog` 按日聚合)
-- [ ] 掌握率(mastered / 总题数)
-- [ ] 连续复习天数(复用 `todayReviewPlanProvider` 的 `streakDays`)
-- [ ] 统计卡显示在复习中心顶部
+- [x] 近 7 天复习数(从 `ReviewLog` 按日聚合,`_reviewedLast7Days`)
+- [x] 掌握率(mastered / 总题数,`masteryRate`)
+- [x] 连续复习天数(复用 `todayReviewPlanProvider.streakDays`)
+- [x] 统计卡显示在复习中心顶部(`_SummaryCard` 第二行三档 `_MiniStat`)
 
 ## 4. 复习后更新知识树掌握度
 
-- [ ] `ReviewController._applyRating` 评分成功后触发 `KnowledgePointMasteryService.calculate` 重算相关知识点
-- [ ] invalidate `weakPointRecommendationsProvider` 刷新首页薄弱卡片
-- [ ] invalidate 知识树页面 provider(Phase 5 新增)
+- [x] 评分后显式 `ref.invalidate(weakPointRecommendationsProvider)` + `ref.invalidate(knowledgeTreeOverviewProvider)`,内部会调用 `KnowledgePointMasteryService.calculateBatch` 重算
+  > 注:`ReviewController._applyRating` 本身未直接注入 mastery service,而是通过 invalidate 触发响应式 provider 重算,效果等价且解耦
+- [x] invalidate `weakPointRecommendationsProvider` 刷新首页薄弱卡片
+- [x] invalidate 知识树页面 provider(Phase 5 新增 `knowledgeTreeOverviewProvider`)
 
 ---
 

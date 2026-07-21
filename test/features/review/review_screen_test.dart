@@ -155,5 +155,50 @@ void main() {
       expect(find.text('继续巩固'), findsNothing);
       expect(find.widgetWithText(FilledButton, '已掌握'), findsNothing);
     });
+
+    testWidgets('Phase 7-1: shows review mode segmented button '
+        '(顺序/随机/专项) and Phase 7-3 stats row', (tester) async {
+      await _pumpReviewScreen(tester, InMemoryQuestionRepository());
+
+      // 模式选择条
+      expect(find.text('顺序'), findsOneWidget);
+      expect(find.text('随机'), findsOneWidget);
+      expect(find.text('专项'), findsOneWidget);
+
+      // 复习统计第二行（近 7 天复习 / 掌握率 / 连续天）
+      expect(find.text('近7天复习'), findsOneWidget);
+      expect(find.text('掌握率'), findsOneWidget);
+      expect(find.text('连续天'), findsOneWidget);
+    });
+
+    testWidgets('Phase 7-1: default mode is sequential (no focused chip)',
+        (tester) async {
+      await _pumpReviewScreen(tester, InMemoryQuestionRepository());
+
+      // 默认顺序模式，不应出现「正在专项复习」提示
+      expect(find.textContaining('正在专项复习'), findsNothing);
+      expect(find.text('退出专项'), findsNothing);
+    });
+
+    testWidgets('Phase 7-1: random mode persists selection without crash',
+        (tester) async {
+      final repository = InMemoryQuestionRepository();
+      await repository.saveDrafts(<QuestionRecord>[
+        _reviewQuestion('q-1', text: '题目一'),
+        _reviewQuestion('q-2', text: '题目二'),
+        _reviewQuestion('q-3', text: '题目三'),
+      ]);
+
+      await _pumpReviewScreen(tester, repository);
+
+      // 切换到随机模式
+      await tester.tap(find.text('随机'));
+      await tester.pumpAndSettle();
+
+      // 随机模式下三道题仍应都展示（顺序可能不同，但内容必须存在）
+      expect(find.text('题目一'), findsOneWidget);
+      expect(find.text('题目二'), findsOneWidget);
+      expect(find.text('题目三'), findsOneWidget);
+    });
   });
 }
