@@ -119,7 +119,7 @@ class Recommendation {
 
   @override
   String toString() =>
-      'Recommendation($type, $knowledgePointId, score=$${score.toStringAsFixed(1)})';
+      'Recommendation($type, $knowledgePointId, score=${score.toStringAsFixed(1)})';
 }
 
 /// 推荐评分输入。
