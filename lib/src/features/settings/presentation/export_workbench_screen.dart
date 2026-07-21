@@ -17,6 +17,7 @@ import 'package:smart_wrong_notebook/src/shared/utils/html_preview_screen.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/json_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/markdown_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/worksheet_export_mode.dart';
 
 /// 导出工作台支持的输出格式。
 enum ExportFormat { html, pdf, markdown, anki, csv, json }
@@ -31,7 +32,18 @@ enum ExportFormat { html, pdf, markdown, anki, csv, json }
 /// 5. 预览：仅当选中 HTML 时可用，跳转 [HtmlPreviewScreen]
 /// 6. 导出：底部 sticky 按钮，按选中格式依次调用对应导出服务
 class ExportWorkbenchScreen extends ConsumerStatefulWidget {
-  const ExportWorkbenchScreen({super.key});
+  const ExportWorkbenchScreen({
+    super.key,
+    this.initialQuestionIds = const <String>[],
+  });
+
+  /// 入口页预填的题目 ID 列表。
+  ///
+  /// 由"导出选中题""导出本组卷""导出该知识点错题"等入口通过路由 query
+  /// 传入，工作台首帧会用该集合在题库中筛出对应题目并自动构造一份
+  /// [ExportOptions]，跳过用户手动点开筛选对话框的步骤。空集合表示
+  /// 不预填，沿用原"默认导出全部题目"的行为。
+  final List<String> initialQuestionIds;
 
   @override
   ConsumerState<ExportWorkbenchScreen> createState() =>
@@ -47,6 +59,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
   PdfLayoutOptions _layoutOptions = const PdfLayoutOptions();
   bool _isExporting = false;
   double _exportProgress = 0;
+  bool _initialOptionsApplied = false;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +73,10 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         ),
       ),
       body: questionsAsync.when(
-        data: (questions) => _buildBody(context, questions),
+        data: (questions) {
+          _ensureInitialOptions(questions);
+          return _buildBody(context, questions);
+        },
         loading: () => const AppListSkeleton(),
         error: (e, _) => AppErrorState(
           error: e,
@@ -68,6 +84,24 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         ),
       ),
       bottomNavigationBar: _buildExportBar(context),
+    );
+  }
+
+  /// 第一次拿到题库时，若入口传入了 [ExportWorkbenchScreen.initialQuestionIds]
+  /// 则同步构造一份预填的 [ExportOptions]，跳过手动筛选。
+  void _ensureInitialOptions(List<QuestionRecord> questions) {
+    if (_initialOptionsApplied) return;
+    _initialOptionsApplied = true;
+    if (widget.initialQuestionIds.isEmpty) return;
+    final idSet = widget.initialQuestionIds.toSet();
+    final filtered =
+        questions.where((q) => idSet.contains(q.id)).toList(growable: false);
+    if (filtered.isEmpty) return;
+    _exportOptions = ExportOptions(
+      mode: WorksheetExportMode.answer,
+      filtered: filtered,
+      templateType: _selectedTemplate,
+      contentOptions: const ExportContentOptions(),
     );
   }
 
@@ -274,6 +308,11 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     if (o.includeFavoriteMark) parts.add('含收藏标记');
     if (o.includeDates) parts.add('含日期');
     if (o.includeExercises) parts.add('含 AI 练习题');
+    // Phase 11-4：扩展字段摘要。
+    if (o.includeOcrText) parts.add('含OCR原文');
+    if (o.includeAiAnalysis) parts.add('含完整AI分析');
+    if (o.includeReviewHistory) parts.add('含复习历史');
+    if (o.includeKnowledgeTree) parts.add('含知识点树路径');
     if (parts.isEmpty) parts.add('无内容字段');
     return parts.join(' / ');
   }
@@ -649,25 +688,29 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           studentName: studentInfo?.name,
           className: studentInfo?.className,
         );
-        await MarkdownExportService().shareMarkdown(md, _buildFileName('md'));
+        await MarkdownExportService().shareMarkdown(
+            md, _buildFileName('md', options: options));
         break;
       case ExportFormat.anki:
         final ankiText = await AnkiExportService().generateAnkiImportText(
           questions: questions,
           contentOptions: contentOptions,
         );
-        await AnkiExportService().shareAnkiExport(ankiText, _buildFileName('txt'));
+        await AnkiExportService().shareAnkiExport(
+            ankiText, _buildFileName('txt', options: options));
         break;
       case ExportFormat.csv:
         final csv = await CsvExportService().generateCsv(questions: questions);
-        await CsvExportService().shareCsv(csv, _buildFileName('csv'));
+        await CsvExportService()
+            .shareCsv(csv, _buildFileName('csv', options: options));
         break;
       case ExportFormat.json:
         final json = await JsonExportService().generateJson(
           questions: questions,
           includeReviewLogs: true,
         );
-        await JsonExportService().shareJson(json, _buildFileName('json'));
+        await JsonExportService()
+            .shareJson(json, _buildFileName('json', options: options));
         break;
     }
   }
@@ -697,12 +740,30 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     }
   }
 
-  String _buildFileName(String extension) {
+  String _buildFileName(String extension, {required ExportOptions options}) {
+    final templatePart = _sanitizeFileNamePart(options.templateType.label);
+    final subjectPart = _sanitizeFileNamePart(_subjectScopeLabel(options.filtered));
     final now = DateTime.now();
-    final stamp =
-        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
-        '-${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
-    return 'wrong-notebook-$stamp.$extension';
+    final datePart =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    return '${templatePart}_$subjectPart_$datePart.$extension';
+  }
+
+  /// 学科范围标签：单学科返回学科名，多学科返回"多学科"，空题库返回"空"。
+  /// 复用 HtmlExportService 同名逻辑，但本页不依赖服务层私有方法。
+  static String _subjectScopeLabel(List<QuestionRecord> questions) {
+    if (questions.isEmpty) return '空';
+    final subjects = <String>{};
+    for (final q in questions) {
+      subjects.add(q.subject.label);
+    }
+    if (subjects.length == 1) return subjects.first;
+    return '多学科';
+  }
+
+  /// 替换文件名中的非法字符为下划线（与 HtmlExportService 保持一致）。
+  static String _sanitizeFileNamePart(String part) {
+    return part.replaceAll(RegExp(r'[\\/:*?"<>|\s]'), '_');
   }
 }
 

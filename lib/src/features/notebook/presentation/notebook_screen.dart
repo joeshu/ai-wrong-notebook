@@ -186,6 +186,15 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     context.go('/worksheet');
   }
 
+  /// 多选模式下"导出选中题"：把选中题目 ID 通过路由 query 传给导出工作台，
+  /// 工作台首帧会自动用这些 ID 构造筛选条件。
+  void _exportSelected(BuildContext context) {
+    if (_selectedQuestionIds.isEmpty) return;
+    final idsParam = _selectedQuestionIds.join(',');
+    _exitSelectionMode();
+    context.push('/settings/export-workbench?ids=$idsParam');
+  }
+
   Future<void> _deleteSelected(BuildContext context, WidgetRef ref) async {
     if (_selectedQuestionIds.isEmpty) return;
     final count = _selectedQuestionIds.length;
@@ -777,12 +786,14 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 child: Row(children: <Widget>[
-                  Expanded(child: OutlinedButton.icon(onPressed: _selectedQuestionIds.isEmpty ? null : () => _deleteSelected(context, ref), icon: const Icon(CupertinoIcons.trash), label: const Text('删除'))),
-                  const SizedBox(width: 12),
-                  Expanded(child: FilledButton.icon(onPressed: _selectedQuestionIds.isEmpty ? null : () => _openWorksheet(context, ref), icon: const Icon(CupertinoIcons.doc_text), label: const Text('加入组卷'))),
-                ]),
+          Expanded(child: OutlinedButton.icon(onPressed: _selectedQuestionIds.isEmpty ? null : () => _deleteSelected(context, ref), icon: const Icon(CupertinoIcons.trash), label: const Text('删除'))),
+          const SizedBox(width: 8),
+          Expanded(child: FilledButton.icon(onPressed: _selectedQuestionIds.isEmpty ? null : () => _openWorksheet(context, ref), icon: const Icon(CupertinoIcons.doc_text), label: const Text('组卷'))),
+          const SizedBox(width: 8),
+          Expanded(child: FilledButton.tonalIcon(onPressed: _selectedQuestionIds.isEmpty ? null : () => _exportSelected(context), icon: const Icon(CupertinoIcons.arrow_up_doc), label: const Text('导出'))),
+        ]),
               ),
             ),
         ],

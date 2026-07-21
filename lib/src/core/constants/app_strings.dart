@@ -121,6 +121,7 @@ class AppStrings {
   static const String settingsWeeklyReportSubtitle = '生成复习量与掌握度周报';
   static const String settingsExportWorkbench = '导出工作台';
   static const String settingsExportWorkbenchSubtitle = '讲义 / Anki / HTML 等导出';
+  static const String settingsExportShare = '导出与分享';
 
   // Phase 9-3：学习设置区块
   static const String settingsLearning = '学习设置';

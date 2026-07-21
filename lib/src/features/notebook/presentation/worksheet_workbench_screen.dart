@@ -90,6 +90,15 @@ class _WorksheetWorkbenchScreenState
     return (questionCount / 5).ceil();
   }
 
+  /// "导出到工作台"：把当前已选题目 ID（保留 _order 顺序）通过路由 query
+  /// 传给导出工作台，让用户在 6 种格式 + 3 种模板中选择，比底部仅有的
+  /// HTML/PDF 直接导出更灵活。
+  void _exportToWorkbench(BuildContext context) {
+    if (_order.isEmpty) return;
+    final idsParam = _order.join(',');
+    context.push('/settings/export-workbench?ids=$idsParam');
+  }
+
   Future<void> _saveAsDraft() async {
     if (_order.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -370,6 +379,13 @@ class _WorksheetWorkbenchScreenState
             icon: const Icon(CupertinoIcons.floppy_disk),
             tooltip: '保存组卷',
             onPressed: _saveAsDraft,
+          ),
+          IconButton(
+            icon: const Icon(CupertinoIcons.arrow_up_doc),
+            tooltip: '导出到工作台',
+            onPressed: _selectedIds.isEmpty
+                ? null
+                : () => _exportToWorkbench(context),
           ),
         ],
       ),

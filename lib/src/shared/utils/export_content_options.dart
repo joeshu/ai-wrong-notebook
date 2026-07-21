@@ -1,7 +1,8 @@
 /// 导出内容选项：控制各导出格式中需要包含哪些字段。
 ///
 /// 不同导出场景（Markdown / Anki / CSV / JSON）共用这套开关，
-/// 默认全部开启，调用方可以通过 [copyWith] 关闭不需要的字段。
+/// 默认开启常用字段；扩展字段（OCR 原文 / 完整 AI 分析 / 复习历史 /
+/// 知识点树路径）默认关闭，避免现有导出突然多出冗长内容。
 class ExportContentOptions {
   const ExportContentOptions({
     this.includeImage = true,
@@ -14,6 +15,11 @@ class ExportContentOptions {
     this.includeFavoriteMark = true,
     this.includeDates = true,
     this.includeExercises = true,
+    // Phase 11-4：扩展字段，默认关闭。
+    this.includeOcrText = false,
+    this.includeAiAnalysis = false,
+    this.includeReviewHistory = false,
+    this.includeKnowledgeTree = false,
   });
 
   /// 是否包含题图（题图引用或"见原图"说明）。
@@ -46,8 +52,35 @@ class ExportContentOptions {
   /// 是否包含变式练习（生成的同类题）。
   final bool includeExercises;
 
-  /// 默认全开选项，方便调用方快速获取一份"完整导出"配置。
-  static const ExportContentOptions all = ExportContentOptions();
+  /// 是否包含题目 OCR 识别原文（含布局块/公式/表格原始输出）。
+  ///
+  /// 用于校对场景：导出后可对照识别质量。默认关闭，避免冗长。
+  final bool includeOcrText;
+
+  /// 是否包含完整 AI 分析原文（含 raw 字段、提示词版本等元信息）。
+  ///
+  /// 与 [includeSolutionSteps]/[includeMistakeReason]/[includeStudyAdvice]
+  /// 不同：本字段输出 AI 返回的完整结构化原文，便于离线复盘。
+  final bool includeAiAnalysis;
+
+  /// 是否包含复习历史时间线（每次复习的日期、评分、掌握度变化）。
+  ///
+  /// 与 [includeReviewCount]（仅次数）不同：本字段输出全部 ReviewLog。
+  final bool includeReviewHistory;
+
+  /// 是否包含知识点树路径（从根节点到当前知识点的完整面包屑路径）。
+  ///
+  /// 与 [includeKnowledgePoints]（仅名称）不同：本字段输出
+  /// `数学 > 代数 > 二次方程` 形式的完整层级路径。
+  final bool includeKnowledgeTree;
+
+  /// 默认全开选项（含扩展字段），方便调用方快速获取一份"完整导出"配置。
+  static const ExportContentOptions all = ExportContentOptions(
+    includeOcrText: true,
+    includeAiAnalysis: true,
+    includeReviewHistory: true,
+    includeKnowledgeTree: true,
+  );
 
   /// 全关，调用方再逐项打开。
   static const ExportContentOptions none = ExportContentOptions(
@@ -61,6 +94,10 @@ class ExportContentOptions {
     includeFavoriteMark: false,
     includeDates: false,
     includeExercises: false,
+    includeOcrText: false,
+    includeAiAnalysis: false,
+    includeReviewHistory: false,
+    includeKnowledgeTree: false,
   );
 
   ExportContentOptions copyWith({
@@ -74,6 +111,10 @@ class ExportContentOptions {
     bool? includeFavoriteMark,
     bool? includeDates,
     bool? includeExercises,
+    bool? includeOcrText,
+    bool? includeAiAnalysis,
+    bool? includeReviewHistory,
+    bool? includeKnowledgeTree,
   }) {
     return ExportContentOptions(
       includeImage: includeImage ?? this.includeImage,
@@ -89,6 +130,12 @@ class ExportContentOptions {
       includeFavoriteMark: includeFavoriteMark ?? this.includeFavoriteMark,
       includeDates: includeDates ?? this.includeDates,
       includeExercises: includeExercises ?? this.includeExercises,
+      includeOcrText: includeOcrText ?? this.includeOcrText,
+      includeAiAnalysis: includeAiAnalysis ?? this.includeAiAnalysis,
+      includeReviewHistory:
+          includeReviewHistory ?? this.includeReviewHistory,
+      includeKnowledgeTree:
+          includeKnowledgeTree ?? this.includeKnowledgeTree,
     );
   }
 
@@ -106,7 +153,11 @@ class ExportContentOptions {
           includeReviewCount == other.includeReviewCount &&
           includeFavoriteMark == other.includeFavoriteMark &&
           includeDates == other.includeDates &&
-          includeExercises == other.includeExercises;
+          includeExercises == other.includeExercises &&
+          includeOcrText == other.includeOcrText &&
+          includeAiAnalysis == other.includeAiAnalysis &&
+          includeReviewHistory == other.includeReviewHistory &&
+          includeKnowledgeTree == other.includeKnowledgeTree;
 
   @override
   int get hashCode => Object.hash(
@@ -120,5 +171,9 @@ class ExportContentOptions {
         includeFavoriteMark,
         includeDates,
         includeExercises,
+        includeOcrText,
+        includeAiAnalysis,
+        includeReviewHistory,
+        includeKnowledgeTree,
       );
 }

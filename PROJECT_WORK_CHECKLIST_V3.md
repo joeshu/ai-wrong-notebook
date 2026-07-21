@@ -327,11 +327,16 @@
 
 ## 1. 入口与发现性优化
 
-- [ ] 设置页"导出工作台"入口提升优先级(从"学习分析"区块提到独立区块或顶部)
-- [ ] 错题本多选模式加"导出选中题"快捷入口(直接跳工作台并预选)
-- [ ] 组卷工作台加"导出本组卷"入口(预填选中题 ID)
-- [ ] 知识点详情页加"导出该知识点错题"入口(Phase 5/6 完成后接线)
-- [ ] 导出工作台支持预填 `initialQuestionIds` 参数(从入口传入筛选条件)
+- [x] 设置页"导出工作台"入口提升优先级(从"学习分析"区块提到独立区块或顶部)
+  > 新增 `settingsExportShare` 常量,设置页加独立"导出与分享"区块(位于"学习分析"之后),导出工作台单卡显示,原"学习分析"区块末尾的导出入口移除
+- [x] 错题本多选模式加"导出选中题"快捷入口(直接跳工作台并预选)
+  > notebook_screen 多选模式底部操作栏从 2 按钮扩为 3 按钮(删除/组卷/导出),新增 `_exportSelected` 方法跳 `/settings/export-workbench?ids=...`
+- [x] 组卷工作台加"导出本组卷"入口(预填选中题 ID)
+  > worksheet_workbench AppBar actions 加第 3 个 IconButton(arrow_up_doc,tooltip "导出到工作台"),新增 `_exportToWorkbench` 方法用 `_order` 顺序拼 ids 跳工作台
+- [x] 知识点详情页加"导出该知识点错题"入口(Phase 5/6 完成后接线)
+  > knowledge_point_detail_screen 底部按钮区"加入组卷工作台"之后追加 OutlinedButton.icon "导出该知识点错题",跳 `/settings/export-workbench?ids=...`
+- [x] 导出工作台支持预填 `initialQuestionIds` 参数(从入口传入筛选条件)
+  > ExportWorkbenchScreen 构造函数加 `initialQuestionIds` 字段(默认空);`_ensureInitialOptions` 在首帧拿到题库后同步构造一份预填 ExportOptions(`mode: answer`,filtered = 题库按 ID 过滤);router.dart `/settings/export-workbench` 路由读 `?ids=q1,q2` query 参数
 
 ## 2. 模板系统增强
 
@@ -351,15 +356,22 @@
 
 ## 4. 筛选与内容选项
 
-- [ ] `ExportContentOptions` 新增 `includeOcrText`(识别文本)
-- [ ] `ExportContentOptions` 新增 `includeAiAnalysis`(完整 AI 分析)
-- [ ] `ExportContentOptions` 新增 `includeReviewHistory`(复习历史)
-- [ ] `ExportContentOptions` 新增 `includeKnowledgeTree`(知识点树路径)
-- [ ] 导出工作台 UI 加上述选项开关
+- [x] `ExportContentOptions` 新增 `includeOcrText`(识别文本)
+  > 默认 false(扩展字段,避免冗长),含文档注释说明与 includeImage 的区别
+- [x] `ExportContentOptions` 新增 `includeAiAnalysis`(完整 AI 分析)
+  > 默认 false,与 includeSolutionSteps/includeMistakeReason/includeStudyAdvice 区分(本字段输出 AI 返回的完整结构化原文)
+- [x] `ExportContentOptions` 新增 `includeReviewHistory`(复习历史)
+  > 默认 false,与 includeReviewCount(仅次数)区分(本字段输出全部 ReviewLog)
+- [x] `ExportContentOptions` 新增 `includeKnowledgeTree`(知识点树路径)
+  > 默认 false,与 includeKnowledgePoints(仅名称)区分(本字段输出 `数学 > 代数 > 二次方程` 完整路径)
+- [x] 导出工作台 UI 加上述选项开关
+  > export_options_dialog.dart 在"含 AI 练习题"之后追加 4 个 SwitchListTile;_encode/_decodeContentOptions 补 4 字段序列化(旧版本存储自然回退到 false);export_workbench_screen `_buildContentSummary` 补 4 项摘要
 - [ ] 筛选支持按知识点多选(从知识树选择)
 - [ ] 筛选支持按掌握度三档
 - [ ] 筛选支持按难度(QuestionDifficulty)
 - [ ] 筛选条件持久化(下次进入保留上次筛选)
+- [ ] 服务层接入 4 个新字段(6 个导出服务读取 includeOcrText/includeAiAnalysis/includeReviewHistory/includeKnowledgeTree)
+  > 延后:HTML/PDF/Markdown/Anki/CSV/JSON 6 个导出服务读取新字段输出对应内容,工作量较大,作为 Phase 11+ 后续工作
 
 ## 5. PDF 排版优化
 
@@ -384,7 +396,8 @@
 - [ ] 多格式批量导出时显示文件列表
 - [ ] 导出失败按格式分别提示(部分成功允许保留成功文件)
 - [ ] 导出历史记录(最近 10 次导出,可重新下载)
-- [ ] 导出文件命名规范优化(模板名_科目_日期.格式)
+- [x] 导出文件命名规范优化(模板名_科目_日期.格式)
+  > `_buildFileName` 改为接收 ExportOptions,输出 `{模板名}_{科目}_{yyyyMMdd}.{ext}` 格式(如 `错题报告_数学_20260721.md`);md/anki/csv/json 4 个调用点都传入 options;新增 `_subjectScopeLabel`/`_sanitizeFileNamePart` 辅助方法;HTML/PDF 保持原 `错题本_答案卷_数学_5题_20260721_1430.html` 格式(已含模板/学科/题量)
 
 ## 8. 组卷导出模式
 

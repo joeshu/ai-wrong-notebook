@@ -146,6 +146,17 @@ class _KnowledgePointDetailScreenState
             icon: const Icon(CupertinoIcons.rectangle_stack, size: 18),
             label: const Text('加入组卷工作台'),
           ),
+          const SizedBox(height: AppSpace.sm),
+          // Phase 11-1：把该知识点关联错题 ID 通过路由 query 传给导出工作台。
+          OutlinedButton.icon(
+            onPressed: () {
+              final idsParam =
+                  detail.questions.map((q) => q.id).join(',');
+              context.push('/settings/export-workbench?ids=$idsParam');
+            },
+            icon: const Icon(CupertinoIcons.arrow_up_doc, size: 18),
+            label: const Text('导出该知识点错题'),
+          ),
         ],
         const SizedBox(height: AppSpace.lg),
         // 错题列表

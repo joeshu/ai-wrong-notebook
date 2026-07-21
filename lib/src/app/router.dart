@@ -121,7 +121,17 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                       builder: (_, __) => const DataManagementScreen()),
                   GoRoute(
                     path: 'export-workbench',
-                    builder: (_, __) => const ExportWorkbenchScreen(),
+                    builder: (context, state) {
+                      final raw = state.uri.queryParameters['ids'];
+                      final ids = raw == null || raw.isEmpty
+                          ? const <String>[]
+                          : raw
+                              .split(',')
+                              .map((s) => s.trim())
+                              .where((s) => s.isNotEmpty)
+                              .toList(growable: false);
+                      return ExportWorkbenchScreen(initialQuestionIds: ids);
+                    },
                   ),
                   GoRoute(
                     path: 'weekly-report',

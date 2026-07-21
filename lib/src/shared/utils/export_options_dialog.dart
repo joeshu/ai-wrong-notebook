@@ -538,6 +538,23 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
               _contentOptionTile('含 AI 练习题', _contentOptions.includeExercises,
                   (v) => setState(() => _contentOptions =
                       _contentOptions.copyWith(includeExercises: v))),
+              // Phase 11-4：扩展内容字段（默认关闭，避免冗长）。
+              _contentOptionTile('含 OCR 识别原文',
+                  _contentOptions.includeOcrText,
+                  (v) => setState(() => _contentOptions =
+                      _contentOptions.copyWith(includeOcrText: v))),
+              _contentOptionTile('含完整 AI 分析',
+                  _contentOptions.includeAiAnalysis,
+                  (v) => setState(() => _contentOptions =
+                      _contentOptions.copyWith(includeAiAnalysis: v))),
+              _contentOptionTile('含复习历史',
+                  _contentOptions.includeReviewHistory,
+                  (v) => setState(() => _contentOptions =
+                      _contentOptions.copyWith(includeReviewHistory: v))),
+              _contentOptionTile('含知识点树路径',
+                  _contentOptions.includeKnowledgeTree,
+                  (v) => setState(() => _contentOptions =
+                      _contentOptions.copyWith(includeKnowledgeTree: v))),
               const Divider(),
               const Text('排版选项', style: _sectionStyle),
               const Text('纸张大小', style: _subSectionStyle),
@@ -1030,6 +1047,11 @@ Map<String, dynamic> _encodeContentOptions(ExportContentOptions o) =>
       'includeFavoriteMark': o.includeFavoriteMark,
       'includeDates': o.includeDates,
       'includeExercises': o.includeExercises,
+      // Phase 11-4：扩展字段，旧版本存储没有这些键，反序列化时回退到 false。
+      'includeOcrText': o.includeOcrText,
+      'includeAiAnalysis': o.includeAiAnalysis,
+      'includeReviewHistory': o.includeReviewHistory,
+      'includeKnowledgeTree': o.includeKnowledgeTree,
     };
 
 ExportContentOptions _decodeContentOptions(String json) {
@@ -1046,6 +1068,11 @@ ExportContentOptions _decodeContentOptions(String json) {
       includeFavoriteMark: map['includeFavoriteMark'] as bool? ?? true,
       includeDates: map['includeDates'] as bool? ?? true,
       includeExercises: map['includeExercises'] as bool? ?? true,
+      // 扩展字段默认 false（与构造函数默认值一致），旧版本存储自然回退。
+      includeOcrText: map['includeOcrText'] as bool? ?? false,
+      includeAiAnalysis: map['includeAiAnalysis'] as bool? ?? false,
+      includeReviewHistory: map['includeReviewHistory'] as bool? ?? false,
+      includeKnowledgeTree: map['includeKnowledgeTree'] as bool? ?? false,
     );
   } catch (_) {
     return const ExportContentOptions();
