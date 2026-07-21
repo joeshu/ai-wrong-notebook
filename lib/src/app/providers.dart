@@ -36,6 +36,7 @@ import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mapping_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_management_service.dart';
+import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mastery_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 
 // --- Repository providers (default implementations) ---
@@ -98,6 +99,15 @@ final Provider<KnowledgePointManagementService>
     Provider<KnowledgePointManagementService>((ref) {
   return KnowledgePointManagementService(
     ref.read(knowledgePointRepositoryProvider),
+  );
+});
+
+/// 知识点掌握度计算服务（Phase 4）。
+final Provider<KnowledgePointMasteryService>
+    knowledgePointMasteryServiceProvider =
+    Provider<KnowledgePointMasteryService>((ref) {
+  return KnowledgePointMasteryService(
+    ref.read(questionKnowledgeLinkRepositoryProvider),
   );
 });
 
