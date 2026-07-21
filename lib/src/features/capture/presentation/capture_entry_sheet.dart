@@ -10,7 +10,11 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:uuid/uuid.dart';
 
 class CaptureEntrySheet extends ConsumerStatefulWidget {
-  const CaptureEntrySheet({super.key});
+  const CaptureEntrySheet({super.key, this.showCloseButton = true});
+
+  /// 是否显示右上角关闭按钮。底部 sheet 场景为 true，
+  /// 作为「添加」Tab 根页面时为 false（由 AppBar 提供返回）。
+  final bool showCloseButton;
 
   @override
   ConsumerState<CaptureEntrySheet> createState() => _CaptureEntrySheetState();
@@ -93,12 +97,13 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                       ?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
-                IconButton(
-                  icon: const Icon(CupertinoIcons.xmark, size: 20),
-                  tooltip: '关闭',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
+                if (widget.showCloseButton)
+                  IconButton(
+                    icon: const Icon(CupertinoIcons.xmark, size: 20),
+                    tooltip: '关闭',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
               ],
             ),
             const SizedBox(height: 12),

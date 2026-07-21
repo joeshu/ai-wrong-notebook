@@ -291,6 +291,167 @@ class WeakPointRecommendation {
 final StateProvider<int> _pendingKnowledgePointVersionProvider =
     StateProvider<int>((ref) => 0);
 
+/// 知识点树节点 + 掌握度聚合条目（Phase 5）。
+///
+/// 把 [knowledgePointTreeProvider] 的全部节点与
+/// [weakPointRecommendationsProvider] 计算出的掌握度合并，
+/// 供知识树页面按节点展示掌握度热力图与统计。
+class KnowledgeTreeNodeView {
+  const KnowledgeTreeNodeView({
+    required this.point,
+    this.mastery,
+    this.pendingReviewCount = 0,
+  });
+
+  final KnowledgePoint point;
+  final KnowledgePointMastery? mastery;
+  final int pendingReviewCount;
+
+  /// 掌握度百分比，无数据时返回 null。
+  double? get masteryPercentage => mastery?.masteryPercentage;
+}
+
+/// 知识树页面聚合数据：全部知识点（带掌握度）+ 薄弱 TOP5 + 掌握度分布。
+class KnowledgeTreeOverview {
+  const KnowledgeTreeOverview({
+    required this.nodes,
+    required this.weakTop5,
+    required this.masteredCount,
+    required this.reviewingCount,
+    required this.newCount,
+  });
+
+  /// 全部知识点节点（带掌握度，可能为 null）。
+  final List<KnowledgeTreeNodeView> nodes;
+
+  /// 薄弱知识点 TOP5（按掌握度升序，仅含有题目的知识点）。
+  final List<KnowledgeTreeNodeView> weakTop5;
+
+  /// 全局掌握度分布（按题目数汇总）。
+  final int masteredCount;
+  final int reviewingCount;
+  final int newCount;
+}
+
+/// 知识树页面聚合 provider（Phase 5）。
+///
+/// 合并知识点树与掌握度计算，watch [weakPointRecommendationsProvider]
+/// 以响应题目/复习日志变更。返回 [KnowledgeTreeOverview] 供页面消费。
+final FutureProvider<KnowledgeTreeOverview> knowledgeTreeOverviewProvider =
+    FutureProvider<KnowledgeTreeOverview>((ref) async {
+  final treeAsync = ref.watch(knowledgePointTreeProvider);
+  final recsAsync = ref.watch(weakPointRecommendationsProvider);
+  final tree = treeAsync.maybeWhen(
+    data: (d) => d,
+    orElse: () => const <KnowledgePoint>[],
+  );
+  final recs = recsAsync.maybeWhen(
+    data: (d) => d,
+    orElse: () => const <WeakPointRecommendation>[],
+  );
+
+  // 掌握度映射：kpId -> WeakPointRecommendation
+  final recByKp = {for (final r in recs) r.recommendation.knowledgePointId: r};
+
+  final nodes = <KnowledgeTreeNodeView>[];
+  var mastered = 0;
+  var reviewing = 0;
+  var newQ = 0;
+  for (final kp in tree) {
+    final rec = recByKp[kp.id];
+    final mastery = rec?.mastery;
+    nodes.add(KnowledgeTreeNodeView(
+      point: kp,
+      mastery: mastery,
+      pendingReviewCount: rec?.pendingReviewCount ?? 0,
+    ));
+    if (mastery != null) {
+      mastered += mastery.masteredCount;
+      reviewing += mastery.reviewingCount;
+      newQ += mastery.newCount;
+    }
+  }
+
+  // 薄弱 TOP5：仅有掌握度且 totalQuestions>0 的节点，按掌握度升序
+  final weak = nodes
+      .where((n) => n.mastery != null && n.mastery!.totalQuestions > 0)
+      .toList()
+    ..sort((a, b) =>
+        a.mastery!.masteryPercentage.compareTo(b.mastery!.masteryPercentage));
+
+  return KnowledgeTreeOverview(
+    nodes: nodes,
+    weakTop5: weak.take(5).toList(),
+    masteredCount: mastered,
+    reviewingCount: reviewing,
+    newCount: newQ,
+  );
+});
+
+/// 知识点详情页数据（Phase 5）：知识点 + 关联题目列表 + 掌握度。
+class KnowledgePointDetail {
+  const KnowledgePointDetail({
+    required this.point,
+    required this.questions,
+    this.mastery,
+  });
+
+  final KnowledgePoint point;
+  final List<QuestionRecord> questions;
+  final KnowledgePointMastery? mastery;
+}
+
+/// 按知识点 ID 加载详情（Phase 5）。
+///
+/// watch [questionListProvider] 和 [knowledgePointTreeProvider] 以响应
+/// 题目/知识点树变更。返回该知识点关联的题目列表与掌握度快照。
+final FutureProviderFamily<KnowledgePointDetail, String>
+    knowledgePointDetailProvider =
+    FutureProvider.family<KnowledgePointDetail, String>(
+        (ref, knowledgePointId) async {
+  final tree = await ref.watch(knowledgePointTreeProvider.future);
+  final point = tree.firstWhere(
+    (kp) => kp.id == knowledgePointId,
+    orElse: () => KnowledgePoint(
+      id: knowledgePointId,
+      name: '未知知识点',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    ),
+  );
+
+  final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+  final questionIds = await linkRepo.questionIdsForKnowledgePoint(knowledgePointId);
+  final allQuestions = ref.watch(questionListProvider).maybeWhen(
+        data: (q) => q,
+        orElse: () => const <QuestionRecord>[],
+      );
+  final idSet = questionIds.toSet();
+  final questions =
+      allQuestions.where((q) => idSet.contains(q.id)).toList();
+
+  // 掌握度：从 overview 的 nodes 中取（若该知识点有题）
+  final overview = ref.watch(knowledgeTreeOverviewProvider).maybeWhen(
+        data: (d) => d,
+        orElse: () => null,
+      );
+  final mastery = overview?.nodes
+      .firstWhere(
+        (n) => n.point.id == knowledgePointId,
+        orElse: () => KnowledgeTreeNodeView(
+          point: point,
+          mastery: null,
+        ),
+      )
+      .mastery;
+
+  return KnowledgePointDetail(
+    point: point,
+    questions: questions,
+    mastery: mastery,
+  );
+});
+
 /// 通知待确认知识点队列已变更，刷新 [pendingKnowledgePointMappingsProvider]。
 void invalidatePendingKnowledgePoints(WidgetRef ref) {
   ref.read(_pendingKnowledgePointVersionProvider.notifier).state++;

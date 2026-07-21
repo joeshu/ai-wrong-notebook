@@ -9,7 +9,6 @@ import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
-import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
@@ -60,7 +59,7 @@ class HomeScreen extends ConsumerWidget {
                 color: Theme.of(context).colorScheme.secondaryContainer,
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
-                  onTap: () => CaptureEntryLauncher.show(context),
+                  onTap: () => context.go('/add'),
                   borderRadius: BorderRadius.circular(12),
                   child: const Padding(
                     padding: EdgeInsets.all(12),
@@ -86,7 +85,7 @@ class HomeScreen extends ConsumerWidget {
                 child: _TodayPlanCard(
                   plan: plan,
                   onOpenReview: () => context.go('/review'),
-                  onCapture: () => CaptureEntryLauncher.show(context),
+                  onCapture: () => context.go('/add'),
                 ),
               ),
               loading: () => const _TodayPlanSkeleton(),
@@ -97,7 +96,7 @@ class HomeScreen extends ConsumerWidget {
             ),
           const SizedBox(height: AppSpace.md),
           _QuickStartRow(
-            onCapture: () => CaptureEntryLauncher.show(context),
+            onCapture: () => context.go('/add'),
             onImportPdf: () => context.push('/worksheet/import'),
           ),
           const SizedBox(height: AppSpace.md),

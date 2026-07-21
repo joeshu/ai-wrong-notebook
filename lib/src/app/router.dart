@@ -21,6 +21,9 @@ import 'package:smart_wrong_notebook/src/features/settings/presentation/weekly_r
 import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_radar_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/mistake_trend_screen.dart';
 import 'package:smart_wrong_notebook/src/features/goals/presentation/goals_screen.dart';
+import 'package:smart_wrong_notebook/src/features/knowledge_tree/presentation/knowledge_point_detail_screen.dart';
+import 'package:smart_wrong_notebook/src/features/knowledge_tree/presentation/knowledge_tree_screen.dart';
+import 'package:smart_wrong_notebook/src/features/capture/presentation/add_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/image_crop_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/question_correction_screen.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_import_screen.dart';
@@ -68,6 +71,11 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
           ),
           StatefulShellBranch(
             routes: <RouteBase>[
+              GoRoute(path: '/add', builder: (_, __) => const AddScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
               GoRoute(
                   path: '/notebook',
                   builder: (_, __) => const NotebookScreen()),
@@ -77,6 +85,14 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
             routes: <RouteBase>[
               GoRoute(
                   path: '/review', builder: (_, __) => const ReviewScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/knowledge-tree',
+                builder: (_, __) => const KnowledgeTreeScreen(),
+              ),
             ],
           ),
           StatefulShellBranch(
@@ -166,6 +182,14 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
       GoRoute(
           path: '/goals',
           pageBuilder: (_, __) => _buildPage(const GoalsScreen())),
+      GoRoute(
+        path: '/knowledge-tree/detail/:id',
+        pageBuilder: (context, state) => _buildPage(
+          KnowledgePointDetailScreen(
+            knowledgePointId: state.pathParameters['id']!,
+          ),
+        ),
+      ),
     ],
   );
 }
@@ -188,10 +212,16 @@ class ScaffoldWithNavBar extends StatelessWidget {
           NavigationDestination(
               icon: Icon(CupertinoIcons.house), label: AppStrings.homeTab),
           NavigationDestination(
+              icon: Icon(CupertinoIcons.plus_circle),
+              label: AppStrings.addTab),
+          NavigationDestination(
               icon: Icon(CupertinoIcons.book), label: AppStrings.notebookTab),
           NavigationDestination(
               icon: Icon(CupertinoIcons.arrow_2_circlepath),
               label: AppStrings.reviewTab),
+          NavigationDestination(
+              icon: Icon(CupertinoIcons.tree_documentation),
+              label: AppStrings.knowledgeTreeTab),
           NavigationDestination(
               icon: Icon(CupertinoIcons.gear), label: AppStrings.settingsTab),
         ],
