@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/data/services/custom_http_document_layout_service.dart';
@@ -19,6 +20,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/single_text_field_dialog.dart';
 import 'package:uuid/uuid.dart';
@@ -69,6 +71,46 @@ class _WorksheetRegionEditorScreenState
     });
   }
 
+  /// 原图不可用时让用户重新选图，写回工作台 session 与 currentQuestionProvider。
+  ///
+  /// 选图后同时把当前页 imagePath 更新到工作台 session，并刷新 currentQuestionProvider，
+  /// 这样 build() 立即从空状态切回正常态，无需 push/pop。
+  Future<void> _reselectPageImage(QuestionRecord page) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final XFile? picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2560,
+      maxHeight: 2560,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+    try {
+      final storage = ref.read(imageStorageServiceProvider);
+      final newPath = await storage.saveImage(File(picked.path));
+      final oldPath = page.imagePath;
+      final updated = page.copyWith(imagePath: newPath);
+      // 同步到工作台 session，避免回到工作台后看到的仍是失效路径。
+      final worksheet = ref.read(currentWorksheetImportProvider);
+      if (worksheet != null) {
+        final nextPages = worksheet.pages.map((item) => item.id == page.id
+            ? updated : item).toList();
+        await persistWorksheetImport(ref, worksheet.copyWith(pages: nextPages));
+      }
+      ref.read(currentQuestionProvider.notifier).state = updated;
+      if (oldPath.isNotEmpty && oldPath != newPath) {
+        await storage.deleteImage(oldPath);
+      }
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(
+        content: Text('已重新选图，可继续框选切题'),
+        duration: Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('重新选图失败: $e')));
+    }
+  }
+
   Future<void> _restoreDraftIfNeeded(QuestionRecord page) async {
     if (_didCheckDraft) return;
     _didCheckDraft = true;
@@ -103,7 +145,20 @@ class _WorksheetRegionEditorScreenState
     if (page == null || !File(page.imagePath).existsSync()) {
       return Scaffold(
         appBar: AppBar(title: const Text('整页框选切题')),
-        body: const Center(child: Text('未找到可框选的试卷页面')),
+        body: AppEmptyState(
+          icon: CupertinoIcons.photo,
+          title: page == null ? '未找到可框选的试卷页面' : '原图不可用',
+          description: page == null
+              ? '请返回工作台重新选择试卷页面。'
+              : '原始试卷图片已丢失，可重新选择图片后继续框选切题。',
+          action: page == null
+              ? null
+              : FilledButton.icon(
+                  onPressed: () => _reselectPageImage(page),
+                  icon: const Icon(CupertinoIcons.photo_on_rectangles),
+                  label: const Text('重新选图'),
+                ),
+        ),
       );
     }
     Future<void>.microtask(() => _restoreDraftIfNeeded(page));

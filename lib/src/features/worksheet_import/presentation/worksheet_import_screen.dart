@@ -708,6 +708,7 @@ class _QueueQuestionTile extends StatelessWidget {
     required this.question,
     required this.onOpen,
     this.onRetry,
+    this.onReedit,
     this.autoAnalyzing = false,
   });
 
@@ -715,6 +716,8 @@ class _QueueQuestionTile extends StatelessWidget {
   final QuestionRecord question;
   final VoidCallback onOpen;
   final VoidCallback? onRetry;
+  /// OCR 草稿（识别完成未校对）时显示，跳转保存确认页让用户补一遍人工校对。
+  final VoidCallback? onReedit;
   final bool autoAnalyzing;
 
   @override
@@ -772,6 +775,12 @@ class _QueueQuestionTile extends StatelessWidget {
               icon: const Icon(CupertinoIcons.arrow_clockwise, size: 16),
               tooltip: '重试识别',
               onPressed: onRetry,
+            )
+          else if (isOcrDraft && onReedit != null && !autoAnalyzing)
+            IconButton(
+              icon: const Icon(CupertinoIcons.pencil, size: 16),
+              tooltip: '重新校对',
+              onPressed: onReedit,
             )
           else if (!isProcessing)
             const Icon(CupertinoIcons.chevron_right, size: 14),
