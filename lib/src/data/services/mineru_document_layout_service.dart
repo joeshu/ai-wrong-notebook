@@ -35,7 +35,9 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
   }
 
   @override
-  Future<LayoutDetectionResult> detectQuestionRegions({required String imagePath, String? pageRanges}) async {
+  Future<LayoutDetectionResult> detectQuestionRegions({required String imagePath, String? pageRanges, LayoutStageCallback? onStage}) async {
+    // Phase 10-2：5 个阶段——申请上传地址 / 上传图片 / VLM 解析中 / 下载结果 / 解压提取。
+    const totalStages = 5;
     // MinerU VLM 接口暂不支持页码范围参数；显式忽略以匹配接口契约。
     if (config.apiKey.trim().isEmpty) throw StateError('请先在“试卷版面识别”中填写 MinerU Token');
     final source = File(imagePath);
@@ -48,6 +50,7 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
       headers: <String, String>{'Authorization': 'Bearer ${config.apiKey.trim()}', 'Content-Type': 'application/json'},
     ));
     try {
+      onStage?.call(current: 0, total: totalStages, label: '申请上传地址');
       final name = source.uri.pathSegments.last;
       final dataId = 'worksheet-${DateTime.now().microsecondsSinceEpoch}';
       final applied = await dio.post<dynamic>('$_base/file-urls/batch', data: <String, dynamic>{
@@ -60,6 +63,7 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
       final batchId = request?['batch_id']?.toString();
       final urls = request?['file_urls'];
       if (batchId == null || urls is! List || urls.isEmpty) throw StateError('MinerU 未返回上传地址');
+      onStage?.call(current: 1, total: totalStages, label: '上传图片');
       final uploadDio = Dio(BaseOptions(
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 120),
@@ -71,7 +75,10 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
         uploadDio.close();
       }
 
+      onStage?.call(current: 2, total: totalStages, label: 'VLM 解析中');
       Map<String, dynamic>? item;
+      // 轮询阶段子进度：每 10s 上报一次已等待秒数，避免 UI 静止。
+      var lastReportedSeconds = -1;
       for (var attempt = 0; attempt < 90; attempt++) {
         await Future<void>.delayed(const Duration(seconds: 2));
         final poll = await dio.get<dynamic>('$_base/extract-results/batch/$batchId');
@@ -83,11 +90,24 @@ class MineruDocumentLayoutService implements DocumentLayoutService {
         final state = item?['state']?.toString();
         if (state == 'done') break;
         if (state == 'failed') throw StateError('MinerU 解析失败：${item?['err_msg'] ?? '未知错误'}');
+        final elapsedSeconds = (attempt + 1) * 2;
+        // 每 10s 上报一次已等待时长。
+        if (elapsedSeconds - lastReportedSeconds >= 10) {
+          lastReportedSeconds = elapsedSeconds;
+          onStage?.call(
+            current: 2,
+            total: totalStages,
+            label: 'VLM 解析中',
+            detail: '已等待 ${elapsedSeconds}s',
+          );
+        }
       }
       if (item?['state'] != 'done') throw StateError('MinerU 解析超时，请稍后重试');
+      onStage?.call(current: 3, total: totalStages, label: '下载结果');
       final zipUrl = item?['full_zip_url']?.toString();
       if (zipUrl == null || zipUrl.isEmpty) throw StateError('MinerU 未返回版面结果');
       final zip = await dio.get<List<int>>(zipUrl, options: Options(responseType: ResponseType.bytes));
+      onStage?.call(current: 4, total: totalStages, label: '解压提取');
       final regions = _regionsFromZip(zip.data ?? const <int>[], Size(decoded.width.toDouble(), decoded.height.toDouble()));
       if (regions.isEmpty) throw StateError('MinerU 未生成可用题目候选框；请手动框选');
       return LayoutDetectionResult(regions: regions, providerLabel: 'MinerU VLM', warning: 'MinerU 根据题号和版面块聚合候选框，请逐题检查。');

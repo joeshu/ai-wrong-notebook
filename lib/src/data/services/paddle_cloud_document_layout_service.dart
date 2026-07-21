@@ -24,7 +24,11 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
   Future<LayoutDetectionResult> detectQuestionRegions({
     required String imagePath,
     String? pageRanges,
+    LayoutStageCallback? onStage,
   }) async {
+    // Phase 10-2：4 个阶段——提交任务 / 排队解析中 / 下载结果 / 提取题框。
+    // total 写死 4，current 从 0 开始；失败路径不回调"完成"阶段。
+    const totalStages = 4;
     if (config.apiKey.trim().isEmpty) {
       throw StateError('请先在“试卷版面识别”中填写 PaddleOCR AI Studio Token');
     }
@@ -35,6 +39,7 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
       headers: <String, String>{'Authorization': 'Bearer ${config.apiKey.trim()}'},
     ));
     try {
+      onStage?.call(current: 0, total: totalStages, label: '提交任务');
       // P6a: pageRanges 作为顶层 multipart 字段下发（仅在调用方提供时附加）。
       final formData = <String, dynamic>{
         'file': await MultipartFile.fromFile(imagePath, filename: File(imagePath).uri.pathSegments.last),
@@ -73,8 +78,12 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
       final jobId = submittedData?['jobId']?.toString();
       if (jobId == null || jobId.isEmpty) throw StateError('PaddleOCR 未返回任务编号');
 
+      onStage?.call(current: 1, total: totalStages, label: '排队解析中');
       // P1 + P4: 显式区分 4 态轮询；前 5 次 2s、第 6 次起 5s，最多 36 次。
       Map<String, dynamic>? job;
+      // 记录上次上报的子进度文案，避免重复触发 setState。
+      String? lastReportedDetail;
+      var lastState = '';
       for (var attempt = 0; attempt < _maxPollAttempts; attempt++) {
         await Future<void>.delayed(Duration(seconds: attempt < _fastPollThreshold ? 2 : 5));
         final response = await dio.get<dynamic>('$_jobUrl/$jobId');
@@ -84,19 +93,32 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
         if (state == 'failed') {
           throw StateError('PaddleOCR 识别失败：${job?['errorMsg'] ?? '未知错误'}');
         }
-        // pending（排队）/ running（解析中）/ null：继续轮询。
-        // running 时记录 extractProgress 到日志，便于排查长任务。
-        if (state == 'running') {
-          final progress = _map(job?['extractProgress']);
-          final extracted = progress?['extractedPages']?.toString();
-          final total = progress?['totalPages']?.toString();
-          if (extracted != null || total != null) {
-            debugPrint('[PaddleOCR] 任务 $jobId running: $extracted/$total 页');
+        // 状态切换时上报；running 时把 extractProgress 拼成 detail
+        // 节流：只在 detail 文案变化时才回调。
+        if (state != null && state != lastState) {
+          lastState = state;
+          if (state == 'running') {
+            final progress = _map(job?['extractProgress']);
+            final extracted = progress?['extractedPages']?.toString();
+            final total = progress?['totalPages']?.toString();
+            final detail = (extracted != null && total != null)
+                ? '$extracted/$total 页'
+                : (extracted != null ? '$extracted 页' : null);
+            if (detail != null && detail != lastReportedDetail) {
+              lastReportedDetail = detail;
+              onStage?.call(
+                current: 1,
+                total: totalStages,
+                label: '排队解析中',
+                detail: detail,
+              );
+            }
           }
         }
       }
       if (job?['state'] != 'done') throw StateError('PaddleOCR 识别超时，请稍后重试');
 
+      onStage?.call(current: 2, total: totalStages, label: '下载结果');
       // P6b: 优先 jsonUrl；为空时退回 markdownUrl 构造整页文本块兜底。
       final resultUrlMap = _map(job?['resultUrl']);
       final jsonUrl = resultUrlMap?['jsonUrl']?.toString();
@@ -107,12 +129,14 @@ class PaddleCloudDocumentLayoutService implements DocumentLayoutService {
           '下载结果',
           () => dio.get<String>(jsonUrl, options: Options(responseType: ResponseType.plain)),
         );
+        onStage?.call(current: 3, total: totalStages, label: '提取题框');
         regions = _extractRegions(result.data ?? '');
       } else if (markdownUrl != null && markdownUrl.isNotEmpty) {
         final result = await _retry<Response<String>>(
           '下载 Markdown 结果',
           () => dio.get<String>(markdownUrl, options: Options(responseType: ResponseType.plain)),
         );
+        onStage?.call(current: 3, total: totalStages, label: '提取题框');
         regions = _regionsFromMarkdown(result.data ?? '');
       } else {
         throw StateError('PaddleOCR 未返回结果地址');

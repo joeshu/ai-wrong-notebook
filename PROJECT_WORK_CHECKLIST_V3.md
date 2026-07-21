@@ -281,14 +281,14 @@
 
 ## 2. 分阶段进度条
 
-- [ ] PaddleOCR 识别进度分阶段(图片上传 → 文字识别 → 公式提取 → 结构分析)
-  > 延后:需 `PaddleCloudDocumentLayoutService` 暴露阶段回调 + UI 层订阅
-- [ ] MinerU 识别进度分阶段(同上 + VLM 解析)
-  > 延后:同上
-- [ ] Auto 策略进度条(3 步骤升级为阶段条)
-  > 延后:需 `AutoDocumentLayoutService` 暴露 PaddleOCR→MinerU 兜底阶段回调
-- [ ] 复用 `_StageIndicator` 组件样式
-  > 延后
+- [x] PaddleOCR 识别进度分阶段(图片上传 → 文字识别 → 公式提取 → 结构分析)
+  > abstract `DocumentLayoutService.detectQuestionRegions` 加 `LayoutStageCallback? onStage` 可选参数；PaddleCloud 4 阶段（提交任务/排队解析中/下载结果/提取题框），轮询时 extractProgress 节流后作 detail 上报
+- [x] MinerU 识别进度分阶段(同上 + VLM 解析)
+  > MinerU 5 阶段（申请上传地址/上传图片/VLM 解析中/下载结果/解压提取），轮询阶段每 10s 上报已等待秒数
+- [x] Auto 策略进度条(3 步骤升级为阶段条)
+  > AutoDocumentLayoutService 删除 `LayoutProgressCallback` typedef 和 `onProgress` 字段，改用 `LayoutStageCallback onStage`；3 阶段（PaddleOCR 快速识别/检查候选框质量/升级 MinerU 深度解析），子 service 阶段不向上展开
+- [x] 复用 `_StageIndicator` 组件样式
+  > 提取为 `shared/widgets/stage_indicator.dart` public `StageIndicator`（新增 `detail` 参数）；analysis_loading_screen 改 import 公共组件，行为零变化；worksheet_region_editor 加 `_DetectionStageCard` 在识别中渲染阶段条
 
 ## 3. "是否交给 AI"决策统一
 

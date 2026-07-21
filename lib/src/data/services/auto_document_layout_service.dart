@@ -6,23 +6,34 @@ import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.da
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/services/document_layout_service.dart';
 
-typedef LayoutProgressCallback = void Function(String message);
-
 /// Cost-aware layout routing: use PaddleOCR first, and only use MinerU VLM
 /// when the fast candidate set is not credible enough for user review.
+///
+/// Phase 10-2：用结构化 [LayoutStageCallback] 替换原 `LayoutProgressCallback`
+/// 字符串回调。3 个顶层阶段对应 Auto 编排：① PaddleOCR 快速识别 →
+/// ② 检查候选框质量 → ③ 升级 MinerU 深度解析。子 service（Paddle/MinerU）
+/// 内部的细粒度阶段不向上展开，避免阶段条回退难处理。
 class AutoDocumentLayoutService implements DocumentLayoutService {
-  AutoDocumentLayoutService(this.config, {this.onProgress});
+  AutoDocumentLayoutService(this.config, {this.onStage});
   final LayoutProviderConfig config;
-  final LayoutProgressCallback? onProgress;
+  final LayoutStageCallback? onStage;
 
   @override
-  Future<LayoutDetectionResult> detectQuestionRegions({required String imagePath, String? pageRanges}) async {
+  Future<LayoutDetectionResult> detectQuestionRegions({
+    required String imagePath,
+    String? pageRanges,
+    LayoutStageCallback? onStage,
+  }) async {
+    // 子调用用本 service 自己的 onStage（构造时注入）。
+    // abstract 方法参数 onStage 仅用于多态调用方传入，Auto 不向下传递
+    // （否则会和构造注入的回调重复触发）。
+    const totalStages = 3;
     String? fallbackReason;
     try {
-      onProgress?.call('① 正在调用 PaddleOCR 快速识别…');
+      onStage?.call(current: 0, total: totalStages, label: 'PaddleOCR 快速识别');
       final paddleConfig = LayoutProviderConfig(type: LayoutProviderType.paddleCloud, apiKey: config.apiKey);
       final fast = await PaddleCloudDocumentLayoutService(paddleConfig).detectQuestionRegions(imagePath: imagePath, pageRanges: pageRanges);
-      onProgress?.call('② 正在检查 PaddleOCR 候选题框质量…');
+      onStage?.call(current: 1, total: totalStages, label: '检查候选框质量');
       final qualityIssue = _qualityIssue(fast.regions);
       if (qualityIssue == null) {
         return LayoutDetectionResult(regions: fast.regions, providerLabel: '${fast.providerLabel}（自动策略：快速结果可用）', warning: fast.warning);
@@ -33,7 +44,7 @@ class AutoDocumentLayoutService implements DocumentLayoutService {
       // 让 UI 升级提示能反映真实失败原因，而非模糊的 "未返回可用结果"。
       fallbackReason = 'PaddleOCR 不可用：${e.toString()}';
     }
-    onProgress?.call('③ $fallbackReason，已自动升级 MinerU 深度解析…');
+    onStage?.call(current: 2, total: totalStages, label: '升级 MinerU 深度解析', detail: fallbackReason);
     final mineruConfig = LayoutProviderConfig(type: LayoutProviderType.mineruCloud, apiKey: config.secondaryApiKey);
     final precise = await MineruDocumentLayoutService(mineruConfig).detectQuestionRegions(imagePath: imagePath, pageRanges: pageRanges);
     return LayoutDetectionResult(

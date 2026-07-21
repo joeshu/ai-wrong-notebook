@@ -24,6 +24,7 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/post_recognition_ai_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/single_text_field_dialog.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/stage_indicator.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/status_pill.dart';
 import 'package:uuid/uuid.dart';
 
@@ -46,6 +47,11 @@ class _WorksheetRegionEditorScreenState
   String? _detectionProvider;
   String? _detectionWarning;
   Duration? _detectionDuration;
+  // Phase 10-2：分阶段进度条状态。识别中由 service 的 onStage 回调填充；
+  // 识别完成/失败时清空，回退到 _detectionMessage 文本展示。
+  List<String>? _detectionStages;
+  int _detectionStageCurrent = 0;
+  String? _detectionStageDetail;
   final WorksheetReviewDraftRepository _draftRepository = WorksheetReviewDraftRepository();
   Timer? _draftSaveTimer;
   bool _didCheckDraft = false;
@@ -209,6 +215,17 @@ class _WorksheetRegionEditorScreenState
                 regions: _regions,
                 duration: _detectionDuration,
                 warning: _detectionWarning,
+              ),
+            )
+          else if (_isDetecting && _detectionStages != null && _detectionStages!.isNotEmpty)
+            // Phase 10-2：识别中且 service 已上报阶段 → 渲染分阶段进度条。
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: _DetectionStageCard(
+                stages: _detectionStages!,
+                current: _detectionStageCurrent,
+                detail: _detectionStageDetail,
+                message: _detectionMessage,
               ),
             )
           else if (_detectionMessage != null)
@@ -395,7 +412,28 @@ class _WorksheetRegionEditorScreenState
       _detectionProvider = null;
       _detectionWarning = null;
       _detectionDuration = null;
+      // Phase 10-2：清空上一次的阶段进度状态，避免残留圆点。
+      _detectionStages = null;
+      _detectionStageCurrent = 0;
+      _detectionStageDetail = null;
     });
+    // Phase 10-2：统一的 onStage 回调——把 service 上报的阶段写入 state，
+    // 触发 StageIndicator 重渲染。mounted 检查与 service 调用方一致。
+    void onStage({required int current, required int total, required String label, String? detail}) {
+      if (!mounted) return;
+      setState(() {
+        // total 可能在多态调用时变化（Auto 调 Paddle 时 Paddle 发的是 4 阶段，
+        // 但 Auto 自己只关心 3 阶段）。这里以最近一次上报的 total 为准，
+        // 用 List.filled 占位让 StageIndicator 知道圆点数。
+        _detectionStages = List<String>.filled(total, '', growable: false);
+        if (current >= 0 && current < total) {
+          _detectionStages![current] = label;
+        }
+        _detectionStageCurrent = current;
+        _detectionStageDetail = detail;
+        _detectionMessage = label;
+      });
+    }
     try {
       final config = override == null
           ? await restoreLayoutProviderConfig(ref)
@@ -417,23 +455,21 @@ class _WorksheetRegionEditorScreenState
       };
       final result = type == LayoutProviderType.customHttp
           ? await CustomHttpDocumentLayoutService(effectiveConfig)
-              .detectQuestionRegions(imagePath: page.imagePath)
+              .detectQuestionRegions(imagePath: page.imagePath, onStage: onStage)
           : type == LayoutProviderType.paddleCloud
               ? await PaddleCloudDocumentLayoutService(effectiveConfig)
-                  .detectQuestionRegions(imagePath: page.imagePath)
+                  .detectQuestionRegions(imagePath: page.imagePath, onStage: onStage)
               : type == LayoutProviderType.mineruCloud
                   ? await MineruDocumentLayoutService(effectiveConfig)
-                      .detectQuestionRegions(imagePath: page.imagePath)
+                      .detectQuestionRegions(imagePath: page.imagePath, onStage: onStage)
                   : type == LayoutProviderType.autoCloud
                       ? await AutoDocumentLayoutService(
                           effectiveConfig,
-                          onProgress: (message) {
-                            if (mounted) setState(() => _detectionMessage = message);
-                          },
+                          onStage: onStage,
                         ).detectQuestionRegions(imagePath: page.imagePath)
                   : await ref
                       .read(visionDocumentLayoutServiceProvider)
-                      .detectQuestionRegions(imagePath: page.imagePath);
+                      .detectQuestionRegions(imagePath: page.imagePath, onStage: onStage);
       if (!mounted) return;
       setState(() {
         _regions
@@ -444,6 +480,10 @@ class _WorksheetRegionEditorScreenState
         _detectionWarning = result.warning;
         _detectionDuration = DateTime.now().difference(startedAt);
         _detectionMessage = '已生成候选框，请逐一检查后确认裁切。';
+        // 识别完成：清空阶段条，避免残留。
+        _detectionStages = null;
+        _detectionStageCurrent = 0;
+        _detectionStageDetail = null;
       });
       if (override == LayoutProviderType.paddleCloud ||
           override == LayoutProviderType.mineruCloud) {
@@ -456,6 +496,10 @@ class _WorksheetRegionEditorScreenState
         _detectionProvider = pendingProviderLabel;
         _detectionMessage = '识别失败（$pendingProviderLabel）：$e\n'
             '你仍可手动点击页面新增题框，或切换其他识别引擎重试。';
+        // 失败：清空阶段条，回退到错误文案展示。
+        _detectionStages = null;
+        _detectionStageCurrent = 0;
+        _detectionStageDetail = null;
       });
     } finally {
       if (mounted) setState(() => _isDetecting = false);
@@ -851,6 +895,62 @@ class _DetectionActionCard extends StatelessWidget {
       ]),
     ),
   );
+}
+
+/// Phase 10-2：识别中分阶段进度卡片。
+///
+/// 渲染 [StageIndicator] + 当前阶段名 + 可选子进度文案。service 失败或
+/// 完成时本卡片不会显示（state 已清空 _detectionStages）。
+class _DetectionStageCard extends StatelessWidget {
+  const _DetectionStageCard({
+    required this.stages,
+    required this.current,
+    required this.detail,
+    required this.message,
+  });
+
+  final List<String> stages;
+  final int current;
+  final String? detail;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // 用阶段名列表生成渲染用的 steps；service 上报的 label 已写入
+    // stages[current]，其他位置为空字符串（StageIndicator 不读取非当前
+    // 阶段的 label，只画圆点）。这里补一个 fallback：若 stages 全空
+    //（理论上不会发生），用占位 "…" 让圆点至少有尺寸。
+    final steps = stages.map((s) => s.isEmpty ? '·' : s).toList(growable: false);
+    return Card(
+      margin: EdgeInsets.zero,
+      color: scheme.primaryContainer.withValues(alpha: 0.18),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            StageIndicator(
+              steps: steps,
+              current: current,
+              accent: scheme.primary,
+              dimColor: scheme.outlineVariant,
+              detail: detail,
+            ),
+            if (message != null) ...<Widget>[
+              const SizedBox(height: 6),
+              Text(
+                message!,
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DetectionResultCard extends StatelessWidget {

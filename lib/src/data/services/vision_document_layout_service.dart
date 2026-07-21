@@ -11,8 +11,11 @@ class VisionDocumentLayoutService implements DocumentLayoutService {
   Future<LayoutDetectionResult> detectQuestionRegions({
     required String imagePath,
     String? pageRanges,
+    LayoutStageCallback? onStage,
   }) async {
-    // 视觉模型走多模态对话接口，无独立 pageRanges 概念；显式忽略。
+    // Phase 10-2：视觉模型走多模态对话接口，无独立 pageRanges 概念；
+    // 单步调用前发一次 onStage，让 UI 阶段条渲染 1 个圆点。
+    onStage?.call(current: 0, total: 1, label: '调用 AI 视觉模型');
     final regions =
         await _aiService.detectWorksheetQuestionRegions(imagePath: imagePath);
     return LayoutDetectionResult(

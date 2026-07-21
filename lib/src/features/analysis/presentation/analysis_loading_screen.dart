@@ -13,6 +13,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/stage_indicator.dart';
 
 class AnalysisLoadingScreen extends ConsumerStatefulWidget {
   const AnalysisLoadingScreen({super.key});
@@ -812,7 +813,7 @@ class _LoadingViewState extends State<_LoadingView>
             const SizedBox(height: 28),
             // 阶段进度条：4 个圆点 + 当前阶段高亮
             if (!hasProgress) ...<Widget>[
-              _StageIndicator(
+              StageIndicator(
                 steps: widget.steps,
                 current: widget.step,
                 accent: accent,
@@ -854,60 +855,3 @@ class _LoadingViewState extends State<_LoadingView>
   }
 }
 
-/// 横向阶段进度指示器：4 个圆点 + 连接线，当前阶段高亮。
-///
-/// 替换原来仅靠文案滚动的展示，让用户一眼看到总进度与当前位置，
-/// 减少长时间等待的焦虑感。
-class _StageIndicator extends StatelessWidget {
-  const _StageIndicator({
-    required this.steps,
-    required this.current,
-    required this.accent,
-    required this.dimColor,
-  });
-
-  final List<String> steps;
-  final int current;
-  final Color accent;
-  final Color dimColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List<Widget>.generate(steps.length * 2 - 1, (i) {
-        if (i.isOdd) {
-          // 连接线
-          final filled = i < current * 2 + 1;
-          return Container(
-            width: 18,
-            height: 2,
-            margin: const EdgeInsets.symmetric(horizontal: 2),
-            color: filled ? accent : dimColor,
-          );
-        }
-        final idx = i ~/ 2;
-        final isDone = idx < current;
-        final isCurrent = idx == current;
-        final color = isCurrent
-            ? accent
-            : isDone
-                ? accent.withValues(alpha: 0.6)
-                : dimColor;
-        return Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: isCurrent ? accent : (isDone ? color : null),
-            border: Border.all(color: color, width: 1.5),
-            shape: BoxShape.circle,
-          ),
-          child: isDone
-              ? const Icon(CupertinoIcons.checkmark,
-                  size: 8, color: Colors.white)
-              : null,
-        );
-      }),
-    );
-  }
-}
