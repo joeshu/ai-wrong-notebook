@@ -31,6 +31,20 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final session = ref.read(currentWorksheetImportProvider);
+      if (session != null) {
+        final pages = session.pages
+            .where((page) => session.sourcePageIds.contains(page.id))
+            .toList();
+        if (pages.isNotEmpty) {
+          setState(() {
+            _selected.addAll(List<int>.generate(pages.length, (i) => i));
+            _selectionInitialized = true;
+          });
+        }
+      }
+    });
   }
 
   @override
@@ -69,10 +83,6 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     final failedCount = queuedQuestions
         .where((item) => item.contentStatus == ContentStatus.failed)
         .length;
-    if (!_selectionInitialized && pages.isNotEmpty) {
-      _selected.addAll(List<int>.generate(pages.length, (i) => i));
-      _selectionInitialized = true;
-    }
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
