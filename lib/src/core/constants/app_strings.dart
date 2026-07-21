@@ -122,6 +122,25 @@ class AppStrings {
   static const String settingsExportWorkbench = '导出工作台';
   static const String settingsExportWorkbenchSubtitle = '讲义 / Anki / HTML 等导出';
 
+  // Phase 9-3：学习设置区块
+  static const String settingsLearning = '学习设置';
+  static const String settingsDailyGoal = '每日复习目标';
+  static const String settingsDailyGoalSubtitle = '设置目标题数、自动打卡、学习提醒';
+  static const String settingsDifficultyPreference = '难度偏好';
+  static const String settingsDifficultyPreferenceSubtitle = '优先推荐该难度的题目';
+  static const String settingsKnowledgeTreeDepth = '知识树显示层级';
+  static const String settingsKnowledgeTreeDepthSubtitle = '默认展开到知识点层';
+
+  // Phase 9-4：关于区块
+  static const String settingsAbout = '关于';
+  static const String settingsAboutVersion = '版本';
+  static const String settingsAboutCheckUpdate = '检查更新';
+  static const String settingsAboutCheckUpdateSubtitle = '查看是否有新版本';
+  static const String settingsAboutHelp = '使用帮助';
+  static const String settingsAboutHelpSubtitle = '查看功能说明与常见问题';
+  static const String settingsAboutFeedback = '反馈与建议';
+  static const String settingsAboutFeedbackSubtitle = '通过 GitHub Issues 提交反馈';
+
   // Provider config
   static const String providerConfigTitle = 'AI 服务配置';
   static const String providerConfigUrlLabel = 'API 地址';

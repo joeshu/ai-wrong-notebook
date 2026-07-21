@@ -16,6 +16,8 @@ import 'package:smart_wrong_notebook/src/features/settings/presentation/layout_p
 import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/prompt_settings_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/data_management_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/learning_settings_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/about_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/export_workbench_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/weekly_report_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_radar_screen.dart';
@@ -132,6 +134,14 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                   GoRoute(
                     path: 'mistake-trend',
                     builder: (_, __) => const MistakeTrendScreen(),
+                  ),
+                  GoRoute(
+                    path: 'learning',
+                    builder: (_, __) => const LearningSettingsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'about',
+                    builder: (_, __) => const AboutScreen(),
                   ),
                 ],
               ),

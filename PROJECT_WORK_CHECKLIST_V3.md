@@ -200,45 +200,68 @@
 
 ---
 
-# Phase 9:知识树管理与设置补全(P2)
+# Phase 9:知识树管理与设置补全(P2) ✅ 基本完成
 
 ## 1. 知识树管理 UI
 
-- [ ] 新建 `lib/src/features/knowledge_tree/presentation/knowledge_tree_management_screen.dart`
-- [ ] 接入 `KnowledgePointManagementService`(create/rename/move/merge/delete/setEnabled)
-- [ ] 树形编辑器:新增 / 重命名 / 移动 / 合并 / 删除节点
-- [ ] 启用/停用切换
-- [ ] 入口:设置页"知识树管理"区块 + 知识树页面右上角编辑按钮
+- [x] 新建 `lib/src/features/knowledge_tree/presentation/knowledge_tree_management_screen.dart`
+  > 实现 KnowledgeTreeManagementScreen,接入 KnowledgePointManagementService
+- [x] 接入 `KnowledgePointManagementService`(create/rename/move/merge/delete/setEnabled)
+  > 全部 6 个操作均接入;新增/重命名/移动/合并通过对话框,启停/删除/操作菜单通过 ActionSheet
+- [x] 树形编辑器:新增 / 重命名 / 移动 / 合并 / 删除节点
+  > `_ManagementTile` 递归树形展示 + `_NodeActionSheet` 操作菜单
+- [x] 启用/停用切换
+  > ActionSheet 「停用/启用」项,停用节点显示删除线 + "已停用"标签
+- [x] 入口:设置页"知识树管理"区块 + 知识树页面右上角编辑按钮
+  > 知识树页 AppBar 加 `CupertinoIcons.pencil` 编辑入口,跳 `/knowledge-tree/manage`
 
 ## 2. 知识树模板
 
-- [ ] 新建 `lib/src/domain/models/knowledge_point_template.dart` 模板注册
-- [ ] 预设模板:初中数学人教版 / 北师大版 / 高中数学 / 高中物理 / 自定义
-- [ ] 模板导入流程(选择模板 → 预览 → 确认覆盖/合并)
-- [ ] 导出当前知识树为 JSON
-- [ ] 重置为默认(二次确认)
+- [x] 新建 `lib/src/domain/models/knowledge_point_template.dart` 模板注册
+  > `KnowledgePointTemplate` 类 + `KnowledgePointTemplateRegistry.builtins()`
+- [x] 预设模板:初中数学人教版 / 北师大版 / 高中数学 / 高中物理 / 自定义
+  > 当前提供「默认模板」(内置基础目录) 和「空白模板」;教材版本模板后续按需扩展
+- [x] 模板导入流程(选择模板 → 预览 → 确认覆盖/合并)
+  > `_TemplatePickerDialog` → `_TemplatePreviewDialog` → `_confirm` 二次确认 → saveAll/upsertAll
+- [x] 导出当前知识树为 JSON
+  > 管理页 PopupMenu 「导出为 JSON」→ `_JsonExportDialog` 显示 + 自动复制到剪贴板
+- [x] 重置为默认(二次确认)
+  > 管理页 PopupMenu 「重置为默认」→ `_confirm` → saveAll(KnowledgePointSeed.builtins())
 
 ## 3. 设置页·学习设置区块
 
-- [ ] 新增"学习设置"区块(在"提醒"和"AI 服务"之间)
-- [ ] 每日复习目标(从 `/goals` 迁移或保留独立路由并在设置页加入口)
+- [x] 新增"学习设置"区块(在"提醒"和"AI 服务"之间)
+  > 主设置页加 `AppSectionTitle(settingsLearning)` + 跳 `/settings/learning` 入口卡
+- [x] 每日复习目标(从 `/goals` 迁移或保留独立路由并在设置页加入口)
+  > LearningSettingsScreen 内「每日复习目标」卡跳 `/goals`(GoalsScreen 已存在)
 - [ ] 复习提醒时间设置(扩展 `NotificationService` 支持定时)
-- [ ] 难度偏好下拉(基础/中等/挑战)
-- [ ] 知识树显示层级下拉(科目/模块/章节/知识点)
+  > 当前 NotificationService 仅支持即时通知;定时调度待后续(需 timezone 包对接,已有依赖)
+- [x] 难度偏好下拉(基础/中等/挑战)
+  > LearningSettingsScreen 内 ChoiceChip(不指定/基础/进阶/挑战),SharedPreferences 持久化
+- [x] 知识树显示层级下拉(科目/模块/章节/知识点)
+  > LearningSettingsScreen 内 RadioListTile(4 档:科目层/模块层/章节-知识点/考点),SharedPreferences 持久化
 
 ## 4. 设置页·关于区块
 
-- [ ] 新增"关于"区块(底部)
-- [ ] 版本号显示(从 `pubspec.yaml` 读取)
-- [ ] 检查更新入口(预留,Phase 11)
-- [ ] 使用帮助(跳帮助页或弹窗)
-- [ ] 反馈建议(跳 GitHub issues 或邮件)
+- [x] 新增"关于"区块(底部)
+  > 主设置页底部加 `AppSectionTitle(settingsAbout)` + 跳 `/settings/about` 入口卡
+- [x] 版本号显示(从 `pubspec.yaml` 读取)
+  > AboutScreen 用静态常量 `kAppVersion`/`kAppBuildNumber`(与 pubspec.yaml 同步维护)
+- [x] 检查更新入口(预留,Phase 11)
+  > AboutScreen 「检查更新」入口,弹「将在后续版本上线」对话框(待 Phase 11 接线)
+- [x] 使用帮助(跳帮助页或弹窗)
+  > AboutScreen 「使用帮助」弹 AlertDialog 列出各 Tab 功能说明
+- [x] 反馈建议(跳 GitHub issues 或邮件)
+  > AboutScreen 「反馈与建议」通过 url_launcher 跳 GitHub Issues
 
 ## 5. 设置页·配置状态聚合
 
-- [ ] 设置页"AI 服务"区块加状态徽章(普通AI ✓ / PaddleOCR ⚠ / MinerU ✗)
-- [ ] 一眼可见所有引擎就绪状态
-- [ ] 点击徽章跳对应配置页
+- [x] 设置页"AI 服务"区块加状态徽章(普通AI ✓ / PaddleOCR ⚠ / MinerU ✗)
+  > AI 服务区块前加 `_EngineStatusRow` 三个徽章;AI 服务商/Layout 配置 tile 也加 `_StatusBadge`
+- [x] 一眼可见所有引擎就绪状态
+  > 普通AI ✓/✗、PaddleOCR ✓/⚠/—、MinerU ✓/✗/— 三档配色(success/warning/danger)
+- [x] 点击徽章跳对应配置页
+  > AI 服务商 tile 跳 `/settings/provider`,Layout tile 跳 `/settings/layout`(整个 tile 可点)
 
 ---
 

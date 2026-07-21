@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
+import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
@@ -15,6 +17,9 @@ class SettingsScreen extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final reminderEnabled = ref.watch(reviewReminderEnabledProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    // Phase 9-5：watch AI / Layout 配置状态徽章
+    final aiConfig = ref.watch(aiProviderConfigSnapshotProvider).valueOrNull;
+    final layoutConfig = ref.watch(layoutProviderConfigProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.settingsTitle)),
@@ -73,7 +78,27 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: AppSpace.xl),
+            // Phase 9-3：学习设置区块
+            AppSectionTitle(AppStrings.settingsLearning),
+            const SizedBox(height: AppSpace.md),
+            AppCard(
+              child: AppListTile(
+                icon: CupertinoIcons.flag_fill,
+                iconColor: AppColors.primary,
+                iconBackgroundColor: AppColors.primaryContainerLight,
+                title: AppStrings.settingsLearning,
+                subtitle: '每日目标 · 难度偏好 · 知识树层级',
+                onTap: () => context.go('/settings/learning'),
+              ),
+            ),
+            const SizedBox(height: AppSpace.xl),
             AppSectionTitle(AppStrings.settingsAiService),
+            const SizedBox(height: AppSpace.md),
+            // Phase 9-5：状态聚合徽章
+            _EngineStatusRow(
+              aiConfig: aiConfig,
+              layoutConfig: layoutConfig,
+            ),
             const SizedBox(height: AppSpace.md),
             AppCard(
               child: Column(
@@ -83,6 +108,10 @@ class SettingsScreen extends ConsumerWidget {
                     iconColor: AppColors.primary,
                     iconBackgroundColor: AppColors.primaryContainerLight,
                     title: AppStrings.settingsAiProvider,
+                    trailing: _StatusBadge(
+                      ready: _isAiReady(aiConfig),
+                      label: _isAiReady(aiConfig) ? '就绪' : '未配置',
+                    ),
                     onTap: () => context.go('/settings/provider'),
                   ),
                   Divider(
@@ -96,6 +125,10 @@ class SettingsScreen extends ConsumerWidget {
                     iconBackgroundColor: AppColors.accentTealContainerLight,
                     title: AppStrings.settingsLayoutProvider,
                     subtitle: AppStrings.settingsLayoutProviderSubtitle,
+                    trailing: _StatusBadge(
+                      ready: layoutConfig.isReady,
+                      label: _layoutLabel(layoutConfig),
+                    ),
                     onTap: () => context.go('/settings/layout'),
                   ),
                   Divider(
@@ -194,6 +227,20 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => context.go('/settings/data'),
               ),
             ),
+            const SizedBox(height: AppSpace.xl),
+            // Phase 9-4：关于区块
+            AppSectionTitle(AppStrings.settingsAbout),
+            const SizedBox(height: AppSpace.md),
+            AppCard(
+              child: AppListTile(
+                icon: CupertinoIcons.info,
+                iconColor: AppColors.slate,
+                iconBackgroundColor: AppColors.slateContainerLight,
+                title: AppStrings.settingsAbout,
+                subtitle: '版本 · 检查更新 · 反馈',
+                onTap: () => context.go('/settings/about'),
+              ),
+            ),
           ],
         ),
       ),
@@ -224,6 +271,124 @@ class SettingsScreen extends ConsumerWidget {
     } else {
       await ref.read(notificationServiceProvider).cancelAll();
     }
+  }
+}
+
+/// AI 服务配置快照 Provider（Phase 9-5）。
+///
+/// 在设置页构建时拉取当前 `AiProviderConfig`，供状态徽章展示。
+/// 用 FutureProvider 形式，缓存最近一次结果。
+final FutureProvider<AiProviderConfig?> aiProviderConfigSnapshotProvider =
+    FutureProvider<AiProviderConfig?>((ref) async {
+  return ref.read(settingsRepositoryProvider).getAiProviderConfig();
+});
+
+bool _isAiReady(AiProviderConfig? config) {
+  return config != null &&
+      config.baseUrl.isNotEmpty &&
+      config.apiKey.isNotEmpty &&
+      config.model.isNotEmpty;
+}
+
+String _layoutLabel(LayoutProviderConfig config) {
+  if (config.isReady) return '就绪';
+  switch (config.type) {
+    case LayoutProviderType.paddleCloud:
+      return '未配置';
+    case LayoutProviderType.mineruCloud:
+      return '未配置';
+    case LayoutProviderType.autoCloud:
+      return '部分';
+    case LayoutProviderType.customHttp:
+      return '未配置';
+    case LayoutProviderType.currentVision:
+    case LayoutProviderType.manualOnly:
+      return '就绪';
+  }
+}
+
+/// AI 引擎 + 版面识别引擎状态徽章聚合行（Phase 9-5）。
+class _EngineStatusRow extends StatelessWidget {
+  const _EngineStatusRow({required this.aiConfig, required this.layoutConfig});
+
+  final AiProviderConfig? aiConfig;
+  final LayoutProviderConfig layoutConfig;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        _StatusBadge(
+          ready: _isAiReady(aiConfig),
+          label: _isAiReady(aiConfig) ? '普通AI ✓' : '普通AI ✗',
+        ),
+        const SizedBox(width: AppSpace.sm),
+        _StatusBadge(
+          ready: layoutConfig.type == LayoutProviderType.paddleCloud &&
+              layoutConfig.isReady,
+          warning: layoutConfig.type == LayoutProviderType.paddleCloud &&
+              !layoutConfig.isReady,
+          label: layoutConfig.type == LayoutProviderType.paddleCloud
+              ? (layoutConfig.isReady ? 'PaddleOCR ✓' : 'PaddleOCR ⚠')
+              : 'PaddleOCR —',
+        ),
+        const SizedBox(width: AppSpace.sm),
+        _StatusBadge(
+          ready: layoutConfig.type == LayoutProviderType.mineruCloud &&
+              layoutConfig.isReady,
+          warning: layoutConfig.type == LayoutProviderType.mineruCloud &&
+              !layoutConfig.isReady,
+          label: layoutConfig.type == LayoutProviderType.mineruCloud
+              ? (layoutConfig.isReady ? 'MinerU ✓' : 'MinerU ✗')
+              : 'MinerU —',
+        ),
+      ],
+    );
+  }
+}
+
+/// 配置状态徽章。
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({
+    required this.ready,
+    required this.label,
+    this.warning = false,
+  });
+
+  final bool ready;
+  final bool warning;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    final Color bg;
+    if (ready) {
+      color = AppColors.success;
+      bg = AppColors.successContainerLight;
+    } else if (warning) {
+      color = AppColors.warning;
+      bg = AppColors.warningContainerLight;
+    } else {
+      color = AppColors.danger;
+      bg = AppColors.dangerContainerLight;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 }
 
