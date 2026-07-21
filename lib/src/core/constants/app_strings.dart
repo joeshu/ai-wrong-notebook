@@ -100,6 +100,11 @@ class AppStrings {
   static const String settingsReviewReminderSubtitle = '发送待复习错题通知';
   static const String settingsReviewReminderSent = '已发送复习提醒';
   static const String settingsReviewReminderNoDue = '当前没有到期错题，或通知权限未开启';
+  // Phase 9-3：定时复习提醒
+  static const String settingsReviewReminderTime = '复习提醒时间';
+  static const String settingsReviewReminderTimeSubtitle = '每天定时推送一条复习提醒';
+  static const String settingsReviewReminderTimeScheduled = '已设置每日提醒';
+  static const String settingsReviewReminderTimePermissionDenied = '通知权限未开启，无法设置提醒';
   static const String settingsAiService = 'AI 服务';
   static const String settingsAiProvider = 'AI 服务商配置';
   static const String settingsLayoutProvider = '试卷版面识别';

@@ -257,20 +257,33 @@ class SettingsScreen extends ConsumerWidget {
         .read(reviewReminderEnabledProvider.notifier)
         .setEnabled(value);
     if (!context.mounted) return;
+    final svc = ref.read(notificationServiceProvider);
     if (value) {
-      final svc = ref.read(notificationServiceProvider);
+      // Phase 9-3：开启主开关时，按已保存的提醒时间调度每日推送。
+      // 同时保留旧的即时检查行为：立刻查一次到期错题并推送通知。
+      final time = ref.read(reviewReminderTimeProvider);
+      final scheduled = await svc.scheduleDailyReminder(
+        hour: time.hour,
+        minute: time.minute,
+      );
       final sent = await svc.checkAndNotify();
       if (context.mounted) {
+        final hh = time.hour.toString().padLeft(2, '0');
+        final mm = time.minute.toString().padLeft(2, '0');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(sent
                 ? AppStrings.settingsReviewReminderSent
-                : AppStrings.settingsReviewReminderNoDue),
+                : (scheduled
+                    ? '${AppStrings.settingsReviewReminderTimeScheduled}（$hh:$mm）'
+                    : AppStrings.settingsReviewReminderNoDue)),
           ),
         );
       }
     } else {
-      await ref.read(notificationServiceProvider).cancelAll();
+      // 关闭主开关：取消定时与即时通知。
+      await svc.cancelScheduledReminder();
+      await svc.cancelAll();
     }
   }
 }

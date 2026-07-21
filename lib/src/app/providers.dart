@@ -1492,6 +1492,45 @@ class ReviewReminderNotifier extends StateNotifier<bool> {
   }
 }
 
+/// Phase 9-3：定时复习提醒时间（24 小时制）。
+///
+/// 默认 20:00，持久化到 settings 仓库的 `review_reminder_time` 字段
+/// （格式 `HH:MM`）。开启 [reviewReminderEnabledProvider] 后由调用方
+/// 读取本 provider 并调用 [NotificationService.scheduleDailyReminder]。
+final StateNotifierProvider<ReviewReminderTimeNotifier, TimeOfDay>
+    reviewReminderTimeProvider = StateNotifierProvider<ReviewReminderTimeNotifier,
+        TimeOfDay>((ref) {
+  return ReviewReminderTimeNotifier(ref.read(settingsRepositoryProvider));
+});
+
+class ReviewReminderTimeNotifier extends StateNotifier<TimeOfDay> {
+  ReviewReminderTimeNotifier(this._settingsRepo)
+      : super(const TimeOfDay(hour: 20, minute: 0)) {
+    _load();
+  }
+
+  final SettingsRepository _settingsRepo;
+
+  Future<void> _load() async {
+    final value = await _settingsRepo.getString('review_reminder_time');
+    if (value == null || !value.contains(':')) return;
+    final parts = value.split(':');
+    if (parts.length != 2) return;
+    final h = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (h == null || m == null) return;
+    if (h < 0 || h > 23 || m < 0 || m > 59) return;
+    state = TimeOfDay(hour: h, minute: m);
+  }
+
+  Future<void> setTime(TimeOfDay time) async {
+    state = time;
+    final hh = time.hour.toString().padLeft(2, '0');
+    final mm = time.minute.toString().padLeft(2, '0');
+    await _settingsRepo.setString('review_reminder_time', '$hh:$mm');
+  }
+}
+
 // --- Capture mode (printed / handwritten / mixed) ---
 //
 // 录入时用户选择的识别模式，决定 AI 识别时如何处理图片中的印刷与手写内容。

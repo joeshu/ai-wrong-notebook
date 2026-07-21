@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
+import 'package:smart_wrong_notebook/src/data/services/notification_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -100,6 +102,7 @@ class _LearningSettingsScreenState
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final reminderTime = ref.watch(reviewReminderTimeProvider);
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.settingsLearning)),
       body: _loading
@@ -119,6 +122,31 @@ class _LearningSettingsScreenState
                       title: AppStrings.settingsDailyGoal,
                       subtitle: AppStrings.settingsDailyGoalSubtitle,
                       onTap: () => context.push('/goals'),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xl),
+
+                  // Phase 9-3：定时复习提醒时间
+                  AppSectionTitle(AppStrings.settingsReviewReminderTime),
+                  const SizedBox(height: AppSpace.md),
+                  AppCard(
+                    child: AppListTile(
+                      icon: CupertinoIcons.bell,
+                      iconColor: AppColors.warning,
+                      iconBackgroundColor: AppColors.warningContainerLight,
+                      title: AppStrings.settingsReviewReminderTime,
+                      subtitle: AppStrings.settingsReviewReminderTimeSubtitle,
+                      trailing: Text(
+                        _formatTimeOfDay(reminderTime),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: colorScheme.onSurfaceVariant,
+                          fontFeatures: const <FontFeature>[
+                            FontFeature.tabularFigures(),
+                          ],
+                        ),
+                      ),
+                      onTap: () => _pickReminderTime(context, ref),
                     ),
                   ),
                   const SizedBox(height: AppSpace.xl),
@@ -281,6 +309,51 @@ class _LearningSettingsScreenState
       case PostRecognitionAiChoice.all:
         return '所有题框 analyzeWithAi=true，直接进入 AI 分析';
     }
+  }
+
+  /// Phase 9-3：把 [TimeOfDay] 格式化为 `HH:MM`。
+  String _formatTimeOfDay(TimeOfDay t) {
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
+  /// Phase 9-3：弹出时间选择器，写入 provider；若主开关已开启则同步重排
+  /// 定时提醒。通知权限未授予时给出提示但不阻止写入（用户可后续开启）。
+  Future<void> _pickReminderTime(BuildContext context, WidgetRef ref) async {
+    final current = ref.read(reviewReminderTimeProvider);
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: current,
+      helpText: '选择每日复习提醒时间',
+      confirmText: '确定',
+      cancelText: '取消',
+    );
+    if (picked == null) return;
+    await ref.read(reviewReminderTimeProvider.notifier).setTime(picked);
+    if (!context.mounted) return;
+    final enabled = ref.read(reviewReminderEnabledProvider);
+    if (!enabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('时间已保存。请到「设置 → 复习提醒」打开开关以启用每日推送。'),
+        ),
+      );
+      return;
+    }
+    final svc = ref.read(notificationServiceProvider);
+    final ok = await svc.scheduleDailyReminder(
+      hour: picked.hour,
+      minute: picked.minute,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok
+            ? '${AppStrings.settingsReviewReminderTimeScheduled}（${_formatTimeOfDay(picked)}）'
+            : AppStrings.settingsReviewReminderTimePermissionDenied),
+      ),
+    );
   }
 }
 

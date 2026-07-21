@@ -234,8 +234,8 @@
   > 主设置页加 `AppSectionTitle(settingsLearning)` + 跳 `/settings/learning` 入口卡
 - [x] 每日复习目标(从 `/goals` 迁移或保留独立路由并在设置页加入口)
   > LearningSettingsScreen 内「每日复习目标」卡跳 `/goals`(GoalsScreen 已存在)
-- [ ] 复习提醒时间设置(扩展 `NotificationService` 支持定时)
-  > 当前 NotificationService 仅支持即时通知;定时调度待后续(需 timezone 包对接,已有依赖)
+- [x] 复习提醒时间设置(扩展 `NotificationService` 支持定时)
+  > NotificationService 加 `scheduleDailyReminder`/`cancelScheduledReminder`(zonedSchedule + DateTimeComponents.time);新增 `reviewReminderTimeProvider`(StateNotifier<TimeOfDay>,默认 20:00,持久化 `review_reminder_time` `HH:MM`);LearningSettingsScreen 加 TimePicker 入口;主设置页 Switch 开启时调度每日提醒,关闭时取消
 - [x] 难度偏好下拉(基础/中等/挑战)
   > LearningSettingsScreen 内 ChoiceChip(不指定/基础/进阶/挑战),SharedPreferences 持久化
 - [x] 知识树显示层级下拉(科目/模块/章节/知识点)
