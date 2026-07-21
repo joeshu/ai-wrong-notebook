@@ -158,22 +158,32 @@
 
 ## 1. 首页今日行动面板统一
 
-- [ ] 合并 `_BatchActionCard` + `_TodayPlanCard` 为统一行动面板
-- [ ] 3 行动卡:待复习 / 添加新错题 / 继续未完成识别
-- [ ] 动态优先级:复习优先 → 识别优先 → 添加优先(按文档规则)
-- [ ] 空状态引导(无任何待办时)
+- [x] 合并 `_BatchActionCard` + `_TodayPlanCard` 为统一行动面板
+  > 删除 `_BatchActionCard`/`_BatchTodoRow`/`_TodayPlanCard`/`_PendingTaskCard`/`_TaskActionRow` 5 个旧类,
+  > 新增 `_UnifiedActionPanel`/`_ActionTile`/`_EmptyActionGuide`/`_countPendingRecognition` helper
+- [x] 3 行动卡:待复习 / 添加新错题 / 继续未完成识别
+- [x] 动态优先级:复习优先 → 识别优先 → 添加优先(按文档规则)
+- [x] 空状态引导(无任何待办时显示 `_EmptyActionGuide` 录入入口)
 
 ## 2. 首页知识树快照
 
-- [ ] 新增区块:各科目掌握度进度条(数学/物理/化学...)
-- [ ] 点击跳转 `/knowledge-tree` 并定位该科目
-- [ ] 数据源:按科目聚合 `KnowledgePointMastery`
+- [x] 新增区块:各科目掌握度进度条(数学/物理/化学...)
+  > `_SubjectMasterySection` + `_SubjectMasteryRow`,按科目图标+进度条+百分比+待复习标签展示
+- [x] 点击跳转 `/knowledge-tree`
+  > 整个区块及每行均可点击跳转知识树页面
+- [x] 数据源:按科目聚合 `KnowledgePointMastery`
+  > 新增 `subjectMasterySnapshotProvider`(watch `knowledgeTreeOverviewProvider`),
+  > 按 `node.point.subject` 分组聚合 `mastery.masteryPercentage` 平均值
 
 ## 3. 首页学习趋势折线图
 
-- [ ] 新增区块:近 7 天复习数 + 掌握数折线图
-- [ ] 数据源:从 `ReviewLog` 按日聚合
-- [ ] 复用 `stats_chart.dart` 或新增 `LineChart` 组件
+- [x] 新增区块:近 7 天复习数 + 掌握数折线图
+  > `_ReviewTrendSection` 使用 fl_chart `LineChart`,两条折线(复习/掌握)+ 图例 + 空状态
+- [x] 数据源:从 `ReviewLog` 按日聚合
+  > 新增 `reviewTrend7DaysProvider`(watch `reviewLogListProvider`),
+  > 按近 7 天(含今天)分桶聚合 reviewCount + masteredCount
+- [x] 新增 `LineChart` 组件
+  > 复用 fl_chart 0.69.0 `LineChart`,带触摸 tooltip + 底部日期标签 + 网格线
 
 ## 4. 组卷系统升级
 

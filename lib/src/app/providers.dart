@@ -390,6 +390,132 @@ final FutureProvider<KnowledgeTreeOverview> knowledgeTreeOverviewProvider =
   );
 });
 
+/// 按科目聚合的掌握度快照（Phase 8-2），供首页知识树区块展示。
+class SubjectMasterySnapshot {
+  const SubjectMasterySnapshot({
+    required this.subject,
+    required this.averageMastery,
+    required this.knowledgePointCount,
+    required this.pendingReviewCount,
+  });
+
+  final Subject subject;
+
+  /// 该科目下所有有题目的知识点的掌握度平均值（0.0–100.0）。
+  final double averageMastery;
+
+  /// 该科目下有题目的知识点数量。
+  final int knowledgePointCount;
+
+  /// 该科目下待复习题目总数。
+  final int pendingReviewCount;
+}
+
+/// Phase 8-2：按科目聚合掌握度快照，用于首页知识树区块。
+///
+/// watch [knowledgeTreeOverviewProvider] 响应知识点树与掌握度变更，
+/// 按 `node.point.subject` 分组聚合 `mastery.masteryPercentage` 平均值。
+/// 仅统计有 mastery 且 totalQuestions>0 的知识点；subject 为 null 的节点跳过。
+final FutureProvider<List<SubjectMasterySnapshot>> subjectMasterySnapshotProvider =
+    FutureProvider<List<SubjectMasterySnapshot>>((ref) async {
+  final overview = ref.watch(knowledgeTreeOverviewProvider).maybeWhen(
+        data: (d) => d,
+        orElse: () => null,
+      );
+  if (overview == null) return const <SubjectMasterySnapshot>[];
+
+  // 按 Subject 分组：累计掌握度总和 + 知识点计数 + 待复习题目数
+  final bySubject = <Subject, _SubjectAccumulator>{};
+  for (final node in overview.nodes) {
+    final subject = node.point.subject;
+    if (subject == null) continue;
+    final mastery = node.mastery;
+    if (mastery == null || mastery.totalQuestions == 0) continue;
+    final acc = bySubject.putIfAbsent(subject, () => _SubjectAccumulator());
+    acc.masterySum += mastery.masteryPercentage;
+    acc.knowledgePointCount += 1;
+    acc.pendingReviewCount += node.pendingReviewCount;
+  }
+
+  final snapshots = bySubject.entries.map((entry) {
+    final acc = entry.value;
+    return SubjectMasterySnapshot(
+      subject: entry.key,
+      averageMastery: acc.knowledgePointCount == 0
+          ? 0.0
+          : acc.masterySum / acc.knowledgePointCount,
+      knowledgePointCount: acc.knowledgePointCount,
+      pendingReviewCount: acc.pendingReviewCount,
+    );
+  }).toList()
+    ..sort((a, b) => b.averageMastery.compareTo(a.averageMastery));
+  return snapshots;
+});
+
+class _SubjectAccumulator {
+  double masterySum = 0.0;
+  int knowledgePointCount = 0;
+  int pendingReviewCount = 0;
+}
+
+/// 近 7 天每日复习趋势条目（Phase 8-3），供首页折线图展示。
+class DailyReviewTrend {
+  const DailyReviewTrend({
+    required this.date,
+    required this.reviewCount,
+    required this.masteredCount,
+  });
+
+  /// 当天 0 点的本地时间。
+  final DateTime date;
+
+  /// 当天复习次数（含所有 result）。
+  final int reviewCount;
+
+  /// 当天标记为"掌握"的次数（result == 'mastered'）。
+  final int masteredCount;
+}
+
+/// Phase 8-3：近 7 天每日复习趋势，用于首页学习趋势折线图。
+///
+/// watch [reviewLogListProvider] 响应复习日志变更。返回从 6 天前到今天
+/// 共 7 天的 [DailyReviewTrend] 列表（按日期升序），无复习的日子计数为 0。
+final FutureProvider<List<DailyReviewTrend>> reviewTrend7DaysProvider =
+    FutureProvider<List<DailyReviewTrend>>((ref) async {
+  final logs = ref.watch(reviewLogListProvider).maybeWhen(
+        data: (l) => l,
+        orElse: () => const <ReviewLog>[],
+      );
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final buckets = <DateTime, _DayAccumulator>{};
+  for (var i = 6; i >= 0; i -= 1) {
+    final day = today.subtract(Duration(days: i));
+    buckets[day] = _DayAccumulator();
+  }
+  for (final log in logs) {
+    final at = log.reviewedAt.toLocal();
+    final logDay = DateTime(at.year, at.month, at.day);
+    final acc = buckets[logDay];
+    if (acc == null) continue; // 不在近 7 天范围内
+    acc.reviewCount += 1;
+    if (log.result == 'mastered') acc.masteredCount += 1;
+  }
+  final sortedDays = buckets.keys.toList()..sort();
+  return sortedDays
+      .map((day) => DailyReviewTrend(
+            date: day,
+            reviewCount: buckets[day]!.reviewCount,
+            masteredCount: buckets[day]!.masteredCount,
+          ))
+      .toList();
+});
+
+class _DayAccumulator {
+  int reviewCount = 0;
+  int masteredCount = 0;
+}
+
 /// 知识点详情页数据（Phase 5）：知识点 + 关联题目列表 + 掌握度。
 class KnowledgePointDetail {
   const KnowledgePointDetail({
