@@ -155,6 +155,38 @@ void main() {
       final links = await linkRepo.linksForQuestion('q_1');
       expect(links.first.source, LinkSource.migrated);
     });
+
+    test('first link is marked primary by default (Phase 6-3)', () async {
+      await service.createLinksForQuestion(
+        questionId: 'q_1',
+        knowledgePointTexts: <String>['二次函数', '勾股定理'],
+      );
+
+      final links = await linkRepo.linksForQuestion('q_1');
+      expect(links.length, 2);
+      final primaryCount = links.where((l) => l.isPrimary).length;
+      expect(primaryCount, 1);
+    });
+
+    test('primary is preserved when re-mapping (Phase 6-3)', () async {
+      // First round: link 二次函数 (primary)
+      await service.createLinksForQuestion(
+        questionId: 'q_1',
+        knowledgePointTexts: <String>['二次函数'],
+      );
+      // User manually promotes a different one via repo
+      await linkRepo.setPrimary('q_1', 'kp_math_functions_quadratic');
+
+      // Second round with a new set that still includes the old primary
+      await service.createLinksForQuestion(
+        questionId: 'q_1',
+        knowledgePointTexts: <String>['二次函数', '勾股定理'],
+      );
+
+      final links = await linkRepo.linksForQuestion('q_1');
+      final primary = links.firstWhere((l) => l.isPrimary);
+      expect(primary.knowledgePointId, 'kp_math_functions_quadratic');
+    });
   });
 
   group('KnowledgePointMappingService pending queue (Phase 4-C)', () {

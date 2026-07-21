@@ -83,5 +83,30 @@ void main() {
       expect(a == b, isTrue);
       expect(a == c, isFalse);
     });
+
+    test('isPrimary defaults to false and round-trips', () {
+      final link = QuestionKnowledgeLink(
+        questionId: 'q_1',
+        knowledgePointId: 'kp_1',
+        source: LinkSource.manual,
+        createdAt: DateTime(2026),
+        isPrimary: true,
+      );
+      expect(link.isPrimary, isTrue);
+
+      final restored = QuestionKnowledgeLink.fromJson(link.toJson());
+      expect(restored.isPrimary, isTrue);
+    });
+
+    test('fromJson treats missing isPrimary as false (legacy data)', () {
+      final json = <String, dynamic>{
+        'questionId': 'q_1',
+        'knowledgePointId': 'kp_1',
+        'source': 'ai',
+        'createdAt': '2026-07-21T00:00:00.000',
+      };
+      final link = QuestionKnowledgeLink.fromJson(json);
+      expect(link.isPrimary, isFalse);
+    });
   });
 }

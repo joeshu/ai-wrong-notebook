@@ -2472,6 +2472,386 @@ class _KnowledgePointItem extends StatelessWidget {
   }
 }
 
+/// Phase 6-3：结构化知识点关联区。
+///
+/// 渲染当前题目已绑定的受控知识点关联列表：
+/// - 主知识点（[QuestionKnowledgeLink.isPrimary] 为 true）：名称 + 掌握度
+///   徽章 + 「在知识树中查看」入口，长按菜单可「取消主知识点」或「移除」。
+/// - 关联知识点：名称 + 掌握度，长按菜单可「设为主知识点」或「移除」。
+/// - 「+ 添加关联知识点」按钮：弹 [_KnowledgePointPickerDialog] 选择。
+///
+/// 数据来自 [structuredKnowledgeLinksProvider]，关联变更后通过
+/// [invalidateQuestionList] 自动刷新。
+class _StructuredKnowledgeLinksCard extends ConsumerWidget {
+  const _StructuredKnowledgeLinksCard({required this.questionId});
+
+  final String questionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final linksAsync =
+        ref.watch(structuredKnowledgeLinksProvider(questionId));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const SizedBox(height: AppSpace.lg),
+        Row(
+          children: <Widget>[
+            const Icon(CupertinoIcons.link, size: 18),
+            const SizedBox(width: AppSpace.sm),
+            const Text('知识点关联',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: () => _addKnowledgePoint(context, ref),
+              icon: const Icon(CupertinoIcons.add, size: 16),
+              label: const Text('添加',
+                  style: TextStyle(fontSize: 13)),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpace.sm),
+        linksAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: AppSpace.lg),
+            child: Center(child: CupertinoActivityIndicator()),
+          ),
+          error: (e, _) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
+            child: Text(
+              '加载失败：$e',
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          data: (views) {
+            if (views.isEmpty) {
+              return AppCard(
+                padding: const EdgeInsets.all(AppSpace.md),
+                child: Column(
+                  children: <Widget>[
+                    Icon(
+                      CupertinoIcons.tag_slash,
+                      size: 28,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: AppSpace.sm),
+                    Text(
+                      '尚未关联知识点，点击右上角"添加"绑定',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+            // 主知识点排第一
+            final sorted = List<StructuredKnowledgeLinkView>.from(views)
+              ..sort((a, b) {
+                if (a.isPrimary != b.isPrimary) {
+                  return a.isPrimary ? -1 : 1;
+                }
+                return a.knowledgePoint.name
+                    .compareTo(b.knowledgePoint.name);
+              });
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: sorted
+                  .map((v) => _StructuredKnowledgeLinkRow(
+                        view: v,
+                        questionId: questionId,
+                      ))
+                  .toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Future<void> _addKnowledgePoint(BuildContext context, WidgetRef ref) async {
+    List<KnowledgePoint> tree;
+    try {
+      tree = await ref.read(knowledgePointTreeProvider.future);
+    } catch (_) {
+      tree = const <KnowledgePoint>[];
+    }
+    if (!context.mounted) return;
+    if (tree.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('暂无受控知识点'),
+          content: const Text('请先在知识点管理页录入受控知识点，再进行关联。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('知道了'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final selected = await showDialog<KnowledgePoint>(
+      context: context,
+      builder: (ctx) => _KnowledgePointPickerDialog(tree: tree),
+    );
+    if (selected == null) return;
+
+    final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+    try {
+      final existing =
+          await linkRepo.linksForQuestion(questionId);
+      final isFirst = existing.isEmpty;
+      await linkRepo.addLink(QuestionKnowledgeLink(
+        questionId: questionId,
+        knowledgePointId: selected.id,
+        source: LinkSource.manual,
+        createdAt: DateTime.now(),
+        isPrimary: isFirst,
+      ));
+      invalidateQuestionList(ref);
+      invalidateKnowledgePointTree(ref);
+    } catch (e) {
+      debugPrint('[StructuredKP] add failed: $e');
+    }
+  }
+}
+
+class _StructuredKnowledgeLinkRow extends ConsumerWidget {
+  const _StructuredKnowledgeLinkRow({
+    required this.view,
+    required this.questionId,
+  });
+
+  final StructuredKnowledgeLinkView view;
+  final String questionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final masteryPct = view.masteryPercentage;
+    final masteryColor = masteryPct == null
+        ? colorScheme.onSurfaceVariant
+        : _masteryColor(masteryPct);
+    final masteryLabel = masteryPct == null
+        ? '暂无数据'
+        : '${masteryPct.round()}%';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpace.md, vertical: AppSpace.md),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: (view.isPrimary ? AppColors.primary : colorScheme.onSurfaceVariant)
+                    .withValues(alpha: isDark ? 0.16 : 0.1),
+                borderRadius: BorderRadius.circular(AppRadius.small),
+              ),
+              child: Icon(
+                view.isPrimary
+                    ? CupertinoIcons.star_fill
+                    : CupertinoIcons.star,
+                size: 16,
+                color: view.isPrimary
+                    ? AppColors.primary
+                    : colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          view.knowledgePoint.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (view.isPrimary) ...<Widget>[
+                        const SizedBox(width: AppSpace.xs),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary
+                                .withValues(alpha: isDark ? 0.16 : 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: AppColors.primary
+                                  .withValues(alpha: isDark ? 0.24 : 0.4),
+                            ),
+                          ),
+                          child: const Text(
+                            '主',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: <Widget>[
+                      Icon(
+                        CupertinoIcons.chart_bar,
+                        size: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '掌握度 $masteryLabel',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: masteryColor,
+                        ),
+                      ),
+                      if (view.link.source == LinkSource.ai) ...<Widget>[
+                        const SizedBox(width: AppSpace.sm),
+                        Text(
+                          'AI',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ] else if (view.link.source ==
+                          LinkSource.manual) ...<Widget>[
+                        const SizedBox(width: AppSpace.sm),
+                        Text(
+                          '手动',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: '在知识树中查看',
+              icon: const Icon(CupertinoIcons.arrow_up_right_square,
+                  size: 18),
+              visualDensity: VisualDensity.compact,
+              onPressed: () => context.go(
+                  '/knowledge-tree/detail/${view.knowledgePoint.id}'),
+            ),
+            PopupMenuButton<String>(
+              tooltip: '更多操作',
+              icon: const Icon(CupertinoIcons.ellipsis, size: 18),
+              visualDensity: VisualDensity.compact,
+              onSelected: (value) {
+                switch (value) {
+                  case 'set_primary':
+                    _setPrimary(context, ref);
+                  case 'remove':
+                    _remove(context, ref);
+                }
+              },
+              itemBuilder: (_) => <PopupMenuEntry<String>>[
+                if (!view.isPrimary)
+                  const PopupMenuItem(
+                    value: 'set_primary',
+                    child: Row(children: <Widget>[
+                      Icon(CupertinoIcons.star, size: 18),
+                      SizedBox(width: 8),
+                      Text('设为主知识点'),
+                    ]),
+                  ),
+                PopupMenuItem(
+                  value: 'remove',
+                  child: const Row(children: <Widget>[
+                    Icon(CupertinoIcons.trash, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('移除关联', style: TextStyle(color: Colors.red)),
+                  ]),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Color _masteryColor(double pct) {
+    if (pct >= 86) return const Color(0xFF15803D);
+    if (pct >= 61) return const Color(0xFF16A34A);
+    if (pct >= 31) return const Color(0xFFD97706);
+    return const Color(0xFFDC2626);
+  }
+
+  Future<void> _setPrimary(BuildContext context, WidgetRef ref) async {
+    final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+    try {
+      await linkRepo.setPrimary(questionId, view.knowledgePoint.id);
+      invalidateQuestionList(ref);
+      invalidateKnowledgePointTree(ref);
+    } catch (e) {
+      debugPrint('[StructuredKP] setPrimary failed: $e');
+    }
+  }
+
+  Future<void> _remove(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('移除关联？'),
+        content: Text('确认移除知识点「${view.knowledgePoint.name}」与本题的关联？'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('移除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+    try {
+      await linkRepo.removeLink(questionId, view.knowledgePoint.id);
+      invalidateQuestionList(ref);
+      invalidateKnowledgePointTree(ref);
+    } catch (e) {
+      debugPrint('[StructuredKP] remove failed: $e');
+    }
+  }
+}
+
 /// Phase 4-C：待确认知识点卡片。
 ///
 /// 显示当前题目下 AI 返回但未匹配到受控节点的知识点文本，提供
@@ -2598,12 +2978,16 @@ class _PendingKnowledgePointRow extends ConsumerWidget {
     final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
     final pendingRepo = ref.read(pendingKnowledgePointMappingRepositoryProvider);
     try {
+      // 若当前题目还没有关联，新加的这一条会成为首条关联，自动设为主知识点。
+      final existing = await linkRepo.linksForQuestion(questionId);
+      final isFirst = existing.isEmpty;
       await linkRepo.addLink(QuestionKnowledgeLink(
         questionId: questionId,
         knowledgePointId: selected.id,
         source: LinkSource.manual,
         evidence: mapping.originalText,
         createdAt: DateTime.now(),
+        isPrimary: isFirst,
       ));
       await pendingRepo.resolve(mapping.id,
           resolution: PendingKnowledgePointResolution.mapped);

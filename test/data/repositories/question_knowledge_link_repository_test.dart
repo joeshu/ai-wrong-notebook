@@ -137,4 +137,66 @@ void main() {
       expect(links.first.knowledgePointId, 'kp_persist');
     });
   });
+
+  group('setPrimary (Phase 6-3)', () {
+    test('promotes one link to primary and demotes others', () async {
+      await repo.addLinks(<QuestionKnowledgeLink>[
+        QuestionKnowledgeLink(
+          questionId: 'q_1',
+          knowledgePointId: 'kp_1',
+          source: LinkSource.ai,
+          createdAt: DateTime(2026),
+          isPrimary: true,
+        ),
+        QuestionKnowledgeLink(
+          questionId: 'q_1',
+          knowledgePointId: 'kp_2',
+          source: LinkSource.manual,
+          createdAt: DateTime(2026),
+        ),
+      ]);
+
+      await repo.setPrimary('q_1', 'kp_2');
+
+      final links = await repo.linksForQuestion('q_1');
+      final kp1 = links.firstWhere((l) => l.knowledgePointId == 'kp_1');
+      final kp2 = links.firstWhere((l) => l.knowledgePointId == 'kp_2');
+      expect(kp1.isPrimary, isFalse);
+      expect(kp2.isPrimary, isTrue);
+    });
+
+    test('is a no-op when target link does not exist', () async {
+      await repo.addLink(link('q_1', 'kp_1'));
+      await repo.setPrimary('q_1', 'kp_missing');
+
+      final links = await repo.linksForQuestion('q_1');
+      expect(links.single.isPrimary, isFalse);
+    });
+
+    test('removeLink promotes remaining first link if primary was removed',
+        () async {
+      await repo.addLinks(<QuestionKnowledgeLink>[
+        QuestionKnowledgeLink(
+          questionId: 'q_1',
+          knowledgePointId: 'kp_primary',
+          source: LinkSource.ai,
+          createdAt: DateTime(2026),
+          isPrimary: true,
+        ),
+        QuestionKnowledgeLink(
+          questionId: 'q_1',
+          knowledgePointId: 'kp_secondary',
+          source: LinkSource.manual,
+          createdAt: DateTime(2026),
+        ),
+      ]);
+
+      await repo.removeLink('q_1', 'kp_primary');
+
+      final links = await repo.linksForQuestion('q_1');
+      expect(links.length, 1);
+      expect(links.single.knowledgePointId, 'kp_secondary');
+      expect(links.single.isPrimary, isTrue);
+    });
+  });
 }
