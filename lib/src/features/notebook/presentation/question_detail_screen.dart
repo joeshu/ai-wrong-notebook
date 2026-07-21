@@ -1401,7 +1401,7 @@ class _OcrContentCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Icon(CupertinoIcons.rectangle_dashed, size: 14, color: AppColors.accentAmber),
+                  Icon(Icons.image_search, size: 14, color: AppColors.accentAmber),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -2080,7 +2080,7 @@ class _AiInputSnapshotCard extends StatelessWidget {
                 label: hasImage ? '原图可用' : '无原图',
                 icon: hasImage
                     ? CupertinoIcons.photo
-                    : CupertinoIcons.photo_slash,
+                    : Icons.image_not_supported_outlined,
                 color: hasImage ? AppColors.success : AppColors.danger,
               ),
               _SnapshotChip(

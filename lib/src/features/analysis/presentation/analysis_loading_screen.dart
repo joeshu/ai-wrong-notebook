@@ -757,7 +757,7 @@ class _LoadingViewState extends State<_LoadingView>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
-    final accent = const Color(0xFF6366F1);
+    const accent = Color(0xFF6366F1);
     final hasProgress = widget.progressText != null;
     return Center(
       child: SingleChildScrollView(
