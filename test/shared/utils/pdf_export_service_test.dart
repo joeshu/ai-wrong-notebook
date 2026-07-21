@@ -117,6 +117,10 @@ void main() {
         analysisResult: const AnalysisResult(
           finalAnswer: r'$x = 1$ 或 $x = -3$',
           steps: <String>[r'使用求根公式：$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$'],
+          aiTags: <String>[],
+          knowledgePoints: <String>[],
+          mistakeReason: '',
+          studyAdvice: '',
         ),
       ),
     ];
@@ -148,6 +152,10 @@ void main() {
         analysisResult: const AnalysisResult(
           finalAnswer: '20',
           steps: <String>['(10+20+30)/3 = 20'],
+          aiTags: <String>[],
+          knowledgePoints: <String>[],
+          mistakeReason: '',
+          studyAdvice: '',
         ),
       ),
     ];
