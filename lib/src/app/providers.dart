@@ -30,6 +30,7 @@ import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point_mastery.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
+import 'package:smart_wrong_notebook/src/domain/models/question_type.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/pending_knowledge_point_mapping.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
@@ -953,7 +954,7 @@ final StateProvider<bool> unmasteredOnlyFilterProvider =
 final StateProvider<MistakeCategory?> selectedMistakeCategoryFilterProvider =
     StateProvider<MistakeCategory?>((ref) => null);
 
-enum QuestionSort { newest, oldest, nextReview }
+enum QuestionSort { newest, oldest, nextReview, mastery, subject }
 
 enum QuestionDateRange { all, last7Days, last30Days }
 
@@ -1005,6 +1006,10 @@ final StateProvider<QuestionDifficulty?> selectedDifficultyFilterProvider =
 
 final StateProvider<AttemptStatus?> selectedAttemptStatusFilterProvider =
     StateProvider<AttemptStatus?>((ref) => null);
+
+/// 题型筛选（Phase 6-2）。`null` 表示不限制题型。
+final StateProvider<QuestionType?> selectedQuestionTypeFilterProvider =
+    StateProvider<QuestionType?>((ref) => null);
 
 final StateProvider<String> searchQueryProvider =
     StateProvider<String>((ref) => '');
@@ -1105,6 +1110,7 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
   final learningStage = ref.watch(selectedLearningStageFilterProvider);
   final difficulty = ref.watch(selectedDifficultyFilterProvider);
   final attemptStatus = ref.watch(selectedAttemptStatusFilterProvider);
+  final questionType = ref.watch(selectedQuestionTypeFilterProvider);
   final sort = ref.watch(questionSortProvider);
   final query = ref.watch(searchQueryProvider).toLowerCase();
   final knowledgePoint = ref.watch(selectedKnowledgePointFilterProvider);
@@ -1164,6 +1170,9 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
             if (attemptStatus != null && q.attemptStatus != attemptStatus) {
               return false;
             }
+            if (questionType != null && q.questionType != questionType) {
+              return false;
+            }
             if (query.isNotEmpty &&
                 !q.normalizedQuestionText.toLowerCase().contains(query)) {
               return false;
@@ -1191,6 +1200,18 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
                 final aAt = a.nextReviewAt ?? a.createdAt;
                 final bAt = b.nextReviewAt ?? b.createdAt;
                 return aAt.compareTo(bAt);
+              case QuestionSort.mastery:
+                // 掌握度低到高：newQuestion(0) → reviewing(1) → mastered(2)，
+                // 同档内按最新录入优先，便于优先处理最需要关注的题。
+                final byMastery =
+                    a.masteryLevel.index.compareTo(b.masteryLevel.index);
+                if (byMastery != 0) return byMastery;
+                return b.createdAt.compareTo(a.createdAt);
+              case QuestionSort.subject:
+                // 按科目 label 排序，同科目内按最新录入优先。
+                final bySubject = a.subject.label.compareTo(b.subject.label);
+                if (bySubject != 0) return bySubject;
+                return b.createdAt.compareTo(a.createdAt);
             }
           });
           return Stream.value(filtered);

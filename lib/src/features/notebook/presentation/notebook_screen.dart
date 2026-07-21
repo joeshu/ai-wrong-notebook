@@ -8,6 +8,7 @@ import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/question_type.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_launcher.dart';
@@ -195,6 +196,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     ref.read(selectedLearningStageFilterProvider.notifier).state = null;
     ref.read(selectedDifficultyFilterProvider.notifier).state = null;
     ref.read(selectedAttemptStatusFilterProvider.notifier).state = null;
+    ref.read(selectedQuestionTypeFilterProvider.notifier).state = null;
     ref.read(questionSortProvider.notifier).state = QuestionSort.newest;
   }
 
@@ -249,6 +251,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     final selectedStage = ref.watch(selectedLearningStageFilterProvider);
     final selectedDifficulty = ref.watch(selectedDifficultyFilterProvider);
     final selectedAttemptStatus = ref.watch(selectedAttemptStatusFilterProvider);
+    final selectedQuestionType = ref.watch(selectedQuestionTypeFilterProvider);
     final sort = ref.watch(questionSortProvider);
     final selectedKnowledgePoint =
         ref.watch(selectedKnowledgePointFilterProvider);
@@ -270,6 +273,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
       if (selectedStage != null) '年级：$selectedStage',
       if (selectedDifficulty != null) _difficultyFilterLabel(selectedDifficulty),
       if (selectedAttemptStatus != null) _attemptFilterLabel(selectedAttemptStatus),
+      if (selectedQuestionType != null) selectedQuestionType.label,
       if (sort != QuestionSort.newest) _sortFilterLabel(sort),
     ];
 
@@ -381,6 +385,17 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 ),
                 const SizedBox(width: AppSpace.sm),
                 _Chip(
+                  label: '已掌握',
+                  selected: selectedMastery == MasteryLevel.mastered,
+                  onTap: () {
+                    final notifier = ref.read(selectedMasteryFilterProvider.notifier);
+                    notifier.state = selectedMastery == MasteryLevel.mastered
+                        ? null
+                        : MasteryLevel.mastered;
+                  },
+                ),
+                const SizedBox(width: AppSpace.sm),
+                _Chip(
                   label: AppStrings.notebookFilterFavorite,
                   selected: favoritesOnly,
                   onTap: () => ref.read(favoritesOnlyFilterProvider.notifier).state = !favoritesOnly,
@@ -404,6 +419,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                       label != AppStrings.notebookFilterDue &&
                       label != AppStrings.notebookFilterUnmastered &&
                       label != AppStrings.notebookFilterFavorite &&
+                      label != '已掌握' &&
                       label != '待 AI' &&
                       label != '待校对'),
                   onTap: () => showModalBottomSheet<void>(
@@ -1231,6 +1247,8 @@ String _sortFilterLabel(QuestionSort value) => switch (value) {
       QuestionSort.newest => '最新录入',
       QuestionSort.oldest => '最早录入',
       QuestionSort.nextReview => '下次复习',
+      QuestionSort.mastery => '掌握度低到高',
+      QuestionSort.subject => '按科目',
     };
 
 class _AdvancedFilterSheet extends ConsumerWidget {
@@ -1254,6 +1272,7 @@ class _AdvancedFilterSheet extends ConsumerWidget {
     final stage = ref.watch(selectedLearningStageFilterProvider);
     final difficulty = ref.watch(selectedDifficultyFilterProvider);
     final attempt = ref.watch(selectedAttemptStatusFilterProvider);
+    final questionType = ref.watch(selectedQuestionTypeFilterProvider);
     final failedOnly = ref.watch(failedOnlyFilterProvider);
     final sort = ref.watch(questionSortProvider);
     final points = ref.watch(allKnowledgePointsProvider).valueOrNull ?? const <String>[];
@@ -1273,6 +1292,7 @@ class _AdvancedFilterSheet extends ConsumerWidget {
             Row(children: <Widget>[Text(AppStrings.notebookAdvancedFilter, style: Theme.of(context).textTheme.titleLarge), const Spacer(), TextButton(onPressed: onClear, child: const Text(AppStrings.notebookClearFilters))]),
             _FilterOptionGroup<Subject>(title: '科目', values: Subject.values, selected: subject, label: (value) => value.label, onChanged: (value) => ref.read(selectedSubjectFilterProvider.notifier).state = value),
             _FilterOptionGroup<MistakeCategory>(title: '错因', values: MistakeCategory.values, selected: category, label: (value) => value.label, onChanged: (value) => ref.read(selectedMistakeCategoryFilterProvider.notifier).state = value),
+            _FilterOptionGroup<QuestionType>(title: '题型', values: QuestionType.values, selected: questionType, label: (value) => value.label, onChanged: (value) => ref.read(selectedQuestionTypeFilterProvider.notifier).state = value),
             if (points.isNotEmpty) _FilterOptionGroup<String>(title: '知识点', values: points, selected: knowledge, label: (value) => value, onChanged: (value) => ref.read(selectedKnowledgePointFilterProvider.notifier).state = value),
             _FilterOptionGroup<QuestionDateRange>(title: '录入日期', values: const <QuestionDateRange>[QuestionDateRange.all, QuestionDateRange.last7Days, QuestionDateRange.last30Days], selected: dateRange, label: _dateRangeLabel, onChanged: (value) => ref.read(questionDateRangeProvider.notifier).state = value ?? QuestionDateRange.all),
             if (sources.isNotEmpty) _FilterOptionGroup<String>(title: '来源批次', values: sources, selected: source, label: (value) => value, onChanged: (value) => ref.read(selectedSourceFilterProvider.notifier).state = value),
