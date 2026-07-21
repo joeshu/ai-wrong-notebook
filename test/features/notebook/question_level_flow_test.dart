@@ -21,8 +21,9 @@ QuestionRecord _buildSavedSplitQuestion({
   String id = 'q-batch-1',
   String text = '第一题：已知 x+1=3，求 x',
   int splitOrder = 1,
+  DateTime? createdAt,
 }) {
-  final now = DateTime(2026);
+  final now = createdAt ?? DateTime(2026);
   return QuestionRecord(
     id: id,
     imagePath: '/tmp/q-batch.jpg',
@@ -429,13 +430,13 @@ void main() {
     final repository = InMemoryQuestionRepository();
     // 使用今天日期，确保时间线分组头显示「今天」
     final today = DateTime.now();
-    await repository.saveDraft(
-        _buildSavedSplitQuestion().copyWith(createdAt: today));
+    await repository.saveDraft(_buildSavedSplitQuestion(createdAt: today));
     await repository.saveDraft(_buildSavedSplitQuestion(
       id: 'q-batch-2',
       text: '第二题：已知 y-2=0，求 y',
       splitOrder: 2,
-    ).copyWith(createdAt: today));
+      createdAt: today,
+    ));
 
     await tester.pumpWidget(ProviderScope(
       overrides: <Override>[
