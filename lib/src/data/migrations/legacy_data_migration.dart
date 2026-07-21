@@ -1,4 +1,5 @@
 import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/pending_knowledge_point_mapping_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
@@ -24,6 +25,7 @@ class LegacyDataMigration {
     required this.legacyReviewLogs,
     this.knowledgePointRepo,
     this.questionKnowledgeLinkRepo,
+    this.pendingKnowledgePointRepo,
   });
 
   static const questionMigrationKey = 'legacy_questions_to_drift_v1';
@@ -41,6 +43,11 @@ class LegacyDataMigration {
 
   /// 题目—知识点关联仓库。注入后启用关联迁移。
   final QuestionKnowledgeLinkRepository? questionKnowledgeLinkRepo;
+
+  /// 「待确认知识点」队列仓库。注入后未匹配的 AI 知识点文本会被
+  /// 持久化到队列中，用户可在错题详情页手动映射。null 时未匹配文本
+  /// 仅被丢弃（旧行为）。
+  final PendingKnowledgePointMappingRepository? pendingKnowledgePointRepo;
 
   Future<void> migrateIfNeeded() async {
     await _migrateQuestions();
@@ -107,8 +114,10 @@ class LegacyDataMigration {
         final mapping = KnowledgePointMappingService(
           knowledgePointRepo!,
           questionKnowledgeLinkRepo!,
+          pendingRepo: pendingKnowledgePointRepo,
         );
-        // 未匹配的文本在此被丢弃；UI 层后续可提供手动确认入口。
+        // 未匹配的文本会被写入 pendingKnowledgePointRepo（若注入），
+        // 供错题详情页 UI 让用户手动映射到受控知识点。
         await mapping.migrateFromQuestionRecords(inputs);
       }
       await settings.setString(knowledgePointMigrationKey, 'done');

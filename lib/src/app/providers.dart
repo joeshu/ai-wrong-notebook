@@ -8,6 +8,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_settings
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/mistake_knowledge_link_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/pending_knowledge_point_mapping_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/layout_provider_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
@@ -30,6 +31,7 @@ import 'package:smart_wrong_notebook/src/domain/models/knowledge_point_mastery.d
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
+import 'package:smart_wrong_notebook/src/domain/models/pending_knowledge_point_mapping.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/recommendation.dart';
@@ -68,6 +70,15 @@ final Provider<QuestionKnowledgeLinkRepository>
     Provider<QuestionKnowledgeLinkRepository>(
         (ref) => QuestionKnowledgeLinkRepository());
 
+/// 「待确认知识点」队列仓库（Phase 4-C）。
+/// AI 返回但未匹配到受控节点的知识点文本会被持久化到本队列，
+/// 用户可在错题详情页手动映射或忽略。
+final Provider<PendingKnowledgePointMappingRepository>
+    pendingKnowledgePointMappingRepositoryProvider =
+    Provider<PendingKnowledgePointMappingRepository>((ref) {
+  return PendingKnowledgePointMappingRepository();
+});
+
 /// 错因—知识点—题目三元关联仓库（Phase 4）。
 final Provider<MistakeKnowledgeLinkRepository>
     mistakeKnowledgeLinkRepositoryProvider =
@@ -91,11 +102,14 @@ void invalidateKnowledgePointTree(WidgetRef ref) {
 }
 
 /// 知识点映射服务（Phase 4）：AI 自由文本 → 受控知识点 ID。
+/// Phase 4-C：注入 [PendingKnowledgePointMappingRepository]，
+/// 未匹配文本会进入待确认队列供 UI 手动映射。
 final Provider<KnowledgePointMappingService> knowledgePointMappingServiceProvider =
     Provider<KnowledgePointMappingService>((ref) {
   return KnowledgePointMappingService(
     ref.read(knowledgePointRepositoryProvider),
     ref.read(questionKnowledgeLinkRepositoryProvider),
+    pendingRepo: ref.read(pendingKnowledgePointMappingRepositoryProvider),
   );
 });
 
@@ -228,6 +242,10 @@ final FutureProvider<List<WeakPointRecommendation>>
           .where((q) => q.masteryLevel != MasteryLevel.mastered)
           .map((q) => q.id)
           .toList(),
+      difficultyByQuestion: {
+        for (final q in relatedQuestions)
+          if (q.difficulty != null) q.id: q.difficulty!,
+      },
     ));
   }
   if (inputs.isEmpty) return const <WeakPointRecommendation>[];
@@ -267,6 +285,38 @@ class WeakPointRecommendation {
   final KnowledgePointMastery? mastery;
   final int pendingReviewCount;
 }
+
+/// 待确认知识点队列版本号。每次队列变化（新增/映射/忽略）后递增，
+/// 触发 [pendingKnowledgePointMappingsProvider] 重新加载。
+final StateProvider<int> _pendingKnowledgePointVersionProvider =
+    StateProvider<int>((ref) => 0);
+
+/// 通知待确认知识点队列已变更，刷新 [pendingKnowledgePointMappingsProvider]。
+void invalidatePendingKnowledgePoints(WidgetRef ref) {
+  ref.read(_pendingKnowledgePointVersionProvider.notifier).state++;
+}
+
+/// 全部待确认知识点列表（仅未处理项）。
+///
+/// Phase 4-C：消费 [PendingKnowledgePointMappingRepository.allPending]，
+/// watch [_pendingKnowledgePointVersionProvider] 以在队列变更后响应式刷新。
+final FutureProvider<List<PendingKnowledgePointMapping>>
+    pendingKnowledgePointMappingsProvider =
+    FutureProvider<List<PendingKnowledgePointMapping>>((ref) async {
+  ref.watch(_pendingKnowledgePointVersionProvider);
+  final repo = ref.read(pendingKnowledgePointMappingRepositoryProvider);
+  return repo.allPending();
+});
+
+/// 指定题目下的待确认知识点列表。watch 全局版本号以响应队列变更。
+final FutureProviderFamily<List<PendingKnowledgePointMapping>, String>
+    pendingKnowledgePointsForQuestionProvider =
+    FutureProvider.family<List<PendingKnowledgePointMapping>, String>(
+        (ref, questionId) async {
+  ref.watch(_pendingKnowledgePointVersionProvider);
+  final repo = ref.read(pendingKnowledgePointMappingRepositoryProvider);
+  return repo.pendingForQuestion(questionId);
+});
 
 final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((ref) {

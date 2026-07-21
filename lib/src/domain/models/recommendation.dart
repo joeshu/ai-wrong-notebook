@@ -1,4 +1,5 @@
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point_mastery.dart';
+import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 
 /// 推荐类型。
 enum RecommendationType {
@@ -130,6 +131,7 @@ class RecommendationInput {
     required this.questionIds,
     required this.errorQuestionIds,
     this.overdueQuestionIds = const <String>[],
+    this.difficultyByQuestion = const <String, QuestionDifficulty>{},
   });
 
   final String knowledgePointId;
@@ -137,4 +139,8 @@ class RecommendationInput {
   final List<String> questionIds;
   final List<String> errorQuestionIds;
   final List<String> overdueQuestionIds;
+
+  /// 题目 ID → 难度映射，用于「由易到难」排序推荐题目。
+  /// 缺失难度的题目按 [QuestionDifficulty.foundation] 处理。
+  final Map<String, QuestionDifficulty> difficultyByQuestion;
 }

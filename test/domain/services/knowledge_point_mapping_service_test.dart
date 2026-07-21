@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/pending_knowledge_point_mapping_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point_seed.dart';
+import 'package:smart_wrong_notebook/src/domain/models/pending_knowledge_point_mapping.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_knowledge_link.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mapping_service.dart';
@@ -152,6 +154,68 @@ void main() {
 
       final links = await linkRepo.linksForQuestion('q_1');
       expect(links.first.source, LinkSource.migrated);
+    });
+  });
+
+  group('KnowledgePointMappingService pending queue (Phase 4-C)', () {
+    late PendingKnowledgePointMappingRepository pendingRepo;
+    late KnowledgePointMappingService serviceWithPending;
+
+    setUp(() {
+      pendingRepo = PendingKnowledgePointMappingRepository();
+      serviceWithPending = KnowledgePointMappingService(
+        kpRepo,
+        linkRepo,
+        pendingRepo: pendingRepo,
+      );
+    });
+
+    test('unmatched strings are written to pending queue', () async {
+      await serviceWithPending.createLinksForQuestion(
+        questionId: 'q_1',
+        knowledgePointTexts: <String>['二次函数', '量子力学'],
+      );
+
+      final pending = await pendingRepo.pendingForQuestion('q_1');
+      expect(pending.length, 1);
+      expect(pending.first.questionId, 'q_1');
+      expect(pending.first.originalText, '量子力学');
+      expect(pending.first.isPending, isTrue);
+    });
+
+    test('matched strings are not written to pending queue', () async {
+      await serviceWithPending.createLinksForQuestion(
+        questionId: 'q_1',
+        knowledgePointTexts: <String>['二次函数'],
+      );
+
+      final pending = await pendingRepo.pendingForQuestion('q_1');
+      expect(pending, isEmpty);
+    });
+
+    test('without pendingRepo does not throw on unmatched', () async {
+      // service (no pendingRepo) should still work as before
+      final unmatched = await service.createLinksForQuestion(
+        questionId: 'q_1',
+        knowledgePointTexts: <String>['量子力学'],
+      );
+      expect(unmatched, <String>['量子力学']);
+    });
+
+    test('resolve removes mapping from pending list', () async {
+      await serviceWithPending.createLinksForQuestion(
+        questionId: 'q_1',
+        knowledgePointTexts: <String>['量子力学'],
+      );
+
+      final pending = await pendingRepo.pendingForQuestion('q_1');
+      expect(pending.length, 1);
+
+      await pendingRepo.resolve(pending.first.id,
+          resolution: PendingKnowledgePointResolution.ignored);
+
+      final afterResolve = await pendingRepo.pendingForQuestion('q_1');
+      expect(afterResolve, isEmpty);
     });
   });
 

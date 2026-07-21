@@ -111,6 +111,23 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     _timeoutTimer = null;
   }
 
+  /// Phase 4-C：把 AI 分析返回的知识点文本映射到受控知识点树。
+  /// 匹配成功的会创建结构化关联；未匹配的进入待确认队列，供用户在
+  /// 错题详情页手动映射。后台执行，失败仅记录日志，不阻塞分析流程。
+  Future<void> _mapAnalysisKnowledgePoints(QuestionRecord question) async {
+    if (question.aiKnowledgePoints.isEmpty) return;
+    try {
+      final mapping = ref.read(knowledgePointMappingServiceProvider);
+      await mapping.createLinksForQuestion(
+        questionId: question.id,
+        knowledgePointTexts: question.aiKnowledgePoints,
+      );
+      invalidatePendingKnowledgePoints(ref);
+    } catch (e) {
+      debugPrint('[AnalysisLoading] map knowledge points failed: $e');
+    }
+  }
+
   Future<void> _runAnalysis() async {
     final current = ref.read(currentQuestionProvider);
     if (current == null) {
@@ -321,6 +338,10 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       ref.read(currentQuestionProvider.notifier).state = updated;
       await _replaceWorksheetQueueItem(updated);
       _clearTimeoutTimer();
+
+      // Phase 4-C：AI 分析完成后，把知识点文本映射到受控节点，
+      // 未匹配的进入待确认队列供用户手动映射。后台执行不阻塞 UI。
+      _mapAnalysisKnowledgePoints(updated);
 
       if (mounted) {
         _stepTimer?.cancel();

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point_mastery.dart';
+import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/recommendation.dart';
 import 'package:smart_wrong_notebook/src/domain/services/recommendation_service.dart';
 
@@ -212,6 +213,129 @@ void main() {
       if (neverRecs.isNotEmpty && recentRecs.isNotEmpty) {
         expect(neverRecs.first.score, greaterThan(recentRecs.first.score));
       }
+    });
+  });
+
+  group('RecommendationService difficulty ordering', () {
+    test('relatedQuestionIds are sorted easy-to-hard by difficulty', () async {
+      final inputs = <RecommendationInput>[
+        RecommendationInput(
+          knowledgePointId: 'kp_1',
+          mastery: _mastery(kpId: 'kp_1', percentage: 20, forgot: 2),
+          questionIds: <String>['q_challenge', 'q_foundation', 'q_advanced'],
+          errorQuestionIds: <String>['q_challenge', 'q_foundation', 'q_advanced'],
+          difficultyByQuestion: <String, QuestionDifficulty>{
+            'q_foundation': QuestionDifficulty.foundation,
+            'q_advanced': QuestionDifficulty.advanced,
+            'q_challenge': QuestionDifficulty.challenge,
+          },
+        ),
+      ];
+
+      final recs = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
+
+      final review = recs.firstWhere((r) => r.type == RecommendationType.review);
+      expect(review.relatedQuestionIds,
+          <String>['q_foundation', 'q_advanced', 'q_challenge']);
+      expect(review.questionId, 'q_foundation');
+    });
+
+    test('questions without difficulty entry are treated as foundation',
+        () async {
+      final inputs = <RecommendationInput>[
+        RecommendationInput(
+          knowledgePointId: 'kp_1',
+          mastery: _mastery(kpId: 'kp_1', percentage: 20),
+          questionIds: <String>['q_unknown', 'q_challenge'],
+          errorQuestionIds: <String>['q_unknown', 'q_challenge'],
+          difficultyByQuestion: <String, QuestionDifficulty>{
+            'q_challenge': QuestionDifficulty.challenge,
+          },
+        ),
+      ];
+
+      final recs = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
+
+      final review = recs.firstWhere((r) => r.type == RecommendationType.review);
+      // Unknown difficulty → foundation → comes first
+      expect(review.relatedQuestionIds.first, 'q_unknown');
+    });
+
+    test('reasons mention foundation-heavy knowledge point', () async {
+      final inputs = <RecommendationInput>[
+        RecommendationInput(
+          knowledgePointId: 'kp_1',
+          mastery: _mastery(kpId: 'kp_1', percentage: 25),
+          questionIds: <String>['q_1', 'q_2', 'q_3'],
+          errorQuestionIds: <String>['q_1'],
+          difficultyByQuestion: <String, QuestionDifficulty>{
+            'q_1': QuestionDifficulty.foundation,
+            'q_2': QuestionDifficulty.foundation,
+            'q_3': QuestionDifficulty.foundation,
+          },
+        ),
+      ];
+
+      final recs = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
+
+      expect(recs, isNotEmpty);
+      final allReasons = recs.expand((r) => r.reasons).join('\n');
+      expect(allReasons, contains('基础题为主'));
+    });
+
+    test('reasons mention challenge-heavy knowledge point', () async {
+      final inputs = <RecommendationInput>[
+        RecommendationInput(
+          knowledgePointId: 'kp_1',
+          mastery: _mastery(kpId: 'kp_1', percentage: 25),
+          questionIds: <String>['q_1', 'q_2'],
+          errorQuestionIds: <String>['q_1'],
+          difficultyByQuestion: <String, QuestionDifficulty>{
+            'q_1': QuestionDifficulty.challenge,
+            'q_2': QuestionDifficulty.advanced,
+          },
+        ),
+      ];
+
+      final recs = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
+
+      expect(recs, isNotEmpty);
+      final allReasons = recs.expand((r) => r.reasons).join('\n');
+      expect(allReasons, contains('偏难'));
+    });
+
+    test('omits difficulty reason when no difficulty info available', () async {
+      final inputs = <RecommendationInput>[
+        RecommendationInput(
+          knowledgePointId: 'kp_1',
+          mastery: _mastery(kpId: 'kp_1', percentage: 25),
+          questionIds: <String>['q_1', 'q_2'],
+          errorQuestionIds: <String>['q_1'],
+          // no difficultyByQuestion
+        ),
+      ];
+
+      final recs = await service.generate(
+        inputs: inputs,
+        now: DateTime(2026, 7, 21),
+      );
+
+      expect(recs, isNotEmpty);
+      final allReasons = recs.expand((r) => r.reasons).join('\n');
+      expect(allReasons, isNot(contains('基础题为主')));
+      expect(allReasons, isNot(contains('偏难')));
     });
   });
 

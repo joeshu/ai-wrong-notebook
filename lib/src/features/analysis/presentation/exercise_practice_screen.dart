@@ -6,6 +6,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/widgets/geometry_diagram_widget.dart';
+import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 class ExercisePracticeScreen extends ConsumerStatefulWidget {
@@ -767,6 +768,59 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
 
     if (!mounted) return;
     setState(() => _showCompletion = true);
+
+    // Phase 4-B: 练习完成后更新推荐（后台执行，不阻塞完成界面）
+    // 1. 根据本轮正确率更新源题目 mastery（影响 weakPointRecommendationsProvider 重算）
+    // 2. 清除历史忽略的推荐 ID（让被忽略的推荐有机会重新出现）
+    _applyPracticeResultToMastery(question, exercises);
+  }
+
+  /// 根据本轮练习正确率更新源题目掌握度，并清除推荐忽略列表。
+  ///
+  /// 评分规则：
+  /// - 全对 → markMastered（掌握）
+  /// - 部分对 → markReviewing（仍需复习）
+  /// - 全错 → markForgot（忘记）
+  /// 仅在非 analysis 来源时写库（analysis 来源的题目草稿尚未落库）。
+  /// clearIgnored 让被用户忽略的推荐有机会在掌握度变化后重新出现。
+  Future<void> _applyPracticeResultToMastery(
+    QuestionRecord question,
+    List<GeneratedExercise> exercises,
+  ) async {
+    if (exercises.isEmpty) return;
+    final practiceContext = ref.read(currentPracticeContextProvider);
+    final isAnalysisSource =
+        practiceContext?.source == PracticeContextSource.analysis;
+    // analysis 来源的题目尚未落库，写 ReviewLog 会找不到题目，跳过 mastery 更新。
+    if (!isAnalysisSource) {
+      final correctCount =
+          exercises.where((e) => e.isCorrect == true).length;
+      final total = exercises.length;
+      final controller = ReviewController(
+        repository: ref.read(questionRepositoryProvider),
+        logRepository: ref.read(reviewLogRepositoryProvider),
+      );
+      try {
+        if (correctCount == total) {
+          await controller.markMastered(question.id);
+        } else if (correctCount == 0) {
+          await controller.markForgot(question.id);
+        } else {
+          await controller.markReviewing(question.id);
+        }
+        invalidateQuestionList(ref);
+      } catch (e) {
+        // mastery 更新失败不影响练习完成流程，仅记录日志。
+        debugPrint('[ExercisePractice] update mastery failed: $e');
+      }
+    }
+    // 清除推荐忽略列表，让被忽略的推荐有机会基于新的掌握度重新评估。
+    try {
+      await ref.read(recommendationServiceProvider).clearIgnored();
+      ref.invalidate(weakPointRecommendationsProvider);
+    } catch (e) {
+      debugPrint('[ExercisePractice] clearIgnored failed: $e');
+    }
   }
 
   Future<void> _continuePractice(QuestionRecord question) async {

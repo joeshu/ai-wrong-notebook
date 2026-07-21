@@ -1,6 +1,8 @@
 import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/pending_knowledge_point_mapping_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
+import 'package:smart_wrong_notebook/src/domain/models/pending_knowledge_point_mapping.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_knowledge_link.dart';
 
 /// AI 知识点字符串 → 受控知识点 ID 的映射结果。
@@ -35,10 +37,16 @@ class KnowledgePointMatch {
 /// 2. 包含匹配（文本包含知识点名称或别名）
 /// 3. 未匹配的进入待确认队列
 class KnowledgePointMappingService {
-  KnowledgePointMappingService(this._kpRepo, this._linkRepo);
+  KnowledgePointMappingService(this._kpRepo, this._linkRepo,
+      {PendingKnowledgePointMappingRepository? pendingRepo})
+      : _pendingRepo = pendingRepo;
 
   final KnowledgePointRepository _kpRepo;
   final QuestionKnowledgeLinkRepository _linkRepo;
+
+  /// 待确认知识点队列仓库。注入后未匹配的文本会被持久化到待确认队列，
+  /// 用户可在错题详情页手动映射或忽略。null 时不持久化（旧行为）。
+  final PendingKnowledgePointMappingRepository? _pendingRepo;
 
   /// 将一组知识点字符串映射到受控节点。
   ///
@@ -114,8 +122,10 @@ class KnowledgePointMappingService {
   /// 为指定题目创建知识点关联。
   ///
   /// 将匹配结果转为 [QuestionKnowledgeLink] 并持久化。多个字符串匹配到
-  /// 同一知识点的只保留一条（取最高置信度）。未匹配的字符串不创建关联，
-  /// 返回待确认列表。
+  /// 同一知识点的只保留一条（取最高置信度）。未匹配的字符串：
+  /// - 若注入了 [pendingRepo]，会被写入待确认队列（[PendingKnowledgePointMapping]），
+  ///   返回值仍是未匹配文本列表（便于调用方记录日志或继续处理）。
+  /// - 否则未匹配文本仅返回，不持久化（旧行为）。
   Future<List<String>> createLinksForQuestion({
     required String questionId,
     required List<String> knowledgePointTexts,
@@ -152,6 +162,22 @@ class KnowledgePointMappingService {
     if (links.isNotEmpty) {
       await _linkRepo.replaceLinksForQuestion(questionId, links);
     }
+
+    // Phase 4-C：把未匹配文本写入待确认队列，供 UI 手动映射。
+    if (_pendingRepo != null && unmatched.isNotEmpty) {
+      final pending = <PendingKnowledgePointMapping>[];
+      for (final text in unmatched) {
+        pending.add(PendingKnowledgePointMapping(
+          id: 'pending_${questionId}_${text.hashCode.abs()}',
+          questionId: questionId,
+          originalText: text,
+          source: source,
+          createdAt: now,
+        ));
+      }
+      await _pendingRepo.addMany(pending);
+    }
+
     return unmatched;
   }
 

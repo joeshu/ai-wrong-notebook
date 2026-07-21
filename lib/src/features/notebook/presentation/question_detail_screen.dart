@@ -8,10 +8,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
+import 'package:smart_wrong_notebook/src/domain/models/pending_knowledge_point_mapping.dart';
+import 'package:smart_wrong_notebook/src/domain/models/question_knowledge_link.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_type.dart';
 import 'package:smart_wrong_notebook/src/domain/services/auto_grading_service.dart';
@@ -2361,6 +2364,8 @@ class _AnalysisTab extends StatelessWidget {
             children: result!.knowledgePoints.map((p) => _KnowledgePointItem(text: p)).toList(),
           ),
         ],
+        // Phase 4-C：待确认知识点（AI 返回但未匹配到受控节点的文本）
+        _PendingKnowledgePointsCard(questionId: current.id),
         if (result!.steps.isNotEmpty) ...<Widget>[
           const SizedBox(height: AppSpace.lg),
           AppSectionTitle(AppStrings.detailSolutionSteps,
@@ -2447,6 +2452,245 @@ class _KnowledgePointItem extends StatelessWidget {
             height: 1.45,
             color: isDark ? colorScheme.onSurface : AppColors.primaryDark),
       ),
+    );
+  }
+}
+
+/// Phase 4-C：待确认知识点卡片。
+///
+/// 显示当前题目下 AI 返回但未匹配到受控节点的知识点文本，提供
+/// 「映射到已有知识点」和「忽略」两个操作。映射后会创建结构化
+/// [QuestionKnowledgeLink]，忽略则直接标记为已处理。空队列时
+/// 返回 [SizedBox.shrink] 不占空间。
+class _PendingKnowledgePointsCard extends ConsumerWidget {
+  const _PendingKnowledgePointsCard({required this.questionId});
+
+  final String questionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pendingAsync = ref.watch(pendingKnowledgePointsForQuestionProvider(questionId));
+    final pending = pendingAsync.valueOrNull ?? const <PendingKnowledgePointMapping>[];
+    if (pending.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const SizedBox(height: AppSpace.lg),
+        AppSectionTitle('待确认知识点',
+            padding: const EdgeInsets.only(bottom: AppSpace.sm)),
+        Text(
+          'AI 返回但未匹配到受控知识点的文本，可手动映射或忽略。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: AppSpace.md),
+        AppCard(
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: pending
+                .map((m) => _PendingKnowledgePointRow(
+                      mapping: m,
+                      questionId: questionId,
+                    ))
+                .toList(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PendingKnowledgePointRow extends ConsumerWidget {
+  const _PendingKnowledgePointRow({
+    required this.mapping,
+    required this.questionId,
+  });
+
+  final PendingKnowledgePointMapping mapping;
+  final String questionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: MathContentView(
+              mapping.originalText,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.45,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          IconButton(
+            tooltip: '映射到已有知识点',
+            icon: const Icon(CupertinoIcons.link, size: 20),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _showMapDialog(context, ref),
+          ),
+          IconButton(
+            tooltip: '忽略',
+            icon: const Icon(CupertinoIcons.eye_slash, size: 20),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _ignore(context, ref),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showMapDialog(BuildContext context, WidgetRef ref) async {
+    // 先确保知识点树已加载，避免在 loading 态误报"暂无受控知识点"。
+    List<KnowledgePoint> tree;
+    try {
+      tree = await ref.read(knowledgePointTreeProvider.future);
+    } catch (_) {
+      tree = const <KnowledgePoint>[];
+    }
+    if (!context.mounted) return;
+    if (tree.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('暂无受控知识点'),
+          content: const Text('请先在知识点管理页录入受控知识点，再进行映射。'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('知道了'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // 简单的搜索过滤 + 列表选择对话框。
+    final selected = await showDialog<KnowledgePoint>(
+      context: context,
+      builder: (ctx) => _KnowledgePointPickerDialog(tree: tree),
+    );
+    if (selected == null) return;
+
+    final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+    final pendingRepo = ref.read(pendingKnowledgePointMappingRepositoryProvider);
+    try {
+      await linkRepo.addLink(QuestionKnowledgeLink(
+        questionId: questionId,
+        knowledgePointId: selected.id,
+        source: LinkSource.manual,
+        evidence: mapping.originalText,
+        createdAt: DateTime.now(),
+      ));
+      await pendingRepo.resolve(mapping.id,
+          resolution: PendingKnowledgePointResolution.mapped);
+      invalidateKnowledgePointTree(ref);
+      invalidatePendingKnowledgePoints(ref);
+      invalidateQuestionList(ref);
+    } catch (e) {
+      debugPrint('[PendingKP] map failed: $e');
+    }
+  }
+
+  Future<void> _ignore(BuildContext context, WidgetRef ref) async {
+    final pendingRepo = ref.read(pendingKnowledgePointMappingRepositoryProvider);
+    try {
+      await pendingRepo.resolve(mapping.id,
+          resolution: PendingKnowledgePointResolution.ignored);
+      invalidatePendingKnowledgePoints(ref);
+    } catch (e) {
+      debugPrint('[PendingKP] ignore failed: $e');
+    }
+  }
+}
+
+class _KnowledgePointPickerDialog extends StatefulWidget {
+  const _KnowledgePointPickerDialog({required this.tree});
+
+  final List<KnowledgePoint> tree;
+
+  @override
+  State<_KnowledgePointPickerDialog> createState() =>
+      _KnowledgePointPickerDialogState();
+}
+
+class _KnowledgePointPickerDialogState
+    extends State<_KnowledgePointPickerDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _controller.text.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? widget.tree
+        : widget.tree
+            .where((kp) =>
+                kp.name.toLowerCase().contains(query) ||
+                kp.aliases.any((a) => a.toLowerCase().contains(query)))
+            .toList();
+    return AlertDialog(
+      title: const Text('选择受控知识点'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              controller: _controller,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(CupertinoIcons.search, size: 20),
+                hintText: '搜索知识点名称或别名',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: filtered.length,
+                itemBuilder: (ctx, index) {
+                  final kp = filtered[index];
+                  return ListTile(
+                    dense: true,
+                    title: Text(kp.name),
+                    subtitle: kp.aliases.isEmpty
+                        ? null
+                        : Text(kp.aliases.join(' / '),
+                            style: const TextStyle(fontSize: 11)),
+                    onTap: () => Navigator.pop(ctx, kp),
+                  );
+                },
+              ),
+            ),
+            if (filtered.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Text('未找到匹配的知识点'),
+              ),
+          ],
+        ),
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+      ],
     );
   }
 }
