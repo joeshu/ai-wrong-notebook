@@ -64,12 +64,15 @@ class JsonExportService {
       // 归一化字面量 \n（反斜杠+n 两字符，AI 输出残留）为真正换行，
       // 避免导入端或下游工具看到选项 ABCD 前的字面量 \n 文本。
       'questions': questions
-          .map((q) => _normalizeQuestionRecordJson(
-                q.toJson(),
-                knowledgeTreePaths: options.includeKnowledgeTree
-                    ? knowledgeTreePaths?[q.id]
-                    : null,
-              ))
+          .map((q) {
+            final paths = options.includeKnowledgeTree
+                ? knowledgeTreePaths?[q.id]
+                : null;
+            return _normalizeQuestionRecordJson(
+              q.toJson(),
+              knowledgeTreePaths: paths,
+            );
+          })
           .toList(growable: false),
     };
     if (includeLogs) {
