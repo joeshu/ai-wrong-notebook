@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
@@ -201,6 +202,142 @@ class _WorksheetWorkbenchScreenState
     }
   }
 
+  // --- Phase 8-4：智能组卷入口 ---
+
+  /// 智能推荐：从薄弱知识点推荐中收集题目 ID 并加入已选区。
+  Future<void> _loadWeakPointQuestions() async {
+    final recs = ref.read(weakPointRecommendationsProvider).valueOrNull ??
+        const <WeakPointRecommendation>[];
+    if (recs.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无薄弱知识点推荐，完成 AI 分析后再试')),
+      );
+      return;
+    }
+    final ids = <String>{};
+    for (final rec in recs) {
+      ids.addAll(rec.recommendation.relatedQuestionIds);
+    }
+    if (ids.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('薄弱知识点暂无可组卷的题目')),
+      );
+      return;
+    }
+    setState(() {
+      for (final id in ids) {
+        if (_selectedIds.add(id)) _order.add(id);
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已从薄弱知识点加载 ${ids.length} 道题')),
+      );
+    }
+  }
+
+  /// 智能组卷：打开参数设置面板，按难度分布从题库中选题。
+  Future<void> _openSmartAssemblySheet(
+      List<QuestionRecord> allQuestions) async {
+    final eligible = allQuestions
+        .where((q) =>
+            inferQuestionDisplayStatus(q) == QuestionDisplayStatus.analyzed)
+        .toList();
+    if (eligible.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无已分析的题目可用于智能组卷')),
+      );
+      return;
+    }
+    final result = await showModalBottomSheet<_SmartAssemblyParams>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _SmartAssemblySheet(
+        maxQuestions: eligible.length,
+        currentSelected: _selectedIds.length,
+      ),
+    );
+    if (result == null || !mounted) return;
+    final picked = _smartAssemble(eligible, result);
+    if (picked.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('按当前参数未找到合适题目，请调整后重试')),
+      );
+      return;
+    }
+    setState(() {
+      for (final q in picked) {
+        if (_selectedIds.add(q.id)) _order.add(q.id);
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('智能组卷已选 ${picked.length} 道题')),
+      );
+    }
+  }
+
+  /// 智能选题算法：按难度分布从题库中筛选 + 去重 + 补足。
+  List<QuestionRecord> _smartAssemble(
+    List<QuestionRecord> pool,
+    _SmartAssemblyParams params,
+  ) {
+    // 1. 排除已选题目
+    final available =
+        pool.where((q) => !_selectedIds.contains(q.id)).toList();
+    if (available.isEmpty) return const <QuestionRecord>[];
+
+    // 2. 按难度分组
+    final byDifficulty = <QuestionDifficulty, List<QuestionRecord>>{
+      QuestionDifficulty.foundation: <QuestionRecord>[],
+      QuestionDifficulty.advanced: <QuestionRecord>[],
+      QuestionDifficulty.challenge: <QuestionRecord>[],
+      QuestionDifficulty.custom: <QuestionRecord>[],
+    };
+    for (final q in available) {
+      final d = q.difficulty ?? QuestionDifficulty.foundation;
+      byDifficulty[d]?.add(q);
+    }
+
+    // 3. 按分布比例计算各难度目标数量
+    final total = params.totalCount;
+    final foundationTarget = (total * params.foundationRatio).round();
+    final advancedTarget = (total * params.advancedRatio).round();
+    final challengeTarget = total - foundationTarget - advancedTarget;
+
+    final picked = <QuestionRecord>[];
+    void pickFrom(List<QuestionRecord> list, int count) {
+      var n = 0;
+      for (final q in list) {
+        if (n >= count) break;
+        picked.add(q);
+        n++;
+      }
+    }
+
+    pickFrom(byDifficulty[QuestionDifficulty.foundation]!, foundationTarget);
+    pickFrom(byDifficulty[QuestionDifficulty.advanced]!, advancedTarget);
+    pickFrom(byDifficulty[QuestionDifficulty.challenge]!, challengeTarget);
+
+    // 4. 补足：若不足 total，从剩余池中按 custom → foundation → advanced → challenge 补
+    if (picked.length < total) {
+      final pickedIds = picked.map((q) => q.id).toSet();
+      final remaining = available
+          .where((q) => !pickedIds.contains(q.id))
+          .toList();
+      for (final q in remaining) {
+        if (picked.length >= total) break;
+        picked.add(q);
+      }
+    }
+
+    // 5. 截断到 total（可能因补足超出）
+    if (picked.length > total) picked.removeRange(total, picked.length);
+    return picked;
+  }
+
   @override
   Widget build(BuildContext context) {
     final questionsAsync = ref.watch(questionListProvider);
@@ -312,6 +449,27 @@ class _WorksheetWorkbenchScreenState
                     ),
                     onChanged: (value) =>
                         setState(() => _query = value.trim()),
+                  ),
+                  const SizedBox(height: 12),
+                  // Phase 8-4：智能组卷入口
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _loadWeakPointQuestions(),
+                          icon: const Icon(CupertinoIcons.sparkles, size: 16),
+                          label: const Text('薄弱点推荐', style: TextStyle(fontSize: 13)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => _openSmartAssemblySheet(questions),
+                          icon: const Icon(CupertinoIcons.wand_stars, size: 16),
+                          label: const Text('智能组卷', style: TextStyle(fontSize: 13)),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -652,6 +810,234 @@ class _FilterChip extends StatelessWidget {
       backgroundColor: bgColor,
       side: BorderSide(color: borderColor),
       onPressed: onSelected,
+    );
+  }
+}
+
+/// Phase 8-4：智能组卷参数。
+class _SmartAssemblyParams {
+  const _SmartAssemblyParams({
+    required this.totalCount,
+    required this.foundationRatio,
+    required this.advancedRatio,
+  });
+
+  final int totalCount;
+  final double foundationRatio;
+  final double advancedRatio;
+
+  double get challengeRatio =>
+      (1.0 - foundationRatio - advancedRatio).clamp(0.0, 1.0);
+}
+
+/// Phase 8-4：智能组卷参数设置面板（ModalBottomSheet）。
+class _SmartAssemblySheet extends StatefulWidget {
+  const _SmartAssemblySheet({
+    required this.maxQuestions,
+    required this.currentSelected,
+  });
+
+  final int maxQuestions;
+  final int currentSelected;
+
+  @override
+  State<_SmartAssemblySheet> createState() => _SmartAssemblySheetState();
+}
+
+class _SmartAssemblySheetState extends State<_SmartAssemblySheet> {
+  late int _totalCount;
+  late double _foundationPct; // 0.0 – 1.0
+  late double _advancedPct;
+
+  @override
+  void initState() {
+    super.initState();
+    _totalCount = widget.maxQuestions < 10 ? widget.maxQuestions : 10;
+    _foundationPct = 0.6;
+    _advancedPct = 0.3;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final challengePct =
+        (1.0 - _foundationPct - _advancedPct).clamp(0.0, 1.0);
+    final foundationN = (_totalCount * _foundationPct).round();
+    final advancedN = (_totalCount * _advancedPct).round();
+    final challengeN = _totalCount - foundationN - advancedN;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        16,
+        24,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Row(
+            children: <Widget>[
+              const Icon(CupertinoIcons.wand_stars, size: 20),
+              const SizedBox(width: 8),
+              Text('智能组卷参数',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '可选题库 ${widget.maxQuestions} 题 · 已选 ${widget.currentSelected} 题',
+            style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 20),
+          // 总题数
+          Row(
+            children: <Widget>[
+              const Text('总题数', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Text('$_totalCount 题',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+            ],
+          ),
+          Slider(
+            min: 1,
+            max: widget.maxQuestions.toDouble(),
+            divisions: widget.maxQuestions > 1 ? widget.maxQuestions - 1 : 1,
+            value: _totalCount.toDouble(),
+            label: '$_totalCount',
+            onChanged: widget.maxQuestions > 1
+                ? (v) => setState(() => _totalCount = v.round())
+                : null,
+          ),
+          const SizedBox(height: 8),
+          // 难度分布
+          const Text('难度分布',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          _DifficultySlider(
+            label: '基础',
+            color: AppColors.success,
+            value: _foundationPct,
+            count: foundationN,
+            onChanged: (v) => setState(() {
+              _foundationPct = v;
+              // 保证 foundation + advanced ≤ 1.0
+              if (_foundationPct + _advancedPct > 1.0) {
+                _advancedPct = 1.0 - _foundationPct;
+              }
+            }),
+          ),
+          _DifficultySlider(
+            label: '进阶',
+            color: AppColors.warning,
+            value: _advancedPct,
+            count: advancedN,
+            onChanged: (v) => setState(() {
+              _advancedPct = v;
+              if (_foundationPct + _advancedPct > 1.0) {
+                _foundationPct = 1.0 - _advancedPct;
+              }
+            }),
+          ),
+          _DifficultySlider(
+            label: '提高',
+            color: AppColors.danger,
+            value: challengePct,
+            count: challengeN,
+            enabled: false, // 自动计算
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.pop(
+                context,
+                _SmartAssemblyParams(
+                  totalCount: _totalCount,
+                  foundationRatio: _foundationPct,
+                  advancedRatio: _advancedPct,
+                ),
+              ),
+              icon: const Icon(CupertinoIcons.checkmark, size: 18),
+              label: const Text('生成组卷'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DifficultySlider extends StatelessWidget {
+  const _DifficultySlider({
+    required this.label,
+    required this.color,
+    required this.value,
+    required this.count,
+    this.onChanged,
+    this.enabled = true,
+  });
+
+  final String label;
+  final Color color;
+  final double value; // 0.0 – 1.0
+  final int count;
+  final ValueChanged<double>? onChanged;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 36,
+            child: Text(label,
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: Slider(
+              min: 0.0,
+              max: 1.0,
+              divisions: 20, // 5% 步进
+              value: value,
+              label: '${(value * 100).round()}%',
+              onChanged: enabled ? onChanged : null,
+              activeColor: color,
+            ),
+          ),
+          SizedBox(
+            width: 56,
+            child: Text(
+              '${(value * 100).round()}% · $count题',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -187,12 +187,16 @@
 
 ## 4. 组卷系统升级
 
-- [ ] 组卷入口扩展:知识树详情页 / 复习中心
+- [x] 组卷入口扩展:知识树详情页
+  > 知识点详情页新增「加入组卷工作台」OutlinedButton,将该知识点关联题目 ID 写入 `worksheetDraftQuestionIdsProvider` 后跳转 `/worksheet`
 - [ ] 新增"按知识点组卷"模式(从知识树多选知识点)
-- [ ] 新增"智能推荐组卷"模式(基于 `RecommendationService` 薄弱点)
-- [ ] 组卷参数设置页:总题数 / 难度分布(基础60% 进阶30% 提高10%) / 题型分布
+- [x] 新增"智能推荐组卷"模式(基于 `RecommendationService` 薄弱点)
+  > 工作台新增「薄弱点推荐」按钮,读取 `weakPointRecommendationsProvider` 收集 `relatedQuestionIds` 加入已选区
+- [x] 组卷参数设置页:总题数 / 难度分布(基础60% 进阶30% 提高10%)
+  > 工作台新增「智能组卷」按钮 → `_SmartAssemblySheet` ModalBottomSheet,含总题数 Slider + 三档难度分布 Slider(基础/进阶/提高,默认 60/30/10)
 - [ ] 试卷预览页(正式预览,非页数估算)
-- [ ] 智能选题算法(按参数从题库筛选 + 去重 + 补足)
+- [x] 智能选题算法(按参数从题库筛选 + 去重 + 补足)
+  > `_smartAssemble`:排除已选 → 按难度分组 → 按分布比例采样 → 不足时从剩余池补足 → 截断到 total
 
 ---
 

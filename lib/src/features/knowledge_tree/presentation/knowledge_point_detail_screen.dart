@@ -134,6 +134,19 @@ class _KnowledgePointDetailScreenState
               : const Icon(CupertinoIcons.play_fill, size: 18),
           label: Text(_buildingPractice ? '正在生成练习…' : '专项练习（基于该知识点）'),
         ),
+        if (detail.questions.isNotEmpty) ...<Widget>[
+          const SizedBox(height: AppSpace.sm),
+          // Phase 8-4：将该知识点关联错题送入组卷工作台。
+          OutlinedButton.icon(
+            onPressed: () {
+              ref.read(worksheetDraftQuestionIdsProvider.notifier).state =
+                  detail.questions.map((q) => q.id).toList();
+              context.go('/worksheet');
+            },
+            icon: const Icon(CupertinoIcons.rectangle_stack, size: 18),
+            label: const Text('加入组卷工作台'),
+          ),
+        ],
         const SizedBox(height: AppSpace.lg),
         // 错题列表
         const AppSectionTitle('关联错题'),
