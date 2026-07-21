@@ -134,10 +134,79 @@ void main() {
       expect(risks.any((m) => m.contains('题框重叠')), isTrue);
     });
 
-    test('含公式或表格提示核对格式', () {
-      final region = _region(text: '题干', blockTypes: const <String>['公式']);
+    test('含公式且公式完整 → 含公式提示核对格式', () {
+      final region = _region(
+        text: '题干',
+        blockTypes: const <String>['公式'],
+        formulas: const <String>[r'$x^2 + y^2 = r^2$'],
+      );
       final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
       expect(risks, contains('含公式或表格，建议核对格式'));
+      expect(risks.any((m) => m.contains('公式格式异常')), isFalse);
+    });
+
+    test('含表格且表格完整 → 含表格提示核对格式', () {
+      final region = _region(
+        text: '题干',
+        blockTypes: const <String>['表格'],
+        tables: const <String>['| a | b |\n|---|---|\n| 1 | 2 |'],
+      );
+      final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
+      expect(risks, contains('含公式或表格，建议核对格式'));
+      expect(risks.any((m) => m.contains('表格格式异常')), isFalse);
+    });
+
+    test('含公式块但公式列表为空 → 公式格式异常', () {
+      final region = _region(text: '题干', blockTypes: const <String>['公式']);
+      final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
+      expect(risks.any((m) => m.contains('公式格式异常')), isTrue);
+      // 不应同时出现"含公式或表格"的冗余提示
+      expect(risks, isNot(contains('含公式或表格，建议核对格式')));
+    });
+
+    test('公式缺少 LaTex 标记 → 公式格式异常', () {
+      final region = _region(
+        text: '题干',
+        formulas: const <String>['x^2 + y^2'],  // 没有 $...$ 或 \(...\)
+      );
+      final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
+      expect(risks.any((m) => m.contains('公式格式异常')), isTrue);
+    });
+
+    test('表格 Markdown 缺分隔行 → 表格格式异常', () {
+      final region = _region(
+        text: '题干',
+        tables: const <String>['| a | b |\n| 1 | 2 |'],  // 缺 |---|---|
+      );
+      final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
+      expect(risks.any((m) => m.contains('表格格式异常')), isTrue);
+    });
+
+    test('表格 Markdown 列数不一致 → 表格格式异常', () {
+      final region = _region(
+        text: '题干',
+        tables: const <String>['| a | b |\n|---|---|\n| 1 | 2 | 3 |'],  // 第三行列多
+      );
+      final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
+      expect(risks.any((m) => m.contains('表格格式异常')), isTrue);
+    });
+
+    test('题型为选择题但无选项行 → 选项缺失风险', () {
+      final region = _region(
+        text: '一道选择题但没有选项',
+        questionType: '选择题',
+      );
+      final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
+      expect(risks, contains('题型为选择题但未识别到选项行，请补选项'));
+    });
+
+    test('识别到选项块但无选项行 → 选项缺失风险', () {
+      final region = _region(
+        text: '题干无选项',
+        blockTypes: const <String>['选项'],
+      );
+      final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
+      expect(risks, contains('识别到选项块但未提取到选项行，建议校对'));
     });
 
     test('低可信度布局模型识别提示校对', () {

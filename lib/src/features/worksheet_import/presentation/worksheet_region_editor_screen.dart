@@ -919,15 +919,17 @@ class StatusPill extends StatelessWidget {
   }
 }
 
-/// 字段状态四态：已识别 / 未识别 / 待校对 / 不适用。
+/// 字段状态四态：已识别 / 未识别 / 待校对 / 不适用 / 已校对。
 ///
 /// 用于统一对照工作台与识别结果页的字段状态文案与配色，避免不同位置
 /// 出现「需校对 / 待校对 / 未检测到 / 未识别」等不一致文案。
+/// [edited] 表示用户已手动校对过该字段，与原始识别结果不同。
 enum FieldStatus {
   recognized,
   missing,
   needsReview,
   notApplicable,
+  edited,
 }
 
 extension FieldStatusStyle on FieldStatus {
@@ -936,6 +938,7 @@ extension FieldStatusStyle on FieldStatus {
         FieldStatus.missing => '未识别',
         FieldStatus.needsReview => '待校对',
         FieldStatus.notApplicable => '不适用',
+        FieldStatus.edited => '已校对',
       };
 
   Color get backgroundColor => switch (this) {
@@ -943,6 +946,7 @@ extension FieldStatusStyle on FieldStatus {
         FieldStatus.needsReview => const Color(0xFFFFF7ED),
         FieldStatus.missing => const Color(0xFFFEF2F2),
         FieldStatus.notApplicable => const Color(0xFFF1F5F9),
+        FieldStatus.edited => const Color(0xFFECFCCB),
       };
 
   Color get borderColor => switch (this) {
@@ -950,6 +954,7 @@ extension FieldStatusStyle on FieldStatus {
         FieldStatus.needsReview => const Color(0xFFFED7AA),
         FieldStatus.missing => const Color(0xFFFECACA),
         FieldStatus.notApplicable => const Color(0xFFE2E8F0),
+        FieldStatus.edited => const Color(0xFFA3E635),
       };
 
   Color get foregroundColor => switch (this) {
@@ -957,36 +962,44 @@ extension FieldStatusStyle on FieldStatus {
         FieldStatus.needsReview => const Color(0xFF9A3412),
         FieldStatus.missing => const Color(0xFF991B1B),
         FieldStatus.notApplicable => const Color(0xFF475569),
+        FieldStatus.edited => const Color(0xFF3F6212),
       };
 }
 
-/// 计算单题字段在对照工作台的展示状态（四态统一判定）。
+/// 计算单题字段在对照工作台的展示状态（五态统一判定）。
 ///
 /// 集中字段判定逻辑，避免 `_DetectionResultCard`（汇总卡）与
 /// `RecognitionEvidencePreview`（单题对照区）出现文案/配色不一致。
 /// 选项字段在非选择题时返回 [FieldStatus.notApplicable]；题型未指定时
 /// 按是否识别到选项行判定，避免误判。
+///
+/// [edited] 为 true 且字段非空/适用时返回 [FieldStatus.edited]，表示
+/// 用户已手动校对过该字段（与原始识别结果不同）。
 FieldStatus recognitionFieldStatus(
   String field,
   QuestionRegion region, {
   String? stemOverride,
   List<String>? formulasOverride,
   List<String>? tablesOverride,
+  bool edited = false,
 }) {
   switch (field) {
     case '题干':
       final stem = stemOverride ?? region.questionStem ?? region.recognizedText ?? '';
-      return stem.trim().isEmpty ? FieldStatus.needsReview : FieldStatus.recognized;
+      if (stem.trim().isEmpty) return FieldStatus.needsReview;
+      return edited ? FieldStatus.edited : FieldStatus.recognized;
     case '公式':
       final formulas = formulasOverride ?? region.formulas;
       final has = formulas.isNotEmpty ||
           region.recognizedBlockTypes.any((t) => t == '公式');
-      return has ? FieldStatus.recognized : FieldStatus.missing;
+      if (!has) return FieldStatus.missing;
+      return edited ? FieldStatus.edited : FieldStatus.recognized;
     case '表格':
       final tables = tablesOverride ?? region.tables;
       final has = tables.isNotEmpty ||
           region.recognizedBlockTypes.any((t) => t == '表格');
-      return has ? FieldStatus.recognized : FieldStatus.missing;
+      if (!has) return FieldStatus.missing;
+      return edited ? FieldStatus.edited : FieldStatus.recognized;
     case '选项':
       final type = region.questionType;
       if (type != null &&
@@ -996,7 +1009,7 @@ FieldStatus recognitionFieldStatus(
         return FieldStatus.notApplicable;
       }
       return _hasOptionLine(region.recognizedText)
-          ? FieldStatus.recognized
+          ? (edited ? FieldStatus.edited : FieldStatus.recognized)
           : FieldStatus.needsReview;
     case '图形':
       final has = region.recognizedBlockTypes.any((t) =>
@@ -1180,6 +1193,11 @@ class _RecognitionEvidencePreviewState
     final formulas = widget.formulas;
     final tables = widget.tables;
     final expanded = _expanded;
+    // 是否被用户手动编辑过：originalRecognizedText 存在且与当前 recognizedText
+    // 不一致。三个可编辑字段（题干/公式/表格）共享这一标记，编辑任一字段都会
+    // 触发整体 modified=true，让相应字段徽章显示"已校对"。
+    final modified = widget.region.originalRecognizedText != null &&
+        widget.region.recognizedText != widget.region.originalRecognizedText;
     // 当题干/公式/表格较长时显示"展开/收起"按钮；空内容时不显示。
     final hasLongContent = stem.length > 60 ||
         formulas.any((f) => f.length > 30) ||
@@ -1196,9 +1214,9 @@ class _RecognitionEvidencePreviewState
           spacing: 6,
           runSpacing: 6,
           children: <Widget>[
-            StatusPill(label: '题干', status: recognitionFieldStatus('题干', widget.region, stemOverride: stem)),
-            StatusPill(label: '公式', status: recognitionFieldStatus('公式', widget.region, formulasOverride: formulas)),
-            StatusPill(label: '表格', status: recognitionFieldStatus('表格', widget.region, tablesOverride: tables)),
+            StatusPill(label: '题干', status: recognitionFieldStatus('题干', widget.region, stemOverride: stem, edited: modified)),
+            StatusPill(label: '公式', status: recognitionFieldStatus('公式', widget.region, formulasOverride: formulas, edited: modified)),
+            StatusPill(label: '表格', status: recognitionFieldStatus('表格', widget.region, tablesOverride: tables, edited: modified)),
             StatusPill(label: '选项', status: recognitionFieldStatus('选项', widget.region)),
             StatusPill(label: '图形', status: recognitionFieldStatus('图形', widget.region)),
           ],
@@ -2033,6 +2051,9 @@ class _RiskActionCard extends StatelessWidget {
     final needsText = risks.any((item) => item.contains('文字') || item.contains('可信度'));
     final needsCrop = risks.any((item) => item.contains('边缘') || item.contains('重叠'));
     final needsStructure = risks.any((item) => item.contains('公式') || item.contains('表格'));
+    // 选项缺失风险目前没有独立选项编辑入口（选项编辑在 Batch 4 落地），
+    // 暂时引导用户回到题干校对，在题干里补选项行。
+    final needsOption = risks.any((item) => item.contains('选项'));
     return Container(
       margin: const EdgeInsets.only(bottom: 7), padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(8)),
@@ -2043,6 +2064,7 @@ class _RiskActionCard extends StatelessWidget {
           if (needsText) TextButton.icon(onPressed: onEditText, icon: const Icon(CupertinoIcons.pencil, size: 14), label: const Text('校对题干')),
           if (needsCrop) TextButton.icon(onPressed: onPreviewCrop, icon: const Icon(CupertinoIcons.crop, size: 14), label: const Text('查看裁切')),
           if (needsStructure) TextButton.icon(onPressed: onOpenAdvanced, icon: const Icon(CupertinoIcons.list_bullet, size: 14), label: const Text('校对格式')),
+          if (needsOption) TextButton.icon(onPressed: onEditText, icon: const Icon(CupertinoIcons.list_bullet_indent, size: 14), label: const Text('补选项')),
         ]),
       ]),
     );
@@ -2243,5 +2265,61 @@ List<String> detectQuestionRegionRisks(
   if (region.recognizedBlockTypes.any((item) => item == '公式' || item == '表格')) {
     risks.add('含公式或表格，建议核对格式');
   }
+  // 公式格式异常：含公式块但公式列表为空，或公式缺少 $...$ / \(...\) / \[...\] 等 LaTex 标记。
+  // 当公式格式异常时不重复加"含公式"提示，避免冗余。
+  final hasFormulaBlock = region.recognizedBlockTypes.any((item) => item == '公式') ||
+      region.formulas.isNotEmpty;
+  if (hasFormulaBlock) {
+    final formulaIssue = region.formulas.isEmpty ||
+        region.formulas.any((f) =>
+            !f.contains('\$') && !f.contains(r'\(') && !f.contains(r'\['));
+    if (formulaIssue) {
+      risks.remove('含公式或表格，建议核对格式');
+      risks.add('公式格式异常，缺少 \$...\$ 或 \\(...\\) 等 LaTex 标记，建议校对');
+    }
+  }
+  // 表格格式异常：含表格块但 Markdown 不完整（行数<2、缺分隔行、列数不一致）。
+  final hasTableBlock = region.recognizedBlockTypes.any((item) => item == '表格') ||
+      region.tables.isNotEmpty;
+  if (hasTableBlock) {
+    final tableIssue = region.tables.isEmpty ||
+        region.tables.any(_isTableMalformed);
+    if (tableIssue) {
+      risks.remove('含公式或表格，建议核对格式');
+      risks.add('表格格式异常，建议补全 Markdown 分隔行或对齐列数');
+    }
+  }
+  // 选项缺失：题型为选择题但未识别到选项行；或识别到选项块但未提取到选项行。
+  final type = region.questionType;
+  final isChoiceLike = type == null ||
+      type.isEmpty ||
+      type == '未指定' ||
+      type == '选择题';
+  if (isChoiceLike && !_hasOptionLine(region.recognizedText)) {
+    if (type == '选择题') {
+      risks.add('题型为选择题但未识别到选项行，请补选项');
+    } else if (region.recognizedBlockTypes.any((t) => t == '选项')) {
+      risks.add('识别到选项块但未提取到选项行，建议校对');
+    }
+  }
   return risks;
+}
+
+/// 判断 Markdown 表格是否格式异常：
+/// - 表格行数 < 2（只有表头没有数据行）
+/// - 第二行不是分隔行（|---|---|）
+/// - 各行列数不一致
+bool _isTableMalformed(String markdown) {
+  final lines = markdown
+      .split('\n')
+      .where((line) => line.trim().startsWith('|'))
+      .toList();
+  if (lines.length < 2) return true;
+  final separator = lines[1].trim();
+  if (!RegExp(r'^\|[\s:-]+(\|[\s:-]+)+\|?$').hasMatch(separator)) return true;
+  final colCount = lines.first.split('|').length;
+  for (final line in lines) {
+    if (line.split('|').length != colCount) return true;
+  }
+  return false;
 }
