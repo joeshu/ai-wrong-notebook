@@ -81,10 +81,12 @@ class KnowledgePointMappingService {
       );
     }
 
-    // 2. 包含匹配（文本包含某个知识点名称）
+    // 2. 包含匹配（文本包含知识点名称，或反之）
+    // 要求知识点名称至少 3 个字符，避免"力学""圆"等过短名称误匹配
     KnowledgePoint? bestMatch;
     double bestScore = 0.0;
     for (final entry in lowerIndex.entries) {
+      if (entry.key.length < 3) continue;
       if (lower.contains(entry.key) || entry.key.contains(lower)) {
         // 匹配长度占比作为置信度
         final score =
