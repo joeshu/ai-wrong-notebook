@@ -381,41 +381,41 @@ void main() {
   });
 
   group('选项行解析与规范化', () {
-    test('_parseOptionLines 从 recognizedText 提取选项行', () {
-      expect(_parseOptionLines(null), isEmpty);
-      expect(_parseOptionLines(''), isEmpty);
-      expect(_parseOptionLines('题干\nA. 选项一\nB. 选项二'),
+    test('parseOptionLines 从 recognizedText 提取选项行', () {
+      expect(parseOptionLines(null), isEmpty);
+      expect(parseOptionLines(''), isEmpty);
+      expect(parseOptionLines('题干\nA. 选项一\nB. 选项二'),
           <String>['A. 选项一', 'B. 选项二']);
       // 支持中文顿号、半角句号
-      expect(_parseOptionLines('A、第一项\nB．第二项'),
+      expect(parseOptionLines('A、第一项\nB．第二项'),
           <String>['A. 第一项', 'B. 第二项']);
       // 非选项行被忽略
-      expect(_parseOptionLines('题干\n解答\nA. 选项一'),
+      expect(parseOptionLines('题干\n解答\nA. 选项一'),
           <String>['A. 选项一']);
     });
 
-    test('_normalizeOptions 自动补 A./B./C./D. 前缀', () {
-      expect(_normalizeOptions('红色\n蓝色\n绿色'),
+    test('normalizeOptions 自动补 A./B./C./D. 前缀', () {
+      expect(normalizeOptions('红色\n蓝色\n绿色'),
           <String>['A. 红色', 'B. 蓝色', 'C. 绿色']);
       // 已有前缀的保留原字母
-      expect(_normalizeOptions('A. 红色\nB. 蓝色'),
+      expect(normalizeOptions('A. 红色\nB. 蓝色'),
           <String>['A. 红色', 'B. 蓝色']);
       // 空行被过滤
-      expect(_normalizeOptions('红色\n\n蓝色'),
+      expect(normalizeOptions('红色\n\n蓝色'),
           <String>['A. 红色', 'B. 蓝色']);
       // 全空 → 空列表（用于清空 options）
-      expect(_normalizeOptions('  \n  '), isEmpty);
+      expect(normalizeOptions('  \n  '), isEmpty);
     });
 
-    test('_hasOptionLine 与 _parseOptionLines 一致性', () {
+    test('hasOptionLine 与 parseOptionLines 一致性', () {
       // 有选项行时两者都为 true/非空
       const text = '题干\nA. 选项一\nB. 选项二';
-      expect(_hasOptionLine(text), isTrue);
-      expect(_parseOptionLines(text), hasLength(2));
+      expect(hasOptionLine(text), isTrue);
+      expect(parseOptionLines(text), hasLength(2));
       // 无选项行时两者都为 false/空
       const noOption = '题干没有选项';
-      expect(_hasOptionLine(noOption), isFalse);
-      expect(_parseOptionLines(noOption), isEmpty);
+      expect(hasOptionLine(noOption), isFalse);
+      expect(parseOptionLines(noOption), isEmpty);
     });
   });
 }

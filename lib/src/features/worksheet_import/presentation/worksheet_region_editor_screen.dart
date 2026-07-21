@@ -1068,7 +1068,7 @@ FieldStatus recognitionFieldStatus(
       if (region.options.isNotEmpty) {
         return FieldStatus.edited;
       }
-      return _hasOptionLine(region.recognizedText)
+      return hasOptionLine(region.recognizedText)
           ? (edited ? FieldStatus.edited : FieldStatus.recognized)
           : FieldStatus.needsReview;
     case '图形':
@@ -1084,14 +1084,14 @@ FieldStatus recognitionFieldStatus(
   }
 }
 
-bool _hasOptionLine(String? text) {
+bool hasOptionLine(String? text) {
   if (text == null) return false;
   return RegExp(r'(?:^|\s)[A-H][.．、]\s*\S', multiLine: true).hasMatch(text);
 }
 
 /// 从 recognizedText 中按行解析 A./B./C./D. 选项行。
 /// 仅匹配行首（允许前导空白）；每行返回 "X. 内容" 形式，已 trim。
-List<String> _parseOptionLines(String? text) {
+List<String> parseOptionLines(String? text) {
   if (text == null) return const <String>[];
   final pattern = RegExp(r'^\s*([A-H])[.．、]\s*(.+?)\s*$');
   final result = <String>[];
@@ -1106,7 +1106,7 @@ List<String> _parseOptionLines(String? text) {
 
 /// 把对话框收集的多行文本规范化为 "A. xxx\nB. yyy" 列表。
 /// 已带 A./B./C./D. 前缀的保留原字母；缺前缀的按行序补 A./B./C./D.。
-List<String> _normalizeOptions(String raw) {
+List<String> normalizeOptions(String raw) {
   final lines = raw
       .split('\n')
       .map((line) => line.trim())
@@ -1840,7 +1840,7 @@ class _RecognizedQuestionWorkbenchState
   List<String> _optionsFor(QuestionRegion region) {
     if (region.options.isNotEmpty) return region.options;
     if (region.originalRecognizedText != null) return const <String>[];
-    return _parseOptionLines(region.recognizedText);
+    return parseOptionLines(region.recognizedText);
   }
 
   void _applyBlocks(int index, QuestionRegion region, List<DocumentBlock> blocks) {
@@ -1919,7 +1919,7 @@ class _RecognizedQuestionWorkbenchState
     final nextTables = tables ?? _tablesFor(region);
     final nextOptions = options ?? _optionsFor(region);
     final blocks = _orderedBlocks(region, nextStem, nextFormulas, nextTables);
-    // combined 必须包含选项行，让 _hasOptionLine 在重建后仍能识别，
+    // combined 必须包含选项行，让 hasOptionLine 在重建后仍能识别，
     // 同时让"恢复识别原文"对照保持完整。
     final combined = <String>[
       ...blocks.where((block) => block.content.trim().isNotEmpty).map((block) => block.content),
@@ -1952,7 +1952,7 @@ class _RecognizedQuestionWorkbenchState
       confirmText: '保存',
     );
     if (result == null) return;
-    final nextOptions = _normalizeOptions(result);
+    final nextOptions = normalizeOptions(result);
     _updateStructured(index, region, options: nextOptions);
   }
 
@@ -2170,7 +2170,7 @@ class _RecognizedQuestionWorkbenchState
         ],
         // 选项独立编辑入口：选择题或识别到选项行时显示。点击弹出对话框，
         // 每行一个选项，自动补 A./B./C./D. 前缀；保存后写入 region.options
-        // 并合并回 recognizedText，让 _hasOptionLine 仍能识别。
+        // 并合并回 recognizedText，让 hasOptionLine 仍能识别。
         if (type == '选择题' ||
             region.recognizedBlockTypes.contains('选项') ||
             _optionsFor(region).isNotEmpty) ...<Widget>[
@@ -2514,7 +2514,7 @@ List<String> detectQuestionRegionRisks(
       type.isEmpty ||
       type == '未指定' ||
       type == '选择题';
-  if (isChoiceLike && !_hasOptionLine(region.recognizedText)) {
+  if (isChoiceLike && !hasOptionLine(region.recognizedText)) {
     if (type == '选择题') {
       risks.add('题型为选择题但未识别到选项行，请补选项');
     } else if (region.recognizedBlockTypes.any((t) => t == '选项')) {
