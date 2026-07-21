@@ -718,6 +718,12 @@ Future<void> persistLayoutProviderConfig(
 final StateProvider<List<String>> worksheetDraftQuestionIdsProvider =
     StateProvider<List<String>>((ref) => const <String>[]);
 
+/// Phase 8-4：试卷预览页要展示的题目 ID 列表（保留顺序）。
+///
+/// 工作台预览按钮写入后跳 `/worksheet/preview`，预览页首帧读取。
+final StateProvider<List<String>> worksheetPreviewQuestionIdsProvider =
+    StateProvider<List<String>>((ref) => const <String>[]);
+
 /// 组卷草稿与历史组卷仓库（Phase 5）。
 final Provider<WorksheetDraftRepository> worksheetDraftRepositoryProvider =
     Provider<WorksheetDraftRepository>((ref) {

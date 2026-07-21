@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
@@ -286,6 +287,58 @@ class _WorksheetWorkbenchScreenState
         SnackBar(content: Text('智能组卷已选 ${picked.length} 道题')),
       );
     }
+  }
+
+  /// Phase 8-4：按知识点组卷。弹多选面板 → 查 linkRepo 拿题目 ID → 加入已选区。
+  Future<void> _openKnowledgeMultiSelectSheet() async {
+    final tree = ref.read(knowledgePointTreeProvider).valueOrNull ??
+        const <KnowledgePoint>[];
+    if (tree.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无知识点，请先到知识树页面添加')),
+      );
+      return;
+    }
+    final selected = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _KnowledgeMultiSelectSheet(
+        knowledgePoints: tree,
+        currentSelected: _selectedIds.length,
+      ),
+    );
+    if (selected == null || selected.isEmpty || !mounted) return;
+    final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+    final ids = <String>{};
+    for (final kpId in selected) {
+      ids.addAll(await linkRepo.questionIdsForKnowledgePoint(kpId));
+    }
+    if (ids.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('所选知识点暂未关联题目')),
+      );
+      return;
+    }
+    setState(() {
+      for (final id in ids) {
+        if (_selectedIds.add(id)) _order.add(id);
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('按知识点已加载 ${ids.length} 道题')),
+      );
+    }
+  }
+
+  /// Phase 8-4：进入试卷预览页（保留当前 _order 顺序）。
+  void _previewWorksheet() {
+    if (_order.isEmpty) return;
+    ref.read(worksheetPreviewQuestionIdsProvider.notifier).state =
+        _order.toList();
+    context.push('/worksheet/preview');
   }
 
   /// 智能选题算法：按难度分布从题库中筛选 + 去重 + 补足。
