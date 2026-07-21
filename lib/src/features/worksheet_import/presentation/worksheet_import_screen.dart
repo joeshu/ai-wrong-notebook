@@ -659,7 +659,7 @@ class _QueueQuestionTile extends StatelessWidget {
             height: 22,
             alignment: Alignment.center,
             decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(11)),
-            child: isProcessing
+            child: isProcessing && autoAnalyzing
                 ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
                 : Text('${index + 1}', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
           ),
