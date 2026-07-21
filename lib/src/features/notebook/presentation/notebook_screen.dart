@@ -678,7 +678,6 @@ class _QuestionCard extends StatelessWidget {
     final customTags = question.customTags ?? <String>[];
     final allTags = [...aiTags, ...customTags];
     final displayStatus = inferQuestionDisplayStatus(question);
-    final isFailed = displayStatus.isFailed;
     final isArchived = (question.isArchived as bool?) ?? false;
 
     return Dismissible(
@@ -895,7 +894,7 @@ class _QuestionCard extends StatelessWidget {
       spans.add(const TextSpan(text: ' · '));
       spans.add(WidgetSpan(
         alignment: PlaceholderAlignment.middle,
-        child: Icon(CupertinoIcons.ellipsis_indicator,
+        child: Icon(CupertinoIcons.hourglass,
             size: 11, color: inProgressColor),
       ));
       spans.add(TextSpan(
