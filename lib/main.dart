@@ -70,7 +70,7 @@ void main() async {
           themeMode: ref.watch(themeModeProvider),
           routerConfig: router,
           debugShowCheckedModeBanner: false,
-          localizations: const <LocalizationsDelegate<dynamic>>[
+          localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
             AppLocalizations.delegate,
             GlobalMaterialLocalizations.delegate,
             GlobalWidgetsLocalizations.delegate,
