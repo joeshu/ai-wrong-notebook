@@ -844,7 +844,7 @@ class _DetectionResultCard extends StatelessWidget {
 
   bool _hasOptionText() => regions.any((region) {
     final text = region.recognizedText ?? '';
-    return RegExp(r'(?m)(?:^|\s)[A-H][.．、]\s*\S').hasMatch(text);
+    return RegExp(r'(?:^|\s)[A-H][.．、]\s*\S', multiLine: true).hasMatch(text);
   });
   String _structureSummary(List<QuestionRegion> regions) {
     final counts = <String, int>{};
@@ -1009,7 +1009,7 @@ FieldStatus recognitionFieldStatus(
 
 bool _hasOptionLine(String? text) {
   if (text == null) return false;
-  return RegExp(r'(?m)(?:^|\s)[A-H][.．、]\s*\S').hasMatch(text);
+  return RegExp(r'(?:^|\s)[A-H][.．、]\s*\S', multiLine: true).hasMatch(text);
 }
 
 class RecognitionEvidencePreview extends StatefulWidget {
