@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
@@ -170,6 +171,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                     }
                   }),
                   onTap: () => _startPage(entry.value),
+                  onReselectImage: () => _reselectPageImage(entry.value),
                 )),
             const SizedBox(height: 16),
             if (queuedQuestions.isNotEmpty)
@@ -189,6 +191,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                 onAnalyzeDrafts: () => _analyzeOcrDrafts(queuedQuestions),
                 onOpen: _openQueuedQuestion,
                 onRetryQuestion: _retryQuestion,
+                onReeditQuestion: _reeditQueuedQuestion,
               ),
             if (queuedQuestions.isNotEmpty) const SizedBox(height: 12),
             OutlinedButton.icon(
@@ -414,6 +417,52 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     );
     await persistWorksheetImport(ref, updated);
   }
+
+  /// 原图路径失效时让用户重新选择图片，写回到工作台对应页面。
+  ///
+  /// 选图后会把旧 imagePath（若仍存在）从磁盘删除，避免残留无效文件；
+  /// 同步更新内存中的 session，让 `_PageTile` 立刻从"原图不可用"切回正常态。
+  Future<void> _reselectPageImage(QuestionRecord page) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final XFile? picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2560,
+      maxHeight: 2560,
+      imageQuality: 85,
+    );
+    if (picked == null || !mounted) return;
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet == null) return;
+    try {
+      final storage = ref.read(imageStorageServiceProvider);
+      final newPath = await storage.saveImage(File(picked.path));
+      final oldPath = page.imagePath;
+      final nextPages = worksheet.pages.map((item) => item.id == page.id
+          ? item.copyWith(imagePath: newPath) : item).toList();
+      await persistWorksheetImport(ref, worksheet.copyWith(pages: nextPages));
+      // 旧文件若仍存在则清理；不阻塞主流程。
+      if (oldPath.isNotEmpty && oldPath != newPath) {
+        await storage.deleteImage(oldPath);
+      }
+      if (!mounted) return;
+      messenger.showSnackBar(const SnackBar(
+        content: Text('已重新选图，可继续裁切和校对'),
+        duration: Duration(seconds: 2),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('重新选图失败: $e')));
+    }
+  }
+
+  /// 识别完成但未校对的题目（OCR 草稿），让用户重新进入保存确认页校对文字。
+  ///
+  /// 这里不重新跑 OCR / AI：用户已经看过识别结果，只需补一遍人工校对并
+  /// 保存到错题本。QuestionSaveConfirmationScreen 保存后会自动回到工作台。
+  void _reeditQueuedQuestion(QuestionRecord question) {
+    ref.read(currentQuestionProvider.notifier).state = question;
+    context.go('/capture/save-confirmation');
+  }
 }
 
 class _PageTile extends StatelessWidget {
@@ -424,6 +473,7 @@ class _PageTile extends StatelessWidget {
     required this.onChanged,
     required this.onTap,
     this.processed = false,
+    this.onReselectImage,
   });
 
   final QuestionRecord page;
@@ -432,6 +482,7 @@ class _PageTile extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final VoidCallback onTap;
   final bool processed;
+  final VoidCallback? onReselectImage;
 
   @override
   Widget build(BuildContext context) {
@@ -469,7 +520,7 @@ class _PageTile extends StatelessWidget {
                             ),
                         ],
                       )
-                    : const ColoredBox(color: Color(0xFFE5E7EB)),
+                    : _UnavailablePageThumbnail(onReselect: onReselectImage),
               ),
             ),
             const SizedBox(width: 12),
@@ -493,7 +544,7 @@ class _PageTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  available ? (processed ? '已完成裁切，可点击查看' : '点击进入裁切和校对') : '原图不可用',
+                  available ? (processed ? '已完成裁切，可点击查看' : '点击进入裁切和校对') : '原图不可用，可重新选图',
                   style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                 ),
               ],
@@ -501,6 +552,45 @@ class _PageTile extends StatelessWidget {
             const Icon(CupertinoIcons.chevron_right, size: 18),
           ]),
         ),
+      ),
+    );
+  }
+}
+
+/// 缩略图位置原图不可用时显示的占位块，提供"重新选图"入口。
+class _UnavailablePageThumbnail extends StatelessWidget {
+  const _UnavailablePageThumbnail({required this.onReselect});
+
+  final VoidCallback? onReselect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFE5E7EB),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          const Icon(CupertinoIcons.photo, size: 20, color: Color(0xFF6B7280)),
+          const SizedBox(height: 4),
+          if (onReselect != null)
+            TextButton(
+              onPressed: onReselect,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                minimumSize: const Size(0, 24),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                textStyle: const TextStyle(fontSize: 11),
+              ),
+              child: const Text('重新选图'),
+            )
+          else
+            const Text(
+              '原图不可用',
+              style: TextStyle(fontSize: 10, color: Color(0xFF6B7280)),
+            ),
+        ],
       ),
     );
   }
@@ -522,6 +612,7 @@ class _QueueSummaryCard extends StatelessWidget {
     required this.onAnalyzeDrafts,
     required this.onOpen,
     required this.onRetryQuestion,
+    required this.onReeditQuestion,
   });
 
   final List<QuestionRecord> questions;
@@ -537,6 +628,7 @@ class _QueueSummaryCard extends StatelessWidget {
   final VoidCallback onAnalyzeDrafts;
   final ValueChanged<QuestionRecord> onOpen;
   final ValueChanged<QuestionRecord> onRetryQuestion;
+  final ValueChanged<QuestionRecord> onReeditQuestion;
 
   @override
   Widget build(BuildContext context) {
@@ -598,6 +690,10 @@ class _QueueSummaryCard extends StatelessWidget {
                 question: entry.value,
                 onOpen: () => onOpen(entry.value),
                 onRetry: entry.value.contentStatus == ContentStatus.failed ? () => onRetryQuestion(entry.value) : null,
+                onReedit: (entry.value.contentStatus == ContentStatus.ready &&
+                        entry.value.analysisResult == null)
+                    ? () => onReeditQuestion(entry.value)
+                    : null,
                 autoAnalyzing: autoAnalyzing,
               )),
         ],
