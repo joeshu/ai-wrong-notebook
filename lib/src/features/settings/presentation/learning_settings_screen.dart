@@ -7,11 +7,13 @@ import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/post_recognition_ai_dialog.dart';
 
-/// 学习设置页面（Phase 9-3）。
+/// 学习设置页面（Phase 9-3 / Phase 10-3）。
 ///
 /// 承载每日复习目标入口（跳 `/goals`）、复习提醒时间显示、难度偏好、
-/// 知识树显示层级四项设置。难度偏好与层级用 SharedPreferences 持久化。
+/// 知识树显示层级、识别后默认 AI 行为五项设置。难度偏好/层级/默认 AI
+/// 用 SharedPreferences 持久化。
 class LearningSettingsScreen extends ConsumerStatefulWidget {
   const LearningSettingsScreen({super.key});
 
@@ -24,9 +26,12 @@ class _LearningSettingsScreenState
     extends ConsumerState<LearningSettingsScreen> {
   static const _difficultyKey = 'pref_difficulty';
   static const _treeDepthKey = 'pref_knowledge_tree_depth';
+  static const _postRecognitionAiKey = 'pref_post_recognition_ai';
 
   QuestionDifficulty? _difficulty;
   int _treeDepth = 3; // 默认知识点层
+  PostRecognitionAiChoice _postRecognitionAi =
+      PostRecognitionAiChoice.perQuestion; // 默认逐题选择
   bool _loading = true;
 
   @override
@@ -39,6 +44,8 @@ class _LearningSettingsScreenState
     final prefs = await SharedPreferences.getInstance();
     final diffStr = prefs.getString(_difficultyKey);
     final depth = prefs.getInt(_treeDepthKey) ?? 3;
+    final aiStr =
+        prefs.getString(_postRecognitionAiKey) ?? 'perQuestion';
     QuestionDifficulty? diff;
     if (diffStr != null) {
       for (final d in QuestionDifficulty.values) {
@@ -48,10 +55,22 @@ class _LearningSettingsScreenState
         }
       }
     }
+    PostRecognitionAiChoice aiChoice;
+    switch (aiStr) {
+      case 'none':
+        aiChoice = PostRecognitionAiChoice.none;
+        break;
+      case 'all':
+        aiChoice = PostRecognitionAiChoice.all;
+        break;
+      default:
+        aiChoice = PostRecognitionAiChoice.perQuestion;
+    }
     if (!mounted) return;
     setState(() {
       _difficulty = diff;
       _treeDepth = depth;
+      _postRecognitionAi = aiChoice;
       _loading = false;
     });
   }
@@ -70,6 +89,12 @@ class _LearningSettingsScreenState
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_treeDepthKey, value);
     setState(() => _treeDepth = value);
+  }
+
+  Future<void> _setPostRecognitionAi(PostRecognitionAiChoice value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_postRecognitionAiKey, value.name);
+    setState(() => _postRecognitionAi = value);
   }
 
   @override
@@ -97,6 +122,45 @@ class _LearningSettingsScreenState
                     ),
                   ),
                   const SizedBox(height: AppSpace.xl),
+
+                  // Phase 10-3：识别后默认是否交给 AI
+                  AppSectionTitle('识别后默认行为'),
+                  const SizedBox(height: AppSpace.md),
+                  AppCard(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpace.lg, vertical: AppSpace.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'PaddleOCR / MinerU / Auto 识别完成后的默认动作',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: AppSpace.sm),
+                          for (final choice in PostRecognitionAiChoice.values)
+                            RadioListTile<PostRecognitionAiChoice>(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              value: choice,
+                              groupValue: _postRecognitionAi,
+                              title: Text(_postRecognitionAiLabel(choice)),
+                              subtitle: Text(
+                                _postRecognitionAiDescription(choice),
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              onChanged: (v) {
+                                if (v != null) _setPostRecognitionAi(v);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xl),
+
                   AppSectionTitle(AppStrings.settingsDifficultyPreference),
                   const SizedBox(height: AppSpace.md),
                   AppCard(
@@ -196,4 +260,27 @@ class _LearningSettingsScreenState
         return '层级 $depth';
     }
   }
+
+  String _postRecognitionAiLabel(PostRecognitionAiChoice choice) {
+    switch (choice) {
+      case PostRecognitionAiChoice.none:
+        return '仅保留识别结果';
+      case PostRecognitionAiChoice.perQuestion:
+        return '逐题选择（默认）';
+      case PostRecognitionAiChoice.all:
+        return '全部交给普通 AI';
+    }
+  }
+
+  String _postRecognitionAiDescription(PostRecognitionAiChoice choice) {
+    switch (choice) {
+      case PostRecognitionAiChoice.none:
+        return '不调用 AI，所有题框 analyzeWithAi=false';
+      case PostRecognitionAiChoice.perQuestion:
+        return '保留各题默认值，由用户在工作台逐题切换';
+      case PostRecognitionAiChoice.all:
+        return '所有题框 analyzeWithAi=true，直接进入 AI 分析';
+    }
+  }
 }
+

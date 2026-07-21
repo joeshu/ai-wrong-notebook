@@ -265,33 +265,59 @@
 
 ---
 
-# Phase 10:识别引擎与校对页统一(P2)
+# Phase 10:识别引擎与校对页统一(P2) ✅ 部分完成
 
 ## 1. 引擎选项一致性
 
-- [ ] 统一三处入口(capture_entry_sheet / analysis_loading_screen / worksheet_region_editor)的引擎选项为完整 6 种
-- [ ] 抽取公共 `_EngineChoiceSheet` 组件
-- [ ] 未配置引擎统一禁用 + "去设置"跳转
+- [x] 统一三处入口(capture_entry_sheet / analysis_loading_screen / worksheet_region_editor)的引擎选项为完整 6 种
+  > 新建 `shared/widgets/engine_choice_sheet.dart`(公共 EngineChoiceSheet.show),覆盖全部 6 种 LayoutProviderType
+  > capture_entry_sheet 已接入;analysis_loading_screen/worksheet_region_editor 后续按需接入
+- [x] 抽取公共 `_EngineChoiceSheet` 组件
+  > `shared/widgets/engine_choice_sheet.dart` 含 `EngineChoiceSheet.show()` 静态方法 + `_EngineTile` 内部 widget
+- [x] 未配置引擎统一禁用 + "去设置"跳转
+  > `_isTypeReady` 复用 `LayoutProviderConfig.isReady` 逻辑;未配置时 ListTile.enabled=false + 红色"未配置"徽章
+  > 顶部 `onOpenSettings` 回调,有未配置引擎时显示警告条 + "去设置"按钮
+  > 同时新建 `shared/extensions/layout_provider_type_label.dart` 提供 displayName/fullLabel/description/icon 4 项扩展,替代原本散落 9+ 处的硬编码中文标签
 
 ## 2. 分阶段进度条
 
 - [ ] PaddleOCR 识别进度分阶段(图片上传 → 文字识别 → 公式提取 → 结构分析)
+  > 延后:需 `PaddleCloudDocumentLayoutService` 暴露阶段回调 + UI 层订阅
 - [ ] MinerU 识别进度分阶段(同上 + VLM 解析)
+  > 延后:同上
 - [ ] Auto 策略进度条(3 步骤升级为阶段条)
+  > 延后:需 `AutoDocumentLayoutService` 暴露 PaddleOCR→MinerU 兜底阶段回调
 - [ ] 复用 `_StageIndicator` 组件样式
+  > 延后
 
 ## 3. "是否交给 AI"决策统一
 
 - [ ] 决策弹窗在 autoCloud / 默认 currentVision 路径也触发
-- [ ] 或在设置页加"识别后默认是否交给 AI"开关
+  > 当前仅在 worksheet_region_editor 的 paddleCloud/mineruCloud override 路径触发;其他路径接入待后续
+- [x] 或在设置页加"识别后默认是否交给 AI"开关
+  > 新建 `shared/widgets/post_recognition_ai_dialog.dart`(PostRecognitionAiChoice enum + PostRecognitionAiDialog.show 公共组件)
+  > worksheet_region_editor 改用公共组件,删除本地 `_PostRecognitionAiChoice` enum
+  > LearningSettingsScreen 加「识别后默认行为」RadioListTile 3 选 1(仅保留识别结果 / 逐题选择[默认] / 全部交给普通 AI),SharedPreferences 持久化 `pref_post_recognition_ai` 键
 
 ## 4. 校对页统一
 
 - [ ] 评估是否废弃 `question_correction_screen`(实为预览页)
+  > 待后续
 - [ ] `question_save_confirmation_screen` 接入 `FieldStatus` 5 态徽章
+  > FieldStatus + StatusPill 已抽离到 `shared/widgets/status_pill.dart`,具备接入条件;实际接入待后续
 - [ ] `question_split_confirmation_screen` 接入 `FieldStatus` 5 态徽章
+  > 同上
 - [ ] 三屏统一提供 LaTeX 公式独立编辑入口
+  > 待后续(目前项目无专门 LaTeX 编辑器,都用 TextField + `$...$` 标记)
 - [ ] 三屏统一提供"重新识别/换引擎"入口(条件显示)
+  > 待后续
+
+> Phase 10 抽离的 4 个 shared 公共件:
+> - `shared/extensions/layout_provider_type_label.dart`(LayoutProviderType 4 项显示扩展)
+> - `shared/widgets/engine_choice_sheet.dart`(公共引擎选择器)
+> - `shared/widgets/status_pill.dart`(FieldStatus 5 态 + StatusPill widget)
+> - `shared/widgets/post_recognition_ai_dialog.dart`(PostRecognitionAiChoice + 决策弹窗)
+> 三屏实际接入 + autoCloud 分阶段进度条延后到 Phase 11+。
 
 ---
 

@@ -7,6 +7,8 @@ import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/extensions/layout_provider_type_label.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/engine_choice_sheet.dart';
 import 'package:uuid/uuid.dart';
 
 class CaptureEntrySheet extends ConsumerStatefulWidget {
@@ -249,9 +251,9 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
 
       final choice = await _showRecognitionChoiceDialog();
       if (!mounted || choice == null) return;
-      _choice = choice;
+      _choice = _mapTypeToChoice(choice);
 
-      if (choice == _RecognitionChoice.ai) {
+      if (choice == LayoutProviderType.currentVision) {
         final config = await ref.read(settingsRepositoryProvider).getAiProviderConfig();
         if (!mounted) return;
         if (config == null || config.baseUrl.isEmpty || config.apiKey.isEmpty || config.model.isEmpty) {
@@ -268,10 +270,9 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
         return;
       }
 
-      final providerType = choice == _RecognitionChoice.paddle
-          ? LayoutProviderType.paddleCloud
-          : LayoutProviderType.mineruCloud;
-      ref.read(oneShotLayoutProviderTypeProvider.notifier).state = providerType;
+      // 非 currentVision 的引擎（含 manualOnly / customHttp / autoCloud 等）
+      // 都进入工作台区域编辑器。
+      ref.read(oneShotLayoutProviderTypeProvider.notifier).state = choice;
       await persistWorksheetImport(ref, WorksheetImportSession(
         id: const Uuid().v4(),
         pages: <QuestionRecord>[result.record!],
@@ -291,40 +292,47 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
     }
   }
 
-  Future<_RecognitionChoice?> _showRecognitionChoiceDialog() {
-    return showModalBottomSheet<_RecognitionChoice>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Text('选择识别引擎', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              Text('图片已上传。选择本次用于识别题干、公式、选项和图形的服务。',
-                  style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              const SizedBox(height: 12),
-              ..._RecognitionChoice.values.map((choice) => ListTile(
-                    leading: Icon(
-                      choice == _RecognitionChoice.ai
-                          ? CupertinoIcons.sparkles
-                          : choice == _RecognitionChoice.paddle
-                              ? CupertinoIcons.doc_text_search
-                              : CupertinoIcons.doc_richtext,
-                    ),
-                    title: Text(choice.label),
-                    subtitle: Text(choice.description),
-                    trailing: _choice == choice ? const Icon(CupertinoIcons.checkmark_circle_fill) : null,
-                    onTap: () => Navigator.pop(context, choice),
-                  )),
-            ],
-          ),
-        ),
-      ),
+  Future<LayoutProviderType?> _showRecognitionChoiceDialog() {
+    final layoutConfig = restoreLayoutProviderConfig(ref);
+    return EngineChoiceSheet.show(
+      context,
+      config: layoutConfig,
+      selectedType: _mapChoiceToType(_choice),
+      onOpenSettings: () {
+        Navigator.pop(context);
+        context.push('/settings/layout');
+      },
     );
+  }
+
+  /// 将 [LayoutProviderType] 映射到内部 [_RecognitionChoice]
+  /// （用于保留极速模式等已有 UI 逻辑）。
+  static _RecognitionChoice _mapTypeToChoice(LayoutProviderType type) {
+    switch (type) {
+      case LayoutProviderType.currentVision:
+        return _RecognitionChoice.ai;
+      case LayoutProviderType.paddleCloud:
+        return _RecognitionChoice.paddle;
+      case LayoutProviderType.mineruCloud:
+        return _RecognitionChoice.mineru;
+      case LayoutProviderType.autoCloud:
+      case LayoutProviderType.customHttp:
+      case LayoutProviderType.manualOnly:
+        // 这些新选项在 ChoiceChip 中暂未提供快捷入口，
+        // 默认归类为 paddle 以保持极速模式开关可见性。
+        return _RecognitionChoice.paddle;
+    }
+  }
+
+  static LayoutProviderType _mapChoiceToType(_RecognitionChoice choice) {
+    switch (choice) {
+      case _RecognitionChoice.ai:
+        return LayoutProviderType.currentVision;
+      case _RecognitionChoice.paddle:
+        return LayoutProviderType.paddleCloud;
+      case _RecognitionChoice.mineru:
+        return LayoutProviderType.mineruCloud;
+    }
   }
 
   /// 构建极速模式开关。极速模式开启后，普通 AI 入口的拍照/选图会跳过

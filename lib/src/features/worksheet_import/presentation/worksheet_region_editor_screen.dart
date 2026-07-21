@@ -22,7 +22,9 @@ import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/post_recognition_ai_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/single_text_field_dialog.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/status_pill.dart';
 import 'package:uuid/uuid.dart';
 
 /// Manual multi-region editor. A tap places a question-sized candidate box;
@@ -462,46 +464,17 @@ class _WorksheetRegionEditorScreenState
 
   Future<void> _askWhetherToUseAiAfterRecognition() async {
     if (!mounted || _regions.isEmpty) return;
-    final choice = await showDialog<_PostRecognitionAiChoice>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('识别完成，是否交给普通 AI？'),
-        content: Text(
-          '已识别 ${_regions.length} 个候选题框及其文字内容。\n\n'
-          '普通 AI 可以继续完成题目理解、公式/几何分析、答案、错因、知识点和举一反三练习；不调用则只保留 ${_detectionProvider ?? 'OCR/文档'} 识别结果。',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              _PostRecognitionAiChoice.none,
-            ),
-            child: const Text('仅保留识别结果'),
-          ),
-          OutlinedButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              _PostRecognitionAiChoice.perQuestion,
-            ),
-            child: const Text('逐题选择'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              _PostRecognitionAiChoice.all,
-            ),
-            child: const Text('全部交给普通 AI'),
-          ),
-        ],
-      ),
+    final choice = await PostRecognitionAiDialog.show(
+      context,
+      regionCount: _regions.length,
+      providerLabel: _detectionProvider ?? 'OCR/文档',
     );
     if (!mounted || choice == null) return;
-    if (choice == _PostRecognitionAiChoice.perQuestion) return;
+    if (choice == PostRecognitionAiChoice.perQuestion) return;
     setState(() {
       for (var index = 0; index < _regions.length; index++) {
         _regions[index] = _regions[index].copyWith(
-          analyzeWithAi: choice == _PostRecognitionAiChoice.all,
+          analyzeWithAi: choice == PostRecognitionAiChoice.all,
         );
       }
     });
@@ -622,8 +595,6 @@ class _WorksheetRegionEditorScreenState
     }
   }
 }
-
-enum _PostRecognitionAiChoice { all, none, perQuestion }
 
 class _RegionOverlay extends StatelessWidget {
   const _RegionOverlay({
@@ -951,74 +922,6 @@ class _DetectionResultCard extends StatelessWidget {
       ]),
     ),
   );
-}
-
-
-class StatusPill extends StatelessWidget {
-  const StatusPill({required this.label, this.status = FieldStatus.recognized});
-  final String label;
-  final FieldStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: status.backgroundColor,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: status.borderColor),
-      ),
-      child: Text('$label · ${status.label}',
-          style: TextStyle(fontSize: 10, color: status.foregroundColor)),
-    );
-  }
-}
-
-/// 字段状态四态：已识别 / 未识别 / 待校对 / 不适用 / 已校对。
-///
-/// 用于统一对照工作台与识别结果页的字段状态文案与配色，避免不同位置
-/// 出现「需校对 / 待校对 / 未检测到 / 未识别」等不一致文案。
-/// [edited] 表示用户已手动校对过该字段，与原始识别结果不同。
-enum FieldStatus {
-  recognized,
-  missing,
-  needsReview,
-  notApplicable,
-  edited,
-}
-
-extension FieldStatusStyle on FieldStatus {
-  String get label => switch (this) {
-        FieldStatus.recognized => '已识别',
-        FieldStatus.missing => '未识别',
-        FieldStatus.needsReview => '待校对',
-        FieldStatus.notApplicable => '不适用',
-        FieldStatus.edited => '已校对',
-      };
-
-  Color get backgroundColor => switch (this) {
-        FieldStatus.recognized => const Color(0xFFF0FDF4),
-        FieldStatus.needsReview => const Color(0xFFFFF7ED),
-        FieldStatus.missing => const Color(0xFFFEF2F2),
-        FieldStatus.notApplicable => const Color(0xFFF1F5F9),
-        FieldStatus.edited => const Color(0xFFECFCCB),
-      };
-
-  Color get borderColor => switch (this) {
-        FieldStatus.recognized => const Color(0xFFBBF7D0),
-        FieldStatus.needsReview => const Color(0xFFFED7AA),
-        FieldStatus.missing => const Color(0xFFFECACA),
-        FieldStatus.notApplicable => const Color(0xFFE2E8F0),
-        FieldStatus.edited => const Color(0xFFA3E635),
-      };
-
-  Color get foregroundColor => switch (this) {
-        FieldStatus.recognized => const Color(0xFF166534),
-        FieldStatus.needsReview => const Color(0xFF9A3412),
-        FieldStatus.missing => const Color(0xFF991B1B),
-        FieldStatus.notApplicable => const Color(0xFF475569),
-        FieldStatus.edited => const Color(0xFF3F6212),
-      };
 }
 
 /// 计算单题字段在对照工作台的展示状态（五态统一判定）。
