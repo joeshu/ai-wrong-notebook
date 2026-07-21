@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/features/capture/presentation/add_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
 import 'package:smart_wrong_notebook/src/features/home/presentation/home_screen.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/presentation/notebook_screen.dart';
@@ -71,15 +72,12 @@ void main() {
       expect(find.text('最近新增'), findsOneWidget);
     });
 
-    testWidgets('user can open capture sheet from unified entry',
+    testWidgets('add tab shows capture entry options',
         (tester) async {
       await tester.pumpWidget(ProviderScope(
         overrides: [_repoOverride, _settingsOverride],
-        child: const MaterialApp(home: HomeScreen()),
+        child: const MaterialApp(home: AddScreen()),
       ));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('录入错题').first);
       await tester.pumpAndSettle();
 
       expect(find.text('拍照'), findsOneWidget);
