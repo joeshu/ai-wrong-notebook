@@ -7,6 +7,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_settings_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/mistake_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/layout_provider_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
@@ -59,6 +60,12 @@ final Provider<QuestionKnowledgeLinkRepository>
     questionKnowledgeLinkRepositoryProvider =
     Provider<QuestionKnowledgeLinkRepository>(
         (ref) => QuestionKnowledgeLinkRepository());
+
+/// 错因—知识点—题目三元关联仓库（Phase 4）。
+final Provider<MistakeKnowledgeLinkRepository>
+    mistakeKnowledgeLinkRepositoryProvider =
+    Provider<MistakeKnowledgeLinkRepository>(
+        (ref) => MistakeKnowledgeLinkRepository());
 
 /// 知识点树快照，供 UI 消费。调用 [knowledgePointRepositoryProvider] 加载后
 /// 缓存在 StateController 中，通过 [_knowledgePointVersionProvider] 触发刷新。
