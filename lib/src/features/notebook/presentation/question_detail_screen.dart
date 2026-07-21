@@ -809,6 +809,10 @@ class _QuestionTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpace.lg),
       children: <Widget>[
+        if (_statusBanner(current) != null) ...<Widget>[
+          _statusBanner(current)!,
+          const SizedBox(height: AppSpace.md),
+        ],
         AppCard(
           borderRadius: AppRadius.large,
           child: Column(
@@ -912,6 +916,8 @@ class _QuestionTab extends StatelessWidget {
         ],
         const SizedBox(height: AppSpace.lg),
         _buildOriginalQuestion(context, isDark, colorScheme),
+        const SizedBox(height: AppSpace.lg),
+        _OcrContentCard(question: current),
         const SizedBox(height: AppSpace.lg),
         _RecognitionEvidenceCard(question: current),
         if (current.studentAnswer != null &&
@@ -1021,6 +1027,208 @@ class _QuestionTab extends StatelessWidget {
                 color: colorScheme.onSurface,
                 height: 1.5),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// 顶部状态横幅：识别失败 / 附件缺失 / 低置信度。
+  /// 只在出现问题时显示，无问题时返回 null 不占空间。
+  Widget? _statusBanner(QuestionRecord question) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final List<Widget> alerts = <Widget>[];
+
+    if (question.contentStatus == ContentStatus.failed) {
+      alerts.add(_BannerItem(
+        icon: CupertinoIcons.exclamationmark_triangle_fill,
+        text: '识别失败：已保留原图与校对题干，可在「分析」页重试 AI 解析',
+        color: AppColors.error,
+        backgroundColor: isDark ? const Color(0xFF3B1414) : const Color(0xFFFEF2F2),
+      ));
+    }
+    if (question.imagePath.isEmpty) {
+      alerts.add(_BannerItem(
+        icon: CupertinoIcons.photo,
+        text: '附件缺失：未保存原图，仅保留识别文本与 AI 分析',
+        color: AppColors.error,
+        backgroundColor: isDark ? const Color(0xFF3B1414) : const Color(0xFFFEF2F2),
+      ));
+    } else if (question.ocrConfidence != null && question.ocrConfidence! < 0.7) {
+      alerts.add(_BannerItem(
+        icon: CupertinoIcons.exclamationmark_shield_fill,
+        text: '识别置信度较低（${(question.ocrConfidence! * 100).round()}%），建议校对题干与公式',
+        color: const Color(0xFFB45309),
+        backgroundColor: isDark ? const Color(0xFF2D1B0E) : const Color(0xFFFFFBEB),
+      ));
+    }
+
+    if (alerts.isEmpty) return null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: alerts,
+    );
+  }
+}
+
+/// 顶部状态横幅的单条提醒。
+class _BannerItem extends StatelessWidget {
+  const _BannerItem({
+    required this.icon,
+    required this.text,
+    required this.color,
+    required this.backgroundColor,
+  });
+  final IconData icon;
+  final String text;
+  final Color color;
+  final Color backgroundColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm + 2),
+      margin: const EdgeInsets.only(bottom: AppSpace.xs),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(AppRadius.small),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 12, color: color, height: 1.4)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// OCR 识别内容对照卡片：展示原文 vs 校对后内容 + 结构化公式与表格。
+///
+/// QuestionRecord 未对 formulas/tables/options 做结构化建模，这里从
+/// normalizedQuestionText 中用正则提取（与 worksheet_region_editor_screen
+/// 的 _formulasFor/_tablesFor 保持一致），在详情页提供与识别工作台对照的视图。
+class _OcrContentCard extends StatelessWidget {
+  const _OcrContentCard({required this.question});
+  final QuestionRecord question;
+
+  List<String> _extractFormulas(String text) {
+    return RegExp(r'\$[^$]+\$').allMatches(text).map((m) => m.group(0)!).toList();
+  }
+
+  List<String> _extractTables(String text) {
+    final lines = text.split('\n').where((line) => line.trimLeft().startsWith('|')).toList();
+    if (lines.isEmpty) return const <String>[];
+    // 按空行分段，每段为一个表格
+    final tables = <String>[];
+    var current = <String>[];
+    for (final line in lines) {
+      current.add(line);
+    }
+    if (current.isNotEmpty) tables.add(current.join('\n'));
+    return tables;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final original = question.extractedQuestionText;
+    final corrected = question.normalizedQuestionText;
+    final hasDiff = original != corrected && original.isNotEmpty;
+    final formulas = _extractFormulas(corrected);
+    final tables = _extractTables(corrected);
+
+    // 若原文与校对后一致且无公式表格，不显示空卡片
+    if (!hasDiff && formulas.isEmpty && tables.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return AppInfoSection(
+      icon: CupertinoIcons.text_justleft,
+      title: 'OCR 识别内容对照',
+      iconColor: AppColors.info,
+      backgroundColor: isDark ? colorScheme.surface : AppColors.infoContainerLight,
+      borderColor: isDark ? AppColors.info.withValues(alpha: 0.28) : const Color(0xFFBAE6FD),
+      titleColor: AppColors.info,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (hasDiff) ...<Widget>[
+            Text('识别原文',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: AppSpace.xs),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpace.sm),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(AppRadius.small),
+              ),
+              child: Text(original,
+                  style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant, height: 1.4),
+                  maxLines: 6,
+                  overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(height: AppSpace.md),
+            Text('校对后',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: AppSpace.xs),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpace.sm),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(AppRadius.small),
+                border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+              ),
+              child: MathContentView(
+                corrected,
+                contentFormat: question.contentFormat,
+                style: TextStyle(fontSize: 12, color: colorScheme.onSurface, height: 1.4),
+              ),
+            ),
+          ] else ...<Widget>[
+            MathContentView(
+              corrected,
+              contentFormat: question.contentFormat,
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurface, height: 1.4),
+            ),
+          ],
+          if (formulas.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            Text('公式（${formulas.length}）',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: AppSpace.xs),
+            ...formulas.map((item) => Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('ƒ $item',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.onSurfaceVariant,
+                          fontFamily: 'monospace')),
+                )),
+          ],
+          if (tables.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            Text('表格（${tables.length}）',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+            const SizedBox(height: AppSpace.xs),
+            ...tables.map((table) => Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(table,
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: colorScheme.onSurfaceVariant,
+                          fontFamily: 'monospace',
+                          height: 1.3)),
+                )),
+          ],
         ],
       ),
     );

@@ -110,12 +110,18 @@ class _WorksheetRegionEditorScreenState
     final scheme = Theme.of(context).colorScheme;
     final layoutConfig = ref.watch(layoutProviderConfigProvider);
     final oneShotType = ref.watch(oneShotLayoutProviderTypeProvider);
-    return Scaffold(
+    return PopScope(
+      canPop: !_isDetecting && !_isCropping,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _confirmExitWhileBusy();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('整页框选切题'),
         leading: IconButton(
           icon: const Icon(CupertinoIcons.chevron_left),
-          onPressed: _isCropping ? null : () => context.go('/worksheet/import'),
+          onPressed: _isCropping ? null : () => _confirmExitWhileBusy(),
         ),
       ),
       body: SafeArea(
@@ -248,7 +254,36 @@ class _WorksheetRegionEditorScreenState
           ),
         ]),
       ),
+    ),
     );
+  }
+
+  /// 识别中或裁切中退出时弹确认框，避免任务被误中断。
+  Future<void> _confirmExitWhileBusy() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final busy = _isDetecting || _isCropping;
+    if (!busy) {
+      context.go('/worksheet/import');
+      return;
+    }
+    final reason = _isDetecting ? '识别任务正在进行' : '正在生成独立题图';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确定退出？'),
+        content: Text('$reason，退出后当前进度不会自动保存到草稿之外的位置。\n是否仍要退出？'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('继续等待')),
+          FilledButton.tonal(onPressed: () => Navigator.pop(ctx, true), child: const Text('退出')),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      context.go('/worksheet/import');
+    } else {
+      // 用户取消时给出反馈
+      messenger.showSnackBar(const SnackBar(content: Text('已继续当前任务'), duration: Duration(seconds: 1)));
+    }
   }
 
   bool _hasPaddleToken(LayoutProviderConfig config) =>
@@ -799,9 +834,9 @@ class _DetectionResultCard extends StatelessWidget {
   final Duration? duration;
   final String? warning;
 
-  String _fieldStatus(String label, bool available, {bool warning = false}) {
-    if (available) return '$label · 已识别';
-    return warning ? '$label · 需校对' : '$label · 未检测到';
+  FieldStatus _fieldStatus(String label, bool available, {bool warning = false}) {
+    if (available) return FieldStatus.recognized;
+    return warning ? FieldStatus.needsReview : FieldStatus.missing;
   }
 
   bool _hasBlock(String type) => regions.any((region) =>
@@ -849,10 +884,10 @@ class _DetectionResultCard extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: <Widget>[
-              _StatusPill(label: _fieldStatus('题干', regions.any((r) => (r.recognizedText ?? '').trim().isNotEmpty))),
-              _StatusPill(label: _fieldStatus('公式', _hasBlock('公式') || regions.any((r) => r.formulas.isNotEmpty), warning: true)),
-              _StatusPill(label: _fieldStatus('选项', _hasOptionText(), warning: true)),
-              _StatusPill(label: _fieldStatus('图形', _hasBlock('图') || _hasBlock('diagram'), warning: true)),
+              StatusPill(label: '题干', status: _fieldStatus('题干', regions.any((r) => (r.recognizedText ?? '').trim().isNotEmpty))),
+              StatusPill(label: '公式', status: _fieldStatus('公式', _hasBlock('公式') || regions.any((r) => r.formulas.isNotEmpty), warning: true)),
+              StatusPill(label: '选项', status: _fieldStatus('选项', _hasOptionText(), warning: true)),
+              StatusPill(label: '图形', status: _fieldStatus('图形', _hasBlock('图') || _hasBlock('diagram'), warning: true)),
             ],
           ),
         ],
@@ -864,23 +899,65 @@ class _DetectionResultCard extends StatelessWidget {
 }
 
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label});
+class StatusPill extends StatelessWidget {
+  const StatusPill({required this.label, this.status = FieldStatus.recognized});
   final String label;
+  final FieldStatus status;
 
   @override
   Widget build(BuildContext context) {
-    final warning = label.contains('需校对') || label.contains('未检测到');
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: warning ? const Color(0xFFFFF7ED) : const Color(0xFFF0FDF4),
+        color: status.backgroundColor,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: warning ? const Color(0xFFFED7AA) : const Color(0xFFBBF7D0)),
+        border: Border.all(color: status.borderColor),
       ),
-      child: Text(label, style: TextStyle(fontSize: 10, color: warning ? const Color(0xFF9A3412) : const Color(0xFF166534))),
+      child: Text('$label · ${status.label}',
+          style: TextStyle(fontSize: 10, color: status.foregroundColor)),
     );
   }
+}
+
+/// 字段状态四态：已识别 / 未识别 / 待校对 / 不适用。
+///
+/// 用于统一对照工作台与识别结果页的字段状态文案与配色，避免不同位置
+/// 出现「需校对 / 待校对 / 未检测到 / 未识别」等不一致文案。
+enum FieldStatus {
+  recognized,
+  missing,
+  needsReview,
+  notApplicable,
+}
+
+extension FieldStatusStyle on FieldStatus {
+  String get label => switch (this) {
+        FieldStatus.recognized => '已识别',
+        FieldStatus.missing => '未识别',
+        FieldStatus.needsReview => '待校对',
+        FieldStatus.notApplicable => '不适用',
+      };
+
+  Color get backgroundColor => switch (this) {
+        FieldStatus.recognized => const Color(0xFFF0FDF4),
+        FieldStatus.needsReview => const Color(0xFFFFF7ED),
+        FieldStatus.missing => const Color(0xFFFEF2F2),
+        FieldStatus.notApplicable => const Color(0xFFF1F5F9),
+      };
+
+  Color get borderColor => switch (this) {
+        FieldStatus.recognized => const Color(0xFFBBF7D0),
+        FieldStatus.needsReview => const Color(0xFFFED7AA),
+        FieldStatus.missing => const Color(0xFFFECACA),
+        FieldStatus.notApplicable => const Color(0xFFE2E8F0),
+      };
+
+  Color get foregroundColor => switch (this) {
+        FieldStatus.recognized => const Color(0xFF166534),
+        FieldStatus.needsReview => const Color(0xFF9A3412),
+        FieldStatus.missing => const Color(0xFF991B1B),
+        FieldStatus.notApplicable => const Color(0xFF475569),
+      };
 }
 class _RecognitionEvidencePreview extends StatelessWidget {
   const _RecognitionEvidencePreview({
@@ -1006,13 +1083,25 @@ class _RecognitionEvidencePreview extends StatelessWidget {
         children: <Widget>[
           const Text('结构化识别内容', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
           const SizedBox(height: 5),
-          _StatusPill(label: stem.trim().isEmpty ? '题干：待校对' : '题干：已识别'),
-          _StatusPill(label: formulas.isEmpty ? '公式：未识别' : '公式：已识别'),
-          _StatusPill(label: tables.isEmpty ? '表格：未识别' : '表格：已识别'),
+          StatusPill(label: '题干', status: stem.trim().isEmpty ? FieldStatus.needsReview : FieldStatus.recognized),
+          StatusPill(label: '公式', status: formulas.isEmpty ? FieldStatus.missing : FieldStatus.recognized),
+          StatusPill(label: '表格', status: tables.isEmpty ? FieldStatus.missing : FieldStatus.recognized),
           const SizedBox(height: 5),
           Text(stem.isEmpty ? '暂无题干文字' : stem, maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.35)),
-          if (formulas.isNotEmpty) Text('公式 ${formulas.length} 段', style: const TextStyle(fontSize: 10, color: Color(0xFF475569))),
-          if (tables.isNotEmpty) Text('表格 ${tables.length} 个', style: const TextStyle(fontSize: 10, color: Color(0xFF475569))),
+          if (formulas.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            ...formulas.map((item) => Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text('ƒ $item', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontFamily: 'monospace')),
+            )),
+          ],
+          if (tables.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 4),
+            ...tables.expand((table) => table.split('\n').where((line) => line.trim().isNotEmpty).take(3).map((line) => Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontFamily: 'monospace')),
+            ))),
+          ],
         ],
       );
 }
@@ -1242,35 +1331,8 @@ class _RecognizedQuestionWorkbenchState
     );
   }
 
-  List<String> _riskMessages(int index) {
-    final region = widget.regions[index];
-    final risks = <String>[];
-    if ((region.recognizedText ?? '').trim().isEmpty) {
-      risks.add('未识别到题干文字');
-    }
-    if (region.source == QuestionRegionSource.layoutModel && region.confidence < .60) {
-      risks.add('识别可信度较低，建议校对');
-    }
-    if (region.normalizedRect.left < .01 || region.normalizedRect.top < .01 ||
-        region.normalizedRect.right > .99 || region.normalizedRect.bottom > .99) {
-      risks.add('题框贴近页面边缘，可能被截断');
-    }
-    for (var i = 0; i < widget.regions.length; i++) {
-      if (i == index) continue;
-      final overlap = region.normalizedRect.intersect(widget.regions[i].normalizedRect);
-      final union = region.normalizedRect.width * region.normalizedRect.height +
-          widget.regions[i].normalizedRect.width * widget.regions[i].normalizedRect.height -
-          overlap.width * overlap.height;
-      if (!overlap.isEmpty && union > 0 && overlap.width * overlap.height / union > .35) {
-        risks.add('与第 ${widget.regions[i].detectedNumber ?? i + 1} 题题框重叠');
-        break;
-      }
-    }
-    if (region.recognizedBlockTypes.any((item) => item == '公式' || item == '表格')) {
-      risks.add('含公式或表格，建议核对格式');
-    }
-    return risks;
-  }
+  List<String> _riskMessages(int index) =>
+      detectQuestionRegionRisks(widget.regions[index], widget.regions, index: index);
 
   void _toggleBatchSelection(String id) => setState(() {
     if (!_batchSelectedIds.add(id)) _batchSelectedIds.remove(id);
@@ -1960,4 +2022,56 @@ class _MiniTypeTag extends StatelessWidget {
     decoration: BoxDecoration(color: const Color(0xFFF5F3FF), borderRadius: BorderRadius.circular(4)),
     child: Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6D28D9))),
   );
+}
+
+/// 检测单个题框的风险提示。
+///
+/// 提取为顶层公开函数便于单元测试（题框比例异常、面积过大/过小、
+/// 贴边、重叠、空题干、低可信度、含公式表格）。[allRegions] 用于
+/// 重叠检测，[index] 为当前 region 在 allRegions 中的索引。
+List<String> detectQuestionRegionRisks(
+  QuestionRegion region,
+  List<QuestionRegion> allRegions, {
+  int index = 0,
+}) {
+  final risks = <String>[];
+  if ((region.recognizedText ?? '').trim().isEmpty) {
+    risks.add('未识别到题干文字');
+  }
+  if (region.source == QuestionRegionSource.layoutModel && region.confidence < .60) {
+    risks.add('识别可信度较低，建议校对');
+  }
+  if (region.normalizedRect.left < .01 || region.normalizedRect.top < .01 ||
+      region.normalizedRect.right > .99 || region.normalizedRect.bottom > .99) {
+    risks.add('题框贴近页面边缘，可能被截断');
+  }
+  // 题框宽高比异常：正常题目宽高比一般在 0.2~8 之间，超出范围可能是误识别整页/单行。
+  final rect = region.normalizedRect;
+  if (rect.width > 0 && rect.height > 0) {
+    final aspect = rect.width / rect.height;
+    if (aspect > 8 || aspect < 0.125) {
+      risks.add('题框宽高比异常（${aspect.toStringAsFixed(1)}:1），可能误框整页或单字');
+    }
+    final area = rect.width * rect.height;
+    if (area > 0.85) {
+      risks.add('题框占整页面积过大，可能包含多题');
+    } else if (area < 0.005) {
+      risks.add('题框面积过小，可能只截到单字或符号');
+    }
+  }
+  for (var i = 0; i < allRegions.length; i++) {
+    if (i == index) continue;
+    final overlap = region.normalizedRect.intersect(allRegions[i].normalizedRect);
+    final union = region.normalizedRect.width * region.normalizedRect.height +
+        allRegions[i].normalizedRect.width * allRegions[i].normalizedRect.height -
+        overlap.width * overlap.height;
+    if (!overlap.isEmpty && union > 0 && overlap.width * overlap.height / union > .35) {
+      risks.add('与第 ${allRegions[i].detectedNumber ?? i + 1} 题题框重叠');
+      break;
+    }
+  }
+  if (region.recognizedBlockTypes.any((item) => item == '公式' || item == '表格')) {
+    risks.add('含公式或表格，建议核对格式');
+  }
+  return risks;
 }

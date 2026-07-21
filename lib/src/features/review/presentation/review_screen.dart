@@ -13,11 +13,95 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
-class ReviewScreen extends ConsumerWidget {
+class ReviewScreen extends ConsumerStatefulWidget {
   const ReviewScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReviewScreen> createState() => _ReviewScreenState();
+}
+
+class _ReviewScreenState extends ConsumerState<ReviewScreen> {
+  /// 本次会话的复习统计：忘记 / 模糊 / 掌握 三类计数。
+  final Map<ReviewRating, int> _sessionStats = <ReviewRating, int>{
+    ReviewRating.forgot: 0,
+    ReviewRating.hard: 0,
+    ReviewRating.easy: 0,
+  };
+
+  /// 进入复习页时待复习题数，用于判断是否全部完成。
+  int _initialPending = 0;
+  bool _summaryShown = false;
+
+  void _onRated(ReviewRating rating) {
+    setState(() => _sessionStats[rating] = (_sessionStats[rating] ?? 0) + 1);
+    // 总结弹窗的检查在 build 中数据可用时进行，避免在 provider 加载期间误判。
+  }
+
+  void _showSummaryDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(children: <Widget>[
+          Icon(CupertinoIcons.checkmark_seal_fill, color: AppColors.success),
+          SizedBox(width: AppSpace.sm),
+          Text('本次复习完成'),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              '本次共复习 ${_sessionStats.values.fold<int>(0, (a, b) => a + b)} 题：',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: AppSpace.sm),
+            _SummaryRow(
+              label: '忘记',
+              count: _sessionStats[ReviewRating.forgot] ?? 0,
+              color: AppColors.danger,
+            ),
+            _SummaryRow(
+              label: '模糊',
+              count: _sessionStats[ReviewRating.hard] ?? 0,
+              color: AppColors.warning,
+            ),
+            _SummaryRow(
+              label: '掌握',
+              count: _sessionStats[ReviewRating.easy] ?? 0,
+              color: AppColors.success,
+            ),
+            const SizedBox(height: AppSpace.md),
+            Text(
+              (_sessionStats[ReviewRating.forgot] ?? 0) > 0
+                  ? '忘记的题目将在近期再次出现，建议加强巩固。'
+                  : '本次复习表现不错，继续保持节奏！',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('稍后再说'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.go('/notebook');
+            },
+            child: const Text('返回错题本'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final questionsAsync = ref.watch(questionListProvider);
     final reviewLogsAsync = ref.watch(reviewLogListProvider);
     final batchGroups = ref.watch(questionBatchGroupsProvider).valueOrNull;
@@ -31,6 +115,18 @@ class ReviewScreen extends ConsumerWidget {
           reviewLogsAsync.valueOrNull ?? const <ReviewLog>[],
         );
         final todayTarget = pending.length + reviewedToday;
+
+        // 首次拿到待复习列表时记录初始数量，用于判断本次会话是否全部完成。
+        if (_initialPending == 0 && pending.isNotEmpty) {
+          _initialPending = pending.length;
+        }
+
+        // 数据可用时检查是否应展示本次复习总结：本次至少评价过一题，且当前已无待复习。
+        final reviewed = _sessionStats.values.fold<int>(0, (a, b) => a + b);
+        if (!_summaryShown && _initialPending > 0 && reviewed > 0 && pending.isEmpty) {
+          _summaryShown = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _showSummaryDialog());
+        }
 
         return DefaultTabController(
           length: 2,
@@ -87,12 +183,14 @@ class ReviewScreen extends ConsumerWidget {
                         emptyMessage: AppStrings.reviewEmptyPending,
                         batchGroups: batchGroups,
                         ref: ref,
+                        onRated: _onRated,
                       ),
                       _ReviewQuestionList(
                         questions: scheduled,
                         emptyMessage: AppStrings.reviewEmptyScheduled,
                         batchGroups: batchGroups,
                         ref: ref,
+                        onRated: null,
                       ),
                     ],
                   ),
@@ -110,6 +208,33 @@ class ReviewScreen extends ConsumerWidget {
           message: '复习计划暂时无法读取。',
           onRetry: () => ref.invalidate(questionListProvider),
         ),
+      ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({required this.label, required this.count, required this.color});
+  final String label;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Text(label, style: const TextStyle(fontSize: 13)),
+          const Spacer(),
+          Text('$count 题', style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
@@ -260,12 +385,14 @@ class _ReviewQuestionList extends StatelessWidget {
     required this.emptyMessage,
     required this.batchGroups,
     required this.ref,
+    this.onRated,
   });
 
   final List<QuestionRecord> questions;
   final String emptyMessage;
   final Map<String, QuestionBatchGroup>? batchGroups;
   final WidgetRef ref;
+  final ValueChanged<ReviewRating>? onRated;
 
   @override
   Widget build(BuildContext context) {
@@ -287,6 +414,7 @@ class _ReviewQuestionList extends StatelessWidget {
           ref.read(currentQuestionProvider.notifier).state = questions[index];
           context.go('/notebook/question/${questions[index].id}');
         },
+        onRated: onRated,
       ),
     );
   }
@@ -365,11 +493,13 @@ class _ReviewCard extends ConsumerStatefulWidget {
     required this.question,
     required this.onOpen,
     this.batchLabel,
+    this.onRated,
   });
 
   final QuestionRecord question;
   final VoidCallback onOpen;
   final String? batchLabel;
+  final ValueChanged<ReviewRating>? onRated;
 
   @override
   ConsumerState<_ReviewCard> createState() => _ReviewCardState();
@@ -378,28 +508,79 @@ class _ReviewCard extends ConsumerStatefulWidget {
 class _ReviewCardState extends ConsumerState<_ReviewCard> {
   bool _revealed = false;
   bool _rating = false;
+  bool _rated = false;
 
   Future<void> _rate(ReviewRating rating) async {
-    if (_rating) return;
+    if (_rating || _rated) return;
     setState(() => _rating = true);
     final controller = ReviewController(
       repository: ref.read(questionRepositoryProvider),
       logRepository: ref.read(reviewLogRepositoryProvider),
     );
     try {
-      switch (rating) {
-        case ReviewRating.forgot:
-          await controller.markForgot(widget.question.id);
-        case ReviewRating.hard:
-          await controller.markReviewing(widget.question.id);
-        case ReviewRating.easy:
-          await controller.markMastered(widget.question.id);
-      }
+      final updated = switch (rating) {
+        ReviewRating.forgot => await controller.markForgot(widget.question.id),
+        ReviewRating.hard => await controller.markReviewing(widget.question.id),
+        ReviewRating.easy => await controller.markMastered(widget.question.id),
+      };
       invalidateQuestionList(ref);
-      if (mounted) setState(() => _rating = false);
-    } catch (_) {
-      if (mounted) setState(() => _rating = false);
+      widget.onRated?.call(rating);
+      if (mounted) {
+        setState(() {
+          _rating = false;
+          _rated = true;
+        });
+        _showRatingFeedback(rating, updated);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _rating = false);
+        _showRatingError(e);
+      }
     }
+  }
+
+  void _showRatingFeedback(ReviewRating rating, QuestionRecord updated) {
+    final ratingLabel = switch (rating) {
+      ReviewRating.forgot => '忘记',
+      ReviewRating.hard => '模糊',
+      ReviewRating.easy => '掌握',
+    };
+    final masteryLabel = _masteryLabel(updated.masteryLevel);
+    final nextLabel = updated.nextReviewAt != null
+        ? _nextReviewLabel(updated.nextReviewAt!)
+        : '已掌握，暂无下次复习';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('已记录「$ratingLabel」· $masteryLabel\n$nextLabel'),
+        duration: const Duration(seconds: 3),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: '下一题',
+          onPressed: () {
+            // SnackBar 自身消失即可，列表已刷新，下一题自然显示在原位置。
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showRatingError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('复习记录保存失败，请重试'),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: '重试',
+          onPressed: () {
+            // 不在此处自动重试特定 rating，引导用户再次点击按钮。
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -408,6 +589,15 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
     final answer = (widget.question.expectedAnswer?.trim().isNotEmpty ?? false)
         ? widget.question.expectedAnswer!.trim()
         : result?.finalAnswer.trim() ?? '';
+    final hasAnswer = answer.isNotEmpty;
+
+    if (_rated) {
+      return _RatedCard(
+        question: widget.question,
+        onOpen: widget.onOpen,
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -418,11 +608,25 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
         ),
         const SizedBox(height: AppSpace.xs),
         OutlinedButton.icon(
-          onPressed: answer.isEmpty ? widget.onOpen : () => setState(() => _revealed = !_revealed),
-          icon: Icon(_revealed ? CupertinoIcons.eye_slash : CupertinoIcons.eye),
-          label: Text(answer.isEmpty ? '打开详情查看并评价' : (_revealed ? '收起答案' : '回忆后查看答案')),
+          onPressed: hasAnswer ? () => setState(() => _revealed = !_revealed) : widget.onOpen,
+          icon: Icon(hasAnswer
+              ? (_revealed ? CupertinoIcons.eye_slash : CupertinoIcons.eye)
+              : CupertinoIcons.doc_text_search),
+          label: Text(hasAnswer
+              ? (_revealed ? '收起答案' : '回忆后查看答案')
+              : '打开详情查看完整题目'),
         ),
-        if (_revealed && answer.isNotEmpty) ...<Widget>[
+        if (!hasAnswer) ...<Widget>[
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            '本题未保存参考答案，可直接评价或打开详情查看',
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        if (_revealed && hasAnswer) ...<Widget>[
           const SizedBox(height: AppSpace.xs),
           AppInfoSection(
             icon: CupertinoIcons.checkmark_circle,
@@ -433,20 +637,53 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
             titleColor: AppColors.successDark,
             child: MathContentView(answer, contentFormat: widget.question.contentFormat),
           ),
-          const SizedBox(height: AppSpace.sm),
-          Text('回忆结果', style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: AppSpace.xs),
-          Row(
-            children: <Widget>[
-              Expanded(child: OutlinedButton(onPressed: _rating ? null : () => _rate(ReviewRating.forgot), child: const Text('忘记'))),
-              const SizedBox(width: AppSpace.xs),
-              Expanded(child: OutlinedButton(onPressed: _rating ? null : () => _rate(ReviewRating.hard), child: const Text('模糊'))),
-              const SizedBox(width: AppSpace.xs),
-              Expanded(child: FilledButton(onPressed: _rating ? null : () => _rate(ReviewRating.easy), child: const Text('掌握'))),
-            ],
-          ),
         ],
+        const SizedBox(height: AppSpace.sm),
+        Text('回忆结果', style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: AppSpace.xs),
+        Row(
+          children: <Widget>[
+            Expanded(child: OutlinedButton(onPressed: _rating ? null : () => _rate(ReviewRating.forgot), child: const Text('忘记'))),
+            const SizedBox(width: AppSpace.xs),
+            Expanded(child: OutlinedButton(onPressed: _rating ? null : () => _rate(ReviewRating.hard), child: const Text('模糊'))),
+            const SizedBox(width: AppSpace.xs),
+            Expanded(child: FilledButton(onPressed: _rating ? null : () => _rate(ReviewRating.easy), child: const Text('掌握'))),
+          ],
+        ),
       ],
+    );
+  }
+}
+
+/// 评价完成后展示的简短卡片，提示已记录并提供「打开详情」入口。
+class _RatedCard extends StatelessWidget {
+  const _RatedCard({required this.question, required this.onOpen});
+
+  final QuestionRecord question;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return AppCard(
+      backgroundColor: AppColors.success.withValues(alpha: 0.08),
+      borderColor: AppColors.success.withValues(alpha: 0.35),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
+      child: Row(
+        children: <Widget>[
+          Icon(CupertinoIcons.checkmark_circle_fill, size: 18, color: AppColors.success),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Text(
+              question.nextReviewAt != null
+                  ? '已记录 · ${_nextReviewLabel(question.nextReviewAt!)}'
+                  : '已记录 · 已掌握',
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+            ),
+          ),
+          TextButton(onPressed: onOpen, child: const Text('详情')),
+        ],
+      ),
     );
   }
 }
