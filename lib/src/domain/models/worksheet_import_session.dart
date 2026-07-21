@@ -10,6 +10,7 @@ class WorksheetImportSession {
     required this.createdAt,
     this.processedSourcePageIds = const <String>{},
     this.lastProcessedId,
+    this.autoAnalyze = false,
   });
 
   final String id;
@@ -20,6 +21,11 @@ class WorksheetImportSession {
   final Set<String> processedSourcePageIds;
 
   final String? lastProcessedId;
+
+  /// Whether the importer should continue through remaining question
+  /// candidates without opening a result page after every successful analysis.
+  /// 持久化到仓库，跨进程恢复；空 session 重建时回到默认 false。
+  final bool autoAnalyze;
 
   int get pageCount => pages.length;
 
@@ -33,6 +39,7 @@ class WorksheetImportSession {
     List<QuestionRecord>? pages,
     Set<String>? processedSourcePageIds,
     String? lastProcessedId,
+    bool? autoAnalyze,
   }) {
     return WorksheetImportSession(
       id: id,
@@ -41,6 +48,7 @@ class WorksheetImportSession {
       createdAt: createdAt,
       processedSourcePageIds: processedSourcePageIds ?? this.processedSourcePageIds,
       lastProcessedId: lastProcessedId ?? this.lastProcessedId,
+      autoAnalyze: autoAnalyze ?? this.autoAnalyze,
     );
   }
 }

@@ -431,6 +431,19 @@ final StateProvider<WorksheetReviewSummary?> currentWorksheetReviewSummaryProvid
 final StateProvider<bool> worksheetAutoAnalyzeProvider =
     StateProvider<bool>((ref) => false);
 
+/// 统一更新 [worksheetAutoAnalyzeProvider] 并把状态同步进当前 session（持久化）。
+///
+/// 在跨进程恢复时，[WorksheetImportRepository.load] 会从持久化读回 autoAnalyze，
+/// 启动后由 main.dart 通过 override 写入 [worksheetAutoAnalyzeProvider]；运行期
+/// 调用本 helper 才能保证两者一致。session 不存在时仅更新内存状态（兼容单题
+/// 流程或测试场景）。
+Future<void> setWorksheetAutoAnalyze(WidgetRef ref, bool value) async {
+  ref.read(worksheetAutoAnalyzeProvider.notifier).state = value;
+  final session = ref.read(currentWorksheetImportProvider);
+  if (session == null || session.autoAnalyze == value) return;
+  await persistWorksheetImport(ref, session.copyWith(autoAnalyze: value));
+}
+
 Future<QuestionSplitSession> buildQuestionSplitSession(
   QuestionRecord source, {
   QuestionSplitService splitter = const QuestionSplitService(),

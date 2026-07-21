@@ -183,7 +183,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
                     .firstWhere((item) => item.contentStatus != ContentStatus.ready,
                         orElse: () => queuedQuestions.first)),
                 onStartAll: () => _startAllQueuedQuestions(queuedQuestions),
-                onStop: () => ref.read(worksheetAutoAnalyzeProvider.notifier).state = false,
+                onStop: () => setWorksheetAutoAnalyze(ref, false),
                 onSaveReady: () => _saveReadyQuestions(queuedQuestions),
                 onRetryFailed: () => _retryFailedQuestions(queuedQuestions),
                 onAnalyzeDrafts: () => _analyzeOcrDrafts(queuedQuestions),
@@ -244,7 +244,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
       await storage.deleteImage(candidate.imagePath);
     }
     await persistWorksheetImport(ref, null);
-    ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
+    await setWorksheetAutoAnalyze(ref, false);
     ref.read(currentQuestionProvider.notifier).state = null;
     if (!mounted) return;
     context.go('/');
@@ -329,7 +329,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     await persistWorksheetImport(ref, worksheet.copyWith(pages: next));
     final first = next.firstWhere((item) => item.id == failed.first.id);
     ref.read(currentQuestionProvider.notifier).state = first;
-    ref.read(worksheetAutoAnalyzeProvider.notifier).state = true;
+    await setWorksheetAutoAnalyze(ref, true);
     if (mounted) context.go('/analysis/loading');
   }
 
@@ -346,12 +346,12 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
       await persistWorksheetImport(ref, worksheet.copyWith(pages: next));
       final first = next.firstWhere((item) => item.id == drafts.first.id);
       ref.read(currentQuestionProvider.notifier).state = first;
-      ref.read(worksheetAutoAnalyzeProvider.notifier).state = true;
+      await setWorksheetAutoAnalyze(ref, true);
       if (mounted) context.go('/analysis/loading');
     }
   }
 
-  void _startAllQueuedQuestions(List<QuestionRecord> queuedQuestions) {
+  Future<void> _startAllQueuedQuestions(List<QuestionRecord> queuedQuestions) async {
     final next = queuedQuestions.firstWhere(
       (item) => item.contentStatus != ContentStatus.ready &&
           item.contentStatus != ContentStatus.failed,
@@ -360,7 +360,8 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         orElse: () => queuedQuestions.first,
       ),
     );
-    ref.read(worksheetAutoAnalyzeProvider.notifier).state = true;
+    await setWorksheetAutoAnalyze(ref, true);
+    if (!mounted) return;
     _startQueuedQuestion(next);
   }
 

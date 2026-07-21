@@ -67,6 +67,10 @@ void main() async {
         questionKnowledgeLinkRepositoryProvider.overrideWithValue(questionKnowledgeLinkRepo),
         worksheetImportRepositoryProvider.overrideWithValue(worksheetImportRepo),
         currentWorksheetImportProvider.overrideWith((_) => restoredWorksheetImport),
+        // 跨进程恢复：批量队列的"自动连续分析"开关也要随 session 一起恢复，
+        // 否则用户在批量分析中被杀掉重启后会丢失"继续处理剩余题目"的入口。
+        worksheetAutoAnalyzeProvider
+            .overrideWith((_) => restoredWorksheetImport?.autoAnalyze ?? false),
         onboardingNotifierProvider.overrideWithValue(onboardingNotifier),
         // 注意：不要 override aiAnalysisServiceProvider，让它使用 settingsRepo
         imageStorageServiceProvider.overrideWithValue(ImageStorageService()),

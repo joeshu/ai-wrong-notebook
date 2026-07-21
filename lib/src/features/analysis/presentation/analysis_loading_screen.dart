@@ -362,7 +362,8 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     if (!ref.read(worksheetAutoAnalyzeProvider)) return false;
     final worksheet = ref.read(currentWorksheetImportProvider);
     if (worksheet == null || worksheet.sourcePageIds.contains(completed.id)) {
-      ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
+      // 队列结束：把 autoAnalyze 持久化为 false，避免重启后误以为仍在批量分析。
+      Future<void>.microtask(() => setWorksheetAutoAnalyze(ref, false));
       return false;
     }
     final next = worksheet.pages.where((item) =>
@@ -370,7 +371,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         item.contentStatus == ContentStatus.processing &&
         item.id != completed.id).toList();
     if (next.isEmpty) {
-      ref.read(worksheetAutoAnalyzeProvider.notifier).state = false;
+      Future<void>.microtask(() => setWorksheetAutoAnalyze(ref, false));
       return false;
     }
     ref.read(currentQuestionProvider.notifier).state = next.first;
