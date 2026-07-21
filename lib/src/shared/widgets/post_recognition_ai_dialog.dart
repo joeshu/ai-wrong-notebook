@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 /// Phase 10-3：「识别完成后是否交给 AI」三选一结果。

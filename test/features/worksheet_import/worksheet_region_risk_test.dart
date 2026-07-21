@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_region_editor_screen.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/status_pill.dart';
 
 QuestionRegion _region({
   String id = 'r1',
