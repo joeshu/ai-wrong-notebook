@@ -175,6 +175,9 @@ class QuestionRecord {
     this.ocrConfidence,
     this.archivedAt,
     this.questionType,
+    this.lastAnalysisError,
+    this.originalImageFilename,
+    this.aiReconstructedText,
   });
 
   static const favoriteTag = '__system_favorite';
@@ -331,6 +334,9 @@ class QuestionRecord {
               orElse: () => QuestionType.other,
             )
           : null,
+      lastAnalysisError: _nullableString(json['lastAnalysisError']),
+      originalImageFilename: _nullableString(json['originalImageFilename']),
+      aiReconstructedText: _nullableString(json['aiReconstructedText']),
     );
   }
 
@@ -372,6 +378,9 @@ class QuestionRecord {
       'ocrConfidence': ocrConfidence,
       'archivedAt': archivedAt?.toIso8601String(),
       'questionType': questionType?.name,
+      'lastAnalysisError': lastAnalysisError,
+      'originalImageFilename': originalImageFilename,
+      'aiReconstructedText': aiReconstructedText,
     };
   }
 
@@ -407,6 +416,28 @@ class QuestionRecord {
   final double? ocrConfidence;
   final DateTime? archivedAt;
   final QuestionType? questionType;
+
+  /// 最近一次 AI 分析失败的原因（friendlyAiErrorMessage 输出）。
+  ///
+  /// 仅在 [ContentStatus.analysisFailed] 或 [ContentStatus.failed] 时有值；
+  /// 分析成功后由 [withLastAnalysisError] 清空。详情页据此展示失败原因，
+  /// 而非仅显示"识别失败"通用文案。
+  final String? lastAnalysisError;
+
+  /// 原图原始文件名（用户选择图片时的文件名）。
+  ///
+  /// [ImageStorageService] 落盘时改用 UUID 命名，原始文件名丢失。此字段
+  /// 在选图/导入时记录，详情页据此展示文件名，便于用户辨认题目来源。
+  final String? originalImageFilename;
+
+  /// AI 重构的题干文本。
+  ///
+  /// AI 分析可能返回 `AnalysisResult.reconstructedQuestionText`。之前实现
+  /// 直接覆盖 `normalizedQuestionText`（用户校对文本），导致 OCR vs 校对
+  /// 对照失效。现在 AI 重构文本独立存此字段，`normalizedQuestionText`
+  /// 始终保留用户校对结果，详情页展示三段对照：
+  /// OCR 原文 / 用户校对 / AI 重构。
+  final String? aiReconstructedText;
 
   String get recognizedText => extractedQuestionText;
   String get correctedText => normalizedQuestionText;
@@ -498,6 +529,9 @@ class QuestionRecord {
     double? ocrConfidence,
     DateTime? archivedAt,
     QuestionType? questionType,
+    String? lastAnalysisError,
+    String? originalImageFilename,
+    String? aiReconstructedText,
   }) {
     return QuestionRecord(
       id: id,
@@ -534,6 +568,10 @@ class QuestionRecord {
       ocrConfidence: ocrConfidence ?? this.ocrConfidence,
       archivedAt: archivedAt ?? this.archivedAt,
       questionType: questionType ?? this.questionType,
+      lastAnalysisError: lastAnalysisError ?? this.lastAnalysisError,
+      originalImageFilename:
+          originalImageFilename ?? this.originalImageFilename,
+      aiReconstructedText: aiReconstructedText ?? this.aiReconstructedText,
     );
   }
 
@@ -575,6 +613,9 @@ class QuestionRecord {
       reflectionNote: reflectionNote,
       archivedAt: value,
       questionType: questionType,
+      lastAnalysisError: lastAnalysisError,
+      originalImageFilename: originalImageFilename,
+      aiReconstructedText: aiReconstructedText,
     );
   }
 
@@ -623,6 +664,9 @@ class QuestionRecord {
       ocrConfidence: ocrConfidence,
       archivedAt: archivedAt,
       questionType: questionType,
+      lastAnalysisError: lastAnalysisError,
+      originalImageFilename: originalImageFilename,
+      aiReconstructedText: aiReconstructedText,
     );
   }
 
@@ -665,6 +709,53 @@ class QuestionRecord {
       ocrConfidence: ocrConfidence,
       archivedAt: archivedAt,
       questionType: questionType,
+      lastAnalysisError: lastAnalysisError,
+      originalImageFilename: originalImageFilename,
+      aiReconstructedText: aiReconstructedText,
+    );
+  }
+
+  /// Explicitly sets [lastAnalysisError], allowing null to clear it.
+  ///
+  /// [copyWith] uses `?? this.lastAnalysisError`, which keeps the existing
+  /// value when `null` is passed. AI 分析成功后需要清空失败原因，必须用此方法。
+  QuestionRecord withLastAnalysisError(String? value) {
+    return QuestionRecord(
+      id: id,
+      imagePath: imagePath,
+      subject: subject,
+      extractedQuestionText: extractedQuestionText,
+      normalizedQuestionText: normalizedQuestionText,
+      contentFormat: contentFormat,
+      tags: tags,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+      lastReviewedAt: lastReviewedAt,
+      nextReviewAt: nextReviewAt,
+      reviewCount: reviewCount,
+      isFavorite: isFavorite,
+      contentStatus: contentStatus,
+      masteryLevel: masteryLevel,
+      analysisResult: analysisResult,
+      savedExercises: savedExercises,
+      aiTags: aiTags,
+      aiKnowledgePoints: aiKnowledgePoints,
+      customTags: customTags,
+      splitResult: splitResult,
+      candidateAnalyses: candidateAnalyses,
+      parentQuestionId: parentQuestionId,
+      rootQuestionId: rootQuestionId,
+      splitOrder: splitOrder,
+      studentAnswer: studentAnswer,
+      expectedAnswer: expectedAnswer,
+      isCorrect: isCorrect,
+      reflectionNote: reflectionNote,
+      ocrConfidence: ocrConfidence,
+      archivedAt: archivedAt,
+      questionType: questionType,
+      lastAnalysisError: value,
+      originalImageFilename: originalImageFilename,
+      aiReconstructedText: aiReconstructedText,
     );
   }
 }

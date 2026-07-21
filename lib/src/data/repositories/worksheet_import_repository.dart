@@ -17,17 +17,27 @@ class WorksheetImportRepository {
       final pages = (json['pages'] as List)
           .map((item) => QuestionRecord.fromJson(item as Map<String, dynamic>))
           .toList();
-      // 跨进程兜底：上次运行时仍处于 processing 的页面一定没成功完成
+      // 跨进程兜底：上次运行时仍处于 processing/analyzing 的页面一定没成功完成
       // （App 被杀掉 / 进程被回收 / 用户从识别中退出后强杀）。
-      // 这里统一标记为 failed，让 UI 显示"失败可重试"而非无限"处理中"。
+      // processing → failed（识别中断），analyzing → analysisFailed（OCR 已成功，
+      // 仅 AI 中断）。让 UI 显示"失败可重试"而非无限"处理中"。
       final needsReset = pages.any((page) =>
-          page.contentStatus == ContentStatus.processing &&
+          (page.contentStatus == ContentStatus.processing ||
+              page.contentStatus == ContentStatus.analyzing) &&
           !page.isArchived);
       final normalizedPages = needsReset
           ? pages
-              .map((page) => page.contentStatus == ContentStatus.processing
-                  ? page.copyWith(contentStatus: ContentStatus.failed)
-                  : page)
+              .map((page) {
+                if (page.contentStatus == ContentStatus.processing) {
+                  return page.copyWith(contentStatus: ContentStatus.failed);
+                }
+                if (page.contentStatus == ContentStatus.analyzing) {
+                  return page.copyWith(
+                      contentStatus: ContentStatus.analysisFailed,
+                      lastAnalysisError: '分析被中断，请重试');
+                }
+                return page;
+              })
               .toList()
           : pages;
       return WorksheetImportSession(

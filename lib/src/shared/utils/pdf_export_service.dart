@@ -1018,7 +1018,9 @@ class PdfExportService {
 
   static String _statusLabel(ContentStatus status) => switch (status) {
         ContentStatus.processing => '处理中',
+        ContentStatus.analyzing => '分析中',
         ContentStatus.ready => '已完成',
         ContentStatus.failed => '识别失败',
+        ContentStatus.analysisFailed => '分析失败',
       };
 }

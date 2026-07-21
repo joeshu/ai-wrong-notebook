@@ -271,14 +271,13 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         }
       }
 
-      // AI 重构题干视为"校对后文本"，只更新 normalizedQuestionText，
+      // AI 重构题干独立存到 aiReconstructedText，不再覆盖 normalizedQuestionText
+      // （用户校对文本）。详情页据此展示三段对照：OCR 原文 / 用户校对 / AI 重构。
       // 保留 extractedQuestionText（OCR 原文）以便详情页展示 OCR vs 校对后对照。
-      // 之前的实现同时覆盖两个字段，导致对照失效（两者相等）。
+      String? aiReconstructed;
       if (firstSuccessfulCandidate == null &&
           analysis.reconstructedQuestionText.trim().isNotEmpty) {
-        working = working.copyWith(
-          normalizedQuestionText: analysis.reconstructedQuestionText,
-        );
+        aiReconstructed = analysis.reconstructedQuestionText;
       }
 
       final generatedExercises = firstSuccessfulCandidate?.savedExercises ??
@@ -294,28 +293,31 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
                   sourceQuestionText: working.correctedText,
                 ));
 
-      final updated = working.copyWith(
-        contentStatus: ContentStatus.ready,
-        analysisResult: analysis,
-        savedExercises: generatedExercises,
-        subject: analysis.subject ?? working.subject,
-        aiTags: analysis.aiTags,
-        aiKnowledgePoints: analysis.knowledgePoints,
-        candidateAnalyses: candidateSnapshots.map((payload) {
-          return CandidateAnalysisSnapshot(
-            candidateId: payload.candidateId,
-            order: payload.order,
-            questionText: payload.questionText,
-            analysisResult: payload.analysisResult,
-            savedExercises: payload.savedExercises,
-            subject: payload.subject,
-            aiTags: payload.aiTags,
-            aiKnowledgePoints: payload.aiKnowledgePoints,
-            status: payload.status,
-            errorMessage: payload.errorMessage,
-          );
-        }).toList(),
-      );
+      final updated = working
+          .copyWith(
+            contentStatus: ContentStatus.ready,
+            analysisResult: analysis,
+            savedExercises: generatedExercises,
+            subject: analysis.subject ?? working.subject,
+            aiTags: analysis.aiTags,
+            aiKnowledgePoints: analysis.knowledgePoints,
+            aiReconstructedText: aiReconstructed,
+            candidateAnalyses: candidateSnapshots.map((payload) {
+              return CandidateAnalysisSnapshot(
+                candidateId: payload.candidateId,
+                order: payload.order,
+                questionText: payload.questionText,
+                analysisResult: payload.analysisResult,
+                savedExercises: payload.savedExercises,
+                subject: payload.subject,
+                aiTags: payload.aiTags,
+                aiKnowledgePoints: payload.aiKnowledgePoints,
+                status: payload.status,
+                errorMessage: payload.errorMessage,
+              );
+            }).toList(),
+          )
+          .withLastAnalysisError(null);
       ref.read(currentQuestionProvider.notifier).state = updated;
       await _replaceWorksheetQueueItem(updated);
       _clearTimeoutTimer();
@@ -334,7 +336,14 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       _clearTimeoutTimer();
       // AI 不可用时也必须保留原图和用户已校对的题干。saveDraft 是幂等
       // upsert，既覆盖同 ID 的处理中草稿，也兼容首次保存。
-      final failedDraft = current.copyWith(contentStatus: ContentStatus.failed);
+      // 用 analysisFailed 而非 failed，区分"识别失败"与"分析失败"，
+      // 并持久化 friendlyAiErrorMessage 输出，让详情页能展示具体失败原因。
+      final friendlyError = friendlyAiErrorMessage(e);
+      final failedDraft = current
+          .copyWith(
+            contentStatus: ContentStatus.analysisFailed,
+            lastAnalysisError: friendlyError,
+          );
       try {
         await ref.read(questionRepositoryProvider).saveDraft(failedDraft);
         ref.read(currentQuestionProvider.notifier).state = failedDraft;
@@ -351,7 +360,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
             : '原图和已校对题干已保存到错题本，可重试、切换引擎，或稍后手动补充。';
         setState(() {
           _isTimeout = false;
-          _errorMessage = '${friendlyAiErrorMessage(e)}\n\n$suffix';
+          _errorMessage = '$friendlyError\n\n$suffix';
           _debugInfo = debugInfo;
         });
       }

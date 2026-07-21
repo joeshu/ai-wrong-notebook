@@ -218,4 +218,111 @@ void main() {
     expect(archived.isArchived, isTrue,
         reason: 'unarchive must not mutate the source');
   });
+
+  group('Phase 2 schema 扩展字段', () {
+    QuestionRecord _base() {
+      final now = DateTime(2026, 7, 21);
+      return QuestionRecord(
+        id: 'q-schema',
+        imagePath: '/img.jpg',
+        subject: Subject.math,
+        extractedQuestionText: 'OCR 原文',
+        normalizedQuestionText: '用户校对',
+        contentFormat: QuestionContentFormat.plain,
+        tags: const <String>[],
+        createdAt: now,
+        updatedAt: now,
+        lastReviewedAt: null,
+        reviewCount: 0,
+        isFavorite: false,
+        contentStatus: ContentStatus.analysisFailed,
+        masteryLevel: MasteryLevel.newQuestion,
+        analysisResult: null,
+        lastAnalysisError: 'AI 超时',
+        originalImageFilename: 'photo.jpg',
+        aiReconstructedText: 'AI 重构题干',
+      );
+    }
+
+    test('新字段 round-trip', () {
+      final restored = QuestionRecord.fromJson(_base().toJson());
+      expect(restored.lastAnalysisError, 'AI 超时');
+      expect(restored.originalImageFilename, 'photo.jpg');
+      expect(restored.aiReconstructedText, 'AI 重构题干');
+      expect(restored.contentStatus, ContentStatus.analysisFailed);
+    });
+
+    test('老草稿（缺新字段）回落 null/false', () {
+      final now = DateTime(2026, 7, 21);
+      final legacy = QuestionRecord(
+        id: 'q-legacy',
+        imagePath: '/img.jpg',
+        subject: Subject.math,
+        extractedQuestionText: '题干',
+        normalizedQuestionText: '题干',
+        contentFormat: QuestionContentFormat.plain,
+        tags: const <String>[],
+        createdAt: now,
+        updatedAt: now,
+        lastReviewedAt: null,
+        reviewCount: 0,
+        isFavorite: false,
+        contentStatus: ContentStatus.ready,
+        masteryLevel: MasteryLevel.newQuestion,
+        analysisResult: null,
+      );
+      final json = legacy.toJson();
+      // 老草稿序列化仍包含新字段（值为 null）
+      expect(json['lastAnalysisError'], isNull);
+      expect(json['originalImageFilename'], isNull);
+      expect(json['aiReconstructedText'], isNull);
+      // 回读后字段为 null
+      final restored = QuestionRecord.fromJson(json);
+      expect(restored.lastAnalysisError, isNull);
+      expect(restored.originalImageFilename, isNull);
+      expect(restored.aiReconstructedText, isNull);
+    });
+
+    test('copyWith 保留 lastAnalysisError，withLastAnalysisError 可清空', () {
+      final base = _base();
+      // copyWith 不传 lastAnalysisError → 保留
+      final kept = base.copyWith(contentStatus: ContentStatus.ready);
+      expect(kept.lastAnalysisError, 'AI 超时',
+          reason: 'copyWith 不传应保留旧值');
+      // copyWith 传 null → 仍保留（?? 语义）
+      final stillKept =
+          base.copyWith(contentStatus: ContentStatus.ready);
+      expect(stillKept.lastAnalysisError, 'AI 超时');
+      // withLastAnalysisError(null) → 清空
+      final cleared = base.withLastAnalysisError(null);
+      expect(cleared.lastAnalysisError, isNull,
+          reason: 'withLastAnalysisError(null) 必须能清空');
+      // withLastAnalysisError 覆盖
+      final updated = base.withLastAnalysisError('新错误');
+      expect(updated.lastAnalysisError, '新错误');
+    });
+
+    test('copyWith 覆盖 aiReconstructedText / originalImageFilename', () {
+      final base = _base();
+      final updated = base.copyWith(
+        aiReconstructedText: '新 AI 文本',
+        originalImageFilename: 'new.jpg',
+      );
+      expect(updated.aiReconstructedText, '新 AI 文本');
+      expect(updated.originalImageFilename, 'new.jpg');
+      // 不传时保留
+      final kept = base.copyWith(contentStatus: ContentStatus.ready);
+      expect(kept.aiReconstructedText, 'AI 重构题干');
+      expect(kept.originalImageFilename, 'photo.jpg');
+    });
+
+    test('ContentStatus 5 值 round-trip', () {
+      for (final status in ContentStatus.values) {
+        final record = _base().copyWith(contentStatus: status);
+        final restored = QuestionRecord.fromJson(record.toJson());
+        expect(restored.contentStatus, status,
+            reason: '${status.name} 应能 round-trip');
+      }
+    });
+  });
 }
