@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/add_screen.dart';
 import 'package:smart_wrong_notebook/src/features/capture/presentation/capture_entry_sheet.dart';
@@ -52,6 +53,12 @@ class _InMemSettingsRepo implements SettingsRepository {
 }
 
 void main() {
+  // Phase 6-1：NotebookScreen 的 initState 会异步读取 SharedPreferences
+  // 中的视图模式偏好，测试前需注册 mock。
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   group('MVP smoke tests', () {
     testWidgets('app boots to home screen with default content',
         (tester) async {

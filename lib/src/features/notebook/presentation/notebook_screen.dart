@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
@@ -31,6 +32,34 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   bool _selectionMode = false;
   bool _showArchived = false;
   final Set<String> _selectedQuestionIds = <String>{};
+
+  /// Phase 6-1：错题列表视图模式偏好（卡片 / 列表 / 时间线），持久化到
+  /// SharedPreferences。initState 异步加载，加载完成前默认 [NotebookViewMode.card]。
+  NotebookViewMode _viewMode = NotebookViewMode.card;
+  static const _viewModePrefsKey = 'notebook:view_mode';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadViewMode();
+  }
+
+  Future<void> _loadViewMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_viewModePrefsKey);
+    if (stored == null) return;
+    final parsed = NotebookViewMode.fromStorageName(stored);
+    if (parsed == _viewMode) return;
+    if (!mounted) return;
+    setState(() => _viewMode = parsed);
+  }
+
+  Future<void> _setViewMode(NotebookViewMode mode) async {
+    if (mode == _viewMode) return;
+    setState(() => _viewMode = mode);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_viewModePrefsKey, mode.storageName);
+  }
 
   @override
   void dispose() {
@@ -198,6 +227,216 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
     ref.read(selectedAttemptStatusFilterProvider.notifier).state = null;
     ref.read(selectedQuestionTypeFilterProvider.notifier).state = null;
     ref.read(questionSortProvider.notifier).state = QuestionSort.newest;
+  }
+
+  /// Phase 6-1：根据当前视图模式切换列表渲染。
+  Widget _buildQuestionList({
+    required BuildContext context,
+    required WidgetRef ref,
+    required List<QuestionRecord> visibleQuestions,
+    required bool hasPracticeAction,
+    required String? selectedKnowledgePoint,
+  }) {
+    switch (_viewMode) {
+      case NotebookViewMode.card:
+        return _buildCardList(
+          context: context,
+          ref: ref,
+          visibleQuestions: visibleQuestions,
+          hasPracticeAction: hasPracticeAction,
+          selectedKnowledgePoint: selectedKnowledgePoint,
+        );
+      case NotebookViewMode.list:
+        return _buildCompactList(
+          context: context,
+          ref: ref,
+          visibleQuestions: visibleQuestions,
+          hasPracticeAction: hasPracticeAction,
+          selectedKnowledgePoint: selectedKnowledgePoint,
+        );
+      case NotebookViewMode.timeline:
+        return _buildTimelineView(
+          context: context,
+          ref: ref,
+          visibleQuestions: visibleQuestions,
+        );
+    }
+  }
+
+  Widget _buildCardList({
+    required BuildContext context,
+    required WidgetRef ref,
+    required List<QuestionRecord> visibleQuestions,
+    required bool hasPracticeAction,
+    required String? selectedKnowledgePoint,
+  }) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.lg, vertical: AppSpace.xs),
+      itemCount: visibleQuestions.length + (hasPracticeAction ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (hasPracticeAction && index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _KnowledgePointPracticeCard(
+              knowledgePoint: selectedKnowledgePoint!,
+              isLoading: _buildingKnowledgePointPractice,
+              onStart: () => _startKnowledgePointPractice(
+                selectedKnowledgePoint,
+                visibleQuestions,
+              ),
+            ),
+          );
+        }
+        final questionIndex = index - (hasPracticeAction ? 1 : 0);
+        final q = visibleQuestions[questionIndex];
+        return RepaintBoundary(
+          child: _QuestionCard(
+            question: q,
+            selectionMode: _selectionMode,
+            selected: _selectedQuestionIds.contains(q.id),
+            onSelect: () => _toggleSelection(q.id),
+            onTap: () {
+              ref.read(currentQuestionProvider.notifier).state = q;
+              context.go('/notebook/question/${q.id}');
+            },
+            onDelete: () => _confirmDelete(context, ref, q),
+            onKnowledgePointTap: (kp) {
+              ref
+                  .read(
+                      selectedKnowledgePointFilterProvider.notifier)
+                  .state = kp;
+            },
+            primaryAction: _selectionMode
+                ? null
+                : _cardPrimaryAction(context, ref, q),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCompactList({
+    required BuildContext context,
+    required WidgetRef ref,
+    required List<QuestionRecord> visibleQuestions,
+    required bool hasPracticeAction,
+    required String? selectedKnowledgePoint,
+  }) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.lg, vertical: AppSpace.xs),
+      itemCount: visibleQuestions.length + (hasPracticeAction ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (hasPracticeAction && index == 0) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _KnowledgePointPracticeCard(
+              knowledgePoint: selectedKnowledgePoint!,
+              isLoading: _buildingKnowledgePointPractice,
+              onStart: () => _startKnowledgePointPractice(
+                selectedKnowledgePoint,
+                visibleQuestions,
+              ),
+            ),
+          );
+        }
+        final questionIndex = index - (hasPracticeAction ? 1 : 0);
+        final q = visibleQuestions[questionIndex];
+        return RepaintBoundary(
+          child: _CompactQuestionRow(
+            question: q,
+            selectionMode: _selectionMode,
+            selected: _selectedQuestionIds.contains(q.id),
+            onSelect: () => _toggleSelection(q.id),
+            onTap: () {
+              ref.read(currentQuestionProvider.notifier).state = q;
+              context.go('/notebook/question/${q.id}');
+            },
+            onDelete: () => _confirmDelete(context, ref, q),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTimelineView({
+    required BuildContext context,
+    required WidgetRef ref,
+    required List<QuestionRecord> visibleQuestions,
+  }) {
+    if (visibleQuestions.isEmpty) {
+      return ListView(
+        padding: const EdgeInsets.all(AppSpace.xl),
+        children: <Widget>[
+          Center(
+            child: Column(
+              children: <Widget>[
+                Icon(CupertinoIcons.calendar,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(height: AppSpace.md),
+                Text('该筛选下暂无错题',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    )),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    // 按日期分组（使用 createdAt 的 y-m-d 作为 key），同日内按时间倒序。
+    final groups = <String, List<QuestionRecord>>{};
+    for (final q in visibleQuestions) {
+      final local = q.createdAt.toLocal();
+      final key =
+          '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+      (groups[key] ??= <QuestionRecord>[]).add(q);
+    }
+    final sortedKeys = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    final itemCount = sortedKeys.length +
+        sortedKeys.fold<int>(
+            0, (acc, k) => acc + groups[k]!.length);
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.lg, vertical: AppSpace.xs),
+      itemCount: itemCount,
+      itemBuilder: (context, index) {
+        var i = index;
+        for (final key in sortedKeys) {
+          if (i == 0) {
+            return _TimelineDateHeader(
+              dateKey: key,
+              count: groups[key]!.length,
+            );
+          }
+          i -= 1;
+          final group = groups[key]!;
+          if (i < group.length) {
+            final q = group[i];
+            return RepaintBoundary(
+              child: _TimelineQuestionRow(
+                question: q,
+                selectionMode: _selectionMode,
+                selected: _selectedQuestionIds.contains(q.id),
+                onSelect: () => _toggleSelection(q.id),
+                onTap: () {
+                  ref.read(currentQuestionProvider.notifier).state = q;
+                  context.go('/notebook/question/${q.id}');
+                },
+                onDelete: () => _confirmDelete(context, ref, q),
+                isLastInGroup: i == group.length - 1,
+              ),
+            );
+          }
+          i -= group.length;
+        }
+        return const SizedBox.shrink();
+      },
+    );
   }
 
   _CardPrimaryAction? _cardPrimaryAction(
@@ -452,6 +691,44 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               ],
             ),
           ),
+          // Phase 6-1：视图切换（卡片 / 列表 / 时间线）
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppSpace.lg, vertical: AppSpace.xs),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<NotebookViewMode>(
+                segments: const <ButtonSegment<NotebookViewMode>>[
+                  ButtonSegment<NotebookViewMode>(
+                    value: NotebookViewMode.card,
+                    icon: Icon(CupertinoIcons.square_grid_2x2, size: 16),
+                    label: Text('卡片'),
+                  ),
+                  ButtonSegment<NotebookViewMode>(
+                    value: NotebookViewMode.list,
+                    icon: Icon(CupertinoIcons.list_bullet, size: 16),
+                    label: Text('列表'),
+                  ),
+                  ButtonSegment<NotebookViewMode>(
+                    value: NotebookViewMode.timeline,
+                    icon:
+                        Icon(CupertinoIcons.calendar, size: 16),
+                    label: Text('时间线'),
+                  ),
+                ],
+                selected: <NotebookViewMode>{_viewMode},
+                onSelectionChanged: (selection) =>
+                    _setViewMode(selection.first),
+                showSelectedIcon: false,
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  textStyle: WidgetStateProperty.all(
+                    const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+            ),
+          ),
           if (activeFilterLabels.isNotEmpty)
             _ActiveFilterSummary(
               labels: activeFilterLabels,
@@ -483,51 +760,12 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                   onRefresh: () async {
                     ref.invalidate(questionListProvider);
                   },
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpace.lg, vertical: AppSpace.xs),
-                    itemCount:
-                        visibleQuestions.length + (hasPracticeAction ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (hasPracticeAction && index == 0) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _KnowledgePointPracticeCard(
-                            knowledgePoint: selectedKnowledgePoint!,
-                            isLoading: _buildingKnowledgePointPractice,
-                            onStart: () => _startKnowledgePointPractice(
-                              selectedKnowledgePoint!,
-                              visibleQuestions,
-                            ),
-                          ),
-                        );
-                      }
-                      final questionIndex = index - (hasPracticeAction ? 1 : 0);
-                      final q = visibleQuestions[questionIndex];
-                      return RepaintBoundary(
-                        child: _QuestionCard(
-                          question: q,
-                          selectionMode: _selectionMode,
-                          selected: _selectedQuestionIds.contains(q.id),
-                          onSelect: () => _toggleSelection(q.id),
-                          onTap: () {
-                            ref.read(currentQuestionProvider.notifier).state =
-                                q;
-                            context.go('/notebook/question/${q.id}');
-                          },
-                          onDelete: () => _confirmDelete(context, ref, q),
-                          onKnowledgePointTap: (kp) {
-                            ref
-                                .read(selectedKnowledgePointFilterProvider
-                                    .notifier)
-                                .state = kp;
-                          },
-                          primaryAction: _selectionMode
-                              ? null
-                              : _cardPrimaryAction(context, ref, q),
-                        ),
-                      );
-                    },
+                  child: _buildQuestionList(
+                    context: context,
+                    ref: ref,
+                    visibleQuestions: visibleQuestions,
+                    hasPracticeAction: hasPracticeAction,
+                    selectedKnowledgePoint: selectedKnowledgePoint,
                   ),
                 );
               },
@@ -1375,5 +1613,466 @@ class _ActiveFilterSummary extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Phase 6-1：将 'yyyy-MM-dd' 格式的日期键格式化为友好的中文标签。
+/// 今天 / 昨天 / N天前 / M月D日（更早或未来日期回退到月日）。
+String _formatTimelineDateKey(String dateKey) {
+  final parts = dateKey.split('-');
+  if (parts.length != 3) return dateKey;
+  final year = int.tryParse(parts[0]);
+  final month = int.tryParse(parts[1]);
+  final day = int.tryParse(parts[2]);
+  if (year == null || month == null || day == null) return dateKey;
+  final date = DateTime(year, month, day);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final diff = today.difference(date).inDays;
+  if (diff == 0) return '今天';
+  if (diff == 1) return '昨天';
+  if (diff > 1 && diff < 7) return '$diff天前';
+  if (diff == -1) return '明天';
+  return '$month月$day日';
+}
+
+/// Phase 6-1：紧凑列表行——一行一题，省去题图缩略图与多行徽章，
+/// 适合在长列表中快速浏览。复用 [_SubjectAvatar] / [_MetaBadge] /
+/// [_masteryColor] / [_masteryLabel] 保持视觉一致。
+class _CompactQuestionRow extends StatelessWidget {
+  const _CompactQuestionRow({
+    required this.question,
+    required this.selectionMode,
+    required this.selected,
+    required this.onSelect,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final QuestionRecord question;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final masteryColor = _masteryColor(context, question.masteryLevel);
+    final isArchived = question.isArchived;
+    final displayStatus = inferQuestionDisplayStatus(question);
+
+    return Dismissible(
+      key: ValueKey('compact-${question.id}'),
+      direction:
+          selectionMode ? DismissDirection.none : DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        onDelete();
+        return false;
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 6),
+        decoration: BoxDecoration(
+          color:
+              isDark ? Colors.red.withValues(alpha: 0.14) : Colors.red.shade50,
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+        ),
+        child: const Icon(CupertinoIcons.trash, color: Colors.red),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: GestureDetector(
+          onTap: selectionMode ? onSelect : onTap,
+          child: Opacity(
+            opacity: isArchived ? 0.55 : 1.0,
+            child: AppCard(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpace.md, vertical: AppSpace.sm),
+              child: Row(
+                children: <Widget>[
+                  if (selectionMode) ...<Widget>[
+                    Checkbox(value: selected, onChanged: (_) => onSelect()),
+                    const SizedBox(width: 4),
+                  ],
+                  _SubjectAvatar(question: question),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        MathContentView(
+                          question.correctedText,
+                          contentFormat: question.contentFormat,
+                          mode: MathContentViewMode.compact,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w500, fontSize: 14),
+                        ),
+                        const SizedBox(height: 2),
+                        Wrap(
+                          spacing: AppSpace.xs,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: <Widget>[
+                            Text(
+                              question.subject.label,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: question.subject.color,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (question.questionType != null)
+                              _MetaBadge(
+                                label: question.questionType!.label,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            if (displayStatus.isFailed)
+                              _MetaBadge(
+                                label: displayStatus.label,
+                                color: AppColors.danger,
+                                icon: CupertinoIcons.exclamationmark_triangle_fill,
+                              ),
+                            if (isArchived)
+                              _MetaBadge(
+                                label: '已归档',
+                                color: Colors.grey,
+                                icon: CupertinoIcons.archivebox,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.sm),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: masteryColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _masteryLabel(question.masteryLevel),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: masteryColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Icon(
+                        CupertinoIcons.chevron_right,
+                        size: 14,
+                        color: colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.65),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Phase 6-1：时间线日期分组头。显示友好日期 + 当日题数。
+class _TimelineDateHeader extends StatelessWidget {
+  const _TimelineDateHeader({
+    required this.dateKey,
+    required this.count,
+  });
+
+  final String dateKey;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpace.xs, AppSpace.md, AppSpace.xs, AppSpace.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: <Widget>[
+          Container(
+            width: 4,
+            height: 14,
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Text(
+            _formatTimelineDateKey(dateKey),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Text(
+            '$count 道',
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Phase 6-1：时间线题目行。左侧为时间线轨道（节点 + 连接线），
+/// 右侧为题干与元信息。当 [isLastInGroup] 为 true 时轨道不向下方延伸，
+/// 以便与下一日的分组头断开。
+class _TimelineQuestionRow extends StatelessWidget {
+  const _TimelineQuestionRow({
+    required this.question,
+    required this.selectionMode,
+    required this.selected,
+    required this.onSelect,
+    required this.onTap,
+    required this.onDelete,
+    required this.isLastInGroup,
+  });
+
+  final QuestionRecord question;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+  final bool isLastInGroup;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final masteryColor = _masteryColor(context, question.masteryLevel);
+    final isArchived = question.isArchived;
+
+    return Dismissible(
+      key: ValueKey('timeline-${question.id}'),
+      direction:
+          selectionMode ? DismissDirection.none : DismissDirection.endToStart,
+      confirmDismiss: (_) async {
+        onDelete();
+        return false;
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color:
+              isDark ? Colors.red.withValues(alpha: 0.14) : Colors.red.shade50,
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+        ),
+        child: const Icon(CupertinoIcons.trash, color: Colors.red),
+      ),
+      child: GestureDetector(
+        onTap: selectionMode ? onSelect : onTap,
+        child: Opacity(
+          opacity: isArchived ? 0.55 : 1.0,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                SizedBox(
+                  width: 24,
+                  child: CustomPaint(
+                    painter: _TimelineTrackPainter(
+                      lineColor: colorScheme.outlineVariant,
+                      nodeColor: masteryColor,
+                      surfaceColor: colorScheme.surface,
+                      drawLineBelow: !isLastInGroup,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.xs),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        0, AppSpace.xs, AppSpace.sm, AppSpace.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        if (selectionMode)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Checkbox(
+                                value: selected,
+                                onChanged: (_) => onSelect()),
+                          ),
+                        MathContentView(
+                          question.correctedText,
+                          contentFormat: question.contentFormat,
+                          mode: MathContentViewMode.compact,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w500, fontSize: 13),
+                        ),
+                        const SizedBox(height: 2),
+                        Wrap(
+                          spacing: AppSpace.xs,
+                          runSpacing: 2,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: <Widget>[
+                            Text(
+                              question.subject.label,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: question.subject.color,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '· ${_masteryLabel(question.masteryLevel)}',
+                              style: TextStyle(
+                                  fontSize: 11, color: masteryColor),
+                            ),
+                            Text(
+                              '· ${question.createdAt.hour.toString().padLeft(2, '0')}:${question.createdAt.minute.toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: AppSpace.xs),
+                  child: Icon(
+                    CupertinoIcons.chevron_right,
+                    size: 14,
+                    color:
+                        colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// [_TimelineQuestionRow] 左侧轨道的绘制器：顶端向下绘制竖线，
+/// 在竖线上方绘制节点圆点（带 surface 描边以遮断竖线）。
+/// 当 [drawLineBelow] 为 false（即分组最后一行）时，竖线只画到节点中心，
+/// 不再向下延伸。
+class _TimelineTrackPainter extends CustomPainter {
+  _TimelineTrackPainter({
+    required this.lineColor,
+    required this.nodeColor,
+    required this.surfaceColor,
+    required this.drawLineBelow,
+  });
+
+  final Color lineColor;
+  final Color nodeColor;
+  final Color surfaceColor;
+  final bool drawLineBelow;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerX = size.width / 2;
+    final nodeCenterY = 10.0;
+    final nodeRadius = 5.0;
+
+    final linePaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final lineBottom = drawLineBelow ? size.height : nodeCenterY;
+    canvas.drawLine(
+      Offset(centerX, 0),
+      Offset(centerX, lineBottom),
+      linePaint,
+    );
+
+    // surface 描边遮断竖线，让节点视觉上"穿"在线上
+    final borderPaint = Paint()
+      ..color = surfaceColor
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      Offset(centerX, nodeCenterY),
+      nodeRadius + 2,
+      borderPaint,
+    );
+    final nodePaint = Paint()
+      ..color = nodeColor
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      Offset(centerX, nodeCenterY),
+      nodeRadius,
+      nodePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TimelineTrackPainter oldDelegate) =>
+      lineColor != oldDelegate.lineColor ||
+      nodeColor != oldDelegate.nodeColor ||
+      surfaceColor != oldDelegate.surfaceColor ||
+      drawLineBelow != oldDelegate.drawLineBelow;
+}
+
+/// Phase 6-1：错题列表视图模式。
+enum NotebookViewMode {
+  /// 卡片视图（默认，信息最全，含题图缩略图）。
+  card,
+
+  /// 紧凑列表视图（一行一题，按科目/题型/掌握度排成表）。
+  list,
+
+  /// 时间线视图（按日期分组，事件流：添加 / 复习 / 分析）。
+  timeline;
+
+  /// 持久化到 SharedPreferences 的稳定标识符。
+  String get storageName => name;
+
+  /// 从持久化的字符串反序列化。无法识别时回退到 [card]。
+  static NotebookViewMode fromStorageName(String? value) {
+    switch (value) {
+      case 'list':
+        return NotebookViewMode.list;
+      case 'timeline':
+        return NotebookViewMode.timeline;
+      case 'card':
+      default:
+        return NotebookViewMode.card;
+    }
   }
 }

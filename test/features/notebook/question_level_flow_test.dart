@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
@@ -69,6 +70,13 @@ QuestionRecord _buildSavedSplitQuestion({
 }
 
 void main() {
+  // Phase 6-1：NotebookScreen 的 initState 会异步读取 SharedPreferences
+  // 中的视图模式偏好，测试前需注册 mock，否则 MissingPluginException 会让
+  // pumpAndSettle 失败。
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   testWidgets('notebook screen shows saved split question tags and text',
       (tester) async {
     final repository = InMemoryQuestionRepository();
@@ -413,5 +421,52 @@ void main() {
 
     expect(find.text('举一反三 1/1'), findsOneWidget);
     expect(find.text('练习题1'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Phase 6-1: notebook list view mode segmented button switches between card/list/timeline',
+      (tester) async {
+    final repository = InMemoryQuestionRepository();
+    // 使用今天日期，确保时间线分组头显示「今天」
+    final today = DateTime.now();
+    await repository.saveDraft(
+        _buildSavedSplitQuestion().copyWith(createdAt: today));
+    await repository.saveDraft(_buildSavedSplitQuestion(
+      id: 'q-batch-2',
+      text: '第二题：已知 y-2=0，求 y',
+      splitOrder: 2,
+    ).copyWith(createdAt: today));
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: <Override>[
+        questionRepositoryProvider.overrideWithValue(repository),
+      ],
+      child: const MaterialApp(home: Scaffold(body: NotebookScreen())),
+    ));
+    await tester.pumpAndSettle();
+
+    // 默认卡片视图应能看到题目文本
+    expect(find.text('第一题：已知 x+1=3，求 x'), findsOneWidget);
+
+    // 三段切换按钮存在
+    expect(find.text('卡片'), findsOneWidget);
+    expect(find.text('列表'), findsOneWidget);
+    expect(find.text('时间线'), findsOneWidget);
+
+    // 切换到紧凑列表视图
+    await tester.tap(find.text('列表'));
+    await tester.pumpAndSettle();
+    expect(find.text('第一题：已知 x+1=3，求 x'), findsOneWidget);
+
+    // 切换到时间线视图——应出现今天的日期分组头
+    await tester.tap(find.text('时间线'));
+    await tester.pumpAndSettle();
+    expect(find.text('今天'), findsWidgets);
+    expect(find.text('第一题：已知 x+1=3，求 x'), findsOneWidget);
+
+    // 切回卡片视图
+    await tester.tap(find.text('卡片'));
+    await tester.pumpAndSettle();
+    expect(find.text('第一题：已知 x+1=3，求 x'), findsOneWidget);
   });
 }
