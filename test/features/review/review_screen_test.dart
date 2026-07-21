@@ -121,6 +121,12 @@ void main() {
     });
 
     testWidgets('shows batch labels for due sibling questions', (tester) async {
+      // Phase 7-1/7-3 后顶部新增模式选择条 + 第二行统计 _MiniStat，
+      // TabBarView 视口变窄，多题场景下 ListView 会懒加载，需要更大的画布
+      // 才能让所有题目卡片同时渲染。
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final repository = InMemoryQuestionRepository();
       await repository.saveDrafts(<QuestionRecord>[
         _reviewQuestion('q-1',
@@ -139,6 +145,9 @@ void main() {
 
     testWidgets('shows mastery status without quick action buttons',
         (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final repository = InMemoryQuestionRepository();
       await repository.saveDrafts(<QuestionRecord>[
         _reviewQuestion('q-new', text: '新增题'),
@@ -182,6 +191,9 @@ void main() {
 
     testWidgets('Phase 7-1: random mode persists selection without crash',
         (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final repository = InMemoryQuestionRepository();
       await repository.saveDrafts(<QuestionRecord>[
         _reviewQuestion('q-1', text: '题目一'),
