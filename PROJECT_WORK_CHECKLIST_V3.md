@@ -25,43 +25,43 @@
 
 ---
 
-# Phase 5:导航重构与知识树页面(P0)
+# Phase 5:导航重构与知识树页面(P0) ✅ 基本完成(CI 通过)
 
 ## 1. 底部导航 6 入口
 
-- [ ] 新增"添加"Tab(图标 `CupertinoIcons.plus_circle`),路由 `/add`,内容为 `CaptureEntrySheet` 持久化版
-- [ ] 新增"知识树"Tab(图标 `CupertinoIcons.tree_documentation`),路由 `/knowledge-tree`
-- [ ] 调整导航顺序为:首页 / 添加 / 错题 / 复习 / 知识树 / 设置
-- [ ] 首页"+"按钮改为跳转 `/add` Tab
-- [ ] 更新 [router.dart](file:///workspace/lib/src/app/router.dart) `StatefulShellRoute.indexedStack` branches
-- [ ] 更新 [app_strings.dart](file:///workspace/lib/src/core/constants/app_strings.dart) Tab 常量
-- [ ] 验证各 Tab 状态独立保持
+- [x] 新增"添加"Tab(图标 `CupertinoIcons.plus_circle`),路由 `/add`,内容为 `CaptureEntrySheet` 持久化版
+- [x] 新增"知识树"Tab(路由 `/knowledge-tree`);注:`CupertinoIcons.tree_documentation` 在当前 SDK 不存在,改用 `Icons.account_tree_outlined`
+- [x] 调整导航顺序为:首页 / 添加 / 错题 / 复习 / 知识树 / 设置
+- [x] 首页"+"按钮改为跳转 `/add` Tab
+- [x] 更新 [router.dart](file:///workspace/lib/src/app/router.dart) `StatefulShellRoute.indexedStack` branches
+- [x] 更新 [app_strings.dart](file:///workspace/lib/src/core/constants/app_strings.dart) Tab 常量
+- [x] 验证各 Tab 状态独立保持(`StatefulShellRoute.indexedStack` 内置各 branch 独立栈)
 
 ## 2. 知识树页面骨架
 
-- [ ] 新建 `lib/src/features/knowledge_tree/presentation/knowledge_tree_screen.dart`
-- [ ] 顶部科目筛选 chip(数学/物理/化学/英语/全部)
-- [ ] 树形结构展示(用 `TreeView` 或自建 `ExpansionTile` 递归)
-- [ ] 节点行:名称 + 掌握度进度条 + 错题数
-- [ ] 点击节点进入知识点详情页
-- [ ] 接入 `knowledgePointTreeProvider` + `knowledgePointMasteryServiceProvider`
+- [x] 新建 `lib/src/features/knowledge_tree/presentation/knowledge_tree_screen.dart`
+- [x] 顶部科目筛选 chip(全部 + Subject.values,含数学/物理/化学/英语等)
+- [x] 树形结构展示(自建 `_KnowledgeTreeTile` 递归,可展开/折叠)
+- [x] 节点行:名称 + 掌握度胶囊 + 错题数
+- [x] 点击节点进入知识点详情页
+- [x] 接入 `knowledgePointTreeProvider` + `weakPointRecommendationsProvider`(合并为 `knowledgeTreeOverviewProvider`)
 
 ## 3. 知识树热力图与统计
 
-- [ ] 掌握度 4 档颜色映射(0-30% 红 / 31-60% 橙 / 61-85% 绿 / 86-100% 深绿)
-- [ ] 调整 `MasteryLevel` 阈值或新增 `masteryBucket` 工具函数
-- [ ] 薄弱知识点 TOP5(基于 `KnowledgePointMastery.masteryPercentage` 排序,非字符串计数)
-- [ ] 掌握度分布卡(掌握/一般/模糊三档题数 + 占比)
+- [x] 掌握度 4 档颜色映射(0-30% 红 / 31-60% 橙 / 61-85% 绿 / 86-100% 深绿)
+- [x] 4 档配色在 UI 层 `_masteryColor` 实现(未改 `MasteryLevel` 阈值,避免影响现有掌握度判定逻辑)
+- [x] 薄弱知识点 TOP5(基于 `KnowledgePointMastery.masteryPercentage` 升序 take(5))
+- [x] 掌握度分布卡(掌握/一般/模糊三档题数 + 占比)
 
 ## 4. 知识点详情页
 
-- [ ] 新建 `lib/src/features/knowledge_tree/presentation/knowledge_point_detail_screen.dart`
-- [ ] 顶部:面包屑路径(科目 > 模块 > 章节 > 知识点)+ 掌握度进度条
-- [ ] 统计区:错题数 / 待复习数 / 正确率
-- [ ] 错题列表(该知识点下所有题)
-- [ ] 专项练习入口(跳 `KnowledgePointPracticeController`)
-- [ ] 学习建议(基于复习历史生成文案)
-- [ ] "在知识树中查看"按钮(返回树并定位节点)
+- [x] 新建 `lib/src/features/knowledge_tree/presentation/knowledge_point_detail_screen.dart`
+- [x] 顶部:科目面包屑 + 知识点名 + 掌握度进度条
+- [x] 统计区:错题数 / 待复习数 / 正确率(三宫格)
+- [x] 错题列表(该知识点下所有题,通过 `questionIdsForKnowledgePoint`)
+- [x] 专项练习入口(跳 `KnowledgePointPracticeController.buildRound`,`PracticeContext.returnRoute='/knowledge-tree'`)
+- [ ] 学习建议(基于复习历史生成文案)— 延后
+- [ ] "在知识树中查看"按钮(返回树并定位节点)— 延后
 
 ## 5. 知识树模型类型化(可选,延后)
 
