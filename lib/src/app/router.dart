@@ -220,7 +220,7 @@ class ScaffoldWithNavBar extends StatelessWidget {
               icon: Icon(CupertinoIcons.arrow_2_circlepath),
               label: AppStrings.reviewTab),
           NavigationDestination(
-              icon: Icon(CupertinoIcons.tree_documentation),
+              icon: Icon(CupertinoIcons.organize),
               label: AppStrings.knowledgeTreeTab),
           NavigationDestination(
               icon: Icon(CupertinoIcons.gear), label: AppStrings.settingsTab),
