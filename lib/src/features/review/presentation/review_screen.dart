@@ -32,9 +32,34 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   int _initialPending = 0;
   bool _summaryShown = false;
 
+  /// 连续复习模式：评价完成后自动滚动到下一题。
+  bool _continuousMode = false;
+
+  /// 待复习列表的滚动控制器，用于支持「下一题」自动滚动。
+  final ScrollController _pendingScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _pendingScrollController.dispose();
+    super.dispose();
+  }
+
   void _onRated(ReviewRating rating) {
     setState(() => _sessionStats[rating] = (_sessionStats[rating] ?? 0) + 1);
     // 总结弹窗的检查在 build 中数据可用时进行，避免在 provider 加载期间误判。
+  }
+
+  /// 滚动到下一题。预估单题卡片高度约 380px，确保下一张卡片可见。
+  void _scrollToNextPending() {
+    final controller = _pendingScrollController;
+    if (!controller.hasClients) return;
+    final target = controller.offset + 380;
+    final max = controller.position.maxScrollExtent;
+    controller.animateTo(
+      target > max ? max : target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
   }
 
   void _showSummaryDialog() {
@@ -88,6 +113,13 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('稍后再说'),
           ),
+          FilledButton.tonal(
+            onPressed: () {
+              Navigator.pop(ctx);
+              // 关闭弹窗后用户可继续查看已排程题目，本轮统计保留。
+            },
+            child: const Text('继续下一组'),
+          ),
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -134,6 +166,16 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
             appBar: AppBar(
               title: const Text(AppStrings.reviewTitle),
               actions: <Widget>[
+                IconButton(
+                  icon: Icon(_continuousMode
+                      ? CupertinoIcons.repeat_1
+                      : CupertinoIcons.repeat),
+                  tooltip: _continuousMode ? '关闭连续复习' : '开启连续复习',
+                  color: _continuousMode
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                  onPressed: () => setState(() => _continuousMode = !_continuousMode),
+                ),
                 IconButton(
                   icon: const Icon(CupertinoIcons.clock),
                   tooltip: AppStrings.reviewHistory,
@@ -184,6 +226,9 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                         batchGroups: batchGroups,
                         ref: ref,
                         onRated: _onRated,
+                        scrollController: _pendingScrollController,
+                        onNext: _scrollToNextPending,
+                        autoAdvance: _continuousMode,
                       ),
                       _ReviewQuestionList(
                         questions: scheduled,
@@ -386,6 +431,9 @@ class _ReviewQuestionList extends StatelessWidget {
     required this.batchGroups,
     required this.ref,
     this.onRated,
+    this.scrollController,
+    this.onNext,
+    this.autoAdvance = false,
   });
 
   final List<QuestionRecord> questions;
@@ -393,6 +441,9 @@ class _ReviewQuestionList extends StatelessWidget {
   final Map<String, QuestionBatchGroup>? batchGroups;
   final WidgetRef ref;
   final ValueChanged<ReviewRating>? onRated;
+  final ScrollController? scrollController;
+  final VoidCallback? onNext;
+  final bool autoAdvance;
 
   @override
   Widget build(BuildContext context) {
@@ -404,6 +455,7 @@ class _ReviewQuestionList extends StatelessWidget {
     }
 
     return ListView.separated(
+      controller: scrollController,
       padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.xs, AppSpace.lg, AppSpace.lg),
       itemCount: questions.length,
       separatorBuilder: (_, __) => const SizedBox(height: AppSpace.sm),
@@ -415,6 +467,8 @@ class _ReviewQuestionList extends StatelessWidget {
           context.go('/notebook/question/${questions[index].id}');
         },
         onRated: onRated,
+        onNext: onNext,
+        autoAdvance: autoAdvance,
       ),
     );
   }
@@ -494,12 +548,16 @@ class _ReviewCard extends ConsumerStatefulWidget {
     required this.onOpen,
     this.batchLabel,
     this.onRated,
+    this.onNext,
+    this.autoAdvance = false,
   });
 
   final QuestionRecord question;
   final VoidCallback onOpen;
   final String? batchLabel;
   final ValueChanged<ReviewRating>? onRated;
+  final VoidCallback? onNext;
+  final bool autoAdvance;
 
   @override
   ConsumerState<_ReviewCard> createState() => _ReviewCardState();
@@ -531,6 +589,17 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
           _rated = true;
         });
         _showRatingFeedback(rating, updated);
+        // 连续复习模式：评价完成后短暂延迟再自动滚动到下一题，
+        // 让用户先看到反馈卡片和 SnackBar。
+        if (widget.autoAdvance && widget.onNext != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            Future<void>.delayed(const Duration(milliseconds: 600))
+                .then((_) {
+              if (mounted) widget.onNext?.call();
+            });
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -595,6 +664,7 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
       return _RatedCard(
         question: widget.question,
         onOpen: widget.onOpen,
+        onNext: widget.onNext,
       );
     }
 
@@ -657,10 +727,11 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
 
 /// 评价完成后展示的简短卡片，提示已记录并提供「打开详情」入口。
 class _RatedCard extends StatelessWidget {
-  const _RatedCard({required this.question, required this.onOpen});
+  const _RatedCard({required this.question, required this.onOpen, this.onNext});
 
   final QuestionRecord question;
   final VoidCallback onOpen;
+  final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -682,6 +753,14 @@ class _RatedCard extends StatelessWidget {
             ),
           ),
           TextButton(onPressed: onOpen, child: const Text('详情')),
+          if (onNext != null) ...<Widget>[
+            const SizedBox(width: AppSpace.xs),
+            FilledButton.icon(
+              onPressed: onNext,
+              icon: const Icon(CupertinoIcons.arrow_down, size: 16),
+              label: const Text('下一题'),
+            ),
+          ],
         ],
       ),
     );

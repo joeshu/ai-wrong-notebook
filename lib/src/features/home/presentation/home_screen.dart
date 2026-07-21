@@ -103,35 +103,73 @@ class HomeScreen extends ConsumerWidget {
           const SizedBox(height: AppSpace.md),
           questionsAsync.when(
             data: (questions) {
-              final pendingAi = questions.where((q) =>
-                  inferQuestionDisplayStatus(q) == QuestionDisplayStatus.recognized).length;
-              final failed = questions.where((q) => inferQuestionDisplayStatus(q).isFailed).length;
-              final lowConfidence = questions.where((q) =>
-                  q.ocrConfidence != null && q.ocrConfidence! < 0.7).length;
-              if (pendingAi == 0 && failed == 0 && lowConfidence == 0) {
+              // 待 AI 分析：OCR 已成功且置信度不低（不需要再人工校对）
+              final pendingAi = questions.where((q) {
+                if (inferQuestionDisplayStatus(q) !=
+                    QuestionDisplayStatus.recognized) return false;
+                // 排除低置信度（低置信度归入"待校对"）
+                return q.ocrConfidence == null || q.ocrConfidence! >= 0.7;
+              }).length;
+              // 待校对：OCR 已成功但低置信度，需要人工确认
+              final pendingProofread = questions.where((q) {
+                if (inferQuestionDisplayStatus(q) !=
+                    QuestionDisplayStatus.recognized) return false;
+                return q.ocrConfidence != null && q.ocrConfidence! < 0.7;
+              }).length;
+              // 识别失败（ContentStatus.failed）
+              final recognitionFailed = questions.where((q) =>
+                  inferQuestionDisplayStatus(q) ==
+                  QuestionDisplayStatus.recognitionFailed).length;
+              // AI 分析失败（ContentStatus.analysisFailed）
+              final analysisFailed = questions.where((q) =>
+                  inferQuestionDisplayStatus(q) ==
+                  QuestionDisplayStatus.analysisFailed).length;
+              if (pendingAi == 0 &&
+                  pendingProofread == 0 &&
+                  recognitionFailed == 0 &&
+                  analysisFailed == 0) {
                 return const SizedBox.shrink();
               }
               return _PendingTaskCard(
                 pendingAi: pendingAi,
-                failed: failed,
-                lowConfidence: lowConfidence,
+                pendingProofread: pendingProofread,
+                recognitionFailed: recognitionFailed,
+                analysisFailed: analysisFailed,
                 onOpenNotebook: () => context.go('/notebook'),
                 onOpenPendingAi: () {
                   ref.read(pendingAiOnlyFilterProvider.notifier).state = true;
+                  ref.read(pendingProofreadOnlyFilterProvider.notifier).state = false;
                   ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
                   ref.read(failedOnlyFilterProvider.notifier).state = false;
+                  ref.read(recognitionFailedOnlyFilterProvider.notifier).state = false;
+                  ref.read(analysisFailedOnlyFilterProvider.notifier).state = false;
                   context.go('/notebook');
                 },
-                onOpenFailed: () {
-                  ref.read(failedOnlyFilterProvider.notifier).state = true;
+                onOpenPendingProofread: () {
+                  ref.read(pendingProofreadOnlyFilterProvider.notifier).state = true;
                   ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
+                  ref.read(failedOnlyFilterProvider.notifier).state = false;
+                  ref.read(recognitionFailedOnlyFilterProvider.notifier).state = false;
+                  ref.read(analysisFailedOnlyFilterProvider.notifier).state = false;
+                  context.go('/notebook');
+                },
+                onOpenRecognitionFailed: () {
+                  ref.read(recognitionFailedOnlyFilterProvider.notifier).state = true;
+                  ref.read(analysisFailedOnlyFilterProvider.notifier).state = false;
+                  ref.read(failedOnlyFilterProvider.notifier).state = false;
+                  ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+                  ref.read(pendingProofreadOnlyFilterProvider.notifier).state = false;
                   ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
                   context.go('/notebook');
                 },
-                onOpenLowConfidence: () {
-                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = true;
-                  ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+                onOpenAnalysisFailed: () {
+                  ref.read(analysisFailedOnlyFilterProvider.notifier).state = true;
+                  ref.read(recognitionFailedOnlyFilterProvider.notifier).state = false;
                   ref.read(failedOnlyFilterProvider.notifier).state = false;
+                  ref.read(pendingAiOnlyFilterProvider.notifier).state = false;
+                  ref.read(pendingProofreadOnlyFilterProvider.notifier).state = false;
+                  ref.read(lowConfidenceOnlyFilterProvider.notifier).state = false;
                   context.go('/notebook');
                 },
                 onRetry: () => ref.invalidate(questionListProvider),
@@ -198,7 +236,37 @@ class HomeScreen extends ConsumerWidget {
                 }
               }
               final ranked = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-              if (ranked.isEmpty) return const SizedBox.shrink();
+              if (ranked.isEmpty) {
+                // 无薄弱知识点数据：若是空错题本则隐藏；若有错题但无 AI 知识点
+                // 关联，给出引导空状态。
+                if (questions.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: AppSpace.lg),
+                  child: AppCard(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpace.md, vertical: AppSpace.md),
+                      child: Column(
+                        children: <Widget>[
+                          const Icon(CupertinoIcons.scope,
+                              size: 28, color: AppColors.slate),
+                          const SizedBox(height: AppSpace.sm),
+                          const Text('暂无薄弱知识点数据',
+                              style: TextStyle(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '完成 AI 分析后，薄弱知识点会自动汇总到这里。',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }
               return Padding(
                 padding: const EdgeInsets.only(top: AppSpace.lg),
                 child: _WeakPointSection(
@@ -988,6 +1056,7 @@ class _WeakPointSectionState extends ConsumerState<_WeakPointSection> {
                         : null,
                     pendingReviewCount: rec.pendingReviewCount,
                     useControlledId: true,
+                    lastReviewedAt: rec.mastery?.lastReviewedAt,
                   ))
               .toList(),
           practicingPoint: _practicingPoint,
@@ -1064,6 +1133,7 @@ class _WeakPointRow {
     required this.reason,
     required this.pendingReviewCount,
     required this.useControlledId,
+    this.lastReviewedAt,
   });
   final String key;
   final String displayName;
@@ -1072,6 +1142,9 @@ class _WeakPointRow {
   final String? reason;
   final int? pendingReviewCount;
   final bool useControlledId;
+  /// 该知识点最近一次复习时间（来自 KnowledgePointMastery.lastReviewedAt）。
+  /// null 表示尚未复习过。
+  final DateTime? lastReviewedAt;
 }
 
 class _WeakPointCard extends StatelessWidget {
@@ -1130,6 +1203,19 @@ class _WeakPointCard extends StatelessWidget {
                               '待复习 ${row.pendingReviewCount} 题',
                               style: TextStyle(fontSize: 12, color: AppColors.warningDark),
                             ),
+                          // 显示最近复习时间；未复习过时给出"尚未复习"提示，
+                          // 帮助用户判断是否需要立即开始。
+                          Text(
+                            row.lastReviewedAt != null
+                                ? '最近复习 ${_formatRelativeTime(row.lastReviewedAt!)}'
+                                : '尚未复习',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: row.lastReviewedAt == null
+                                  ? AppColors.warningDark
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                          ),
                         ],
                       ),
                       if (row.reason != null) ...<Widget>[
@@ -1172,6 +1258,21 @@ class _WeakPointCard extends StatelessWidget {
     );
   }
 }
+
+/// 格式化为相对时间文案：刚刚 / N 分钟前 / N 小时前 / N 天前 / YYYY-MM-DD。
+///
+/// 用于薄弱知识点的"最近复习"展示，让用户一眼判断复习间隔。
+String _formatRelativeTime(DateTime time) {
+  final now = DateTime.now();
+  final diff = now.difference(time);
+  if (diff.inSeconds < 60) return '刚刚';
+  if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟前';
+  if (diff.inHours < 24) return '${diff.inHours} 小时前';
+  if (diff.inDays < 30) return '${diff.inDays} 天前';
+  // 超过 30 天直接显示日期，避免"90 天前"这种歧义文案
+  return '${time.year}-${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')}';
+}
+
 class _GoalEntryCard extends StatelessWidget {
   const _GoalEntryCard({required this.onTap});
 
@@ -1328,34 +1429,35 @@ class _TaskActionRow extends StatelessWidget {
         ),
       );
 }
+
 class _PendingTaskCard extends StatelessWidget {
   const _PendingTaskCard({
     required this.pendingAi,
-    required this.failed,
-    required this.lowConfidence,
+    required this.pendingProofread,
+    required this.recognitionFailed,
+    required this.analysisFailed,
     required this.onOpenNotebook,
     required this.onOpenPendingAi,
-    required this.onOpenFailed,
-    required this.onOpenLowConfidence,
+    required this.onOpenPendingProofread,
+    required this.onOpenRecognitionFailed,
+    required this.onOpenAnalysisFailed,
     required this.onRetry,
   });
 
   final int pendingAi;
-  final int failed;
-  final int lowConfidence;
+  final int pendingProofread;
+  final int recognitionFailed;
+  final int analysisFailed;
   final VoidCallback onOpenNotebook;
   final VoidCallback onOpenPendingAi;
-  final VoidCallback onOpenFailed;
-  final VoidCallback onOpenLowConfidence;
+  final VoidCallback onOpenPendingProofread;
+  final VoidCallback onOpenRecognitionFailed;
+  final VoidCallback onOpenAnalysisFailed;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final items = <String>[];
-    if (pendingAi > 0) items.add('$pendingAi 道待 AI 分析');
-    if (failed > 0) items.add('$failed 道识别或分析失败');
-    if (lowConfidence > 0) items.add('$lowConfidence 道识别置信度较低');
     return AppCard(
       backgroundColor: scheme.surfaceContainerHighest,
       child: Column(
@@ -1379,19 +1481,26 @@ class _PendingTaskCard extends StatelessWidget {
               color: scheme.primary,
               onTap: onOpenPendingAi,
             ),
-          if (failed > 0)
+          if (pendingProofread > 0)
             _TaskActionRow(
-              label: '$failed 道识别或分析失败',
-              icon: CupertinoIcons.exclamationmark_triangle,
-              color: AppColors.danger,
-              onTap: onOpenFailed,
-            ),
-          if (lowConfidence > 0)
-            _TaskActionRow(
-              label: '$lowConfidence 道识别置信度较低',
+              label: '$pendingProofread 道待校对（低置信度）',
               icon: CupertinoIcons.eye,
               color: AppColors.warning,
-              onTap: onOpenLowConfidence,
+              onTap: onOpenPendingProofread,
+            ),
+          if (recognitionFailed > 0)
+            _TaskActionRow(
+              label: '$recognitionFailed 道识别失败',
+              icon: CupertinoIcons.xmark_octagon,
+              color: AppColors.danger,
+              onTap: onOpenRecognitionFailed,
+            ),
+          if (analysisFailed > 0)
+            _TaskActionRow(
+              label: '$analysisFailed 道 AI 分析失败',
+              icon: CupertinoIcons.exclamationmark_triangle,
+              color: AppColors.danger,
+              onTap: onOpenAnalysisFailed,
             ),
           const SizedBox(height: AppSpace.sm),
           Align(

@@ -758,6 +758,22 @@ final StateProvider<bool> favoritesOnlyFilterProvider =
 final StateProvider<bool> failedOnlyFilterProvider =
     StateProvider<bool>((ref) => false);
 
+/// 仅显示识别失败题目（ContentStatus.failed → recognitionFailed）。
+/// 与 [failedOnlyFilterProvider] 互补：后者同时匹配识别失败与分析失败，
+/// 此 Provider 仅匹配识别失败，便于首页"分开统计识别失败与 AI 分析失败"。
+final StateProvider<bool> recognitionFailedOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
+/// 仅显示 AI 分析失败题目（ContentStatus.analysisFailed → analysisFailed）。
+final StateProvider<bool> analysisFailedOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
+/// 仅显示待校对题目（OCR 已成功但低置信度，需人工确认）。
+/// 与 [pendingAiOnlyFilterProvider] 互补：后者仅匹配 recognized 状态，
+/// 此 Provider 额外要求 ocrConfidence < 0.7，便于首页"分开统计待校对与低置信度"。
+final StateProvider<bool> pendingProofreadOnlyFilterProvider =
+    StateProvider<bool>((ref) => false);
+
 final StateProvider<bool> pendingAiOnlyFilterProvider =
     StateProvider<bool>((ref) => false);
 
@@ -868,6 +884,9 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
   final dueOnly = ref.watch(dueOnlyFilterProvider);
   final favoritesOnly = ref.watch(favoritesOnlyFilterProvider);
   final failedOnly = ref.watch(failedOnlyFilterProvider);
+  final recognitionFailedOnly = ref.watch(recognitionFailedOnlyFilterProvider);
+  final analysisFailedOnly = ref.watch(analysisFailedOnlyFilterProvider);
+  final pendingProofreadOnly = ref.watch(pendingProofreadOnlyFilterProvider);
   final pendingAiOnly = ref.watch(pendingAiOnlyFilterProvider);
   final lowConfidenceOnly = ref.watch(lowConfidenceOnlyFilterProvider);
   final dateRange = ref.watch(questionDateRangeProvider);
@@ -897,6 +916,23 @@ final StreamProvider<List<QuestionRecord>> filteredQuestionListProvider =
             if (dueOnly && !scheduler.isDue(q)) return false;
             if (favoritesOnly && !q.isFavorite) return false;
             if (failedOnly && !inferQuestionDisplayStatus(q).isFailed) {
+              return false;
+            }
+            if (recognitionFailedOnly &&
+                inferQuestionDisplayStatus(q) !=
+                    QuestionDisplayStatus.recognitionFailed) {
+              return false;
+            }
+            if (analysisFailedOnly &&
+                inferQuestionDisplayStatus(q) !=
+                    QuestionDisplayStatus.analysisFailed) {
+              return false;
+            }
+            if (pendingProofreadOnly &&
+                !(inferQuestionDisplayStatus(q) ==
+                        QuestionDisplayStatus.recognized &&
+                    q.ocrConfidence != null &&
+                    q.ocrConfidence! < 0.7)) {
               return false;
             }
             if (pendingAiOnly &&
