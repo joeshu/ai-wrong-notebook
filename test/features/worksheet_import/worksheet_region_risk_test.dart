@@ -13,6 +13,8 @@ QuestionRegion _region({
   String? questionType,
   List<String> formulas = const <String>[],
   List<String> tables = const <String>[],
+  List<String> options = const <String>[],
+  String? diagramNote,
 }) {
   return QuestionRegion(
     id: id,
@@ -24,6 +26,8 @@ QuestionRegion _region({
     questionType: questionType,
     formulas: formulas,
     tables: tables,
+    options: options,
+    diagramNote: diagramNote,
   );
 }
 
@@ -344,6 +348,74 @@ void main() {
         recognitionFieldStatus('图形', _region(text: '题干', blockTypes: const <String>['diagram'])),
         FieldStatus.recognized,
       );
+    });
+
+    test('选项：用户已显式编辑过 options → 已校对（与自动解析区分）', () {
+      final region = _region(
+        text: '题干',
+        questionType: '选择题',
+        options: const <String>['A. 红色', 'B. 蓝色'],
+      );
+      expect(recognitionFieldStatus('选项', region), FieldStatus.edited);
+    });
+
+    test('图形：已填写 diagramNote → 已校对（人工核对完成）', () {
+      expect(
+        recognitionFieldStatus('图形',
+            _region(text: '题干', blockTypes: const <String>['图形'], diagramNote: '直角三角形 ABC')),
+        FieldStatus.edited,
+      );
+      // 没有图形块但已填备注（用户主动添加备注的场景）也算已校对
+      expect(
+        recognitionFieldStatus('图形',
+            _region(text: '题干', diagramNote: '函数图像 y=x^2')),
+        FieldStatus.edited,
+      );
+      // 空白备注视为未填写
+      expect(
+        recognitionFieldStatus('图形',
+            _region(text: '题干', blockTypes: const <String>['图形'], diagramNote: '   ')),
+        FieldStatus.recognized,
+      );
+    });
+  });
+
+  group('选项行解析与规范化', () {
+    test('_parseOptionLines 从 recognizedText 提取选项行', () {
+      expect(_parseOptionLines(null), isEmpty);
+      expect(_parseOptionLines(''), isEmpty);
+      expect(_parseOptionLines('题干\nA. 选项一\nB. 选项二'),
+          <String>['A. 选项一', 'B. 选项二']);
+      // 支持中文顿号、半角句号
+      expect(_parseOptionLines('A、第一项\nB．第二项'),
+          <String>['A. 第一项', 'B. 第二项']);
+      // 非选项行被忽略
+      expect(_parseOptionLines('题干\n解答\nA. 选项一'),
+          <String>['A. 选项一']);
+    });
+
+    test('_normalizeOptions 自动补 A./B./C./D. 前缀', () {
+      expect(_normalizeOptions('红色\n蓝色\n绿色'),
+          <String>['A. 红色', 'B. 蓝色', 'C. 绿色']);
+      // 已有前缀的保留原字母
+      expect(_normalizeOptions('A. 红色\nB. 蓝色'),
+          <String>['A. 红色', 'B. 蓝色']);
+      // 空行被过滤
+      expect(_normalizeOptions('红色\n\n蓝色'),
+          <String>['A. 红色', 'B. 蓝色']);
+      // 全空 → 空列表（用于清空 options）
+      expect(_normalizeOptions('  \n  '), isEmpty);
+    });
+
+    test('_hasOptionLine 与 _parseOptionLines 一致性', () {
+      // 有选项行时两者都为 true/非空
+      const text = '题干\nA. 选项一\nB. 选项二';
+      expect(_hasOptionLine(text), isTrue);
+      expect(_parseOptionLines(text), hasLength(2));
+      // 无选项行时两者都为 false/空
+      const noOption = '题干没有选项';
+      expect(_hasOptionLine(noOption), isFalse);
+      expect(_parseOptionLines(noOption), isEmpty);
     });
   });
 }

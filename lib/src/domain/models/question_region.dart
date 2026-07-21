@@ -14,6 +14,7 @@ class QuestionRegion {
     this.questionStem,
     this.formulas = const <String>[],
     this.tables = const <String>[],
+    this.options = const <String>[],
     this.documentBlocks = const <DocumentBlock>[],
     this.contentFormatHint,
     this.recognizedBlockTypes = const <String>[],
@@ -23,6 +24,7 @@ class QuestionRegion {
     this.reviewStatus = QuestionRegionReviewStatus.accepted,
     this.confidence = 1,
     this.source = QuestionRegionSource.manual,
+    this.diagramNote,
   });
 
   final String id;
@@ -38,6 +40,10 @@ class QuestionRegion {
   final String? questionStem;
   final List<String> formulas;
   final List<String> tables;
+  /// User-edited choice options (one entry per option, e.g. "A. 选项一").
+  /// Empty list means user hasn't opened the option editor yet; the UI then
+  /// falls back to auto-parsing option lines from [recognizedText].
+  final List<String> options;
   /// Ordered source blocks, preserving the reading order of text/formulas/tables.
   final List<DocumentBlock> documentBlocks;
   final String? contentFormatHint;
@@ -53,6 +59,10 @@ class QuestionRegion {
   final QuestionRegionReviewStatus reviewStatus;
   final double confidence;
   final QuestionRegionSource source;
+  /// Free-form note describing the diagram/figure for regions where the layout
+  /// service only flagged a "图形" block but didn't extract textual content.
+  /// Used as a manual cross-check entry; empty string clears the note.
+  final String? diagramNote;
 
   QuestionRegion copyWith({
     Rect? normalizedRect,
@@ -62,6 +72,7 @@ class QuestionRegion {
     String? questionStem,
     List<String>? formulas,
     List<String>? tables,
+    List<String>? options,
     List<DocumentBlock>? documentBlocks,
     String? contentFormatHint,
     List<String>? recognizedBlockTypes,
@@ -71,6 +82,7 @@ class QuestionRegion {
     QuestionRegionReviewStatus? reviewStatus,
     double? confidence,
     QuestionRegionSource? source,
+    String? diagramNote,
   }) {
     return QuestionRegion(
       id: id,
@@ -81,6 +93,7 @@ class QuestionRegion {
       questionStem: questionStem ?? this.questionStem,
       formulas: formulas ?? this.formulas,
       tables: tables ?? this.tables,
+      options: options ?? this.options,
       documentBlocks: documentBlocks ?? this.documentBlocks,
       contentFormatHint: contentFormatHint ?? this.contentFormatHint,
       recognizedBlockTypes: recognizedBlockTypes ?? this.recognizedBlockTypes,
@@ -90,6 +103,7 @@ class QuestionRegion {
       reviewStatus: reviewStatus ?? this.reviewStatus,
       confidence: confidence ?? this.confidence,
       source: source ?? this.source,
+      diagramNote: diagramNote ?? this.diagramNote,
     );
   }
 }

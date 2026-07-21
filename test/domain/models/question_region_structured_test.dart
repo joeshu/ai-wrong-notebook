@@ -59,4 +59,41 @@ void main() {
     ]);
     expect(ordered.documentBlocks[2].content, '解释文字');
   });
+
+  test('options 默认为空 list，copyWith 可写入', () {
+    const r = QuestionRegion(
+      id: 'q',
+      normalizedRect: Rect.fromLTWH(0, 0, 1, 1),
+    );
+    expect(r.options, isEmpty);
+    expect(r.diagramNote, isNull);
+
+    final withOptions = r.copyWith(
+      options: const <String>['A. 红色', 'B. 蓝色'],
+      diagramNote: '直角三角形',
+    );
+    expect(withOptions.options, <String>['A. 红色', 'B. 蓝色']);
+    expect(withOptions.diagramNote, '直角三角形');
+  });
+
+  test('copyWith options 传空 list 可清空（不会被当作"保留原值"）', () {
+    final r = region().copyWith(options: const <String>['A. 选项']);
+    expect(r.options, hasLength(1));
+
+    final cleared = r.copyWith(options: const <String>[]);
+    expect(cleared.options, isEmpty);
+  });
+
+  test('copyWith diagramNote 传空串可清空（与 null 区分）', () {
+    final r = region().copyWith(diagramNote: '原图备注');
+    expect(r.diagramNote, '原图备注');
+
+    // 传 '' 是显式清空（空串语义）
+    final cleared = r.copyWith(diagramNote: '');
+    expect(cleared.diagramNote, '');
+
+    // 传 null 是"保留原值"（copyWith 默认行为）
+    final kept = r.copyWith();
+    expect(kept.diagramNote, '原图备注');
+  });
 }

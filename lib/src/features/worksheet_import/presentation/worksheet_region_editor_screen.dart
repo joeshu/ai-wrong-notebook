@@ -1008,12 +1008,21 @@ FieldStatus recognitionFieldStatus(
           type != '选择题') {
         return FieldStatus.notApplicable;
       }
+      // 用户已显式编辑过 options（list 非空）→ 已校对。
+      // 与"自动从 recognizedText 解析到选项行"区分开，让用户清楚自己改过。
+      if (region.options.isNotEmpty) {
+        return FieldStatus.edited;
+      }
       return _hasOptionLine(region.recognizedText)
           ? (edited ? FieldStatus.edited : FieldStatus.recognized)
           : FieldStatus.needsReview;
     case '图形':
       final has = region.recognizedBlockTypes.any((t) =>
           t == '图形' || t == 'diagram' || t.toLowerCase().contains('diagram'));
+      // 已填写图形备注 → 视为人工核对完成，标记"已校对"。
+      if ((region.diagramNote ?? '').trim().isNotEmpty) {
+        return FieldStatus.edited;
+      }
       return has ? FieldStatus.recognized : FieldStatus.needsReview;
     default:
       return FieldStatus.missing;
@@ -1023,6 +1032,39 @@ FieldStatus recognitionFieldStatus(
 bool _hasOptionLine(String? text) {
   if (text == null) return false;
   return RegExp(r'(?:^|\s)[A-H][.．、]\s*\S', multiLine: true).hasMatch(text);
+}
+
+/// 从 recognizedText 中按行解析 A./B./C./D. 选项行。
+/// 仅匹配行首（允许前导空白）；每行返回 "X. 内容" 形式，已 trim。
+List<String> _parseOptionLines(String? text) {
+  if (text == null) return const <String>[];
+  final pattern = RegExp(r'^\s*([A-H])[.．、]\s*(.+?)\s*$');
+  final result = <String>[];
+  for (final line in text.split('\n')) {
+    final match = pattern.firstMatch(line);
+    if (match != null) {
+      result.add('${match.group(1)}. ${match.group(2)!.trim()}');
+    }
+  }
+  return result;
+}
+
+/// 把对话框收集的多行文本规范化为 "A. xxx\nB. yyy" 列表。
+/// 已带 A./B./C./D. 前缀的保留原字母；缺前缀的按行序补 A./B./C./D.。
+List<String> _normalizeOptions(String raw) {
+  final lines = raw
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .toList();
+  final pattern = RegExp(r'^([A-H])[.．、]\s*(.+)$');
+  return List<String>.generate(lines.length, (i) {
+    final match = pattern.firstMatch(lines[i]);
+    if (match != null) {
+      return '${match.group(1)}. ${match.group(2)!.trim()}';
+    }
+    return '${String.fromCharCode(65 + i)}. ${lines[i]}';
+  });
 }
 
 class RecognitionEvidencePreview extends StatefulWidget {
@@ -1714,8 +1756,12 @@ class _RecognizedQuestionWorkbenchState
   String _stemFor(QuestionRegion region) {
     if (region.questionStem != null) return region.questionStem!;
     final formula = RegExp(r'\$[^$]+\$');
+    // 题干不应包含公式行、表格行、选项行；选项行单独由 _optionsFor 维护。
+    final optionLine = RegExp(r'^\s*[A-H][.．、]\s*\S');
     return (region.recognizedText ?? '').split('\n')
-        .where((line) => !formula.hasMatch(line) && !line.trimLeft().startsWith('|'))
+        .where((line) => !formula.hasMatch(line) &&
+            !line.trimLeft().startsWith('|') &&
+            !optionLine.hasMatch(line))
         .join('\n').trim();
   }
 
@@ -1732,6 +1778,16 @@ class _RecognizedQuestionWorkbenchState
     return lines.isEmpty ? const <String>[] : <String>[lines.join('\n')];
   }
 
+  /// 取选项列表：region.options 非空时直接返回（用户已编辑过）；
+  /// 否则首次进入从 recognizedText 自动解析 A./B./C./D. 行。
+  /// 用户主动清空（options 已被设为空 list 且 originalRecognizedText 标记
+  /// 已编辑）时返回空，避免把原文里的选项行"复活"。
+  List<String> _optionsFor(QuestionRegion region) {
+    if (region.options.isNotEmpty) return region.options;
+    if (region.originalRecognizedText != null) return const <String>[];
+    return _parseOptionLines(region.recognizedText);
+  }
+
   void _applyBlocks(int index, QuestionRegion region, List<DocumentBlock> blocks) {
     final text = blocks.where((block) => block.type == DocumentBlockType.text)
         .map((block) => block.content).where((value) => value.trim().isNotEmpty).join('\n\n');
@@ -1739,11 +1795,16 @@ class _RecognizedQuestionWorkbenchState
         .map((block) => block.content).where((value) => value.trim().isNotEmpty).toList();
     final tables = blocks.where((block) => block.type == DocumentBlockType.table)
         .map((block) => block.content).where((value) => value.trim().isNotEmpty).toList();
-    final combined = blocks.map((block) => block.content).where((value) => value.trim().isNotEmpty).join('\n\n');
+    final options = _optionsFor(region);
+    final combined = <String>[
+      ...blocks.where((block) => block.content.trim().isNotEmpty).map((block) => block.content),
+      ...options,
+    ].join('\n\n');
     widget.onUpdate(index, region.copyWith(
       questionStem: text,
       formulas: formulas,
       tables: tables,
+      options: options,
       documentBlocks: blocks,
       recognizedText: combined,
       contentFormatHint: formulas.isEmpty ? 'plain' : 'latexMixed',
@@ -1796,21 +1857,66 @@ class _RecognizedQuestionWorkbenchState
 
   void _updateStructured(int index, QuestionRegion region, {
     String? stem, List<String>? formulas, List<String>? tables,
+    List<String>? options,
   }) {
     final nextStem = stem ?? _stemFor(region);
     final nextFormulas = formulas ?? _formulasFor(region);
     final nextTables = tables ?? _tablesFor(region);
+    final nextOptions = options ?? _optionsFor(region);
     final blocks = _orderedBlocks(region, nextStem, nextFormulas, nextTables);
-    final combined = blocks.where((block) => block.content.trim().isNotEmpty)
-        .map((block) => block.content).join('\n\n');
+    // combined 必须包含选项行，让 _hasOptionLine 在重建后仍能识别，
+    // 同时让"恢复识别原文"对照保持完整。
+    final combined = <String>[
+      ...blocks.where((block) => block.content.trim().isNotEmpty).map((block) => block.content),
+      ...nextOptions,
+    ].join('\n\n');
     widget.onUpdate(index, region.copyWith(
       questionStem: nextStem,
       formulas: nextFormulas,
       tables: nextTables,
+      options: nextOptions,
       documentBlocks: blocks,
       recognizedText: combined,
       contentFormatHint: nextFormulas.isEmpty ? 'plain' : 'latexMixed',
     ));
+  }
+
+  /// 弹出选项编辑对话框。每行一个选项，自动补 A./B./C./D. 前缀；
+  /// 用户保存空文本时清空 options（不再回退到自动解析）。
+  Future<void> _openOptionEditor(
+      BuildContext context, int index, QuestionRegion region) async {
+    final initial = _optionsFor(region).join('\n');
+    final result = await showSingleTextFieldDialog(
+      context: context,
+      title: '编辑选项（每行一个）',
+      initialText: initial,
+      labelText: '选项列表',
+      hintText: 'A. 选项一\nB. 选项二\nC. 选项三\nD. 选项四',
+      minLines: 4,
+      maxLines: 10,
+      confirmText: '保存',
+    );
+    if (result == null) return;
+    final nextOptions = _normalizeOptions(result);
+    _updateStructured(index, region, options: nextOptions);
+  }
+
+  /// 弹出图形备注对话框。把人工核对结论存到 region.diagramNote；
+  /// 空文本视为清空（存空串，避免 copyWith 把 null 当作"保留原值"）。
+  Future<void> _openDiagramNoteEditor(
+      BuildContext context, int index, QuestionRegion region) async {
+    final result = await showSingleTextFieldDialog(
+      context: context,
+      title: '图形备注（人工核对）',
+      initialText: region.diagramNote ?? '',
+      labelText: '图形内容描述',
+      hintText: '例如：直角三角形 ABC，∠C=90°，AB=5，AC=3',
+      minLines: 2,
+      maxLines: 6,
+      confirmText: '保存',
+    );
+    if (result == null) return;
+    widget.onUpdate(index, region.copyWith(diagramNote: result));
   }
 
   Widget _buildDetail(BuildContext context, int index, QuestionRegion region,
@@ -1887,6 +1993,7 @@ class _RecognizedQuestionWorkbenchState
             onEditText: () => setState(() => _showAdvanced = false),
             onPreviewCrop: () => _showCropPreview(context, region, sourceImagePath),
             onOpenAdvanced: () => setState(() => _showAdvanced = true),
+            onEditOptions: () => _openOptionEditor(context, index, region),
           ),
         Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
         Align(
@@ -2006,6 +2113,57 @@ class _RecognizedQuestionWorkbenchState
             _MarkdownTablePreview(tables.first),
           ],
         ],
+        // 选项独立编辑入口：选择题或识别到选项行时显示。点击弹出对话框，
+        // 每行一个选项，自动补 A./B./C./D. 前缀；保存后写入 region.options
+        // 并合并回 recognizedText，让 _hasOptionLine 仍能识别。
+        if (type == '选择题' ||
+            region.recognizedBlockTypes.contains('选项') ||
+            _optionsFor(region).isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _openOptionEditor(context, index, region),
+              icon: const Icon(CupertinoIcons.list_bullet_indent, size: 16),
+              label: Text(_optionsFor(region).isEmpty
+                  ? '编辑选项（暂无选项行）'
+                  : '编辑选项（${_optionsFor(region).length} 项）'),
+            ),
+          ),
+          if (_optionsFor(region).isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, top: 2),
+              child: Text(
+                _optionsFor(region).join('\n'),
+                style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+              ),
+            ),
+        ],
+        // 图形备注入口：识别到图形块或已有备注时显示。备注存到
+        // region.diagramNote，作为人工核对结论；空备注视为清空。
+        if (region.recognizedBlockTypes.any((t) =>
+                t == '图形' || t == 'diagram' || t.toLowerCase().contains('diagram')) ||
+            (region.diagramNote ?? '').trim().isNotEmpty) ...<Widget>[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => _openDiagramNoteEditor(context, index, region),
+              icon: const Icon(CupertinoIcons.pencil_circle, size: 16),
+              label: Text((region.diagramNote ?? '').trim().isEmpty
+                  ? '添加图形备注'
+                  : '编辑图形备注'),
+            ),
+          ),
+          if ((region.diagramNote ?? '').trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, top: 2),
+              child: Text(
+                region.diagramNote!,
+                style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+              ),
+            ),
+        ],
           ],
         ),
         const SizedBox(height: 8),
@@ -2041,18 +2199,24 @@ class _RecognizedQuestionWorkbenchState
 }
 
 class _RiskActionCard extends StatelessWidget {
-  const _RiskActionCard({required this.risks, required this.onEditText, required this.onPreviewCrop, required this.onOpenAdvanced});
+  const _RiskActionCard({
+    required this.risks,
+    required this.onEditText,
+    required this.onPreviewCrop,
+    required this.onOpenAdvanced,
+    required this.onEditOptions,
+  });
   final List<String> risks;
   final VoidCallback onEditText;
   final VoidCallback onPreviewCrop;
   final VoidCallback onOpenAdvanced;
+  final VoidCallback onEditOptions;
   @override
   Widget build(BuildContext context) {
     final needsText = risks.any((item) => item.contains('文字') || item.contains('可信度'));
     final needsCrop = risks.any((item) => item.contains('边缘') || item.contains('重叠'));
     final needsStructure = risks.any((item) => item.contains('公式') || item.contains('表格'));
-    // 选项缺失风险目前没有独立选项编辑入口（选项编辑在 Batch 4 落地），
-    // 暂时引导用户回到题干校对，在题干里补选项行。
+    // 选项缺失风险走独立的选项编辑入口（Batch 4），不再回退到题干校对。
     final needsOption = risks.any((item) => item.contains('选项'));
     return Container(
       margin: const EdgeInsets.only(bottom: 7), padding: const EdgeInsets.all(9),
@@ -2064,7 +2228,7 @@ class _RiskActionCard extends StatelessWidget {
           if (needsText) TextButton.icon(onPressed: onEditText, icon: const Icon(CupertinoIcons.pencil, size: 14), label: const Text('校对题干')),
           if (needsCrop) TextButton.icon(onPressed: onPreviewCrop, icon: const Icon(CupertinoIcons.crop, size: 14), label: const Text('查看裁切')),
           if (needsStructure) TextButton.icon(onPressed: onOpenAdvanced, icon: const Icon(CupertinoIcons.list_bullet, size: 14), label: const Text('校对格式')),
-          if (needsOption) TextButton.icon(onPressed: onEditText, icon: const Icon(CupertinoIcons.list_bullet_indent, size: 14), label: const Text('补选项')),
+          if (needsOption) TextButton.icon(onPressed: onEditOptions, icon: const Icon(CupertinoIcons.list_bullet_indent, size: 14), label: const Text('补选项')),
         ]),
       ]),
     );
