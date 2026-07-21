@@ -35,10 +35,9 @@ class WorksheetDraftRepository {
     final all = (await loadAll()).toList(growable: true);
     final existingIdx = all.indexWhere((d) => d.id == draft.id);
     if (existingIdx >= 0) {
-      // 更新：保留原 createdAt
+      // 更新：保留原 createdAt，updatedAt 由调用方设置
       all[existingIdx] = draft.copyWith(
         createdAt: all[existingIdx].createdAt,
-        updatedAt: DateTime.now(),
       );
     } else {
       all.add(draft);
