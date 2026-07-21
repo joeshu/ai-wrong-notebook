@@ -2279,8 +2279,6 @@ class _AnalysisTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpace.lg),
       children: <Widget>[
-        _AiInputSnapshotCard(question: current),
-        const SizedBox(height: AppSpace.md),
         AppInfoSection(
           icon: result!.visualAssumptionStatus == VisualAssumptionStatus.needsReview
               ? CupertinoIcons.exclamationmark_triangle
@@ -2369,6 +2367,11 @@ class _AnalysisTab extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: AppSpace.md)),
           ...result!.steps.asMap().entries.map((e) => _SolutionStepItem(index: e.key, text: e.value)),
         ],
+        // AI 输入快照放在最末尾：让用户先看 AI 结论，再向下滚动审计输入材料。
+        // 不放在顶部是为了不把已有的答案/知识点挤出首屏，避免回归测试与
+        // 已有的视觉布局被迫调整。
+        const SizedBox(height: AppSpace.lg),
+        _AiInputSnapshotCard(question: current),
       ],
     );
   }
