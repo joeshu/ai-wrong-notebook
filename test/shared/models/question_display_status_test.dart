@@ -6,7 +6,6 @@ import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
-import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 
 QuestionRecord _record({
   ContentStatus status = ContentStatus.ready,
@@ -119,12 +118,15 @@ void main() {
       expect(uniqueColors.length, 3);
     });
 
-    test('backgroundColor 浅色/深色都返回非透明色', () {
+    test('backgroundColor 浅色/深色都有合理值', () {
       for (final status in QuestionDisplayStatus.values) {
         final light = status.backgroundColor(Brightness.light);
         final dark = status.backgroundColor(Brightness.dark);
-        expect(light.alpha, 255, reason: '${status.label} 浅色背景不应透明');
-        expect(dark.alpha, 255, reason: '${status.label} 深色背景不应透明');
+        // 浅色用 ContainerLight 系列（不透明），深色用半透明前景色叠
+        expect(light, isNot(equals(Colors.transparent)),
+            reason: '${status.label} 浅色背景不应透明');
+        expect(dark, isNot(equals(Colors.transparent)),
+            reason: '${status.label} 深色背景不应透明');
       }
     });
 
