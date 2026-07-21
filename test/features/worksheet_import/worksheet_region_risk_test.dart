@@ -10,6 +10,9 @@ QuestionRegion _region({
   double confidence = 1,
   QuestionRegionSource source = QuestionRegionSource.manual,
   List<String> blockTypes = const <String>[],
+  String? questionType,
+  List<String> formulas = const <String>[],
+  List<String> tables = const <String>[],
 }) {
   return QuestionRegion(
     id: id,
@@ -18,6 +21,9 @@ QuestionRegion _region({
     confidence: confidence,
     source: source,
     recognizedBlockTypes: blockTypes,
+    questionType: questionType,
+    formulas: formulas,
+    tables: tables,
   );
 }
 
@@ -161,6 +167,114 @@ void main() {
       );
       final risks = detectQuestionRegionRisks(region, <QuestionRegion>[region]);
       expect(risks, isNot(contains('识别可信度较低，建议校对')));
+    });
+  });
+
+  group('recognitionFieldStatus 单题字段四态判定', () {
+    test('题干：空 → 待校对，非空 → 已识别', () {
+      expect(
+        recognitionFieldStatus('题干', _region(text: '   ')),
+        FieldStatus.needsReview,
+      );
+      expect(
+        recognitionFieldStatus('题干', _region(text: '一道题目')),
+        FieldStatus.recognized,
+      );
+    });
+
+    test('题干：stemOverride 优先于 region.recognizedText', () {
+      final region = _region(text: '原文');
+      expect(
+        recognitionFieldStatus('题干', region, stemOverride: '  '),
+        FieldStatus.needsReview,
+      );
+      expect(
+        recognitionFieldStatus('题干', region, stemOverride: '校对后题干'),
+        FieldStatus.recognized,
+      );
+    });
+
+    test('公式：formulas 非空或 blockTypes 含"公式" → 已识别，否则未识别', () {
+      expect(
+        recognitionFieldStatus('公式', _region(text: '题干')),
+        FieldStatus.missing,
+      );
+      expect(
+        recognitionFieldStatus('公式', _region(text: '题干', formulas: const <String>['x^2'])),
+        FieldStatus.recognized,
+      );
+      expect(
+        recognitionFieldStatus('公式', _region(text: '题干', blockTypes: const <String>['公式'])),
+        FieldStatus.recognized,
+      );
+    });
+
+    test('表格：tables 非空或 blockTypes 含"表格" → 已识别，否则未识别', () {
+      expect(
+        recognitionFieldStatus('表格', _region(text: '题干')),
+        FieldStatus.missing,
+      );
+      expect(
+        recognitionFieldStatus('表格', _region(text: '题干', tables: const <String>['| a | b |'])),
+        FieldStatus.recognized,
+      );
+    });
+
+    test('选项：非选择题 → 不适用', () {
+      expect(
+        recognitionFieldStatus('选项', _region(text: '题干', questionType: '填空题')),
+        FieldStatus.notApplicable,
+      );
+      expect(
+        recognitionFieldStatus('选项', _region(text: '题干', questionType: '计算题')),
+        FieldStatus.notApplicable,
+      );
+    });
+
+    test('选项：选择题未识别到选项行 → 待校对', () {
+      final region = _region(text: '一道选择题但没有选项', questionType: '选择题');
+      expect(recognitionFieldStatus('选项', region), FieldStatus.needsReview);
+    });
+
+    test('选项：选择题识别到 A.B.C. 选项行 → 已识别', () {
+      final region = _region(
+        text: '一道选择题\nA. 选项一\nB. 选项二',
+        questionType: '选择题',
+      );
+      expect(recognitionFieldStatus('选项', region), FieldStatus.recognized);
+    });
+
+    test('选项：题型未指定时按选项行判定', () {
+      expect(
+        recognitionFieldStatus('选项', _region(text: '无选项文本')),
+        FieldStatus.needsReview,
+      );
+      expect(
+        recognitionFieldStatus('选项', _region(text: 'A. 选项一\nB. 选项二')),
+        FieldStatus.recognized,
+      );
+    });
+
+    test('选项：题型为"未指定"按选项行判定（不视为非选择题）', () {
+      expect(
+        recognitionFieldStatus('选项', _region(text: 'A. 选项', questionType: '未指定')),
+        FieldStatus.recognized,
+      );
+    });
+
+    test('图形：blockTypes 含"图形"/"diagram" → 已识别，否则待校对', () {
+      expect(
+        recognitionFieldStatus('图形', _region(text: '题干')),
+        FieldStatus.needsReview,
+      );
+      expect(
+        recognitionFieldStatus('图形', _region(text: '题干', blockTypes: const <String>['图形'])),
+        FieldStatus.recognized,
+      );
+      expect(
+        recognitionFieldStatus('图形', _region(text: '题干', blockTypes: const <String>['diagram'])),
+        FieldStatus.recognized,
+      );
     });
   });
 }

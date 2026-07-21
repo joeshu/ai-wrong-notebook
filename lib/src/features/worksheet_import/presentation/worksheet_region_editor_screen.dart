@@ -959,13 +959,67 @@ extension FieldStatusStyle on FieldStatus {
         FieldStatus.notApplicable => const Color(0xFF475569),
       };
 }
-class _RecognitionEvidencePreview extends StatelessWidget {
-  const _RecognitionEvidencePreview({
+
+/// 计算单题字段在对照工作台的展示状态（四态统一判定）。
+///
+/// 集中字段判定逻辑，避免 `_DetectionResultCard`（汇总卡）与
+/// `RecognitionEvidencePreview`（单题对照区）出现文案/配色不一致。
+/// 选项字段在非选择题时返回 [FieldStatus.notApplicable]；题型未指定时
+/// 按是否识别到选项行判定，避免误判。
+FieldStatus recognitionFieldStatus(
+  String field,
+  QuestionRegion region, {
+  String? stemOverride,
+  List<String>? formulasOverride,
+  List<String>? tablesOverride,
+}) {
+  switch (field) {
+    case '题干':
+      final stem = stemOverride ?? region.questionStem ?? region.recognizedText ?? '';
+      return stem.trim().isEmpty ? FieldStatus.needsReview : FieldStatus.recognized;
+    case '公式':
+      final formulas = formulasOverride ?? region.formulas;
+      final has = formulas.isNotEmpty ||
+          region.recognizedBlockTypes.any((t) => t == '公式');
+      return has ? FieldStatus.recognized : FieldStatus.missing;
+    case '表格':
+      final tables = tablesOverride ?? region.tables;
+      final has = tables.isNotEmpty ||
+          region.recognizedBlockTypes.any((t) => t == '表格');
+      return has ? FieldStatus.recognized : FieldStatus.missing;
+    case '选项':
+      final type = region.questionType;
+      if (type != null &&
+          type.isNotEmpty &&
+          type != '未指定' &&
+          type != '选择题') {
+        return FieldStatus.notApplicable;
+      }
+      return _hasOptionLine(region.recognizedText)
+          ? FieldStatus.recognized
+          : FieldStatus.needsReview;
+    case '图形':
+      final has = region.recognizedBlockTypes.any((t) =>
+          t == '图形' || t == 'diagram' || t.toLowerCase().contains('diagram'));
+      return has ? FieldStatus.recognized : FieldStatus.needsReview;
+    default:
+      return FieldStatus.missing;
+  }
+}
+
+bool _hasOptionLine(String? text) {
+  if (text == null) return false;
+  return RegExp(r'(?m)(?:^|\s)[A-H][.．、]\s*\S').hasMatch(text);
+}
+
+class RecognitionEvidencePreview extends StatefulWidget {
+  const RecognitionEvidencePreview({
     required this.sourceImagePath,
     required this.region,
     required this.stem,
     required this.formulas,
     required this.tables,
+    this.risks = const <String>[],
   });
 
   final String sourceImagePath;
@@ -974,11 +1028,31 @@ class _RecognitionEvidencePreview extends StatelessWidget {
   final List<String> formulas;
   final List<String> tables;
 
+  /// 当前题框的全部风险提示。其中与空间布局相关的风险
+  /// （贴边/宽高比/面积/重叠）会被单独抽取到对照区原图与字段状态
+  /// 附近展示，让用户在对照原图时直接看到题框异常。
+  final List<String> risks;
+
+  @override
+  State<RecognitionEvidencePreview> createState() =>
+      _RecognitionEvidencePreviewState();
+}
+
+class _RecognitionEvidencePreviewState
+    extends State<RecognitionEvidencePreview> {
+  bool _expanded = false;
+
+  List<String> get _spatialRisks => widget.risks.where((item) =>
+      item.contains('边缘') ||
+      item.contains('宽高比') ||
+      item.contains('面积') ||
+      item.contains('重叠')).toList();
+
   @override
   Widget build(BuildContext context) {
-    final sourceImage = File(sourceImagePath);
+    final sourceImage = File(widget.sourceImagePath);
     final imageExists = sourceImage.existsSync();
-    final rect = region.normalizedRect;
+    final rect = widget.region.normalizedRect;
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 520;
@@ -1017,6 +1091,7 @@ class _RecognitionEvidencePreview extends StatelessWidget {
         child: const Text('原图附件缺失', style: TextStyle(fontSize: 12)),
       );
     }
+    final spatialRisks = _spatialRisks;
     return GestureDetector(
       onTap: () => _showFullScreenImage(context),
       child: Stack(
@@ -1033,13 +1108,34 @@ class _RecognitionEvidencePreview extends StatelessWidget {
                     left: -rect.left * scale,
                     top: -rect.top * scale,
                     width: scale,
-                    child: CachedQuestionImage(sourceImagePath, fit: BoxFit.fitWidth),
+                    child: CachedQuestionImage(widget.sourceImagePath, fit: BoxFit.fitWidth),
                   ),
                   Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: _PreviewBorderPainter()))),
                 ]);
               }),
             ),
           ),
+          if (spatialRisks.isNotEmpty)
+            Positioned(
+              left: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDC2626),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(CupertinoIcons.exclamationmark_triangle, size: 11, color: Colors.white),
+                    const SizedBox(width: 2),
+                    Text('题框风险 ${spatialRisks.length}',
+                        style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
           Positioned(
             right: 6,
             top: 6,
@@ -1071,39 +1167,112 @@ class _RecognitionEvidencePreview extends StatelessWidget {
         opaque: false,
         barrierColor: Colors.black87,
         barrierDismissible: true,
-        pageBuilder: (_, __, ___) => _FullScreenImageViewer(imagePath: sourceImagePath),
+        pageBuilder: (_, __, ___) => _FullScreenImageViewer(imagePath: widget.sourceImagePath),
         transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const Text('结构化识别内容', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-          const SizedBox(height: 5),
-          StatusPill(label: '题干', status: stem.trim().isEmpty ? FieldStatus.needsReview : FieldStatus.recognized),
-          StatusPill(label: '公式', status: formulas.isEmpty ? FieldStatus.missing : FieldStatus.recognized),
-          StatusPill(label: '表格', status: tables.isEmpty ? FieldStatus.missing : FieldStatus.recognized),
-          const SizedBox(height: 5),
-          Text(stem.isEmpty ? '暂无题干文字' : stem, maxLines: 5, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, height: 1.35)),
-          if (formulas.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 4),
-            ...formulas.map((item) => Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text('ƒ $item', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontFamily: 'monospace')),
-            )),
+  Widget _buildContent(BuildContext context) {
+    final spatialRisks = _spatialRisks;
+    final stem = widget.stem;
+    final formulas = widget.formulas;
+    final tables = widget.tables;
+    final expanded = _expanded;
+    // 当题干/公式/表格较长时显示"展开/收起"按钮；空内容时不显示。
+    final hasLongContent = stem.length > 60 ||
+        formulas.any((f) => f.length > 30) ||
+        tables.any((t) => t.split('\n').where((l) => l.trim().isNotEmpty).length > 3);
+    final stemMaxLines = expanded ? null : 5;
+    final formulaMaxLines = expanded ? null : 2;
+    final tableLineTake = expanded ? 9999 : 3;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const Text('结构化识别内容', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+        const SizedBox(height: 5),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: <Widget>[
+            StatusPill(label: '题干', status: recognitionFieldStatus('题干', widget.region, stemOverride: stem)),
+            StatusPill(label: '公式', status: recognitionFieldStatus('公式', widget.region, formulasOverride: formulas)),
+            StatusPill(label: '表格', status: recognitionFieldStatus('表格', widget.region, tablesOverride: tables)),
+            StatusPill(label: '选项', status: recognitionFieldStatus('选项', widget.region)),
+            StatusPill(label: '图形', status: recognitionFieldStatus('图形', widget.region)),
           ],
-          if (tables.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 4),
-            ...tables.expand((table) => table.split('\n').where((line) => line.trim().isNotEmpty).take(3).map((line) => Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontFamily: 'monospace')),
-            ))),
-          ],
+        ),
+        const SizedBox(height: 5),
+        Text(
+          stem.isEmpty ? '暂无题干文字' : stem,
+          maxLines: stemMaxLines,
+          overflow: stemMaxLines == null ? TextOverflow.visible : TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 11, height: 1.35),
+        ),
+        if (formulas.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 4),
+          ...formulas.map((item) => Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'ƒ $item',
+              maxLines: formulaMaxLines,
+              overflow: formulaMaxLines == null ? TextOverflow.visible : TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontFamily: 'monospace'),
+            ),
+          )),
         ],
-      );
+        if (tables.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 4),
+          ...tables.expand((table) => table
+              .split('\n')
+              .where((line) => line.trim().isNotEmpty)
+              .take(tableLineTake)
+              .map((line) => Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      line,
+                      maxLines: expanded ? null : 1,
+                      overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontFamily: 'monospace'),
+                    ),
+                  ))),
+        ],
+        if (hasLongContent)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _expanded = !_expanded),
+              icon: Icon(
+                expanded ? CupertinoIcons.chevron_up : CupertinoIcons.chevron_down,
+                size: 14,
+              ),
+              label: Text(expanded ? '收起' : '展开完整内容'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: const Size(0, 24),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: const Color(0xFF2563EB),
+                textStyle: const TextStyle(fontSize: 11),
+              ),
+            ),
+          ),
+        if (spatialRisks.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 5),
+          ...spatialRisks.map((risk) => Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text('⚠ ', style: TextStyle(fontSize: 10, color: Color(0xFFDC2626))),
+                Expanded(child: Text(risk, style: const TextStyle(fontSize: 10, color: Color(0xFF9A3412)))),
+              ],
+            ),
+          )),
+        ],
+      ],
+    );
+  }
 }
 
 class _PreviewBorderPainter extends CustomPainter {
@@ -1637,12 +1806,13 @@ class _RecognizedQuestionWorkbenchState
       key: ValueKey(region.id),
       padding: const EdgeInsets.all(10),
       children: <Widget>[
-        _RecognitionEvidencePreview(
+        RecognitionEvidencePreview(
           sourceImagePath: sourceImagePath,
           region: region,
           stem: stem,
           formulas: formulas,
           tables: tables,
+          risks: risks,
         ),
         Row(children: <Widget>[
           Expanded(child: Text('第 ${region.detectedNumber ?? index + 1} 题详情', style: const TextStyle(fontWeight: FontWeight.w700))),
