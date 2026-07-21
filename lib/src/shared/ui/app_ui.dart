@@ -129,7 +129,7 @@ class AppTag extends StatelessWidget {
 }
 
 /// 带图标标题的信息卡片，用于解析、答案、错因、建议等区块。
-class AppInfoSection extends StatelessWidget {
+class AppInfoSection extends StatefulWidget {
   const AppInfoSection({
     super.key,
     required this.icon,
@@ -139,6 +139,8 @@ class AppInfoSection extends StatelessWidget {
     this.backgroundColor = AppColors.primaryContainerLight,
     this.borderColor = const Color(0xFFC7D2FE),
     this.titleColor = AppColors.primaryDark,
+    this.collapsible = false,
+    this.initiallyExpanded = true,
   });
 
   final IconData icon;
@@ -149,42 +151,75 @@ class AppInfoSection extends StatelessWidget {
   final Color borderColor;
   final Color titleColor;
 
+  /// 是否可折叠。为 `false`（默认）时内容始终展开，行为与改造前一致。
+  final bool collapsible;
+
+  /// 可折叠时的初始展开状态。仅 [collapsible] 为 `true` 时生效。
+  final bool initiallyExpanded;
+
+  @override
+  State<AppInfoSection> createState() => _AppInfoSectionState();
+}
+
+class _AppInfoSectionState extends State<AppInfoSection> {
+  late bool _expanded = widget.initiallyExpanded;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final header = Row(
+      children: <Widget>[
+        Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: isDark ? widget.iconColor.withValues(alpha: 0.16) : Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.small),
+          ),
+          child: Icon(widget.icon, size: 15, color: widget.iconColor),
+        ),
+        const SizedBox(width: AppSpace.sm),
+        Expanded(
+          child: Text(
+            widget.title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isDark ? colorScheme.onSurface : widget.titleColor,
+            ),
+          ),
+        ),
+        if (widget.collapsible)
+          Icon(
+            _expanded
+                ? CupertinoIcons.chevron_down
+                : CupertinoIcons.chevron_right,
+            size: 16,
+            color: isDark ? colorScheme.onSurfaceVariant : widget.titleColor,
+          ),
+      ],
+    );
+
     return AppCard(
       borderRadius: AppRadius.large,
-      backgroundColor: isDark ? colorScheme.surface : backgroundColor,
-      borderColor: isDark ? iconColor.withValues(alpha: 0.28) : borderColor,
+      backgroundColor: isDark ? colorScheme.surface : widget.backgroundColor,
+      borderColor: isDark ? widget.iconColor.withValues(alpha: 0.28) : widget.borderColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: isDark ? iconColor.withValues(alpha: 0.16) : Colors.white,
-                  borderRadius: BorderRadius.circular(AppRadius.small),
-                ),
-                child: Icon(icon, size: 15, color: iconColor),
-              ),
-              const SizedBox(width: AppSpace.sm),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? colorScheme.onSurface : titleColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpace.md),
-          child,
+          if (widget.collapsible)
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: header,
+            )
+          else
+            header,
+          if (!widget.collapsible || _expanded) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            widget.child,
+          ],
         ],
       ),
     );

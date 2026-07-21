@@ -796,6 +796,15 @@ final StreamProvider<List<ReviewLog>> reviewLogListProvider =
   return ref.read(reviewLogRepositoryProvider).watchAll();
 });
 
+/// 按题目 ID 查询复习历史（Phase 6-5）。详情页记录 Tab 展示时间线用。
+/// 监听 [_listVersionProvider] 以便复习后（invalidate 列表版本）自动刷新。
+final FutureProviderFamily<List<ReviewLog>, String>
+    reviewLogsForQuestionProvider =
+        FutureProviderFamily<List<ReviewLog>, String>((ref, questionId) {
+  ref.watch(_listVersionProvider);
+  return ref.read(reviewLogRepositoryProvider).getByQuestionId(questionId);
+});
+
 class QuestionBatchGroup {
   const QuestionBatchGroup({required this.rootId, required this.questions});
 

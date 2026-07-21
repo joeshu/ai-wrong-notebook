@@ -17,6 +17,7 @@ import 'package:smart_wrong_notebook/src/domain/models/pending_knowledge_point_m
 import 'package:smart_wrong_notebook/src/domain/models/question_knowledge_link.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_type.dart';
+import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/services/auto_grading_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
@@ -2347,6 +2348,8 @@ class _AnalysisTab extends StatelessWidget {
           backgroundColor: AppColors.accentAmberContainerLight,
           borderColor: const Color(0xFFFDE68A),
           titleColor: const Color(0xFF92400E),
+          collapsible: true,
+          initiallyExpanded: false,
           child: MathContentView(
             result!.studyAdvice,
             style: TextStyle(
@@ -2367,10 +2370,21 @@ class _AnalysisTab extends StatelessWidget {
         // Phase 4-C：待确认知识点（AI 返回但未匹配到受控节点的文本）
         _PendingKnowledgePointsCard(questionId: current.id),
         if (result!.steps.isNotEmpty) ...<Widget>[
-          const SizedBox(height: AppSpace.lg),
-          AppSectionTitle(AppStrings.detailSolutionSteps,
-              padding: const EdgeInsets.only(bottom: AppSpace.md)),
-          ...result!.steps.asMap().entries.map((e) => _SolutionStepItem(index: e.key, text: e.value)),
+          const SizedBox(height: AppSpace.md),
+          AppInfoSection(
+            icon: CupertinoIcons.list_number,
+            title: AppStrings.detailSolutionSteps,
+            collapsible: true,
+            initiallyExpanded: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: result!.steps
+                  .asMap()
+                  .entries
+                  .map((e) => _SolutionStepItem(index: e.key, text: e.value))
+                  .toList(),
+            ),
+          ),
         ],
         // AI 输入快照放在最末尾：让用户先看 AI 结论，再向下滚动审计输入材料。
         // 不放在顶部是为了不把已有的答案/知识点挤出首屏，避免回归测试与
@@ -2766,7 +2780,7 @@ class _PracticeTab extends StatelessWidget {
   }
 }
 
-class _RecordTab extends StatelessWidget {
+class _RecordTab extends ConsumerWidget {
   const _RecordTab({
     required this.current,
     required this.onForgot,
@@ -2780,8 +2794,9 @@ class _RecordTab extends StatelessWidget {
   final VoidCallback onEasy;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final due = const ReviewScheduleService().isDue(current);
+    final logsAsync = ref.watch(reviewLogsForQuestionProvider(current.id));
 
     return ListView(
       padding: const EdgeInsets.all(AppSpace.lg),
@@ -2857,8 +2872,261 @@ class _RecordTab extends StatelessWidget {
             ),
           ),
         ],
+        const SizedBox(height: AppSpace.lg),
+        _ReviewHistoryTimeline(logsAsync: logsAsync),
       ],
     );
+  }
+}
+
+/// 复习历史时间线（Phase 6-5）。
+///
+/// 按 [ReviewLog.reviewedAt] 降序展示复习事件，每条显示日期、
+/// 复习结果（forgot/reviewing/mastered/reset 的中文映射）和
+/// 复习后的掌握度徽章。
+class _ReviewHistoryTimeline extends StatelessWidget {
+  const _ReviewHistoryTimeline({required this.logsAsync});
+
+  final AsyncValue<List<ReviewLog>> logsAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(CupertinoIcons.list_bullet_indent, size: 18),
+              const SizedBox(width: AppSpace.sm),
+              const Text('复习历史', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Spacer(),
+              logsAsync.maybeWhen(
+                data: (logs) => Text(
+                  '${logs.length} 条',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                orElse: () => const SizedBox.shrink(),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.md),
+          logsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpace.lg),
+              child: Center(child: CupertinoActivityIndicator()),
+            ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
+              child: Text(
+                '加载失败：$e',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            data: (logs) {
+              if (logs.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
+                  child: Center(
+                    child: Column(
+                      children: <Widget>[
+                        Icon(
+                          CupertinoIcons.clock,
+                          size: 32,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: AppSpace.sm),
+                        Text(
+                          '暂无复习记录',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              final sorted = List<ReviewLog>.from(logs)
+                ..sort((a, b) => b.reviewedAt.compareTo(a.reviewedAt));
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  for (int i = 0; i < sorted.length; i++)
+                    _ReviewHistoryTimelineItem(
+                      log: sorted[i],
+                      isLast: i == sorted.length - 1,
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewHistoryTimelineItem extends StatelessWidget {
+  const _ReviewHistoryTimelineItem({
+    required this.log,
+    required this.isLast,
+  });
+
+  final ReviewLog log;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final (resultLabel, resultColor) = _resultStyle(log.result);
+    final isMastered = log.masteryAfter == MasteryLevel.mastered;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          SizedBox(
+            width: 24,
+            child: Column(
+              children: <Widget>[
+                Container(
+                  width: 10,
+                  height: 10,
+                  margin: const EdgeInsets.only(top: 4),
+                  decoration: BoxDecoration(
+                    color: resultColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                if (!isLast)
+                  Expanded(
+                    child: Container(
+                      width: 1.5,
+                      color: colorScheme.outlineVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpace.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    _formatTimelineDate(log.reviewedAt),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: <Widget>[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: resultColor.withValues(alpha: isDark ? 0.16 : 0.1),
+                          borderRadius: BorderRadius.circular(AppRadius.small),
+                          border: Border.all(
+                            color: isDark
+                                ? resultColor.withValues(alpha: 0.24)
+                                : colorScheme.outlineVariant
+                                    .withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Text(
+                          resultLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: isDark ? colorScheme.onSurface : resultColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpace.sm),
+                      Icon(
+                        isMastered
+                            ? CupertinoIcons.checkmark_circle
+                            : CupertinoIcons.arrow_2_circlepath,
+                        size: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _masteryLabel(log.masteryAfter),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static (String, Color) _resultStyle(String result) {
+    switch (result) {
+      case 'forgot':
+        return ('忘记', const Color(0xFFDC2626));
+      case 'reviewing':
+        return ('模糊', const Color(0xFFD97706));
+      case 'mastered':
+        return ('掌握', const Color(0xFF16A34A));
+      case 'reset':
+        return ('重置', const Color(0xFF6B7280));
+      default:
+        return (result, const Color(0xFF6B7280));
+    }
+  }
+
+  static String _masteryLabel(MasteryLevel level) {
+    switch (level) {
+      case MasteryLevel.newQuestion:
+        return '未复习';
+      case MasteryLevel.reviewing:
+        return '复习中';
+      case MasteryLevel.mastered:
+        return '已掌握';
+    }
+  }
+
+  static String _formatTimelineDate(DateTime dt) {
+    final local = dt.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final thatDay = DateTime(local.year, local.month, local.day);
+    final diffDays = today.difference(thatDay).inDays;
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    if (diffDays == 0) return '今天 $hh:$mm';
+    if (diffDays == 1) return '昨天 $hh:$mm';
+    final month = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day $hh:$mm';
   }
 }
 
