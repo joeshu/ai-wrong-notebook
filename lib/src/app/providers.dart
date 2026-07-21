@@ -6,6 +6,8 @@ import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_settings_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/layout_provider_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
@@ -21,6 +23,7 @@ import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
+import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
@@ -44,6 +47,32 @@ final Provider<LayoutProviderRepository> layoutProviderRepositoryProvider =
 
 final Provider<WorksheetImportRepository> worksheetImportRepositoryProvider =
     Provider<WorksheetImportRepository>((ref) => WorksheetImportRepository());
+
+/// 受控知识点树仓库（Phase 4）。
+final Provider<KnowledgePointRepository> knowledgePointRepositoryProvider =
+    Provider<KnowledgePointRepository>((ref) => KnowledgePointRepository());
+
+/// 题目—知识点关联仓库（Phase 4）。
+final Provider<QuestionKnowledgeLinkRepository>
+    questionKnowledgeLinkRepositoryProvider =
+    Provider<QuestionKnowledgeLinkRepository>(
+        (ref) => QuestionKnowledgeLinkRepository());
+
+/// 知识点树快照，供 UI 消费。调用 [knowledgePointRepositoryProvider] 加载后
+/// 缓存在 StateController 中，通过 [_knowledgePointVersionProvider] 触发刷新。
+final StateProvider<int> _knowledgePointVersionProvider =
+    StateProvider<int>((ref) => 0);
+
+final FutureProvider<List<KnowledgePoint>> knowledgePointTreeProvider =
+    FutureProvider<List<KnowledgePoint>>((ref) async {
+  ref.watch(_knowledgePointVersionProvider);
+  return ref.read(knowledgePointRepositoryProvider).loadAll();
+});
+
+/// 知识点树变更后调用，刷新 [knowledgePointTreeProvider]。
+void invalidateKnowledgePointTree(WidgetRef ref) {
+  ref.read(_knowledgePointVersionProvider.notifier).state++;
+}
 
 final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((ref) {
