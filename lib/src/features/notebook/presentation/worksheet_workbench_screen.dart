@@ -520,23 +520,25 @@ class _WorksheetWorkbenchScreenState
                         setState(() => _query = value.trim()),
                   ),
                   const SizedBox(height: 12),
-                  // Phase 8-4：智能组卷入口
-                  Row(
+                  // Phase 8-4：智能组卷入口（Wrap 布局容纳三个按钮）
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: <Widget>[
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _loadWeakPointQuestions(),
-                          icon: const Icon(CupertinoIcons.sparkles, size: 16),
-                          label: const Text('薄弱点推荐', style: TextStyle(fontSize: 13)),
-                        ),
+                      OutlinedButton.icon(
+                        onPressed: () => _loadWeakPointQuestions(),
+                        icon: const Icon(CupertinoIcons.sparkles, size: 16),
+                        label: const Text('薄弱点推荐', style: TextStyle(fontSize: 13)),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: () => _openSmartAssemblySheet(questions),
-                          icon: const Icon(CupertinoIcons.wand_stars, size: 16),
-                          label: const Text('智能组卷', style: TextStyle(fontSize: 13)),
-                        ),
+                      FilledButton.tonalIcon(
+                        onPressed: () => _openSmartAssemblySheet(questions),
+                        icon: const Icon(CupertinoIcons.wand_stars, size: 16),
+                        label: const Text('智能组卷', style: TextStyle(fontSize: 13)),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _openKnowledgeMultiSelectSheet(),
+                        icon: const Icon(CupertinoIcons.account_tree, size: 16),
+                        label: const Text('按知识点', style: TextStyle(fontSize: 13)),
                       ),
                     ],
                   ),
@@ -658,19 +660,29 @@ class _WorksheetWorkbenchScreenState
                     child: OutlinedButton.icon(
                       onPressed: selected.isEmpty
                           ? null
+                          : _previewWorksheet,
+                      icon: const Icon(CupertinoIcons.eye),
+                      label: const Text('预览组卷'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: selected.isEmpty
+                          ? null
                           : () => _export(context, selected, isPdf: false),
                       icon: const Icon(CupertinoIcons.printer),
                       label: const Text('可打印 HTML'),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: selected.isEmpty
                           ? null
                           : () => _export(context, selected, isPdf: true),
                       icon: const Icon(CupertinoIcons.doc_text),
-                      label: const Text('选择试卷 PDF'),
+                      label: const Text('试卷 PDF'),
                     ),
                   ),
                 ]),
@@ -1106,6 +1118,289 @@ class _DifficultySlider extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Phase 8-4：按知识点组卷参数面板（ModalBottomSheet）。
+///
+/// 渲染递归知识树 + Checkbox，选中父节点联动选中所有子孙节点。
+/// 确认后返回被选知识点 ID 集合，调用方据此查 linkRepo 拿题目。
+class _KnowledgeMultiSelectSheet extends StatefulWidget {
+  const _KnowledgeMultiSelectSheet({
+    required this.knowledgePoints,
+    required this.currentSelected,
+  });
+
+  final List<KnowledgePoint> knowledgePoints;
+  final int currentSelected;
+
+  @override
+  State<_KnowledgeMultiSelectSheet> createState() =>
+      _KnowledgeMultiSelectSheetState();
+}
+
+class _KnowledgeMultiSelectSheetState
+    extends State<_KnowledgeMultiSelectSheet> {
+  final Set<String> _selected = <String>{};
+  late final Map<String, List<KnowledgePoint>> _byParent;
+
+  @override
+  void initState() {
+    super.initState();
+    _byParent = <String, List<KnowledgePoint>>{};
+    for (final kp in widget.knowledgePoints) {
+      final parent = kp.parentId;
+      if (parent == null) continue;
+      _byParent.putIfAbsent(parent, () => <KnowledgePoint>[]).add(kp);
+    }
+    _byParent.forEach((_, list) =>
+        list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder)));
+  }
+
+  /// 收集某节点下所有子孙节点（含自身）的 ID。
+  void _collectDescendants(String id, Set<String> out) {
+    out.add(id);
+    for (final child in _byParent[id] ?? const <KnowledgePoint>[]) {
+      _collectDescendants(child.id, out);
+    }
+  }
+
+  bool _isSelected(String id) => _selected.contains(id);
+
+  /// 节点的三态：true=全选，false=全不选，null=部分选。
+  bool? _stateOf(String id) {
+    final children = _byParent[id] ?? const <KnowledgePoint>[];
+    if (children.isEmpty) return _isSelected(id);
+    bool allSelected = true;
+    bool noneSelected = true;
+    for (final child in children) {
+      final s = _stateOf(child.id);
+      if (s != true) allSelected = false;
+      if (s != false) noneSelected = false;
+    }
+    // 节点自身也参与判定
+    final selfSelected = _isSelected(id);
+    if (selfSelected) noneSelected = false;
+    else allSelected = false;
+    if (allSelected) return true;
+    if (noneSelected) return false;
+    return null;
+  }
+
+  void _toggle(KnowledgePoint kp) {
+    setState(() {
+      final ids = <String>{};
+      _collectDescendants(kp.id, ids);
+      final allSelected = ids.every(_selected.contains);
+      if (allSelected) {
+        _selected.removeAll(ids);
+      } else {
+        _selected.addAll(ids);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final roots = widget.knowledgePoints
+        .where((kp) => kp.parentId == null)
+        .toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          24,
+          16,
+          24,
+          24 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: <Widget>[
+                const Icon(CupertinoIcons.account_tree, size: 20),
+                const SizedBox(width: 8),
+                Text('按知识点组卷',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '勾选知识点（含子孙）→ 工作台已选 ${widget.currentSelected} 题',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: roots.length,
+                itemBuilder: (context, index) =>
+                    _KnowledgeCheckTile(
+                      node: roots[index],
+                      byParent: _byParent,
+                      depth: 0,
+                      stateOf: _stateOf,
+                      onToggle: _toggle,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: <Widget>[
+                TextButton(
+                  onPressed: _selected.isEmpty
+                      ? null
+                      : () => setState(_selected.clear),
+                  child: const Text('清空选择'),
+                ),
+                const Spacer(),
+                FilledButton.icon(
+                  onPressed: () => Navigator.pop(context, _selected),
+                  icon: const Icon(CupertinoIcons.checkmark, size: 18),
+                  label: Text(_selected.isEmpty
+                      ? '确认（未选）'
+                      : '加载 ${_selected.length} 个知识点'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 递归 CheckboxListTile 树节点。
+class _KnowledgeCheckTile extends StatelessWidget {
+  const _KnowledgeCheckTile({
+    required this.node,
+    required this.byParent,
+    required this.depth,
+    required this.stateOf,
+    required this.onToggle,
+  });
+
+  final KnowledgePoint node;
+  final Map<String, List<KnowledgePoint>> byParent;
+  final int depth;
+  final bool? Function(String id) stateOf;
+  final void Function(KnowledgePoint kp) onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final children = byParent[node.id] ?? const <KnowledgePoint>[];
+    final state = stateOf(node.id);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        InkWell(
+          onTap: () => onToggle(node),
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(
+              start: depth * 16.0 + 8,
+              top: 6,
+              bottom: 6,
+              end: 8,
+            ),
+            child: Row(
+              children: <Widget>[
+                _TriCheckbox(state: state),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(node.name,
+                      style: const TextStyle(fontSize: 14)),
+                ),
+                if (node.subject != null)
+                  Text(
+                    node.subject!.label,
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        for (final child in children)
+          _KnowledgeCheckTile(
+            node: child,
+            byParent: byParent,
+            depth: depth + 1,
+            stateOf: stateOf,
+            onToggle: onToggle,
+          ),
+      ],
+    );
+  }
+}
+
+/// 三态 Checkbox：true ✓ / false □ / null ◐（部分选）。
+class _TriCheckbox extends StatelessWidget {
+  const _TriCheckbox({required this.state});
+  final bool? state;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (state == true) {
+      return Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          color: scheme.primary,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Icon(CupertinoIcons.checkmark,
+            size: 14, color: Colors.white),
+      );
+    }
+    if (state == null) {
+      return Container(
+        width: 18,
+        height: 18,
+        decoration: BoxDecoration(
+          color: scheme.primary.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Center(
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+        ),
+      );
+    }
+    return Container(
+      width: 18,
+      height: 18,
+      decoration: BoxDecoration(
+        border: Border.all(color: scheme.outline, width: 1.5),
+        borderRadius: BorderRadius.circular(4),
       ),
     );
   }

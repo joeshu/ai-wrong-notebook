@@ -7,6 +7,7 @@ import 'package:smart_wrong_notebook/src/features/home/presentation/home_screen.
 import 'package:smart_wrong_notebook/src/features/notebook/presentation/notebook_screen.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/presentation/question_detail_screen.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/presentation/worksheet_workbench_screen.dart';
+import 'package:smart_wrong_notebook/src/features/notebook/presentation/worksheet_preview_screen.dart';
 import 'package:smart_wrong_notebook/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_history_screen.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_screen.dart';
@@ -194,6 +195,10 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
       GoRoute(
           path: '/worksheet',
           pageBuilder: (_, __) => _buildPage(const WorksheetWorkbenchScreen())),
+      GoRoute(
+          path: '/worksheet/preview',
+          pageBuilder: (_, __) =>
+              _buildPage(const WorksheetPreviewScreen())),
       GoRoute(
           path: '/notebook/question/:id',
           pageBuilder: (_, __) => _buildPage(const QuestionDetailScreen())),
