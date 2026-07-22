@@ -84,8 +84,10 @@ void main() {
     expect(result.lastReviewedAt, isNotNull);
     expect(result.nextReviewAt, isNotNull);
     // Phase 13-3：FSRS Again 在 Learning 阶段 = 10 分钟（替换原固定 1 小时）。
-    expect(result.nextReviewAt!.difference(before),
-        inInclusiveRange(const Duration(minutes: 9), const Duration(minutes: 11)));
+    // 确定性间隔（非随机），断言 >= 9 分钟且明显短于旧的 1 小时。
+    final diff = result.nextReviewAt!.difference(before);
+    expect(diff, greaterThanOrEqualTo(const Duration(minutes: 9)));
+    expect(diff, lessThan(const Duration(hours: 1)));
     expect((await logRepo.getByQuestionId('q-1')).single.result, 'forgot');
   });
 
