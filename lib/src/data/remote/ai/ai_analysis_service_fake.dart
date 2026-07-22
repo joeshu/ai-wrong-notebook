@@ -49,4 +49,18 @@ class _FakeAiAnalysisService extends AiAnalysisService {
   }) async {
     return userAnswer == correctAnswer;
   }
+
+  /// Phase 13-2：Fake 实现走兜底题，不调用真实 AI。
+  @override
+  Future<List<GeneratedExercise>> generateVariants({
+    required String questionId,
+    required String sourceQuestionText,
+    required String subjectName,
+    List<String>? knowledgePoints,
+  }) async {
+    return _defaultGeneratedExercises(
+      questionId,
+      sourceQuestionText: sourceQuestionText,
+    );
+  }
 }

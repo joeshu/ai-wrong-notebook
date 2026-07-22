@@ -25,6 +25,7 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
   String? _exerciseSourceVersion;
   bool _isJudging = false;
   bool _showCompletion = false;
+  bool _regenerating = false; // Phase 13-2：变式题再生成加载态
   final TextEditingController _freeInputController = TextEditingController();
 
   @override
@@ -524,6 +525,23 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
                     minimumSize: const Size(double.infinity, 50)),
               ),
               const SizedBox(height: 12),
+              // Phase 13-2：再生成变式题（独立 AI 调用）。
+              OutlinedButton.icon(
+                onPressed: _regenerating
+                    ? null
+                    : () => _regenerateVariants(current),
+                icon: _regenerating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(CupertinoIcons.wand_stars),
+                label: Text(_regenerating ? '生成中…' : '换一批变式题'),
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50)),
+              ),
+              const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => isAnalysisSource
                     ? _saveCurrentQuestion(current)
@@ -851,6 +869,77 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
       _index = 0;
       _showCompletion = false;
     });
+  }
+
+  /// Phase 13-2：调 AI 重新生成 3 道变式题（独立于错题分析）。
+  ///
+  /// 用 [AiAnalysisService.generateVariants] 走专门的变式题生成 prompt，
+  /// 复用现有 anchor + 漂移检测 + 兜底链路。生成后替换当前轮次题目并
+  /// 保存到错题。
+  Future<void> _regenerateVariants(QuestionRecord question) async {
+    final practiceContext = ref.read(currentPracticeContextProvider);
+    final sourceText = question.normalizedQuestionText.isNotEmpty
+        ? question.normalizedQuestionText
+        : question.extractedQuestionText;
+    if (sourceText.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('题目文本为空，无法生成变式题')),
+      );
+      return;
+    }
+    setState(() => _regenerating = true);
+    try {
+      final service = ref.read(aiAnalysisServiceProvider);
+      final newExercises = await service.generateVariants(
+        questionId: question.id,
+        sourceQuestionText: sourceText,
+        subjectName: question.subject.label,
+        knowledgePoints: question.aiKnowledgePoints,
+      );
+      if (newExercises.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('AI 未返回有效变式题，请稍后重试')),
+        );
+        return;
+      }
+      // 替换当前轮次：把新一轮加在已有练习之后，并跳到新一轮起始位置。
+      final existing = _practiceExercises(question, practiceContext);
+      final nextRound = _buildContinuedRound(question, newExercises);
+      final updatedExercises = <GeneratedExercise>[...existing, ...nextRound];
+      final updated = practiceContext?.source == PracticeContextSource.analysis
+          ? _updateAnalysisPracticeState(
+              question, updatedExercises, practiceContext)
+          : question.copyWith(savedExercises: updatedExercises);
+      if (practiceContext?.source == PracticeContextSource.analysis) {
+        _exerciseSourceVersion = _exerciseSourceVersionOf(
+            _practiceExercises(updated, practiceContext));
+        ref.read(currentQuestionProvider.notifier).state = updated;
+      } else {
+        await ref.read(questionRepositoryProvider).update(updated);
+        invalidateQuestionList(ref);
+        _exerciseSourceVersion = _exerciseSourceVersionOf(
+            _practiceExercises(updated, practiceContext));
+        ref.read(currentQuestionProvider.notifier).state = updated;
+      }
+      if (!mounted) return;
+      setState(() {
+        _exercises = nextRound;
+        _index = 0;
+        _showCompletion = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已生成 ${nextRound.length} 道新变式题')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('生成失败：$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _regenerating = false);
+    }
   }
 
   void _returnToQuestionDetail(QuestionRecord question, String fallbackRoute) {

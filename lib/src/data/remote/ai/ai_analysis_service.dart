@@ -4136,6 +4136,131 @@ class AiAnalysisService {
     return buffer.toString();
   }
 
+  /// Phase 13-2：独立生成变式题（举一反三）。
+  ///
+  /// 与 [analyzeQuestion] 不同，本方法只请求 AI 生成变式题，不重新分析
+  /// 整道错题。失败时回退到内置兜底题（[_defaultGeneratedExercises]），
+  /// 保证调用方总能拿到 3 道可练习题。
+  ///
+  /// 输入 [sourceQuestionText] 是源错题文本（必须，用于 anchor 推断和
+  /// 漂移检测）；[subjectName] 用于判定是否走几何题分支；[knowledgePoints]
+  /// 可选，用于在 prompt 中提示 AI 限定知识点范围。
+  ///
+  /// 返回 3 道按"简单 / 同级 / 提高"难度排序的 [GeneratedExercise]。
+  Future<List<GeneratedExercise>> generateVariants({
+    required String questionId,
+    required String sourceQuestionText,
+    required String subjectName,
+    List<String>? knowledgePoints,
+  }) async {
+    debugPrint('[AiAnalysisService] generateVariants called for $questionId');
+
+    final config = await settingsRepository.getAiProviderConfig();
+
+    // 无 AI 配置 → 直接走兜底题。
+    if (config == null ||
+        config.baseUrl.isEmpty ||
+        config.apiKey.isEmpty ||
+        config.model.isEmpty) {
+      debugPrint('[AiAnalysisService] No config - using default exercises');
+      return _defaultGeneratedExercises(
+        questionId,
+        sourceQuestionText: sourceQuestionText,
+      );
+    }
+
+    final prompt = _buildVariantsPrompt(
+      sourceQuestionText: sourceQuestionText,
+      subjectName: subjectName,
+      knowledgePoints: knowledgePoints,
+    );
+
+    try {
+      final content = await _requestAiContent(
+        config: config,
+        systemPrompt: '你是一位资深的中学命题教师，擅长基于原题生成同知识点、'
+            '同题型、同核心解法的变式练习题。请严格按 JSON 返回。',
+        prompt: prompt,
+        maxTokens: 2000,
+        temperature: 0.7,
+      );
+      // 复用现有解析 + 漂移检测 + 兜底链路。
+      return extractGeneratedExercisesFromContent(
+        content,
+        questionId: questionId,
+        sourceQuestionText: sourceQuestionText,
+      );
+    } catch (e) {
+      debugPrint('[AiAnalysisService] generateVariants error: $e');
+      // 网络失败/JSON 解析失败 → 走兜底题。
+      return _defaultGeneratedExercises(
+        questionId,
+        sourceQuestionText: sourceQuestionText,
+      );
+    }
+  }
+
+  /// Phase 13-2：构建变式题生成 prompt（复用 anchor + 漂移检测要求）。
+  ///
+  /// 与 [_buildAnalysisPrompt] 相比，本方法只问变式题，不要求 finalAnswer/
+  /// visualAssumptions/reconstructedQuestionText 等字段，max_tokens 可降到
+  /// 2000 左右。
+  @visibleForTesting
+  String buildVariantsPromptForTest({
+    required String sourceQuestionText,
+    required String subjectName,
+    List<String>? knowledgePoints,
+  }) =>
+      _buildVariantsPrompt(
+        sourceQuestionText: sourceQuestionText,
+        subjectName: subjectName,
+        knowledgePoints: knowledgePoints,
+      );
+
+  String _buildVariantsPrompt({
+    required String sourceQuestionText,
+    required String subjectName,
+    List<String>? knowledgePoints,
+  }) {
+    final buffer = StringBuffer();
+    buffer.writeln('请为以下$subjectName科目题目生成 3 道变式练习题（举一反三）。');
+    buffer.writeln();
+    buffer.writeln('源题目：');
+    buffer.writeln(sourceQuestionText);
+    buffer.writeln();
+    if (knowledgePoints != null && knowledgePoints.isNotEmpty) {
+      buffer.writeln('相关知识点：${knowledgePoints.join('、')}');
+      buffer.writeln('变式题必须围绕以上知识点展开，不得切换到其他知识点。');
+      buffer.writeln();
+    }
+    final topicProfile =
+        _buildExerciseTopicProfile(sourceQuestionText: sourceQuestionText);
+    final topicAnchor = _exerciseAnchorText(topicProfile);
+    if (topicAnchor.isNotEmpty) {
+      buffer.writeln('举一反三锚点：$topicAnchor');
+      buffer.writeln(
+          'generatedExercises 必须保持 domain/object/method，不得生成 avoid 中的题型。');
+      buffer.writeln(
+          'generatedExercises 必须恰好 3 道选择题，difficulty 依次为 简单、同级、提高；三题必须保持同一知识点、同一题型、同一核心解法。');
+      buffer.writeln(
+          '难度递进只能通过换数、增加一步同方法变形或增加一个同主题条件完成，禁止通过切换题型/知识点提高难度；无法满足时返回空 generatedExercises。');
+      final isGeometryDomain =
+          topicProfile.domain == _ExerciseDomain.planeGeometryArea ||
+              topicProfile.domain == _ExerciseDomain.planeGeometryAngle ||
+              topicProfile.domain == _ExerciseDomain.planeGeometryLength ||
+              topicProfile.domain == _ExerciseDomain.solidGeometryVolume;
+      if (isGeometryDomain) {
+        buffer.writeln(
+            '几何题的每道 generatedExercises 必须包含 diagramData 字段（归一化坐标），不得为 null。');
+      }
+      buffer.writeln();
+    }
+    buffer.writeln(
+        '请以 JSON 返回 {"generatedExercises": [...]}，每道题含字段：id（字符串）、difficulty（"简单"/"同级"/"提高"）、question（题干，支持 LaTeX）、options（4 个选项，形如 ["A. ...", "B. ...", "C. ...", "D. ..."]）、answer（A/B/C/D 之一）、explanation（解析，支持 LaTeX）、diagramData（几何题必填，含 elements 数组）。');
+    buffer.writeln('方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
+    return buffer.toString();
+  }
+
   List<GeneratedExercise> _defaultCircleAreaExercises(
     String questionId,
     DateTime now,

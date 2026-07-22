@@ -45,6 +45,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mapping_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_management_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mastery_service.dart';
+import 'package:smart_wrong_notebook/src/domain/services/worksheet_assembly_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/recommendation_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
@@ -723,6 +724,61 @@ final StateProvider<List<String>> worksheetDraftQuestionIdsProvider =
 /// 工作台预览按钮写入后跳 `/worksheet/preview`，预览页首帧读取。
 final StateProvider<List<String>> worksheetPreviewQuestionIdsProvider =
     StateProvider<List<String>>((ref) => const <String>[]);
+
+/// Phase 13-1：智能组卷服务（基于薄弱点 + 难度 + 题型加权采样）。
+final Provider<WorksheetAssemblyService> worksheetAssemblyServiceProvider =
+    Provider<WorksheetAssemblyService>((ref) {
+  return WorksheetAssemblyService();
+});
+
+/// Phase 13-1：智能组卷所需的输入数据快照。
+///
+/// 把题目列表、知识点掌握度、题目-知识点主关联聚合成一次调用所需
+/// 的数据，避免 service 直接 watch provider（保持 service 纯函数式）。
+Future<WorksheetAssemblyInput> fetchWorksheetAssemblyInput(
+  Ref ref,
+) async {
+  final questions = await ref.read(questionListProvider.future);
+  final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);
+  final allLinks = await linkRepo.allLinks();
+  // 取每道题的主知识点（isPrimary=true 优先，否则取第一条）。
+  final questionKpLinks = <String, String>{};
+  for (final link in allLinks) {
+    final existing = questionKpLinks[link.questionId];
+    if (link.isPrimary || existing == null) {
+      questionKpLinks[link.questionId] = link.knowledgePointId;
+    }
+  }
+  // 掌握度快照：复用 weakPointRecommendationsProvider 已经算好的结果。
+  final masteryByKp = <String, KnowledgePointMastery>{};
+  final recs = ref.read(weakPointRecommendationsProvider).maybeWhen(
+        data: (list) => list,
+        orElse: () => const <WeakPointRecommendation>[],
+      );
+  for (final rec in recs) {
+    if (rec.mastery != null) {
+      masteryByKp[rec.recommendation.knowledgePointId] = rec.mastery!;
+    }
+  }
+  return WorksheetAssemblyInput(
+    questions: questions,
+    masteryByKp: masteryByKp,
+    questionKpLinks: questionKpLinks,
+  );
+}
+
+/// Phase 13-1：智能组卷输入数据包。
+class WorksheetAssemblyInput {
+  const WorksheetAssemblyInput({
+    required this.questions,
+    required this.masteryByKp,
+    required this.questionKpLinks,
+  });
+
+  final List<QuestionRecord> questions;
+  final Map<String, KnowledgePointMastery> masteryByKp;
+  final Map<String, String> questionKpLinks;
+}
 
 /// 组卷草稿与历史组卷仓库（Phase 5）。
 final Provider<WorksheetDraftRepository> worksheetDraftRepositoryProvider =

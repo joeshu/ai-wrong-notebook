@@ -1913,4 +1913,64 @@ void main() {
         <String>['ai-simple', 'ai-same', 'ai-hard']);
     expect(exercises.every((exercise) => exercise.diagramData != null), isTrue);
   });
+
+  // Phase 13-2：generateVariants 独立变式题生成测试。
+  group('generateVariants', () {
+    test('Fake 服务无 AI 配置时走兜底题，返回 3 道练习题', () async {
+      final service = AiAnalysisService.fake();
+      final exercises = await service.generateVariants(
+        questionId: 'q-variant-1',
+        sourceQuestionText: '解方程 x + 2 = 5',
+        subjectName: '数学',
+      );
+      expect(exercises.length, 3);
+      // 兜底题难度档依次为 简单 / 同级 / 提高。
+      expect(exercises.map((e) => e.difficulty).toList(),
+          <String>['简单', '同级', '提高']);
+      expect(exercises.every((e) => e.question.isNotEmpty), isTrue);
+      expect(exercises.every((e) => e.options?.length == 4), isTrue);
+    });
+
+    test('圆面积源题生成的兜底变式题包含 diagramData', () async {
+      final service = AiAnalysisService.fake();
+      final exercises = await service.generateVariants(
+        questionId: 'q-circle',
+        sourceQuestionText: '一个圆的半径为 5，求圆的面积。',
+        subjectName: '数学',
+      );
+      expect(exercises.length, 3);
+      // 圆面积兜底题应包含几何图。
+      expect(exercises.every((e) => e.diagramData != null), isTrue);
+    });
+
+    test('题干为空时仍能返回兜底题（Fake 路径不依赖文本）', () async {
+      final service = AiAnalysisService.fake();
+      final exercises = await service.generateVariants(
+        questionId: 'q-empty',
+        sourceQuestionText: '',
+        subjectName: '数学',
+      );
+      // 兜底题 generic 路径返回 3 道。
+      expect(exercises.length, 3);
+    });
+
+    test('buildVariantsPromptForTest 包含 anchor 与漂移检测要求', () {
+      final service = AiAnalysisService.fake();
+      final prompt = service.buildVariantsPromptForTest(
+        sourceQuestionText: '直角三角形两直角边长分别为 3 和 4，求斜边长。',
+        subjectName: '数学',
+      );
+      // 应包含举一反三锚点（直角三角形长度域）。
+      expect(prompt, contains('domain=planeGeometryLength'));
+      expect(prompt, contains('object=rightTriangle'));
+      expect(prompt, contains('pythagorean'));
+      // 应包含漂移检测要求。
+      expect(prompt, contains('简单、同级、提高'));
+      expect(prompt, contains('同一知识点、同一题型、同一核心解法'));
+      // 应包含几何题 diagramData 要求。
+      expect(prompt, contains('diagramData'));
+      // 应包含 JSON 返回格式说明。
+      expect(prompt, contains('"generatedExercises"'));
+    });
+  });
 }

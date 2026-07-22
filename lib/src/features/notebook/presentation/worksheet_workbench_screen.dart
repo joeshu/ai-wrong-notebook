@@ -6,6 +6,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/services/worksheet_assembly_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
@@ -275,8 +276,28 @@ class _WorksheetWorkbenchScreenState
       ),
     );
     if (result == null || !mounted) return;
-    final picked = _smartAssemble(eligible, result);
+
+    // Phase 13-1：调用 WorksheetAssemblyService 做加权采样。
+    final input = await fetchWorksheetAssemblyInput(ref);
+    final config = WorksheetAssemblyConfig(
+      totalCount: result.totalCount,
+      difficultyDistribution: <QuestionDifficulty, double>{
+        QuestionDifficulty.foundation: result.foundationRatio,
+        QuestionDifficulty.advanced: result.advancedRatio,
+        QuestionDifficulty.challenge: result.challengeRatio,
+      },
+      excludeIds: _selectedIds,
+      useWeakPointWeights: result.useWeakPointWeights,
+    );
+    final assembly = ref.read(worksheetAssemblyServiceProvider).assemble(
+          questions: input.questions,
+          masteryByKp: input.masteryByKp,
+          questionKpLinks: input.questionKpLinks,
+          config: config,
+        );
+    final picked = assembly.picked;
     if (picked.isEmpty) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('按当前参数未找到合适题目，请调整后重试')),
       );
@@ -288,8 +309,13 @@ class _WorksheetWorkbenchScreenState
       }
     });
     if (mounted) {
+      final coverage = assembly.coverage;
+      final avgMastery = coverage.averageMasteryPercentage.toStringAsFixed(0);
+      final msg = assembly.unmetConstraints.isEmpty
+          ? '智能组卷已选 ${picked.length} 道题（平均掌握度 $avgMastery%）'
+          : '智能组卷已选 ${picked.length} 道题；${assembly.unmetConstraints.first}';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('智能组卷已选 ${picked.length} 道题')),
+        SnackBar(content: Text(msg)),
       );
     }
   }
@@ -344,65 +370,6 @@ class _WorksheetWorkbenchScreenState
     ref.read(worksheetPreviewQuestionIdsProvider.notifier).state =
         _order.toList();
     context.push('/worksheet/preview');
-  }
-
-  /// 智能选题算法：按难度分布从题库中筛选 + 去重 + 补足。
-  List<QuestionRecord> _smartAssemble(
-    List<QuestionRecord> pool,
-    _SmartAssemblyParams params,
-  ) {
-    // 1. 排除已选题目
-    final available =
-        pool.where((q) => !_selectedIds.contains(q.id)).toList();
-    if (available.isEmpty) return const <QuestionRecord>[];
-
-    // 2. 按难度分组
-    final byDifficulty = <QuestionDifficulty, List<QuestionRecord>>{
-      QuestionDifficulty.foundation: <QuestionRecord>[],
-      QuestionDifficulty.advanced: <QuestionRecord>[],
-      QuestionDifficulty.challenge: <QuestionRecord>[],
-      QuestionDifficulty.custom: <QuestionRecord>[],
-    };
-    for (final q in available) {
-      final d = q.difficulty ?? QuestionDifficulty.foundation;
-      byDifficulty[d]?.add(q);
-    }
-
-    // 3. 按分布比例计算各难度目标数量
-    final total = params.totalCount;
-    final foundationTarget = (total * params.foundationRatio).round();
-    final advancedTarget = (total * params.advancedRatio).round();
-    final challengeTarget = total - foundationTarget - advancedTarget;
-
-    final picked = <QuestionRecord>[];
-    void pickFrom(List<QuestionRecord> list, int count) {
-      var n = 0;
-      for (final q in list) {
-        if (n >= count) break;
-        picked.add(q);
-        n++;
-      }
-    }
-
-    pickFrom(byDifficulty[QuestionDifficulty.foundation]!, foundationTarget);
-    pickFrom(byDifficulty[QuestionDifficulty.advanced]!, advancedTarget);
-    pickFrom(byDifficulty[QuestionDifficulty.challenge]!, challengeTarget);
-
-    // 4. 补足：若不足 total，从剩余池中按 custom → foundation → advanced → challenge 补
-    if (picked.length < total) {
-      final pickedIds = picked.map((q) => q.id).toSet();
-      final remaining = available
-          .where((q) => !pickedIds.contains(q.id))
-          .toList();
-      for (final q in remaining) {
-        if (picked.length >= total) break;
-        picked.add(q);
-      }
-    }
-
-    // 5. 截断到 total（可能因补足超出）
-    if (picked.length > total) picked.removeRange(total, picked.length);
-    return picked;
   }
 
   @override
@@ -934,17 +901,21 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
-/// Phase 8-4：智能组卷参数。
+/// Phase 8-4 / 13-1：智能组卷参数。
 class _SmartAssemblyParams {
   const _SmartAssemblyParams({
     required this.totalCount,
     required this.foundationRatio,
     required this.advancedRatio,
+    this.useWeakPointWeights = true,
   });
 
   final int totalCount;
   final double foundationRatio;
   final double advancedRatio;
+
+  /// Phase 13-1：是否按薄弱点加权采样（开启后低掌握度知识点题目优先）。
+  final bool useWeakPointWeights;
 
   double get challengeRatio =>
       (1.0 - foundationRatio - advancedRatio).clamp(0.0, 1.0);
@@ -968,6 +939,7 @@ class _SmartAssemblySheetState extends State<_SmartAssemblySheet> {
   late int _totalCount;
   late double _foundationPct; // 0.0 – 1.0
   late double _advancedPct;
+  bool _useWeakPointWeights = true; // Phase 13-1
 
   @override
   void initState() {
@@ -1079,6 +1051,43 @@ class _SmartAssemblySheetState extends State<_SmartAssemblySheet> {
             count: challengeN,
             enabled: false, // 自动计算
           ),
+          const SizedBox(height: 16),
+          // Phase 13-1：薄弱点加权开关。
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(CupertinoIcons.target, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text('薄弱点优先',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      Text(
+                        _useWeakPointWeights
+                            ? '低掌握度知识点的题目采样权重更高'
+                            : '所有题目等权采样，仅按难度配比组卷',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _useWeakPointWeights,
+                  onChanged: (v) => setState(() => _useWeakPointWeights = v),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -1089,6 +1098,7 @@ class _SmartAssemblySheetState extends State<_SmartAssemblySheet> {
                   totalCount: _totalCount,
                   foundationRatio: _foundationPct,
                   advancedRatio: _advancedPct,
+                  useWeakPointWeights: _useWeakPointWeights,
                 ),
               ),
               icon: const Icon(CupertinoIcons.checkmark, size: 18),
