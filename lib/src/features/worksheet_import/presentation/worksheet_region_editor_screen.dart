@@ -279,14 +279,18 @@ class _WorksheetRegionEditorScreenState
                 onTapDown: _isCropping ? null : (details) {
                   final x = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
                   final y = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
+                  const boxWidth = .80;
+                  const boxHeight = .20;
                   setState(() {
                     final region = QuestionRegion(
                       id: const Uuid().v4(),
                       normalizedRect: Rect.fromLTWH(
-                        (x - .40).clamp(0.0, .80).toDouble(),
-                        (y - .10).clamp(0.0, .80).toDouble(),
-                        .80,
-                        .20,
+                        // 点击点水平居中于题框；clamp 上限 = 1 - boxWidth，
+                        // 避免框右边超出图片边界（与 _ResizableRegion._move 一致）。
+                        (x - boxWidth / 2).clamp(0.0, 1 - boxWidth).toDouble(),
+                        (y - .10).clamp(0.0, 1 - boxHeight).toDouble(),
+                        boxWidth,
+                        boxHeight,
                       ),
                     );
                     _regions.add(region);
