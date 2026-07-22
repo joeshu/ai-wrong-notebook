@@ -174,8 +174,8 @@ void main() {
       expect(find.text('随机'), findsOneWidget);
       expect(find.text('专项'), findsOneWidget);
 
-      // 复习统计第二行（近 7 天复习 / 掌握率 / 连续天）
-      expect(find.text('近7天复习'), findsOneWidget);
+      // 复习统计（近 7 天 / 掌握率 / 连续天）
+      expect(find.text('近7天'), findsOneWidget);
       expect(find.text('掌握率'), findsOneWidget);
       expect(find.text('连续天'), findsOneWidget);
     });
