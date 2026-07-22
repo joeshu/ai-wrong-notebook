@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
@@ -57,6 +58,11 @@ class _WorksheetRegionEditorScreenState
   bool _didCheckDraft = false;
   String? _draftStatus;
   String? _selectedRegionId;
+  // 手动拖动框选：起点 + 实时预览矩形（归一化坐标）。
+  Offset? _dragStart;
+  Rect? _dragPreview;
+  // 题目校对工作台折叠状态：默认收起，把空间留给图片框选区。
+  bool _workbenchExpanded = false;
 
   @override
   void initState() {
@@ -241,60 +247,141 @@ class _WorksheetRegionEditorScreenState
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
             child: Text(
-              '拖动蓝色题框调整位置；拖动右下角圆点缩放；点击红色 × 删除。每个蓝框会裁成一张独立题图。自动识别题框仅为候选，确认前请逐一检查。',
+              '在试卷图上按下并拖动可框选题目区域，松开生成题框；轻点可放默认大小题框。拖动蓝色题框调整位置，拖动右下角圆点缩放，点击红色 × 删除。每个蓝框会裁成一张独立题图。',
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
           ),
           if (_regions.isNotEmpty)
-            SizedBox(
-              height: MediaQuery.sizeOf(context).width < 600 ? 446 : 370,
-              child: _RecognizedQuestionWorkbench(
-                regions: _regions,
-                defaultSubject: page.subject,
-                onUpdate: (index, next) => setState(() {
-                  final previous = _regions[index];
-                  _regions[index] = next.copyWith(
-                    originalRecognizedText: previous.originalRecognizedText ?? previous.recognizedText,
-                  );
-                  _scheduleDraftSave(page.id);
-                }),
-                onIgnore: (index) => setState(() {
-                  final region = _regions[index];
-                  _regions[index] = region.copyWith(
-                    reviewStatus: region.reviewStatus == QuestionRegionReviewStatus.ignored
-                        ? QuestionRegionReviewStatus.accepted
-                        : QuestionRegionReviewStatus.ignored,
-                  );
-                  _scheduleDraftSave(page.id);
-                }),
-                selectedRegionId: _selectedRegionId,
-                sourceImagePath: page.imagePath,
-                onSelect: (region) => setState(() => _selectedRegionId = region.id),
-              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                InkWell(
+                  onTap: () => setState(() => _workbenchExpanded = !_workbenchExpanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Row(children: <Widget>[
+                      Icon(
+                        _workbenchExpanded
+                            ? CupertinoIcons.chevron_down
+                            : CupertinoIcons.chevron_right,
+                        size: 16,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '已识别 ${_regions.length} 道题 · '
+                          '${_regions.where((r) => r.reviewStatus == QuestionRegionReviewStatus.accepted).length} 题采用 · '
+                          '点击${_workbenchExpanded ? '收起' : '展开校对文字'}',
+                          style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+                if (_workbenchExpanded)
+                  SizedBox(
+                    height: MediaQuery.sizeOf(context).width < 600 ? 280 : 240,
+                    child: _RecognizedQuestionWorkbench(
+                      regions: _regions,
+                      defaultSubject: page.subject,
+                      onUpdate: (index, next) => setState(() {
+                        final previous = _regions[index];
+                        _regions[index] = next.copyWith(
+                          originalRecognizedText: previous.originalRecognizedText ?? previous.recognizedText,
+                        );
+                        _scheduleDraftSave(page.id);
+                      }),
+                      onIgnore: (index) => setState(() {
+                        final region = _regions[index];
+                        _regions[index] = region.copyWith(
+                          reviewStatus: region.reviewStatus == QuestionRegionReviewStatus.ignored
+                              ? QuestionRegionReviewStatus.accepted
+                              : QuestionRegionReviewStatus.ignored,
+                        );
+                        _scheduleDraftSave(page.id);
+                      }),
+                      selectedRegionId: _selectedRegionId,
+                      sourceImagePath: page.imagePath,
+                      onSelect: (region) => setState(() => _selectedRegionId = region.id),
+                    ),
+                  ),
+              ],
             ),
           Expanded(
             child: LayoutBuilder(builder: (context, constraints) {
               final size = Size(constraints.maxWidth, constraints.maxHeight);
               return GestureDetector(
-                onTapDown: _isCropping ? null : (details) {
-                  final x = (details.localPosition.dx / size.width).clamp(0.0, 1.0);
-                  final y = (details.localPosition.dy / size.height).clamp(0.0, 1.0);
-                  const boxWidth = .80;
-                  const boxHeight = .20;
+                // 手动拖动框选：按下拖动画矩形，松开生成题框；
+                // 轻点（拖动距离很小）则放一个默认大小题框居中于落点。
+                onPanStart: _isCropping ? null : (details) {
+                  _dragStart = details.localPosition;
                   setState(() {
-                    final region = QuestionRegion(
-                      id: const Uuid().v4(),
-                      normalizedRect: Rect.fromLTWH(
-                        // 点击点水平居中于题框；clamp 上限 = 1 - boxWidth，
-                        // 避免框右边超出图片边界（与 _ResizableRegion._move 一致）。
-                        (x - boxWidth / 2).clamp(0.0, 1 - boxWidth).toDouble(),
-                        (y - .10).clamp(0.0, 1 - boxHeight).toDouble(),
-                        boxWidth,
-                        boxHeight,
-                      ),
+                    _dragPreview = Rect.fromLTWH(
+                      (_dragStart!.dx / size.width).clamp(0.0, 1.0),
+                      (_dragStart!.dy / size.height).clamp(0.0, 1.0),
+                      0.0,
+                      0.0,
                     );
-                    _regions.add(region);
-                    _selectedRegionId = region.id;
+                  });
+                },
+                onPanUpdate: _isCropping ? null : (details) {
+                  if (_dragStart == null) return;
+                  final startN = Offset(
+                    (_dragStart!.dx / size.width).clamp(0.0, 1.0),
+                    (_dragStart!.dy / size.height).clamp(0.0, 1.0),
+                  );
+                  final curN = Offset(
+                    (details.localPosition.dx / size.width).clamp(0.0, 1.0),
+                    (details.localPosition.dy / size.height).clamp(0.0, 1.0),
+                  );
+                  setState(() {
+                    _dragPreview = Rect.fromLTRB(
+                      math.min(startN.dx, curN.dx),
+                      math.min(startN.dy, curN.dy),
+                      math.max(startN.dx, curN.dx),
+                      math.max(startN.dy, curN.dy),
+                    );
+                  });
+                },
+                onPanEnd: _isCropping ? null : (details) {
+                  if (_dragStart == null || _dragPreview == null) {
+                    _dragStart = null;
+                    _dragPreview = null;
+                    return;
+                  }
+                  final r = _dragPreview!;
+                  const defaultWidth = 0.80;
+                  const defaultHeight = 0.20;
+                  setState(() {
+                    if (r.width > 0.05 && r.height > 0.03) {
+                      // 拖动画框：直接用拖动范围作为题框。
+                      final region = QuestionRegion(
+                        id: const Uuid().v4(),
+                        normalizedRect: r,
+                      );
+                      _regions.add(region);
+                      _selectedRegionId = region.id;
+                    } else {
+                      // 轻点：放默认大小题框，落点水平居中。
+                      final region = QuestionRegion(
+                        id: const Uuid().v4(),
+                        normalizedRect: Rect.fromLTWH(
+                          (_dragStart!.dx / size.width - defaultWidth / 2)
+                              .clamp(0.0, 1 - defaultWidth)
+                              .toDouble(),
+                          (_dragStart!.dy / size.height - defaultHeight / 2)
+                              .clamp(0.0, 1 - defaultHeight)
+                              .toDouble(),
+                          defaultWidth,
+                          defaultHeight,
+                        ),
+                      );
+                      _regions.add(region);
+                      _selectedRegionId = region.id;
+                    }
+                    _dragStart = null;
+                    _dragPreview = null;
                   });
                 },
                 child: Stack(fit: StackFit.expand, children: <Widget>[
@@ -317,6 +404,23 @@ class _WorksheetRegionEditorScreenState
                       }),
                     );
                   }),
+                  // 拖动框选实时预览。
+                  if (_dragPreview != null)
+                    Positioned(
+                      left: _dragPreview!.left * size.width,
+                      top: _dragPreview!.top * size.height,
+                      width: _dragPreview!.width * size.width,
+                      height: _dragPreview!.height * size.height,
+                      child: IgnorePointer(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                                color: const Color(0xFF7C3AED), width: 2),
+                            color: const Color(0xFF7C3AED).withValues(alpha: 0.15),
+                          ),
+                        ),
+                      ),
+                    ),
                 ]),
               );
             }),
