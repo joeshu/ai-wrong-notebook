@@ -735,8 +735,10 @@ final Provider<WorksheetAssemblyService> worksheetAssemblyServiceProvider =
 ///
 /// 把题目列表、知识点掌握度、题目-知识点主关联聚合成一次调用所需
 /// 的数据，避免 service 直接 watch provider（保持 service 纯函数式）。
+/// 参数类型为 [WidgetRef]：当前唯一调用方是组卷工作台（ConsumerState），
+/// `WidgetRef.read` 与 `Ref.read` 语义一致，复用同一份聚合逻辑。
 Future<WorksheetAssemblyInput> fetchWorksheetAssemblyInput(
-  Ref ref,
+  WidgetRef ref,
 ) async {
   final questions = await ref.read(questionListProvider.future);
   final linkRepo = ref.read(questionKnowledgeLinkRepositoryProvider);

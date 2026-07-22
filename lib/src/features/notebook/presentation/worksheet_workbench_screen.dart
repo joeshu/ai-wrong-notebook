@@ -1061,7 +1061,7 @@ class _SmartAssemblySheetState extends State<_SmartAssemblySheet> {
             ),
             child: Row(
               children: <Widget>[
-                const Icon(CupertinoIcons.target, size: 18),
+                const Icon(CupertinoIcons.scope, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
