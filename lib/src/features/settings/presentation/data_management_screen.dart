@@ -433,36 +433,6 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const _SectionTitle('学习资料导出'),
-            const SizedBox(height: 8),
-            _DataCard(
-              icon: CupertinoIcons.doc_text,
-              title: '导出为 HTML（精美排版）',
-              subtitle: '可选练习卷/答案卷/订正卷，支持按学科/掌握程度/时间筛选与预览',
-              onTap: questions.isEmpty
-                  ? null
-                  : () => _exportWithOptions(context, questions, isPdf: false),
-            ),
-            const SizedBox(height: 8),
-            _DataCard(
-              icon: CupertinoIcons.doc_richtext,
-              title: '导出为 PDF',
-              subtitle: '可选模式与筛选，公式与几何图高保真，桌面端优先用系统分享',
-              onTap: questions.isEmpty
-                  ? null
-                  : () => _exportWithOptions(context, questions, isPdf: true),
-            ),
-            const SizedBox(height: 20),
-            const _SectionTitle('导出历史'),
-            const SizedBox(height: 8),
-            _ExportHistoryCard(
-              future: _exportFilesFuture,
-              onRefresh: _reloadExports,
-              onShare: (file) => _shareExportFile(context, file),
-              onDelete: (file) => _deleteExportFile(context, file),
-              onRename: (file) => _renameExportFile(context, file),
-              onEmail: (file) => _emailExportFile(context, file),
-            ),
           ],
         ),
         loading: () => const AppListSkeleton(),

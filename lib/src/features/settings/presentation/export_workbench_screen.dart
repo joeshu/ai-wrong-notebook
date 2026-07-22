@@ -39,6 +39,7 @@ class ExportWorkbenchScreen extends ConsumerStatefulWidget {
   const ExportWorkbenchScreen({
     super.key,
     this.initialQuestionIds = const <String>[],
+    this.showBackButton = false,
   });
 
   /// 入口页预填的题目 ID 列表。
@@ -48,6 +49,7 @@ class ExportWorkbenchScreen extends ConsumerStatefulWidget {
   /// [ExportOptions]，跳过用户手动点开筛选对话框的步骤。空集合表示
   /// 不预填，沿用原"默认导出全部题目"的行为。
   final List<String> initialQuestionIds;
+  final bool showBackButton;
 
   @override
   ConsumerState<ExportWorkbenchScreen> createState() =>
@@ -70,11 +72,14 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     final questionsAsync = ref.watch(questionListProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('导出工作台'),
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.chevron_left),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        title: const Text('导出与分享'),
+        automaticallyImplyLeading: widget.showBackButton,
+        leading: widget.showBackButton
+            ? IconButton(
+                icon: const Icon(CupertinoIcons.chevron_left),
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
       ),
       body: questionsAsync.when(
         data: (questions) {
@@ -119,15 +124,53 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         SliverToBoxAdapter(child: _buildFilterSection(context, questions)),
         if (showLayoutOptions)
           SliverToBoxAdapter(child: _buildLayoutSection(context)),
+        SliverToBoxAdapter(child: _buildHistorySection(context)),
         SliverToBoxAdapter(child: _buildPreviewSection(context, showPreview)),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────
-  // 模板选择区
-  // ─────────────────────────────────────────────────────────────────────
+  Widget _buildHistorySection(BuildContext context) {
+    return _Section(
+      title: '导出历史',
+      description: '最近导出的资料可从这里继续查看和分享',
+      child: FutureBuilder<List<ExportHistoryEntry>>(
+        future: ExportHistoryService.list(),
+        builder: (context, snapshot) {
+          final entries = snapshot.data ?? const <ExportHistoryEntry>[];
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: LinearProgressIndicator(),
+            );
+          }
+          if (entries.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _SummaryBox(
+                icon: CupertinoIcons.clock,
+                text: '暂无导出记录。完成一次导出后，记录会显示在这里。',
+              ),
+            );
+          }
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              children: entries.take(5).map((entry) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(CupertinoIcons.doc_text),
+                title: Text(entry.title.isEmpty ? entry.format : entry.title),
+                subtitle: Text('${entry.format} · ${entry.questionCount} 题 · ${entry.template}'),
+              )).toList(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
 
   Widget _buildTemplateSection(BuildContext context) {
     return _Section(
