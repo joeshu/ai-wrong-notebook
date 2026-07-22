@@ -690,34 +690,109 @@ class _WorksheetRegionEditorScreenState
   }
 
   Future<void> _cropAndQueue(QuestionRecord source) async {
-    setState(() => _isCropping = true);
+    setState(() {
+      _isCropping = true;
+      _detectionMessage = '正在裁切题图…';
+    });
     try {
       final cropper = ref.read(questionRegionCropServiceProvider);
+      final ai = ref.read(aiAnalysisServiceProvider);
       final candidates = <QuestionRecord>[];
-      for (final region in _regions.where((item) => item.reviewStatus == QuestionRegionReviewStatus.accepted)) {
-        final path = await cropper.cropToStoredImage(sourcePath: source.imagePath, region: region);
+      final acceptedRegions = _regions
+          .where((item) => item.reviewStatus == QuestionRegionReviewStatus.accepted)
+          .toList();
+      for (var i = 0; i < acceptedRegions.length; i++) {
+        final region = acceptedRegions[i];
+        if (mounted) {
+          setState(() => _detectionMessage =
+              '正在识别第 ${i + 1}/${acceptedRegions.length} 题文字与公式…');
+        }
+
+        final path = await cropper.cropToStoredImage(
+            sourcePath: source.imagePath, region: region);
         final fingerprint = await ImageFingerprintCodec.fromFile(File(path));
-        candidates.add(QuestionRecord.draft(
-          id: const Uuid().v4(),
-          imagePath: path,
-          subject: region.subject ?? source.subject,
-          recognizedText: region.recognizedText ?? '',
-          contentFormat: region.contentFormatHint == 'latexMixed'
-              ? QuestionContentFormat.latexMixed
-              : QuestionContentFormat.plain,
-        ).copyWith(
-          contentStatus: region.analyzeWithAi
-              ? ContentStatus.processing
-              : ContentStatus.ready,
-          tags: (ImageFingerprintCodec.write(source.tags, fingerprint)
-            ..removeWhere((tag) => tag.startsWith('layout_provider:') || tag.startsWith('question_type:') || tag.startsWith('document_blocks:'))
-            ..add('layout_provider:${_detectionProvider ?? '手动框选'}')
-            ..addAll(region.questionType == null || region.questionType!.isEmpty ? const <String>[] : <String>['question_type:${region.questionType}'])
-            ..addAll(region.recognizedBlockTypes.isEmpty ? const <String>[] : <String>['document_blocks:${region.recognizedBlockTypes.join('+')}'])),
-          parentQuestionId: source.id,
-          rootQuestionId: source.rootQuestionId ?? source.id,
-          ocrConfidence: region.confidence,
-        ));
+
+        // 对手动框选区域（无识别文字），调用 AI 识别文字+公式，
+        // 并尝试切分多题（一个框选区域可能含多道题）。
+        String recognizedText = region.recognizedText ?? '';
+        String contentFormatHint = region.contentFormatHint ?? 'plain';
+        List<String> splitTexts = const <String>[];
+
+        if (recognizedText.isEmpty) {
+          try {
+            final extraction = await ai.extractQuestionStructure(
+              subjectName: (region.subject ?? source.subject).label,
+              imagePath: path,
+            );
+            recognizedText = extraction.normalizedQuestionText;
+            if (recognizedText.contains(r'$') ||
+                recognizedText.contains(r'\\')) {
+              contentFormatHint = 'latexMixed';
+            }
+            // AI 切出多题时，用切分结果生成多道题。
+            final split = extraction.splitResult;
+            if (split != null && split.candidates.length > 1) {
+              splitTexts =
+                  split.candidates.map((c) => c.text).toList();
+            }
+          } catch (e) {
+            // AI 未配置或调用失败：降级为空文本，后续走 /analysis/loading。
+            debugPrint('[WorksheetRegionEditor] AI 识别文字失败: $e');
+          }
+        }
+
+        final baseTags = (ImageFingerprintCodec.write(source.tags, fingerprint)
+          ..removeWhere((tag) =>
+              tag.startsWith('layout_provider:') ||
+              tag.startsWith('question_type:') ||
+              tag.startsWith('document_blocks:'))
+          ..add('layout_provider:${_detectionProvider ?? '手动框选'}')
+          ..addAll(region.questionType == null || region.questionType!.isEmpty
+              ? const <String>[]
+              : <String>['question_type:${region.questionType}'])
+          ..addAll(region.recognizedBlockTypes.isEmpty
+              ? const <String>[]
+              : <String>['document_blocks:${region.recognizedBlockTypes.join('+')}']));
+
+        if (splitTexts.length > 1) {
+          // 一个框选区域含多道题：为每题生成独立 QuestionRecord（共用小图）。
+          for (final text in splitTexts) {
+            final fmt = text.contains(r'$') || text.contains(r'\\')
+                ? QuestionContentFormat.latexMixed
+                : QuestionContentFormat.plain;
+            candidates.add(QuestionRecord.draft(
+              id: const Uuid().v4(),
+              imagePath: path,
+              subject: region.subject ?? source.subject,
+              recognizedText: text,
+              contentFormat: fmt,
+            ).copyWith(
+              contentStatus: ContentStatus.processing,
+              tags: List<String>.from(baseTags),
+              parentQuestionId: source.id,
+              rootQuestionId: source.rootQuestionId ?? source.id,
+              ocrConfidence: region.confidence,
+            ));
+          }
+        } else {
+          candidates.add(QuestionRecord.draft(
+            id: const Uuid().v4(),
+            imagePath: path,
+            subject: region.subject ?? source.subject,
+            recognizedText: recognizedText,
+            contentFormat: contentFormatHint == 'latexMixed'
+                ? QuestionContentFormat.latexMixed
+                : QuestionContentFormat.plain,
+          ).copyWith(
+            contentStatus: region.analyzeWithAi
+                ? ContentStatus.processing
+                : ContentStatus.ready,
+            tags: baseTags,
+            parentQuestionId: source.id,
+            rootQuestionId: source.rootQuestionId ?? source.id,
+            ocrConfidence: region.confidence,
+          ));
+        }
       }
       final worksheet = ref.read(currentWorksheetImportProvider);
       if (worksheet != null) {
