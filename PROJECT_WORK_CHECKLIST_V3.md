@@ -453,27 +453,40 @@
 
 ## 1. 掌握度算法补全
 
-- [ ] `KnowledgePointMasteryService.calculate` 加"最近复习正确率"因子(权重 40%)
-- [ ] 加"累计复习次数"正向因子(权重 20%)
-- [ ] 加"难度分布"因子(权重 10%)
-- [ ] 调整现有因子权重(错因扣分 / 新题占比降权)
-- [ ] 单测覆盖新算法
+- [x] `KnowledgePointMasteryService.calculate` 加"最近复习正确率"因子(权重 40%)
+  > 新模型从「基础分 - 硬扣分」改为 4 因子加权：accuracy 40% + recency 20% + difficulty 10% + base 30%，权重和 = 1.0；`_accuracyFactor` 按 1/N 权重聚合 easy/(easy+hard+forgot)，无记录按 mastery 折算（mastered=95 / reviewing=50 / new=10）
+- [x] 加"累计复习次数"正向因子(权重 20%)
+  > `_recencyFactor`：log(1+n)/log(1+10) 饱和曲线 + 7 天后每日 -2% 衰减系数，10 次复习接近满分
+- [x] 加"难度分布"因子(权重 10%)
+  > `_difficultyWeight`：challenge=1.0 / advanced=0.7 / foundation=0.3 / custom·null=0.5，难度从 `QuestionRecord.tags` 经 `LearningContextCodec.difficulty` 解析
+- [x] 调整现有因子权重(错因扣分 / 新题占比降权)
+  > base 30%：mastered=100 / reviewing=55 / new=15；forgotPenalty/hardPenalty/newQuestionPenalty 作为扣分项在加权求和后扣减；factors map 同时保留旧 key 与新 accuracy/recency/difficulty 子分数 + 4 个权重 key 兼容 UI 展示层
+- [x] 单测覆盖新算法
+  > `knowledge_point_mastery_service_test.dart` 加 4 个新 case：高难度题（challenge）难度因子接近满分；复习次数饱和到 10 次时 recency 接近满分；全部 forgot 时 accuracy 为 0；权重之和为 100
 
 ## 2. 数据管理补全
 
-- [ ] 清理缓存入口(独立于"清空所有数据")
-  - [ ] 清理图片缓存(`CachedNetworkImage` 缓存)
-  - [ ] 清理临时题图(`worksheet_import` 生成的裁切图)
-  - [ ] 清理 AI 响应缓存
-- [ ] 备份包包含知识点树(序列化 `KnowledgePoint` + `QuestionKnowledgeLink`)
-- [ ] 备份包包含组卷草稿(`WorksheetDraft`)
+- [x] 清理缓存入口(独立于"清空所有数据")
+  - [x] 清理图片缓存(`CachedNetworkImage` 缓存)
+    > 本项目题图走本地文件存储（`ImageStorageService`），未使用 CachedNetworkImage；改为实现「清理孤立题图」扫描 `${appDir}/wrong_question_images` 目录，删除不被任何 `QuestionRecord.imagePath` 引用的孤儿文件
+  - [x] 清理临时题图(`worksheet_import` 生成的裁切图)
+    > `_cleanTempPreviews`：扫描 `getTemporaryDirectory()` 下 .html/.pdf 预览文件（学情周报、错因趋势热力图、学科雷达图等模块生成），删除修改时间超过 7 天的
+  - [x] 清理 AI 响应缓存
+    > 当前未启用 AI 响应缓存，入口直接弹 SnackBar 提示「无需清理」，待后续接入响应缓存时再补实现
+- [x] 备份包包含知识点树(序列化 `KnowledgePoint` + `QuestionKnowledgeLink`)
+  > schema v6：备份 archive 新增 `knowledge_points.json`（KnowledgePoint.toJson 序列化），manifest 加 `knowledgePointCount`；恢复时 `_restoreKnowledgePoints` 按 ID upsertAll 合并（不覆盖本地独有节点），刷新 `knowledgePointTreeProvider`
+- [x] 备份包包含组卷草稿(`WorksheetDraft`)
+  > schema v6：备份 archive 新增 `worksheet_drafts.json`（WorksheetDraft.toJson 序列化），manifest 加 `worksheetDraftCount`；恢复时 `_restoreWorksheetDrafts` 按 ID save 合并（同 ID 覆盖 updatedAt，新 ID 插入），刷新 `savedWorksheetDraftsProvider`
 - [ ] 云端备份(WebDAV / iCloud Drive,Phase 13 评估)
 
 ## 3. 引擎配置增强
 
-- [ ] `AiProviderConfig` 加 `timeout` 字段
-- [ ] `provider_config_screen` 加超时设置输入
-- [ ] AI 服务类型选择下拉(OpenAI / Anthropic / 自定义)
+- [x] `AiProviderConfig` 加 `timeout` 字段
+  > 新增 `timeoutSeconds`（默认 60）+ `serviceType`（默认 openai）；`effectiveTimeoutSeconds`/`effectiveTimeout` 兜底 getter；`SharedPrefsSettingsRepository`（JSON map）和 `DriftSettingsRepository`（独立 key `ai_timeout_seconds`/`ai_service_type`/`ai_max_concurrency`）双实现同步更新；`AiAnalysisService._createClient` 用 `effectiveTimeout` 作 connectTimeout，receiveTimeout = 4× connectTimeout（避免大模型流式响应被掐断）
+- [x] `provider_config_screen` 加超时设置输入
+  > 加 `_timeoutController`（默认 '60'）+ `TextFormField`，validator 要求 >0 整数；_save 和 _testConnection 构造 `AiProviderConfig` 时带 `timeoutSeconds: int.parse(...)`
+- [x] AI 服务类型选择下拉(OpenAI / Anthropic / 自定义)
+  > 新增 `AiServiceType` 枚举（openai/anthropic/custom）含 `label`/`hint`/`serializedName` getter 和 `fromSerializedName` 工厂；`provider_config_screen` 加 `DropdownButtonFormField<AiServiceType>` + hint Text；_save 和 _testConnection 构造时带 `serviceType: _serviceType`
 
 ---
 

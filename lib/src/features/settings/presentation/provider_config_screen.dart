@@ -20,12 +20,14 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
   late final TextEditingController _urlController;
   late final TextEditingController _modelController;
   late final TextEditingController _apiKeyController;
+  late final TextEditingController _timeoutController;
   final _formKey = GlobalKey<FormState>();
   bool _loading = false;
   bool _loaded = false;
   bool _testing = false;
   bool _obscureApiKey = true;
   String? _testResult;
+  AiServiceType _serviceType = AiServiceType.openai;
 
   @override
   void initState() {
@@ -33,6 +35,7 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
     _urlController = TextEditingController();
     _modelController = TextEditingController();
     _apiKeyController = TextEditingController();
+    _timeoutController = TextEditingController(text: '60');
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadConfig());
   }
 
@@ -41,6 +44,7 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
     _urlController.dispose();
     _modelController.dispose();
     _apiKeyController.dispose();
+    _timeoutController.dispose();
     super.dispose();
   }
 
@@ -52,7 +56,11 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
       _urlController.text = config.baseUrl;
       _modelController.text = config.model;
       _apiKeyController.text = config.apiKey;
-      setState(() => _loaded = true);
+      _timeoutController.text = config.timeoutSeconds.toString();
+      setState(() {
+        _serviceType = config.serviceType;
+        _loaded = true;
+      });
     }
   }
 
@@ -117,6 +125,53 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
                     onPressed: () => setState(
                         () => _obscureApiKey = !_obscureApiKey),
                   ),
+                ),
+              ),
+              const SizedBox(height: AppSpace.md),
+              // Phase 12-3：AI 服务类型下拉（OpenAI / Anthropic / 自定义）。
+              DropdownButtonFormField<AiServiceType>(
+                value: _serviceType,
+                decoration: const InputDecoration(
+                  labelText: 'AI 服务类型',
+                  hintText: '选择上游协议约定',
+                ),
+                items: AiServiceType.values
+                    .map((type) => DropdownMenuItem<AiServiceType>(
+                          value: type,
+                          child: Text(type.label),
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _serviceType = value);
+                  }
+                },
+              ),
+              Padding(
+                padding: const EdgeInsets.only(
+                    left: AppSpace.sm, top: AppSpace.xs, right: AppSpace.sm),
+                child: Text(
+                  _serviceType.hint,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(height: AppSpace.md),
+              // Phase 12-3：单次请求超时秒数。
+              TextFormField(
+                controller: _timeoutController,
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  final raw = value?.trim() ?? '';
+                  final n = int.tryParse(raw);
+                  if (n == null || n <= 0) {
+                    return '请输入大于 0 的整数（默认 60 秒）';
+                  }
+                  return null;
+                },
+                decoration: const InputDecoration(
+                  labelText: '请求超时（秒）',
+                  hintText: '默认 60，超大题量可调到 120',
+                  suffixText: '秒',
                 ),
               ),
               const SizedBox(height: AppSpace.lg),
@@ -213,6 +268,8 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
       baseUrl: _urlController.text.trim(),
       model: _modelController.text.trim(),
       apiKey: _apiKeyController.text.trim(),
+      timeoutSeconds: int.parse(_timeoutController.text.trim()),
+      serviceType: _serviceType,
     );
     await ref.read(settingsRepositoryProvider).saveAiProviderConfig(config);
     if (mounted) {
@@ -230,6 +287,8 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
       baseUrl: _urlController.text.trim(),
       model: _modelController.text.trim(),
       apiKey: _apiKeyController.text.trim(),
+      timeoutSeconds: int.parse(_timeoutController.text.trim()),
+      serviceType: _serviceType,
     );
 
     setState(() {

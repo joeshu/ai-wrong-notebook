@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point_mastery.dart';
+import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_knowledge_link.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
@@ -97,7 +98,9 @@ void main() {
       );
 
       expect(mastery.masteredCount, 2);
-      expect(mastery.masteryPercentage, closeTo(100, 1));
+      // Phase 12-1 新算法：mastered+最近复习+无 forgot/hard 时约 85%
+      // （基础 30% + 正确率 40% + recency 20% + 难度 10%），不再到 100。
+      expect(mastery.masteryPercentage, greaterThan(80));
       expect(mastery.level, MasteryLevel.mastered);
     });
 
@@ -260,11 +263,112 @@ void main() {
         now: DateTime(2026, 7, 21),
       );
 
+      // 兼容旧 UI 的 key。
       expect(mastery.factors.containsKey('baseScore'), isTrue);
       expect(mastery.factors.containsKey('forgotPenalty'), isTrue);
       expect(mastery.factors.containsKey('hardPenalty'), isTrue);
       expect(mastery.factors.containsKey('newQuestionPenalty'), isTrue);
       expect(mastery.factors['forgotPenalty'], 5.0);
+      // Phase 12-1 新增因子子分数 + 权重 key。
+      expect(mastery.factors.containsKey('accuracy'), isTrue);
+      expect(mastery.factors.containsKey('recency'), isTrue);
+      expect(mastery.factors.containsKey('difficulty'), isTrue);
+      expect(mastery.factors.containsKey('accuracyWeight'), isTrue);
+      expect(mastery.factors['accuracyWeight'], 40.0);
+      expect(mastery.factors['recencyWeight'], 20.0);
+      expect(mastery.factors['difficultyWeight'], 10.0);
+      expect(mastery.factors['baseWeight'], 30.0);
+    });
+
+    // ── Phase 12-1 新算法单测 ───────────────────────────────────────────
+
+    test('Phase 12-1：高难度题（challenge）难度因子接近满分', () async {
+      await linkRepo.addLink(QuestionKnowledgeLink(
+        questionId: 'q_hard',
+        knowledgePointId: 'kp_1',
+        createdAt: DateTime(2026),
+      ));
+      // challenge 题难度权重 1.0 → 难度子分数 100。
+      final hardQuestion = _question('q_hard',
+              mastery: MasteryLevel.reviewing,
+              lastReviewedAt: DateTime(2026, 7, 20))
+          .withLearningContext(difficulty: QuestionDifficulty.challenge);
+
+      final mastery = await service.calculate(
+        knowledgePointId: 'kp_1',
+        questions: <QuestionRecord>[hardQuestion],
+        reviewStatsByQuestion: const <String, ReviewStats>{},
+        now: DateTime(2026, 7, 21),
+      );
+
+      expect(mastery.factors['difficulty'], closeTo(100, 0.1));
+    });
+
+    test('Phase 12-1：复习次数饱和到 10 次时 recency 接近满分', () async {
+      await linkRepo.addLink(QuestionKnowledgeLink(
+        questionId: 'q_rev',
+        knowledgePointId: 'kp_1',
+        createdAt: DateTime(2026),
+      ));
+      final q = _question('q_rev',
+          mastery: MasteryLevel.reviewing,
+          lastReviewedAt: DateTime(2026, 7, 20));
+      // 10 次 easy 复习 → recency 子分数 100（衰减后 1 天内 = 1.0）。
+      final mastery = await service.calculate(
+        knowledgePointId: 'kp_1',
+        questions: <QuestionRecord>[q],
+        reviewStatsByQuestion: <String, ReviewStats>{
+          'q_rev': _stats(easy: 10),
+        },
+        now: DateTime(2026, 7, 21),
+      );
+
+      expect(mastery.factors['recency'], closeTo(100, 0.1));
+      // accuracy 子分数 = easy/total = 10/10 = 100。
+      expect(mastery.factors['accuracy'], closeTo(100, 0.1));
+    });
+
+    test('Phase 12-1：全部 forgot 时 accuracy 为 0', () async {
+      await linkRepo.addLink(QuestionKnowledgeLink(
+        questionId: 'q_forgot',
+        knowledgePointId: 'kp_1',
+        createdAt: DateTime(2026),
+      ));
+      final q = _question('q_forgot',
+          mastery: MasteryLevel.reviewing,
+          lastReviewedAt: DateTime(2026, 7, 20));
+      final mastery = await service.calculate(
+        knowledgePointId: 'kp_1',
+        questions: <QuestionRecord>[q],
+        reviewStatsByQuestion: <String, ReviewStats>{
+          'q_forgot': _stats(forgot: 5, hard: 2),
+        },
+        now: DateTime(2026, 7, 21),
+      );
+
+      expect(mastery.factors['accuracy'], 0.0);
+    });
+
+    test('Phase 12-1：权重之和为 100', () async {
+      await linkRepo.addLink(QuestionKnowledgeLink(
+        questionId: 'q_w',
+        knowledgePointId: 'kp_1',
+        createdAt: DateTime(2026),
+      ));
+      final mastery = await service.calculate(
+        knowledgePointId: 'kp_1',
+        questions: <QuestionRecord>[
+          _question('q_w', mastery: MasteryLevel.mastered,
+              lastReviewedAt: DateTime(2026, 7, 20)),
+        ],
+        reviewStatsByQuestion: const <String, ReviewStats>{},
+        now: DateTime(2026, 7, 21),
+      );
+      final sum = mastery.factors['accuracyWeight']! +
+          mastery.factors['recencyWeight']! +
+          mastery.factors['difficultyWeight']! +
+          mastery.factors['baseWeight']!;
+      expect(sum, closeTo(100, 0.01));
     });
   });
 

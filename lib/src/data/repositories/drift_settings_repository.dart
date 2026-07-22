@@ -27,12 +27,18 @@ class DriftSettingsRepository implements SettingsRepository {
       await _deleteString('ai_api_key');
     }
     if (id == null || displayName == null || baseUrl == null || apiKey == null || model == null) return null;
+    final timeoutStr = await getString('ai_timeout_seconds');
+    final serviceTypeStr = await getString('ai_service_type');
+    final concurrencyStr = await getString('ai_max_concurrency');
     return AiProviderConfig(
       id: id,
       displayName: displayName,
       baseUrl: baseUrl,
       apiKey: apiKey,
       model: model,
+      maxConcurrency: int.tryParse(concurrencyStr ?? '') ?? 2,
+      timeoutSeconds: int.tryParse(timeoutStr ?? '') ?? 60,
+      serviceType: AiServiceType.fromSerializedName(serviceTypeStr),
     );
   }
 
@@ -44,6 +50,9 @@ class DriftSettingsRepository implements SettingsRepository {
     await _secureStorage.write(key: _apiKeyStorageKey, value: config.apiKey);
     await _deleteString('ai_api_key');
     await setString('ai_model', config.model);
+    await setString('ai_timeout_seconds', config.timeoutSeconds.toString());
+    await setString('ai_service_type', config.serviceType.serializedName);
+    await setString('ai_max_concurrency', config.maxConcurrency.toString());
   }
 
   @override

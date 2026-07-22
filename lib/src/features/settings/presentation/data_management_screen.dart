@@ -15,9 +15,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/files/backup_attachment_integrity.dart';
+import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
+import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
@@ -34,7 +36,7 @@ class DataManagementScreen extends ConsumerStatefulWidget {
 }
 
 class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
-  static const _backupSchemaVersion = 5;
+  static const _backupSchemaVersion = 6;
   static const _lastImportKey = 'backup_last_import_v1';
   /// 加密备份文件魔数 "WNB1"，用于识别加密格式。
   static final _encryptedMagic = <int>[0x57, 0x4E, 0x42, 0x31];
@@ -400,6 +402,37 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            // Phase 12-2：缓存清理入口（独立于"清空所有数据"）。
+            const _SectionTitle('缓存清理'),
+            const SizedBox(height: 8),
+            _DataCard(
+              icon: CupertinoIcons.trash_circle,
+              iconColor: const Color(0xFF0EA5E9),
+              title: '清理临时预览文件',
+              subtitle: '删除系统临时目录中超过 7 天的 HTML / PDF 预览文件',
+              onTap: () => _cleanTempPreviews(context),
+            ),
+            const SizedBox(height: 8),
+            _DataCard(
+              icon: CupertinoIcons.photo,
+              iconColor: const Color(0xFFEC4899),
+              title: '清理孤立题图',
+              subtitle: '扫描题图目录，删除不再被任何错题引用的图片文件',
+              onTap: questions.isEmpty
+                  ? null
+                  : () => _cleanOrphanImages(context, ref, questions),
+            ),
+            const SizedBox(height: 8),
+            _DataCard(
+              icon: CupertinoIcons.bolt,
+              iconColor: const Color(0xFF6366F1),
+              title: '清理 AI 响应缓存',
+              subtitle: '当前未启用 AI 响应缓存，无需清理',
+              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('当前未启用 AI 响应缓存，无需清理')),
+              ),
+            ),
+            const SizedBox(height: 20),
             const _SectionTitle('学习资料导出'),
             const SizedBox(height: 8),
             _DataCard(
@@ -498,6 +531,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       await exportDir.create(recursive: true);
       final now = DateTime.now();
       final attachments = await _buildAttachmentBackup(questions);
+      // Phase 12-2（schema v6）：备份中包含知识点树和组卷草稿，便于
+      // 跨设备恢复完整学习资料。两者都来自 SharedPreferences，向后兼容。
+      final knowledgePoints =
+          await ref.read(knowledgePointRepositoryProvider).loadAll();
+      final worksheetDrafts =
+          await ref.read(worksheetDraftRepositoryProvider).loadAll();
       final attachmentIndex = attachments
           .map((item) => <String, dynamic>{
                 'questionId': item['questionId'],
@@ -514,6 +553,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         'questionCount': questions.length,
         'reviewLogCount': reviewLogs.length,
         'attachmentCount': attachments.length,
+        'knowledgePointCount': knowledgePoints.length,
+        'worksheetDraftCount': worksheetDrafts.length,
         'attachments': attachmentIndex,
         if (_encryptBackup) 'encrypted': true,
       };
@@ -524,6 +565,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
           utf8.encode(jsonEncode(questions.map(_questionToJson).toList()))));
       archive.addFile(ArchiveFile('review_logs.json', 0,
           utf8.encode(jsonEncode(reviewLogs.map(_reviewLogToJson).toList()))));
+      // Phase 12-2：知识点树与组卷草稿。旧版本备份没有这两个文件，
+      // 导入时按空列表处理。
+      archive.addFile(ArchiveFile('knowledge_points.json', 0,
+          utf8.encode(jsonEncode(knowledgePoints.map((kp) => kp.toJson()).toList()))));
+      archive.addFile(ArchiveFile('worksheet_drafts.json', 0,
+          utf8.encode(jsonEncode(worksheetDrafts.map((d) => d.toJson()).toList()))));
       for (final attachment in attachments) {
         final content = attachment['contentBase64'] as String?;
         final questionId = attachment['questionId'] as String?;
@@ -567,6 +614,11 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     int logCount,
   ) async {
     final attachments = await _buildAttachmentBackup(questions);
+    // Phase 12-2：预览时也读取知识点树与组卷草稿条数，告知用户备份范围。
+    final knowledgePoints =
+        await ref.read(knowledgePointRepositoryProvider).loadAll();
+    final worksheetDrafts =
+        await ref.read(worksheetDraftRepositoryProvider).loadAll();
     final metadataBytes = utf8
         .encode(jsonEncode(attachments.map((item) {
           final copy = Map<String, dynamic>.from(item)
@@ -585,7 +637,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('创建完整备份'),
         content: Text(
-            '将创建可在新设备恢复的 .wnb 备份包：\n\n✓ ${questions.length} 道错题\n✓ $logCount 条复习记录\n✓ ${attachments.length} 张题图\n预计大小：约 $estimate（压缩后可能更小）\n\n不会包含 API Key、临时导入会话和未确认的工作台草稿。'),
+            '将创建可在新设备恢复的 .wnb 备份包：\n\n✓ ${questions.length} 道错题\n✓ $logCount 条复习记录\n✓ ${attachments.length} 张题图\n✓ ${knowledgePoints.length} 个知识点\n✓ ${worksheetDrafts.length} 份组卷草稿\n预计大小：约 $estimate（压缩后可能更小）\n\n不会包含 API Key、临时导入会话和未确认的工作台草稿。'),
         actions: <Widget>[
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -676,6 +728,19 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       return utf8.decode(entry.content as List<int>);
     }
 
+    /// 读取可选文件；旧版本备份（schema < 6）没有知识点树/组卷草稿文件，
+    /// 视为空列表。文件存在但解析失败时也返回空列表，避免阻塞恢复流程。
+    List<dynamic> readOptionalList(String name) {
+      final entry =
+          archive.files.where((item) => item.name == name).firstOrNull;
+      if (entry == null || !entry.isFile) return const <dynamic>[];
+      try {
+        return jsonDecode(utf8.decode(entry.content as List<int>)) as List;
+      } catch (_) {
+        return const <dynamic>[];
+      }
+    }
+
     final manifest =
         Map<String, dynamic>.from(jsonDecode(readText('manifest.json')) as Map);
     final index = manifest['attachments'] is List
@@ -713,6 +778,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       ...manifest,
       'questions': jsonDecode(readText('questions.json')),
       'reviewLogs': jsonDecode(readText('review_logs.json')),
+      'knowledgePoints': readOptionalList('knowledge_points.json'),
+      'worksheetDrafts': readOptionalList('worksheet_drafts.json'),
       'attachments': attachments,
       'corruptAttachmentCount': corrupt,
     };
@@ -729,8 +796,20 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     final corrupt = decoded is Map && decoded['corruptAttachmentCount'] is int
         ? decoded['corruptAttachmentCount'] as int
         : 0;
-    return _BackupPreview(questions.length, logs, attachments, corrupt,
-        decoded is Map ? decoded['generatedAt'] as String? : null);
+    final knowledgePoints = decoded is Map && decoded['knowledgePoints'] is List
+        ? (decoded['knowledgePoints'] as List).length
+        : 0;
+    final worksheetDrafts = decoded is Map && decoded['worksheetDrafts'] is List
+        ? (decoded['worksheetDrafts'] as List).length
+        : 0;
+    return _BackupPreview(
+        questions.length,
+        logs,
+        attachments,
+        corrupt,
+        decoded is Map ? decoded['generatedAt'] as String? : null,
+        knowledgePoints,
+        worksheetDrafts);
   }
 
   Future<bool?> _showRestorePreview(
@@ -740,7 +819,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         builder: (ctx) => AlertDialog(
           title: const Text('确认恢复备份'),
           content: Text(
-              '备份内容：\n✓ ${preview.questions} 道错题\n✓ ${preview.logs} 条复习记录\n✓ ${preview.attachments} 张题图${preview.corruptAttachments == 0 ? '' : '\n⚠ ${preview.corruptAttachments} 张题图校验失败，将跳过'}${preview.generatedAt == null ? '' : '\n\n创建时间：${preview.generatedAt}'}\n\n将以"合并"方式恢复；当前已有的同 ID 题目会跳过，不会清空现有题库。'),
+              '备份内容：\n✓ ${preview.questions} 道错题\n✓ ${preview.logs} 条复习记录\n✓ ${preview.attachments} 张题图${preview.corruptAttachments == 0 ? '' : '\n⚠ ${preview.corruptAttachments} 张题图校验失败，将跳过'}\n✓ ${preview.knowledgePoints} 个知识点\n✓ ${preview.worksheetDrafts} 份组卷草稿${preview.generatedAt == null ? '' : '\n\n创建时间：${preview.generatedAt}'}\n\n将以"合并"方式恢复；当前已有的同 ID 题目会跳过，不会清空现有题库。'),
           actions: <Widget>[
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -752,14 +831,14 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         ),
       );
 
-  Future<void> _showRestoreResult(
-          BuildContext context, int questions, int logs, int images, int skipped) =>
+  Future<void> _showRestoreResult(BuildContext context, int questions, int logs,
+      int images, int skipped, int knowledgePoints, int worksheetDrafts) =>
       showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('恢复完成'),
           content: Text(
-              '✓ 新增错题：$questions 道\n✓ 恢复复习记录：$logs 条\n✓ 恢复题图：$images 张\n⊘ 跳过重复或无效记录：$skipped 条\n\n可在本页顶部撤销本次恢复。'),
+              '✓ 新增错题：$questions 道\n✓ 恢复复习记录：$logs 条\n✓ 恢复题图：$images 张\n✓ 恢复知识点：$knowledgePoints 个\n✓ 恢复组卷草稿：$worksheetDrafts 份\n⊘ 跳过重复或无效记录：$skipped 条\n\n可在本页顶部撤销本次恢复。'),
           actions: <Widget>[
             FilledButton(
                 onPressed: () => Navigator.pop(ctx), child: const Text('完成')),
@@ -855,6 +934,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         ref,
         allowedQuestionIds: importedIds,
       );
+      // Phase 12-2：恢复知识点树和组卷草稿。两者都按"合并"策略，
+      // 已有同 ID 记录会被覆盖（upsertAll / save 内部处理）。
+      final restoredKnowledgePoints =
+          await _restoreKnowledgePoints(decoded, ref);
+      final restoredWorksheetDrafts =
+          await _restoreWorksheetDrafts(decoded, ref);
       final undo = _ImportUndo(
           importedIds, restoredReviewLogIds.toSet(), restoredImagePaths);
       await _persistLastImport(undo);
@@ -862,8 +947,14 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       invalidateQuestionList(ref);
 
       if (!context.mounted) return;
-      await _showRestoreResult(context, imported, restoredReviewLogIds.length,
-          restoredImagePaths.length, skipped);
+      await _showRestoreResult(
+          context,
+          imported,
+          restoredReviewLogIds.length,
+          restoredImagePaths.length,
+          skipped,
+          restoredKnowledgePoints,
+          restoredWorksheetDrafts);
     } on _RestoreCancelledException {
       // 用户在密码框取消，静默返回，不显示错误。
       return;
@@ -874,6 +965,54 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         );
       }
     }
+  }
+
+  /// Phase 12-2：恢复知识点树。按 ID 合并：备份中存在的节点会 upsert
+  /// 到本地，已有同 ID 节点会被覆盖（保留备份版本），本地独有的节点
+  /// 不受影响。返回实际写入的节点数。
+  Future<int> _restoreKnowledgePoints(dynamic decoded, WidgetRef ref) async {
+    if (decoded is! Map || decoded['knowledgePoints'] is! List) return 0;
+    final repo = ref.read(knowledgePointRepositoryProvider);
+    // loadAll 触发缓存加载，确保 upsertAll 能正确合并。
+    await repo.loadAll();
+    final toUpsert = <KnowledgePoint>[];
+    for (final raw in decoded['knowledgePoints'] as List) {
+      if (raw is! Map) continue;
+      try {
+        final kp = KnowledgePoint.fromJson(Map<String, dynamic>.from(raw));
+        toUpsert.add(kp);
+      } catch (_) {
+        // 单个节点解析失败不应阻塞整体恢复。
+      }
+    }
+    if (toUpsert.isEmpty) return 0;
+    await repo.upsertAll(toUpsert);
+    // 刷新知识点树快照，让 UI 立即看到恢复结果。
+    ref.invalidate(knowledgePointTreeProvider);
+    return toUpsert.length;
+  }
+
+  /// Phase 12-2：恢复组卷草稿。按 ID 合并：备份中的草稿会 save 到本地
+  /// （同 ID 覆盖 updatedAt，新 ID 插入）。返回实际写入的草稿数。
+  Future<int> _restoreWorksheetDrafts(dynamic decoded, WidgetRef ref) async {
+    if (decoded is! Map || decoded['worksheetDrafts'] is! List) return 0;
+    final repo = ref.read(worksheetDraftRepositoryProvider);
+    var restored = 0;
+    for (final raw in decoded['worksheetDrafts'] as List) {
+      if (raw is! Map) continue;
+      try {
+        final draft =
+            WorksheetDraft.fromJson(Map<String, dynamic>.from(raw));
+        await repo.save(draft);
+        restored++;
+      } catch (_) {
+        // 单个草稿解析失败不应阻塞整体恢复。
+      }
+    }
+    if (restored > 0) {
+      ref.invalidate(savedWorksheetDraftsProvider);
+    }
+    return restored;
   }
 
   Future<Map<String, String>> _restoreAttachments(
@@ -1058,6 +1197,157 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       );
     }
   }
+
+  // --- Phase 12-2：缓存清理 ---
+
+  /// 清理临时目录中超过 7 天的 HTML / PDF 预览文件。
+  ///
+  /// 学情周报、错因趋势热力图、学科雷达图等模块在生成预览时会写入
+  /// 系统临时目录，长期累积会占用空间。这里按修改时间过滤，删除 7 天
+  /// 前的 .html / .pdf 文件，避免误删其他模块正在使用的临时文件。
+  Future<void> _cleanTempPreviews(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清理临时预览文件'),
+        content: const Text('将删除系统临时目录中超过 7 天的 HTML / PDF 预览文件。该操作不会影响错题数据。'),
+        actions: <Widget>[
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('开始清理')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    int deletedCount = 0;
+    int freedBytes = 0;
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (!tempDir.existsSync()) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('临时目录为空，无需清理')),
+          );
+        }
+        return;
+      }
+      final cutoff = DateTime.now().subtract(const Duration(days: 7));
+      final entities = tempDir.listSync(followLinks: false);
+      for (final entity in entities) {
+        if (entity is! File) continue;
+        final lower = entity.path.toLowerCase();
+        if (!lower.endsWith('.html') && !lower.endsWith('.pdf')) continue;
+        try {
+          final stat = await entity.stat();
+          if (stat.modified.isBefore(cutoff)) {
+            freedBytes += stat.size;
+            await entity.delete();
+            deletedCount++;
+          }
+        } catch (_) {
+          // 单个文件失败不应阻塞整体清理。
+        }
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(deletedCount == 0
+              ? '没有需要清理的临时预览文件'
+              : '已清理 $deletedCount 个临时预览文件，释放 ${_formatBytes(freedBytes)}'),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('清理失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 扫描题图目录，删除不再被任何错题引用的孤立图片文件。
+  ///
+  /// 题图存储路径为 `${appDir}/wrong_question_images`（见
+  /// ImageStorageService）。删除错题时若图片文件未能同步删除，会留下
+  /// 孤立文件。这里收集所有 QuestionRecord.imagePath，删除目录中不在
+  /// 该集合内的文件。
+  Future<void> _cleanOrphanImages(
+    BuildContext context,
+    WidgetRef ref,
+    List<QuestionRecord> questions,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清理孤立题图'),
+        content: const Text('将扫描题图目录，删除不再被任何错题引用的图片文件。该操作不可恢复。'),
+        actions: <Widget>[
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('开始清理')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    int deletedCount = 0;
+    int freedBytes = 0;
+    int scanCount = 0;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final imagesDir = Directory('${appDir.path}/wrong_question_images');
+      if (!imagesDir.existsSync()) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('题图目录不存在，无需清理')),
+          );
+        }
+        return;
+      }
+      // 收集所有被错题引用的图片绝对路径（规范化以避免大小写/分隔符差异）。
+      final referenced = <String>{};
+      for (final q in questions) {
+        if (q.imagePath.isEmpty) continue;
+        referenced.add(File(q.imagePath).absolute.path);
+      }
+      final entities = imagesDir.listSync(followLinks: false);
+      for (final entity in entities) {
+        if (entity is! File) continue;
+        scanCount++;
+        try {
+          final absolutePath = entity.absolute.path;
+          if (referenced.contains(absolutePath)) continue;
+          final stat = await entity.stat();
+          freedBytes += stat.size;
+          await entity.delete();
+          deletedCount++;
+        } catch (_) {
+          // 单个文件失败不应阻塞整体清理。
+        }
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(deletedCount == 0
+              ? '扫描了 $scanCount 个文件，未发现孤立题图'
+              : '已清理 $deletedCount 个孤立题图，释放 ${_formatBytes(freedBytes)}'),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('清理失败: $e')),
+        );
+      }
+    }
+  }
 }
 
 class _ImportUndo {
@@ -1085,12 +1375,20 @@ class _ImportUndo {
 
 class _BackupPreview {
   const _BackupPreview(
-      this.questions, this.logs, this.attachments, this.corruptAttachments, this.generatedAt);
+      this.questions,
+      this.logs,
+      this.attachments,
+      this.corruptAttachments,
+      this.generatedAt,
+      this.knowledgePoints,
+      this.worksheetDrafts);
   final int questions;
   final int logs;
   final int attachments;
   final int corruptAttachments;
   final String? generatedAt;
+  final int knowledgePoints;
+  final int worksheetDrafts;
 }
 
 /// 用户在加密备份恢复的密码框中取消时抛出，用于中止恢复流程。

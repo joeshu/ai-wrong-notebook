@@ -396,6 +396,12 @@ class AiAnalysisService {
   }
 
   Dio _createClient(AiProviderConfig config) {
+    // Phase 12-3：连接超时按用户配置（兜底 60s），接收超时按 4 倍连接超时
+    // 兜底（避免大模型流式响应被过早掐断）。
+    final connectTimeout = config.effectiveTimeout;
+    final receiveTimeout = Duration(
+      seconds: connectTimeout.inSeconds * 4,
+    );
     return Dio(BaseOptions(
       baseUrl: config.baseUrl.endsWith('/')
           ? config.baseUrl.substring(0, config.baseUrl.length - 1)
@@ -405,8 +411,8 @@ class AiAnalysisService {
         if (config.apiKey.isNotEmpty)
           'Authorization': 'Bearer ${config.apiKey}',
       },
-      connectTimeout: const Duration(seconds: 60),
-      receiveTimeout: const Duration(seconds: 240),
+      connectTimeout: connectTimeout,
+      receiveTimeout: receiveTimeout,
     ));
   }
 

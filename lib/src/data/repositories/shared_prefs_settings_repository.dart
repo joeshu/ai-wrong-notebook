@@ -45,6 +45,12 @@ class SharedPrefsSettingsRepository implements SettingsRepository {
         baseUrl: map['baseUrl'] as String? ?? '',
         model: map['model'] as String? ?? '',
         apiKey: apiKey,
+        maxConcurrency:
+            (map['maxConcurrency'] as num?)?.toInt() ?? 2,
+        timeoutSeconds:
+            (map['timeoutSeconds'] as num?)?.toInt() ?? 60,
+        serviceType: AiServiceType.fromSerializedName(
+            map['serviceType'] as String?),
       );
     } catch (_) {
       return null;
@@ -59,6 +65,9 @@ class SharedPrefsSettingsRepository implements SettingsRepository {
       'displayName': config.displayName,
       'baseUrl': config.baseUrl,
       'model': config.model,
+      'maxConcurrency': config.maxConcurrency,
+      'timeoutSeconds': config.timeoutSeconds,
+      'serviceType': config.serviceType.serializedName,
     }));
   }
 
