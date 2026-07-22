@@ -204,6 +204,14 @@ class HtmlExportService {
       !kIsWeb &&
       (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
+  /// 是否为「紧凑非分组」模板：复习卡 / 错题卡。
+  ///
+  /// 这类模板不按学科分组渲染、不生成封面/目录/页眉页脚，
+  /// 每题独立成块（复习卡分页、错题卡紧凑排列）。
+  static bool _isCompactLayout(ExportTemplate template) =>
+      template.type == ExportTemplateType.reviewCard ||
+      template.type == ExportTemplateType.errorCard;
+
   /// 生成 HTML 字符串（可用于直接写入文件或转 PDF）。
   ///
   /// [onProgress] 在预处理图片时回调，用于显示进度。
@@ -599,9 +607,9 @@ class HtmlExportService {
       await sink.flush();
 
       // 写正文：按模板风格渲染各题。
-      // - 错题报告/学习报告：按学科分组（学习报告内部扁平列出）。
-      // - 复习卡：每题两页（正面 + 背面），不按学科分组。
-      if (template.type == ExportTemplateType.reviewCard) {
+      // - 错题报告/学习报告/试卷：按学科分组。
+      // - 复习卡/错题卡：每题独立成块，不按学科分组。
+      if (_isCompactLayout(template)) {
         for (var i = 0; i < questions.length; i++) {
           final q = questions[i];
           final imageUri = imageUris[q.id];
@@ -719,7 +727,7 @@ class HtmlExportService {
     );
 
     // 正文：按模板风格渲染各题。
-    if (template.type == ExportTemplateType.reviewCard) {
+    if (_isCompactLayout(template)) {
       for (var i = 0; i < questions.length; i++) {
         final q = questions[i];
         final imageUri = imageUris[q.id];
@@ -819,11 +827,11 @@ class HtmlExportService {
           '  <div class="watermark">${HtmlRenderUtils.escapeHtml(watermark)}</div>');
     }
     // 打印时的页眉页脚（fixed 元素，支持的平台会在每页重复）。
-    // 复习卡模板不生成页眉页脚（每页都是卡片，fixed 元素会干扰视觉）。
+    // 复习卡 / 错题卡模板不生成页眉页脚（紧凑布局，fixed 元素会干扰视觉）。
     final showHeader = layout.includeHeader &&
-        template.type != ExportTemplateType.reviewCard;
+        !_isCompactLayout(template);
     final showFooter = layout.includeFooter &&
-        template.type != ExportTemplateType.reviewCard;
+        !_isCompactLayout(template);
     if (showHeader) {
       sink.writeln('  <div class="print-header">${HtmlRenderUtils.escapeHtml(title)}</div>');
     }
@@ -833,11 +841,11 @@ class HtmlExportService {
     }
     sink.writeln('<div class="page">');
 
-    // 封面与目录：复习卡模板不生成（模板 generateCover 返回空串）。
-    // 学习报告 / 错题报告模板受 layout.includeCover / includeToc 控制。
+    // 封面与目录：复习卡 / 错题卡模板不生成（紧凑布局，无封面无目录）。
+    // 学习报告 / 错题报告 / 试卷模板受 layout.includeCover / includeToc 控制。
     final showCover = layout.includeCover;
     final showToc = layout.includeToc &&
-        template.type != ExportTemplateType.reviewCard;
+        !_isCompactLayout(template);
     if (showCover) {
       sink.write(template.generateCover(
         title: title,

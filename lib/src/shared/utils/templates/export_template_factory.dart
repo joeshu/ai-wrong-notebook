@@ -1,4 +1,6 @@
 import 'package:smart_wrong_notebook/src/shared/utils/export_template.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/templates/error_card_template.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/templates/exam_paper_template.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/templates/mistake_report_template.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/templates/review_card_template.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/templates/study_report_template.dart';
@@ -15,6 +17,8 @@ class ExportTemplateFactory {
       ExportTemplateType.mistakeReport => MistakeReportTemplate(),
       ExportTemplateType.studyReport => StudyReportTemplate(),
       ExportTemplateType.reviewCard => ReviewCardTemplate(),
+      ExportTemplateType.examPaper => ExamPaperTemplate(),
+      ExportTemplateType.errorCard => ErrorCardTemplate(),
     };
   }
 
@@ -23,5 +27,7 @@ class ExportTemplateFactory {
         MistakeReportTemplate(),
         StudyReportTemplate(),
         ReviewCardTemplate(),
+        ExamPaperTemplate(),
+        ErrorCardTemplate(),
       ];
 }

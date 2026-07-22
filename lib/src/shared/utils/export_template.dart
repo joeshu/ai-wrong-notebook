@@ -19,6 +19,14 @@ enum ExportTemplateType {
 
   /// 复习卡：每题一页正面 + 一页背面，适合双面打印做闪卡。
   reviewCard,
+
+  /// 试卷模板：题目与答案分离，适合打印做正式考试卷。
+  /// 题干在前（练习卷样式带答题留白），答案与解析集中在文末。
+  examPaper,
+
+  /// 错题卡模板：单题一卡，适合裁剪复习。
+  /// 每题独立成块（不分页），紧凑排列，方便剪贴到错题本。
+  errorCard,
 }
 
 /// [ExportTemplateType] 的 UI 元数据扩展：用于导出工作台等界面展示。
@@ -28,6 +36,8 @@ extension ExportTemplateTypeUi on ExportTemplateType {
         ExportTemplateType.mistakeReport => '错题报告',
         ExportTemplateType.studyReport => '学习报告',
         ExportTemplateType.reviewCard => '复习卡',
+        ExportTemplateType.examPaper => '试卷',
+        ExportTemplateType.errorCard => '错题卡',
       };
 
   /// 中文描述（用于 UI RadioListTile 副标题 / 卡片说明）。
@@ -35,6 +45,8 @@ extension ExportTemplateTypeUi on ExportTemplateType {
         ExportTemplateType.mistakeReport => '按学科分组、含完整解析的正式错题报告（默认样式）',
         ExportTemplateType.studyReport => '卡片式布局、含统计概览与 SVG 图表的学习总结',
         ExportTemplateType.reviewCard => '每题一页正面 + 一页背面，适合双面打印做闪卡',
+        ExportTemplateType.examPaper => '题目与答案分离：题干在前带答题留白，答案解析集中在文末',
+        ExportTemplateType.errorCard => '单题一卡、紧凑排列，适合裁剪贴到错题本',
       };
 
   /// UI 图标（用于卡片左侧标识）。
@@ -42,6 +54,8 @@ extension ExportTemplateTypeUi on ExportTemplateType {
         ExportTemplateType.mistakeReport => CupertinoIcons.doc_richtext,
         ExportTemplateType.studyReport => CupertinoIcons.chart_bar_alt_fill,
         ExportTemplateType.reviewCard => CupertinoIcons.rectangle_on_rectangle,
+        ExportTemplateType.examPaper => CupertinoIcons.doc_text,
+        ExportTemplateType.errorCard => CupertinoIcons.scissors,
       };
 
   /// 适用场景说明（Phase 11-2，用于模板卡片底部「适用场景」标签）。
@@ -49,6 +63,8 @@ extension ExportTemplateTypeUi on ExportTemplateType {
         ExportTemplateType.mistakeReport => '家长签字 / 月度汇总',
         ExportTemplateType.studyReport => '期中期末复习总结',
         ExportTemplateType.reviewCard => '考前冲刺 / 碎片化复习',
+        ExportTemplateType.examPaper => '打印考试 / 课堂测验',
+        ExportTemplateType.errorCard => '错题本手抄 / 剪贴整理',
       };
 }
 

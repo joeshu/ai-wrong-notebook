@@ -342,8 +342,10 @@
 
 ## 2. 模板系统增强
 
-- [ ] 新增"试卷模板"(题目 + 答案分离,适合打印考试)
-- [ ] 新增"错题卡模板"(单题一卡,适合裁剪复习)
+- [x] 新增"试卷模板"(题目 + 答案分离,适合打印考试)
+  > `ExamPaperTemplate`：题干在前带答题留白（practice）/ 错因+订正留白（correction），答案解析集中在文末「参考答案」区（`generateFooter`）。走分组分支。
+- [x] 新增"错题卡模板"(单题一卡,适合裁剪复习)
+  > `ErrorCardTemplate`：每题独立成 `.card-block` 不分页、紧凑排列，走非分组分支（`_isCompactLayout` helper 统一复习卡/错题卡判断）。
 - [x] 模板预览缩略图(选择模板时显示样例截图)
   > `_TemplateCard` 横向卡片展示 icon + label + description + 适用场景标签（`ExportTemplateType.useCase` getter），替代截图方案
 - [ ] 模板支持自定义(保存当前内容选项组合为自定义模板)
