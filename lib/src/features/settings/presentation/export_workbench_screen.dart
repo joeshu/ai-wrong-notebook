@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
@@ -131,47 +132,6 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       ],
     );
   }
-
-  Widget _buildHistorySection(BuildContext context) {
-    return _Section(
-      title: '导出历史',
-      description: '最近导出的资料可从这里继续查看和分享',
-      child: FutureBuilder<List<ExportHistoryEntry>>(
-        future: ExportHistoryService.list(),
-        builder: (context, snapshot) {
-          final entries = snapshot.data ?? const <ExportHistoryEntry>[];
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: LinearProgressIndicator(),
-            );
-          }
-          if (entries.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: _SummaryBox(
-                icon: CupertinoIcons.clock,
-                text: '暂无导出记录。完成一次导出后，记录会显示在这里。',
-              ),
-            );
-          }
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: entries.take(5).map((entry) => ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(CupertinoIcons.doc_text),
-                title: Text(entry.title.isEmpty ? entry.format : entry.title),
-                subtitle: Text('${entry.format} · ${entry.questionCount} 题 · ${entry.template}'),
-              )).toList(),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
 
   Widget _buildHistorySection(BuildContext context) {
     return _Section(
