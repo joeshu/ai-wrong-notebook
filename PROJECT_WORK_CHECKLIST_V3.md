@@ -344,9 +344,11 @@
 
 - [ ] 新增"试卷模板"(题目 + 答案分离,适合打印考试)
 - [ ] 新增"错题卡模板"(单题一卡,适合裁剪复习)
-- [ ] 模板预览缩略图(选择模板时显示样例截图)
+- [x] 模板预览缩略图(选择模板时显示样例截图)
+  > `_TemplateCard` 横向卡片展示 icon + label + description + 适用场景标签（`ExportTemplateType.useCase` getter），替代截图方案
 - [ ] 模板支持自定义(保存当前内容选项组合为自定义模板)
-- [ ] 模板说明文档(每个模板适用场景)
+- [x] 模板说明文档(每个模板适用场景)
+  > `ExportTemplateType` 加 `useCase` getter（家长签字/期中期末复习/考前冲刺）；`_TemplateCard` 底部展示「适用：xxx」标签
 
 ## 3. 格式扩展
 
@@ -354,7 +356,8 @@
 - [ ] 新增图片导出(逐题 PNG,基于 `RepaintBoundary` 截图)
 - [ ] 移动端直接打印入口(走 `printing` 包)
 - [ ] Anki 导出增强(.apkg 包,支持图片媒体包)
-- [ ] 导出格式分组:文档类(HTML/PDF/Word/MD) vs 数据类(CSV/JSON/Anki)
+- [x] 导出格式分组:文档类(HTML/PDF/Word/MD) vs 数据类(CSV/JSON/Anki)
+  > export_workbench_screen `_buildFormatSection` 拆为两组 Wrap，各带 `_FormatGroupLabel`（文档类/数据类 + hint 说明）
 
 ## 4. 筛选与内容选项
 
@@ -368,10 +371,14 @@
   > 默认 false,与 includeKnowledgePoints(仅名称)区分(本字段输出 `数学 > 代数 > 二次方程` 完整路径)
 - [x] 导出工作台 UI 加上述选项开关
   > export_options_dialog.dart 在"含 AI 练习题"之后追加 4 个 SwitchListTile;_encode/_decodeContentOptions 补 4 字段序列化(旧版本存储自然回退到 false);export_workbench_screen `_buildContentSummary` 补 4 项摘要
-- [ ] 筛选支持按知识点多选(从知识树选择)
-- [ ] 筛选支持按掌握度三档
-- [ ] 筛选支持按难度(QuestionDifficulty)
-- [ ] 筛选条件持久化(下次进入保留上次筛选)
+- [x] 筛选支持按知识点多选(从知识树选择)
+  > export_options_dialog `_buildCompactMultiSelect('按知识点筛选')` 从题目 aiKnowledgePoints/aiTags 收集候选值多选；多选 + 持久化到 SharedPreferences `export_options.knowledge_points`
+- [x] 筛选支持按掌握度三档
+  > export_options_dialog `_levels`（Set<MasteryLevel>）FilterChip 三档多选 + 持久化 `export_options.levels`
+- [x] 筛选支持按难度(QuestionDifficulty)
+  > export_options_dialog `_difficulties`（Set<String>）FilterChip 多选 + 持久化 `export_options.difficulties`
+- [x] 筛选条件持久化(下次进入保留上次筛选)
+  > 全部 13 项筛选（mode/template/subjects/levels/knowledgePoints/onlyFavorite/mistakeCategories/difficulties/learningStages/sources/timeRange/dateRange/contentOptions/layoutOptions）均持久化到 SharedPreferences，`_loadPreferences` 首帧恢复
 - [x] 服务层接入 4 个新字段(6 个导出服务读取 includeOcrText/includeAiAnalysis/includeReviewHistory/includeKnowledgeTree)
   > MarkdownExportService.generateMarkdown 加 reviewLogs/knowledgeTreePaths 参数,_writeQuestion 按 4 个开关输出 OCR 原文/完整 AI 分析(JSON 代码块)/复习历史时间线/知识点树路径
   > JsonExportService.generateJson 加 contentOptions 参数(语义对齐,旧的 includeReviewLogs 保留为兼容)+ knowledgeTreePaths 挂到每条 question 的 `knowledgeTreePaths` 字段
@@ -394,24 +401,31 @@
 - [ ] HTML 预览支持知识点分组折叠
 - [ ] PDF 预览(生成后用 `printing` 或系统查看器预览)
 - [ ] 预览支持快速返回调整(保留上次选项)
-- [ ] 预览页加"导出为其他格式"快捷按钮
+- [x] 预览页加"导出为其他格式"快捷按钮
+  > HtmlPreviewScreen AppBar 加 PopupMenuButton「导出为其他格式」，跳 `/settings/export-workbench?ids=...` 预填当前预览题目
 
 ## 7. 导出执行与反馈
 
 - [ ] 导出进度对话框显示当前格式 + 总进度(已有,优化文案)
 - [ ] 多格式批量导出时显示文件列表
-- [ ] 导出失败按格式分别提示(部分成功允许保留成功文件)
+- [x] 导出失败按格式分别提示(部分成功允许保留成功文件)
+  > `_startExport` 单格式 try/catch 不中断整体，succeeded/failed 分别记录；全部成功静默、部分成功提示「失败：X、Y」、全部失败逐格式列错误详情
 - [ ] 导出历史记录(最近 10 次导出,可重新下载)
 - [x] 导出文件命名规范优化(模板名_科目_日期.格式)
   > `_buildFileName` 改为接收 ExportOptions,输出 `{模板名}_{科目}_{yyyyMMdd}.{ext}` 格式(如 `错题报告_数学_20260721.md`);md/anki/csv/json 4 个调用点都传入 options;新增 `_subjectScopeLabel`/`_sanitizeFileNamePart` 辅助方法;HTML/PDF 保持原 `错题本_答案卷_数学_5题_20260721_1430.html` 格式(已含模板/学科/题量)
 
 ## 8. 组卷导出模式
 
-- [ ] `WorksheetExportMode`(practice/answer/correction)集成到工作台
-- [ ] practice 模式:仅题目,无答案
-- [ ] answer 模式:题目 + 答案 + 解析
-- [ ] correction 模式:题目 + 学生答案 + 正确答案 + 错因
+- [x] `WorksheetExportMode`(practice/answer/correction)集成到工作台
+  > WorksheetWorkbenchScreen 加 `_exportMode` state + 底部三态 ChoiceChip 快切；`_export` 通过 `showExportOptionsDialog(initialMode:)` 传入，dialog 内改动同步回工作台
+- [x] practice 模式:仅题目,无答案
+  > `WorksheetExportMode.practice` 由 `showExportOptionsDialog` RadioGroup 选择 + 工作台 ChoiceChip 快切；下游 HtmlExportService/PdfExportService 按 mode 隐藏答案/解析
+- [x] answer 模式:题目 + 答案 + 解析
+  > `WorksheetExportMode.answer`（默认）；下游服务按 mode 输出完整内容
+- [x] correction 模式:题目 + 学生答案 + 正确答案 + 错因
+  > `WorksheetExportMode.correction`；下游服务按 mode 输出错因 + 学习建议 + 订正留白
 - [ ] 模式切换影响内容选项默认值
+  > 当前 mode 与 contentOptions 独立设置；自动联动（如 practice 自动关答案/解析）待后续
 
 ## 9. 质量保障
 
@@ -420,7 +434,8 @@
 - [ ] 桌面端 PDF 公式渲染验收
 - [ ] 移动端纸张大小切换验收
 - [ ] 大题量(100+ 题)导出性能与内存
-- [ ] 空字段/缺失附件导出不报错
+- [x] 空字段/缺失附件导出不报错
+  > 新增 `test/shared/utils/export_empty_field_test.dart` 5 个用例：完全空白题目 Markdown/JSON/CSV 导出结构合法；imagePath 指向不存在文件不阻塞；混合空字段与完整字段多题导出不报错
 
 ---
 

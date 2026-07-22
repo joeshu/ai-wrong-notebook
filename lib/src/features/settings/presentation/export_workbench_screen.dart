@@ -133,7 +133,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       title: '选择模板',
       description: '不同模板预设了内容字段，可在下方继续微调',
       child: SizedBox(
-        height: 132,
+        height: 158,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -157,22 +157,64 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
   // ─────────────────────────────────────────────────────────────────────
 
   Widget _buildFormatSection(BuildContext context) {
+    // Phase 11-3：按用途分组：文档类（可读报告）vs 数据类（结构化交换）
+    const documentFormats = <ExportFormat>[
+      ExportFormat.html,
+      ExportFormat.pdf,
+      ExportFormat.markdown,
+    ];
+    const dataFormats = <ExportFormat>[
+      ExportFormat.anki,
+      ExportFormat.csv,
+      ExportFormat.json,
+    ];
     return _Section(
       title: '导出格式',
       description: '可多选；HTML 与 PDF 互斥，选其中一个会自动取消另一个',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            for (final format in ExportFormat.values)
-              FilterChip(
-                label: Text(_formatLabel(format)),
-                avatar: Icon(_formatIcon(format), size: 16),
-                selected: _selectedFormats.contains(format),
-                onSelected: (_) => _toggleFormat(format),
-              ),
+            // 文档类
+            _FormatGroupLabel(
+              label: '文档类',
+              hint: '适合阅读、打印、分享',
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                for (final format in documentFormats)
+                  FilterChip(
+                    label: Text(_formatLabel(format)),
+                    avatar: Icon(_formatIcon(format), size: 16),
+                    selected: _selectedFormats.contains(format),
+                    onSelected: (_) => _toggleFormat(format),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 数据类
+            _FormatGroupLabel(
+              label: '数据类',
+              hint: '适合导入其它应用或备份',
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                for (final format in dataFormats)
+                  FilterChip(
+                    label: Text(_formatLabel(format)),
+                    avatar: Icon(_formatIcon(format), size: 16),
+                    selected: _selectedFormats.contains(format),
+                    onSelected: (_) => _toggleFormat(format),
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -587,6 +629,9 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     );
 
     try {
+      // Phase 11-7：单格式失败不中断整体导出，记录成功/失败分别反馈。
+      final succeeded = <ExportFormat>[];
+      final failed = <MapEntry<ExportFormat, Object>>[];
       for (var i = 0; i < formats.length; i++) {
         // 每个格式开始：把整体进度推进到 i/N（外层文案显示"正在导出 X"）。
         progress.value = i / formats.length;
@@ -599,11 +644,41 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           progress.value = (base + sub.value * span).clamp(0.0, 0.9999);
           if (mounted) setState(() => _exportProgress = progress.value);
         });
-        await _exportFormat(formats[i], options, sub);
+        try {
+          await _exportFormat(formats[i], options, sub);
+          succeeded.add(formats[i]);
+        } catch (e) {
+          failed.add(MapEntry(formats[i], e));
+        }
         sub.dispose();
       }
       progress.value = 1;
       if (mounted) setState(() => _exportProgress = 1);
+      // Phase 11-7：汇总反馈——全部成功 / 部分成功 / 全部失败
+      if (mounted) {
+        if (failed.isEmpty) {
+          // 全部成功：保持原有"导出完成"行为，不再额外弹 SnackBar
+          // （单格式的 failureHint 已由 _exportFormat 内部提示）
+        } else if (succeeded.isNotEmpty) {
+          final failedLabels =
+              failed.map((e) => _formatLabel(e.key)).join('、');
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('部分导出成功（${succeeded.length} 种），失败：$failedLabels'),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        } else {
+          final failedLabels =
+              failed.map((e) => '${_formatLabel(e.key)}: ${e.value}').join('\n');
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('导出失败：\n$failedLabels'),
+              duration: const Duration(seconds: 8),
+            ),
+          );
+        }
+      }
     } catch (e) {
       if (mounted) {
         messenger.showSnackBar(
@@ -886,6 +961,40 @@ class _Section extends StatelessWidget {
   }
 }
 
+class _FormatGroupLabel extends StatelessWidget {
+  const _FormatGroupLabel({required this.label, required this.hint});
+
+  final String label;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: <Widget>[
+        Container(
+          width: 3,
+          height: 12,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label,
+            style: theme.textTheme.labelMedium
+                ?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(width: 6),
+        Text(hint,
+            style: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.onSurfaceVariant,
+            )),
+      ],
+    );
+  }
+}
+
 class _TemplateCard extends StatelessWidget {
   const _TemplateCard({
     required this.template,
@@ -940,14 +1049,31 @@ class _TemplateCard extends StatelessWidget {
                   style: theme.textTheme.titleSmall
                       ?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 4),
-              Expanded(
+              Text(
+                template.description,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurfaceVariant,
+                    height: 1.3),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              // Phase 11-2：适用场景标签
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer
+                      .withValues(alpha: selected ? 0.7 : 0.4),
+                  borderRadius: BorderRadius.circular(4),
+                ),
                 child: Text(
-                  template.description,
+                  '适用：${template.useCase}',
                   style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurfaceVariant,
-                      height: 1.3),
-                  maxLines: 3,
+                    fontSize: 10,
+                    color: colorScheme.onSecondaryContainer,
+                  ),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

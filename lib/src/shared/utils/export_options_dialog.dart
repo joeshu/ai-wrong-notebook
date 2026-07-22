@@ -97,12 +97,15 @@ const String _prefLayoutOptions = 'export_options.layout_options';
 ///
 /// - [allowFilter] 为 false 时隐藏筛选区（例如组卷工作台已手动选题）。
 /// - [allowPreview] 为 true 时显示「预览」按钮（桌面端无 WebView，强制关闭）。
+/// - [initialMode] 为非 null 时，用作模式选择的初始值（覆盖持久化值），
+///   供组卷工作台等已有模式快切入口的页面传入，避免与持久化值冲突。
 /// 返回 null 表示用户取消或已通过预览页完成导出。
 Future<ExportOptions?> showExportOptionsDialog(
   BuildContext context,
   List<QuestionRecord> questions, {
   bool allowFilter = true,
   bool allowPreview = true,
+  WorksheetExportMode? initialMode,
 }) {
   return showDialog<ExportOptions?>(
     context: context,
@@ -110,6 +113,7 @@ Future<ExportOptions?> showExportOptionsDialog(
       questions: questions,
       allowFilter: allowFilter,
       allowPreview: allowPreview && !HtmlExportService.isDesktopPlatform,
+      initialMode: initialMode,
     ),
   );
 }
@@ -119,11 +123,13 @@ class _ExportOptionsDialog extends StatefulWidget {
     required this.questions,
     required this.allowFilter,
     required this.allowPreview,
+    this.initialMode,
   });
 
   final List<QuestionRecord> questions;
   final bool allowFilter;
   final bool allowPreview;
+  final WorksheetExportMode? initialMode;
 
   @override
   State<_ExportOptionsDialog> createState() => _ExportOptionsDialogState();
@@ -179,12 +185,17 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
       setState(() {
-        final modeName = prefs.getString(_prefMode);
-        if (modeName != null) {
-          for (final m in WorksheetExportMode.values) {
-            if (m.name == modeName) {
-              _mode = m;
-              break;
+        // 工作台等入口传入的 initialMode 优先于持久化值
+        if (widget.initialMode != null) {
+          _mode = widget.initialMode!;
+        } else {
+          final modeName = prefs.getString(_prefMode);
+          if (modeName != null) {
+            for (final m in WorksheetExportMode.values) {
+              if (m.name == modeName) {
+                _mode = m;
+                break;
+              }
             }
           }
         }

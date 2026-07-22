@@ -43,6 +43,13 @@ extension ExportTemplateTypeUi on ExportTemplateType {
         ExportTemplateType.studyReport => CupertinoIcons.chart_bar_alt_fill,
         ExportTemplateType.reviewCard => CupertinoIcons.rectangle_on_rectangle,
       };
+
+  /// 适用场景说明（Phase 11-2，用于模板卡片底部「适用场景」标签）。
+  String get useCase => switch (this) {
+        ExportTemplateType.mistakeReport => '家长签字 / 月度汇总',
+        ExportTemplateType.studyReport => '期中期末复习总结',
+        ExportTemplateType.reviewCard => '考前冲刺 / 碎片化复习',
+      };
 }
 
 /// 导出模板接口：负责生成 HTML 报告的 CSS、封面、单题块、尾页。

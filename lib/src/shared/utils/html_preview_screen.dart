@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
@@ -102,6 +103,28 @@ class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
                       mode: widget.mode,
                       studentInfo: widget.studentInfo,
                     ),
+          ),
+          // Phase 11-6：跳转导出工作台，预填当前预览的题目 ID
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: '导出为其他格式',
+            enabled: !_loading && _error == null && widget.questions.isNotEmpty,
+            onSelected: (value) {
+              if (value == 'workbench') {
+                final ids = widget.questions.map((q) => q.id).join(',');
+                context.push('/settings/export-workbench?ids=$ids');
+              }
+            },
+            itemBuilder: (ctx) => const <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'workbench',
+                child: Row(children: <Widget>[
+                  Icon(Icons.apps_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('导出为其他格式'),
+                ]),
+              ),
+            ],
           ),
         ],
       ),

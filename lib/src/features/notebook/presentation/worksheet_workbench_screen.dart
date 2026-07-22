@@ -13,6 +13,7 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/worksheet_export_mode.dart';
 import 'package:uuid/uuid.dart';
 
 /// Selects and orders a subset of the local question bank for export.
@@ -34,6 +35,10 @@ class _WorksheetWorkbenchScreenState
   bool _draftApplied = false;
   QuestionDisplayStatus? _statusFilter;
   bool _showFilters = false;
+  /// Phase 11-8：组卷导出模式快切（底部三态 Chip）。
+  /// 作为 showExportOptionsDialog 的 initialMode 传入；用户在 dialog 内
+  /// 改动会同步回此字段，下次直接走工作台快切。
+  WorksheetExportMode _exportMode = WorksheetExportMode.answer;
 
   /// 最近一次从已选区移除的题目（用于撤销）。
   /// 仅保留单次移除；连续移除时只可撤销最后一次。
@@ -651,6 +656,35 @@ class _WorksheetWorkbenchScreenState
                 },
               ),
             ),
+            // Phase 11-8：导出模式快切（影响 HTML/PDF 导出内容）
+            if (selected.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: Row(
+                  children: <Widget>[
+                    Text('导出模式',
+                        style: Theme.of(context).textTheme.labelMedium),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        children: <Widget>[
+                          for (final mode in WorksheetExportMode.values)
+                            ChoiceChip(
+                              label: Text(mode.label),
+                              selected: _exportMode == mode,
+                              onSelected: (sel) {
+                                if (sel) {
+                                  setState(() => _exportMode = mode);
+                                }
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             SafeArea(
               top: false,
               child: Padding(
@@ -703,8 +737,13 @@ class _WorksheetWorkbenchScreenState
       context,
       questions,
       allowFilter: false,
+      initialMode: _exportMode,
     );
     if (options == null || !context.mounted) return;
+    // 同步用户在 dialog 内对 mode 的改动回工作台快切
+    if (options.mode != _exportMode) {
+      setState(() => _exportMode = options.mode);
+    }
     if (isPdf) {
       await PdfExportService.sharePdf(
         context,
