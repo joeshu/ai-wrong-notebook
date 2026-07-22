@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
@@ -171,6 +172,75 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     );
   }
 
+
+  Widget _buildHistorySection(BuildContext context) {
+    return _Section(
+      title: '导出历史',
+      description: '最近导出的资料可从这里查看、分享或删除',
+      child: FutureBuilder<List<File>>(
+        future: _loadExportFiles(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Padding(padding: EdgeInsets.all(16), child: LinearProgressIndicator());
+          }
+          final files = snapshot.data ?? const <File>[];
+          if (files.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _SummaryBox(icon: CupertinoIcons.clock, text: '暂无导出文件。完成一次导出后，记录会显示在这里。'),
+            );
+          }
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(children: files.take(5).map((file) => _ExportHistoryListTile(
+              file: file,
+              onDelete: () => _deleteExportHistoryFile(context, file),
+              onShare: () => _shareExportHistoryFile(context, file),
+            )).toList()),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<List<File>> _loadExportFiles() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final exportDir = Directory('${dir.path}/exports');
+    if (!exportDir.existsSync()) return const <File>[];
+    final files = exportDir.listSync().whereType<File>().toList();
+    files.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+    return files;
+  }
+
+  Future<void> _deleteExportHistoryFile(BuildContext context, File file) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除导出文件？'),
+        content: Text('将删除「${file.uri.pathSegments.last}」，此操作不可恢复。'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton.tonal(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      if (await file.exists()) await file.delete();
+      if (mounted) setState(() {});
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已删除导出文件')));
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('删除失败：$e')));
+    }
+  }
+
+  Future<void> _shareExportHistoryFile(BuildContext context, File file) async {
+    try {
+      await Share.shareXFiles([XFile(file.path)]);
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('分享失败：$e')));
+    }
+  }
 
   Widget _buildTemplateSection(BuildContext context) {
     return _Section(
@@ -547,20 +617,60 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
   // ─────────────────────────────────────────────────────────────────────
 
   Widget _buildPreviewSection(BuildContext context, bool showPreview) {
+    final pdfSelected = _selectedFormats.contains(ExportFormat.pdf);
     return _Section(
-      title: '预览',
-      description: '仅 HTML 格式可用：先在 WebView 中预览，再决定是否导出',
+      title: '预览与检查',
+      description: showPreview ? 'HTML 可直接预览；PDF 可生成后预览或分享' : '选择 HTML 或 PDF 后使用预览',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: FilledButton.tonalIcon(
-          onPressed: showPreview && _exportOptions != null
-              ? () => _previewHtml(context)
-              : null,
-          icon: const Icon(CupertinoIcons.eye),
-          label: const Text('预览 HTML'),
-        ),
+        child: Wrap(spacing: 8, runSpacing: 8, children: <Widget>[
+          FilledButton.tonalIcon(
+            onPressed: showPreview && _exportOptions != null ? () => _previewHtml(context) : null,
+            icon: const Icon(CupertinoIcons.eye),
+            label: const Text('预览 HTML'),
+          ),
+          OutlinedButton.icon(
+            onPressed: pdfSelected && _exportOptions != null ? () => _previewPdf(context) : null,
+            icon: const Icon(CupertinoIcons.doc_richtext),
+            label: const Text('预览 PDF'),
+          ),
+        ]),
       ),
     );
+  }
+
+  Future<void> _previewPdf(BuildContext context) async {
+    final options = _exportOptions;
+    if (options == null) return;
+    try {
+      final file = await PdfExportService.generatePdf(
+        options.filtered,
+        title: '错题本整理报告',
+        mode: options.mode,
+        studentInfo: options.studentInfo,
+        watermark: options.studentInfo?.watermark,
+        layoutOptions: _layoutOptions,
+      );
+      if (!context.mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: const Text('PDF 预览')),
+            body: PdfPreview(
+              build: (_) => file.readAsBytes(),
+              canChangePageFormat: false,
+              canChangeOrientation: false,
+              allowPrinting: true,
+              allowSharing: true,
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF 预览失败：$e')));
+      }
+    }
   }
 
   Future<void> _previewHtml(BuildContext context) async {
@@ -1202,3 +1312,33 @@ class _SummaryBox extends StatelessWidget {
 }
 
 
+
+class _ExportHistoryListTile extends StatelessWidget {
+  const _ExportHistoryListTile({required this.file, required this.onDelete, required this.onShare});
+  final File file;
+  final VoidCallback onDelete;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = file.uri.pathSegments.last;
+    final isPdf = name.toLowerCase().endsWith('.pdf');
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(isPdf ? CupertinoIcons.doc_richtext : CupertinoIcons.doc_text),
+      title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(_formatBytes(file.statSync().size)),
+      trailing: Wrap(spacing: 0, children: <Widget>[
+        IconButton(onPressed: onShare, icon: const Icon(CupertinoIcons.share), tooltip: '分享'),
+        IconButton(onPressed: onDelete, icon: const Icon(CupertinoIcons.delete, color: Colors.red), tooltip: '删除'),
+      ]),
+    );
+  }
+
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
