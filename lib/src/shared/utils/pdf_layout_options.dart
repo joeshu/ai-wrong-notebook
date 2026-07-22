@@ -199,18 +199,18 @@ extension PdfLayoutOptionsCss on PdfLayoutOptions {
 
   /// `@page margin` 字面量（上 右 下 左）。
   String get cssMarginBox => switch (margin) {
-        PdfMargin.narrow => '12mm 10mm 12mm 10mm',
-        PdfMargin.normal => '22mm 16mm 20mm 16mm',
-        PdfMargin.wide => '32mm 24mm 28mm 24mm',
+        PdfMargin.narrow => '14mm 14mm 14mm 14mm',
+        PdfMargin.normal => '24mm 22mm 22mm 22mm',
+        PdfMargin.wide => '32mm 30mm 28mm 30mm',
       };
 
   /// 桌面端原生 PDF 用的页边距（毫米）：返回 `(上下, 左右)`。
   /// 取上下各档的「上边距」、左右各档的「左边距」作为统一值，
   /// 与 [cssMarginBox] 的字面量保持同档位语义。
   (double, double) get cssMargin => switch (margin) {
-        PdfMargin.narrow => (12.0, 10.0),
-        PdfMargin.normal => (22.0, 16.0),
-        PdfMargin.wide => (32.0, 24.0),
+        PdfMargin.narrow => (14.0, 14.0),
+        PdfMargin.normal => (24.0, 22.0),
+        PdfMargin.wide => (32.0, 30.0),
       };
 
   /// 基础正文字号（pt），驱动模板 CSS 中按比例缩放的字号层级。
