@@ -49,6 +49,7 @@ import 'package:smart_wrong_notebook/src/domain/services/worksheet_assembly_serv
 import 'package:smart_wrong_notebook/src/domain/services/recommendation_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dart';
 
 // --- Repository providers (default implementations) ---
 
@@ -390,74 +391,6 @@ final FutureProvider<KnowledgeTreeOverview> knowledgeTreeOverviewProvider =
     newCount: newQ,
   );
 });
-
-/// 按科目聚合的掌握度快照（Phase 8-2），供首页知识树区块展示。
-class SubjectMasterySnapshot {
-  const SubjectMasterySnapshot({
-    required this.subject,
-    required this.averageMastery,
-    required this.knowledgePointCount,
-    required this.pendingReviewCount,
-  });
-
-  final Subject subject;
-
-  /// 该科目下所有有题目的知识点的掌握度平均值（0.0–100.0）。
-  final double averageMastery;
-
-  /// 该科目下有题目的知识点数量。
-  final int knowledgePointCount;
-
-  /// 该科目下待复习题目总数。
-  final int pendingReviewCount;
-}
-
-/// Phase 8-2：按科目聚合掌握度快照，用于首页知识树区块。
-///
-/// watch [knowledgeTreeOverviewProvider] 响应知识点树与掌握度变更，
-/// 按 `node.point.subject` 分组聚合 `mastery.masteryPercentage` 平均值。
-/// 仅统计有 mastery 且 totalQuestions>0 的知识点；subject 为 null 的节点跳过。
-final FutureProvider<List<SubjectMasterySnapshot>> subjectMasterySnapshotProvider =
-    FutureProvider<List<SubjectMasterySnapshot>>((ref) async {
-  final overview = ref.watch(knowledgeTreeOverviewProvider).maybeWhen(
-        data: (d) => d,
-        orElse: () => null,
-      );
-  if (overview == null) return const <SubjectMasterySnapshot>[];
-
-  // 按 Subject 分组：累计掌握度总和 + 知识点计数 + 待复习题目数
-  final bySubject = <Subject, _SubjectAccumulator>{};
-  for (final node in overview.nodes) {
-    final subject = node.point.subject;
-    if (subject == null) continue;
-    final mastery = node.mastery;
-    if (mastery == null || mastery.totalQuestions == 0) continue;
-    final acc = bySubject.putIfAbsent(subject, () => _SubjectAccumulator());
-    acc.masterySum += mastery.masteryPercentage;
-    acc.knowledgePointCount += 1;
-    acc.pendingReviewCount += node.pendingReviewCount;
-  }
-
-  final snapshots = bySubject.entries.map((entry) {
-    final acc = entry.value;
-    return SubjectMasterySnapshot(
-      subject: entry.key,
-      averageMastery: acc.knowledgePointCount == 0
-          ? 0.0
-          : acc.masterySum / acc.knowledgePointCount,
-      knowledgePointCount: acc.knowledgePointCount,
-      pendingReviewCount: acc.pendingReviewCount,
-    );
-  }).toList()
-    ..sort((a, b) => b.averageMastery.compareTo(a.averageMastery));
-  return snapshots;
-});
-
-class _SubjectAccumulator {
-  double masterySum = 0.0;
-  int knowledgePointCount = 0;
-  int pendingReviewCount = 0;
-}
 
 /// 近 7 天每日复习趋势条目（Phase 8-3），供首页折线图展示。
 class DailyReviewTrend {
@@ -1497,6 +1430,27 @@ bool _isWithinDateRange(
       return !createdAt.isBefore(now.subtract(const Duration(days: 30)));
   }
 }
+
+// --- Export history ---
+
+/// 导出历史版本号。每次导出完成后递增，触发 [exportHistoryProvider] 重新加载。
+final StateProvider<int> _exportHistoryVersionProvider =
+    StateProvider<int>((ref) => 0);
+
+/// 通知导出历史已变更，刷新 [exportHistoryProvider]。
+void invalidateExportHistory(WidgetRef ref) {
+  ref.read(_exportHistoryVersionProvider.notifier).state++;
+}
+
+/// 最近导出记录（最多 10 条，按时间倒序）。
+///
+/// watch [_exportHistoryVersionProvider] 以在导出完成后响应式刷新。
+/// 数据源为 [ExportHistoryService.list]。
+final FutureProvider<List<ExportHistoryEntry>> exportHistoryProvider =
+    FutureProvider<List<ExportHistoryEntry>>((ref) async {
+  ref.watch(_exportHistoryVersionProvider);
+  return ExportHistoryService.list();
+});
 
 // --- Theme mode ---
 
