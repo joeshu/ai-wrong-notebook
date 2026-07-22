@@ -150,12 +150,29 @@ class SettingsScreen extends ConsumerWidget {
             AppSectionTitle(AppStrings.settingsContent),
             const SizedBox(height: AppSpace.md),
             AppCard(
-              child: AppListTile(
-                icon: CupertinoIcons.folder,
-                iconColor: AppColors.success,
-                iconBackgroundColor: AppColors.successContainerLight,
-                title: AppStrings.settingsSubjects,
-                onTap: () => context.go('/settings/subjects'),
+              child: Column(
+                children: <Widget>[
+                  AppListTile(
+                    icon: CupertinoIcons.tree,
+                    iconColor: AppColors.accentTeal,
+                    iconBackgroundColor: AppColors.accentTealContainerLight,
+                    title: '知识树',
+                    subtitle: '查看知识点掌握度、薄弱点与知识点管理',
+                    onTap: () => context.go('/settings/knowledge-tree'),
+                  ),
+                  Divider(
+                    height: 1,
+                    indent: 56,
+                    color: colorScheme.outlineVariant,
+                  ),
+                  AppListTile(
+                    icon: CupertinoIcons.folder,
+                    iconColor: AppColors.success,
+                    iconBackgroundColor: AppColors.successContainerLight,
+                    title: AppStrings.settingsSubjects,
+                    onTap: () => context.go('/settings/subjects'),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: AppSpace.xl),
