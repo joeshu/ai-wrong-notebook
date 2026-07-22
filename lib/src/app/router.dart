@@ -91,11 +91,13 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                   path: '/review', builder: (_, __) => const ReviewScreen()),
             ],
           ),
+          // Phase 8-2：知识树移入设置，不再占用底部主导航。
+          // 导出工作台作为底部导航的独立入口。
           StatefulShellBranch(
             routes: <RouteBase>[
               GoRoute(
-                path: '/knowledge-tree',
-                builder: (_, __) => const KnowledgeTreeScreen(),
+                path: '/export',
+                builder: (_, __) => const ExportWorkbenchScreen(),
               ),
             ],
           ),
@@ -118,8 +120,12 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                       path: 'layout',
                       builder: (_, __) => const LayoutProviderConfigScreen()),
                   GoRoute(
-                      path: 'data',
-                      builder: (_, __) => const DataManagementScreen()),
+                    path: 'data',
+                    builder: (_, __) => const DataManagementScreen()),
+                  GoRoute(
+                    path: 'knowledge-tree',
+                    builder: (_, __) => const KnowledgeTreeScreen(),
+                  ),
                   GoRoute(
                     path: 'export-workbench',
                     builder: (context, state) {
@@ -251,8 +257,8 @@ class ScaffoldWithNavBar extends StatelessWidget {
               icon: Icon(CupertinoIcons.arrow_2_circlepath),
               label: AppStrings.reviewTab),
           NavigationDestination(
-              icon: Icon(Icons.account_tree_outlined),
-              label: AppStrings.knowledgeTreeTab),
+              icon: Icon(CupertinoIcons.square_arrow_up),
+              label: AppStrings.settingsExportShare),
           NavigationDestination(
               icon: Icon(CupertinoIcons.gear), label: AppStrings.settingsTab),
         ],

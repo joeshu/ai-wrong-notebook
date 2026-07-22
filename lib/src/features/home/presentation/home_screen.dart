@@ -11,7 +11,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
-import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
+import 'package:smart_wrong_notebook/src/features/home/presentation/home_export_share_section.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
@@ -182,20 +182,15 @@ class HomeScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-          // Phase 8-2：知识树快照——按科目聚合掌握度，点击跳转 /knowledge-tree。
-          ref.watch(subjectMasterySnapshotProvider).when(
-                data: (snapshots) => snapshots.isEmpty
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.only(top: AppSpace.lg),
-                        child: _SubjectMasterySection(
-                          snapshots: snapshots,
-                          onTap: () => context.go('/knowledge-tree'),
-                        ),
-                      ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-              ),
+          // 导出与分享：替代首页知识树快照，提供统一导出入口。
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.lg),
+            child: HomeExportShareSection(
+              onExport: () => context.go('/export'),
+              onShare: () => context.go('/settings/export-workbench'),
+            ),
+          ),
+
           // Phase 8-3：近 7 天学习趋势折线图。
           ref.watch(reviewTrend7DaysProvider).when(
                 data: (trend) => Padding(
