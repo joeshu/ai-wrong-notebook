@@ -491,11 +491,12 @@ class _SummaryCard extends StatelessWidget {
               Text(
                 '共 $total 题',
                 style: TextStyle(
-                    fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    fontSize: 11, color: colorScheme.onSurfaceVariant),
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.lg),
+          const SizedBox(height: AppSpace.sm),
+          // 压缩为一行 4 个核心指标：待复习 / 近7天 / 掌握率 / 连续天。
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: <Widget>[
@@ -504,22 +505,9 @@ class _SummaryCard extends StatelessWidget {
                   label: AppStrings.reviewPending,
                   color: AppColors.warning),
               _MiniStat(
-                  value: '$scheduled',
-                  label: AppStrings.reviewScheduled,
-                  color: AppColors.success),
-              _MiniStat(
-                  value: '$total', label: '总错题', color: colorScheme.onSurface),
-            ],
-          ),
-          const SizedBox(height: AppSpace.md),
-          // Phase 7-3：复习统计第二行——近 7 天复习数 / 掌握率 / 连续天数。
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: <Widget>[
-              _MiniStat(
-                value: '$last7DaysReviews',
-                label: '近7天复习',
-                color: colorScheme.primary,
+                  value: '$last7DaysReviews',
+                  label: '近7天',
+                  color: colorScheme.primary,
               ),
               _MiniStat(
                 value: '$masteryRate%',
@@ -533,17 +521,17 @@ class _SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppSpace.lg),
+          const SizedBox(height: AppSpace.sm),
           Text(
             todayTarget == 0
                 ? '今日暂无复习计划'
                 : '$reviewedToday / $todayTarget ${AppStrings.reviewTodayProgress}',
-            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
           ),
-          const SizedBox(height: AppSpace.sm),
+          const SizedBox(height: 4),
           LinearProgressIndicator(
             value: todayTarget == 0 ? 0 : reviewedToday / todayTarget,
-            minHeight: 7,
+            minHeight: 5,
           ),
         ],
       ),
@@ -818,12 +806,13 @@ class _MiniStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: <Widget>[
         Text(value,
             style: TextStyle(
-                fontSize: 22, fontWeight: FontWeight.bold, color: color)),
-        const SizedBox(height: 2),
-        Text(label, style: TextStyle(fontSize: 11, color: color)),
+                fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+        const SizedBox(height: 1),
+        Text(label, style: TextStyle(fontSize: 10, color: color)),
       ],
     );
   }

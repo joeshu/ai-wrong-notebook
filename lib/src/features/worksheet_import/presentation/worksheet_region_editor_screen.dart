@@ -1047,30 +1047,28 @@ class _DetectionActionCard extends StatelessWidget {
     margin: EdgeInsets.zero,
     color: const Color(0xFFF0F9FF),
     child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: <Widget>[
         Row(children: <Widget>[
-          const Icon(CupertinoIcons.viewfinder_circle, color: Color(0xFF0369A1)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(isDetecting ? selectedType : '识别策略：$selectedType', style: const TextStyle(fontWeight: FontWeight.w700))),
-          if (isDetecting) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+          const Icon(CupertinoIcons.viewfinder_circle, size: 16, color: Color(0xFF0369A1)),
+          const SizedBox(width: 6),
+          Expanded(child: Text(isDetecting ? selectedType : '识别策略：$selectedType', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+          if (isDetecting) const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
         ]),
         const SizedBox(height: 6),
-        Text(isDetecting ? '请保持页面打开；会显示最终采用的服务与耗时。' : '自动策略会先快速识别，结果不足才升级深度解析。', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
-        const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 6, children: <Widget>[
-          FilledButton.tonalIcon(onPressed: onAuto, icon: const Icon(CupertinoIcons.sparkles, size: 16), label: const Text('按当前策略识别')),
-          OutlinedButton(onPressed: onPaddle, child: Text(paddleReady ? '快速 PaddleOCR' : 'PaddleOCR · 未配置')),
-          OutlinedButton(onPressed: onMineru, child: Text(mineruReady ? '深度 MinerU' : 'MinerU · 未配置')),
+        Wrap(spacing: 6, runSpacing: 4, children: <Widget>[
+          FilledButton.tonalIcon(onPressed: onAuto, icon: const Icon(CupertinoIcons.sparkles, size: 14), label: const Text('按当前策略识别')),
+          OutlinedButton(onPressed: onPaddle, child: Text(paddleReady ? 'PaddleOCR' : 'PaddleOCR·未配置')),
+          OutlinedButton(onPressed: onMineru, child: Text(mineruReady ? 'MinerU' : 'MinerU·未配置')),
           TextButton(onPressed: onManual, child: const Text('仅手动框选')),
         ]),
         if (!paddleReady || !mineruReady) Padding(
-          padding: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.only(top: 4),
           child: Row(children: <Widget>[
             const Expanded(
               child: Text(
                 '未配置的服务不可用，请先填写版面识别 Token。',
-                style: TextStyle(fontSize: 11, color: Color(0xFF9A3412)),
+                style: TextStyle(fontSize: 10, color: Color(0xFF9A3412)),
               ),
             ),
             TextButton(

@@ -87,7 +87,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
         title: const Text('试卷批量导入'),
         leading: IconButton(
           icon: const Icon(CupertinoIcons.chevron_left),
-          onPressed: autoAnalyzing ? null : _confirmCancelBatch,
+          onPressed: _confirmCancelBatch,
         ),
         actions: <Widget>[
           if (queuedQuestions.isNotEmpty)
