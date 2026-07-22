@@ -221,6 +221,7 @@ class _WorksheetRegionEditorScreenState
                 regions: _regions,
                 duration: _detectionDuration,
                 warning: _detectionWarning,
+                compact: true,
               ),
             )
           else if (_isDetecting && _detectionStages != null && _detectionStages!.isNotEmpty)
@@ -1047,7 +1048,7 @@ class _DetectionActionCard extends StatelessWidget {
     margin: EdgeInsets.zero,
     color: const Color(0xFFF0F9FF),
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: <Widget>[
         Row(children: <Widget>[
           const Icon(CupertinoIcons.viewfinder_circle, size: 16, color: Color(0xFF0369A1)),
@@ -1055,13 +1056,52 @@ class _DetectionActionCard extends StatelessWidget {
           Expanded(child: Text(isDetecting ? selectedType : '识别策略：$selectedType', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
           if (isDetecting) const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
         ]),
-        const SizedBox(height: 6),
-        Wrap(spacing: 6, runSpacing: 4, children: <Widget>[
-          FilledButton.tonalIcon(onPressed: onAuto, icon: const Icon(CupertinoIcons.sparkles, size: 14), label: const Text('按当前策略识别')),
-          OutlinedButton(onPressed: onPaddle, child: Text(paddleReady ? 'PaddleOCR' : 'PaddleOCR·未配置')),
-          OutlinedButton(onPressed: onMineru, child: Text(mineruReady ? 'MinerU' : 'MinerU·未配置')),
-          TextButton(onPressed: onManual, child: const Text('仅手动框选')),
-        ]),
+        const SizedBox(height: 4),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: <Widget>[
+            FilledButton.tonalIcon(
+              onPressed: onAuto,
+              icon: const Icon(CupertinoIcons.sparkles, size: 14),
+              label: const Text('按策略识别'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            const SizedBox(width: 6),
+            OutlinedButton(
+              onPressed: onPaddle,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(paddleReady ? 'PaddleOCR' : 'PaddleOCR·未配置'),
+            ),
+            const SizedBox(width: 6),
+            OutlinedButton(
+              onPressed: onMineru,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(mineruReady ? 'MinerU' : 'MinerU·未配置'),
+            ),
+            const SizedBox(width: 6),
+            TextButton(
+              onPressed: onManual,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('手动框选'),
+            ),
+          ]),
+        ),
         if (!paddleReady || !mineruReady) Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Row(children: <Widget>[
@@ -1139,11 +1179,12 @@ class _DetectionStageCard extends StatelessWidget {
 }
 
 class _DetectionResultCard extends StatelessWidget {
-  const _DetectionResultCard({required this.provider, required this.regions, required this.duration, required this.warning});
+  const _DetectionResultCard({required this.provider, required this.regions, required this.duration, required this.warning, this.compact = false});
   final String provider;
   final List<QuestionRegion> regions;
   final Duration? duration;
   final String? warning;
+  final bool compact;
 
   FieldStatus _fieldStatus(String label, bool available, {bool warning = false}) {
     if (available) return FieldStatus.recognized;
@@ -1176,9 +1217,8 @@ class _DetectionResultCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
         const Row(children: <Widget>[Icon(CupertinoIcons.check_mark_circled_solid, color: Color(0xFF16A34A)), SizedBox(width: 8), Text('候选题框已生成', style: TextStyle(fontWeight: FontWeight.w700))]),
         const SizedBox(height: 7),
-        Text('最终服务：$provider', style: const TextStyle(fontSize: 12)),
-        Text('识别结果：${regions.length} 道候选题${duration == null ? '' : ' · 耗时 ${duration!.inSeconds}s'}', style: const TextStyle(fontSize: 12)),
-        if (regions.any((region) => (region.recognizedText ?? '').trim().isNotEmpty)) ...<Widget>[
+        Text('最终服务：$provider · ${regions.length} 道候选题${duration == null ? '' : ' · ${duration!.inSeconds}s'}', style: const TextStyle(fontSize: 12)),
+        if (!compact && regions.any((region) => (region.recognizedText ?? '').trim().isNotEmpty)) ...<Widget>[
           const SizedBox(height: 6),
           Text('已同时提取题目文字/公式：${regions.where((region) => (region.recognizedText ?? '').trim().isNotEmpty).length} 道。确认题框后会带入下一步校对，不会丢弃。', style: const TextStyle(fontSize: 12, color: Color(0xFF166534))),
           if (_structureSummary(regions).isNotEmpty)
@@ -1189,7 +1229,7 @@ class _DetectionResultCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 5),
             child: Text('提示：$warning', style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412))),
           ),
-        if (regions.isNotEmpty) ...<Widget>[
+        if (regions.isNotEmpty && !compact) ...<Widget>[
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
@@ -1203,7 +1243,7 @@ class _DetectionResultCard extends StatelessWidget {
           ),
         ],
 
-        const Padding(padding: EdgeInsets.only(top: 5), child: Text('请检查蓝框边界；可拖动、缩放、删除，或点击试卷增加题框。', style: TextStyle(fontSize: 12, color: Color(0xFF475569)))),
+        const Padding(padding: EdgeInsets.only(top: 4), child: Text('可拖动、缩放或删除题框；确认后进入逐题校对。', style: TextStyle(fontSize: 11, color: Color(0xFF475569))),
       ]),
     ),
   );
