@@ -25,7 +25,7 @@ class ReviewController {
   final ReviewScheduleService _scheduleService;
 
   Future<QuestionRecord> markMastered(String id) =>
-      _applyRating(id, ReviewRating.easy, 'mastered');
+      _applyRating(id, ReviewRating.easy, 'mastered', forceMastered: true);
 
   Future<QuestionRecord> markReviewing(String id) =>
       _applyRating(id, ReviewRating.hard, 'reviewing');
@@ -36,8 +36,9 @@ class ReviewController {
   Future<QuestionRecord> _applyRating(
     String id,
     ReviewRating rating,
-    String logResult,
-  ) async {
+    String logResult, {
+    bool forceMastered = false,
+  }) async {
     final question = await _repository.getById(id);
     if (question == null) throw ArgumentError('Question not found: $id');
 
@@ -46,6 +47,7 @@ class ReviewController {
       question,
       rating,
       reviewedAt: reviewedAt,
+      forceMastered: forceMastered,
     );
     await _repository.update(updated);
     await _writeLog(id, logResult, updated.masteryLevel, reviewedAt);

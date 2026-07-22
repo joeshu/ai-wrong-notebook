@@ -50,6 +50,7 @@ class ReviewScheduleService {
     QuestionRecord question,
     ReviewRating rating, {
     DateTime? reviewedAt,
+    bool forceMastered = false,
   }) {
     final now = reviewedAt ?? DateTime.now();
     final ratingIdx = _ratingIndex(rating); // 1-3
@@ -79,7 +80,10 @@ class ReviewScheduleService {
           ratingIdx >= 3 ? FsrsState.review : FsrsState.learning;
       newReps = 1;
       newLapses = ratingIdx == 1 ? 1 : 0;
-      interval = _shortInterval(ratingIdx);
+      // 毕业到 Review：间隔 = stability × ratio；留在学习阶段：短间隔。
+      interval = ratingIdx >= 3
+          ? _reviewInterval(newS, ratingIdx)
+          : _shortInterval(ratingIdx);
     } else if (oldState == FsrsState.learning ||
         oldState == FsrsState.relearning) {
       // 学习/重学阶段：Good/Easy 毕业，Again/Hard 留在原阶段。
@@ -145,7 +149,11 @@ class ReviewScheduleService {
     }
 
     // 映射回 MasteryLevel（UI 用）。
-    final mastery = _masteryFromFsrs(newState, newS, rating);
+    // forceMastered=true 时强制 mastered（用于 markMastered：用户主动标记
+    // 已掌握，FSRS stability 可能还低，但 UI 应立即显示 mastered）。
+    final mastery = forceMastered
+        ? MasteryLevel.mastered
+        : _masteryFromFsrs(newState, newS, rating);
 
     // 写回 FSRS 状态到 tags。
     final newTags = LearningContextCodec.writeFsrs(
