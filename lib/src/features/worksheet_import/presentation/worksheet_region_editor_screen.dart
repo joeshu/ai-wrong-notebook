@@ -196,7 +196,7 @@ class _WorksheetRegionEditorScreenState
       body: SafeArea(
         child: Column(children: <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
             child: _DetectionActionCard(
               isDetecting: _isDetecting,
               selectedType: _selectedStrategyLabel(
@@ -215,7 +215,7 @@ class _WorksheetRegionEditorScreenState
           ),
           if (_detectionProvider != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
               child: _DetectionResultCard(
                 provider: _detectionProvider!,
                 regions: _regions,
@@ -226,7 +226,7 @@ class _WorksheetRegionEditorScreenState
           else if (_isDetecting && _detectionStages != null && _detectionStages!.isNotEmpty)
             // Phase 10-2：识别中且 service 已上报阶段 → 渲染分阶段进度条。
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: _DetectionStageCard(
                 stages: _detectionStages!,
                 current: _detectionStageCurrent,
@@ -236,79 +236,83 @@ class _WorksheetRegionEditorScreenState
             )
           else if (_detectionMessage != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
               child: Text(_detectionMessage!, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
             ),
-          if (_draftStatus != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-              child: Text('草稿：$_draftStatus', style: const TextStyle(fontSize: 11, color: Color(0xFF166534))),
-            ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
             child: Text(
-              '在试卷图上按下并拖动可框选题目区域，松开生成题框；轻点可放默认大小题框。拖动蓝色题框调整位置，拖动右下角圆点缩放，点击红色 × 删除。每个蓝框会裁成一张独立题图。',
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              '在图上拖动框选题目区域，松开生成题框；轻点放默认题框。拖动蓝框调整，× 删除。',
+              style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
             ),
           ),
           if (_regions.isNotEmpty)
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                InkWell(
-                  onTap: () => setState(() => _workbenchExpanded = !_workbenchExpanded),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    child: Row(children: <Widget>[
-                      Icon(
-                        _workbenchExpanded
-                            ? CupertinoIcons.chevron_down
-                            : CupertinoIcons.chevron_right,
-                        size: 16,
-                        color: scheme.onSurfaceVariant,
+            Flexible(
+              flex: _workbenchExpanded ? 1 : 0,
+              fit: _workbenchExpanded ? FlexFit.tight : FlexFit.loose,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.32,
+                ),
+                child: Column(
+                  mainAxisSize: _workbenchExpanded ? MainAxisSize.max : MainAxisSize.min,
+                  children: <Widget>[
+                    InkWell(
+                      onTap: () => setState(() => _workbenchExpanded = !_workbenchExpanded),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                        child: Row(children: <Widget>[
+                          Icon(
+                            _workbenchExpanded
+                                ? CupertinoIcons.chevron_down
+                                : CupertinoIcons.chevron_right,
+                            size: 16,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '已识别 ${_regions.length} 道题 · '
+                              '${_regions.where((r) => r.reviewStatus == QuestionRegionReviewStatus.accepted).length} 题采用 · '
+                              '点击${_workbenchExpanded ? '收起' : '展开校对文字'}',
+                              style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+                            ),
+                          ),
+                        ]),
                       ),
-                      const SizedBox(width: 8),
+                    ),
+                    if (_workbenchExpanded)
                       Expanded(
-                        child: Text(
-                          '已识别 ${_regions.length} 道题 · '
-                          '${_regions.where((r) => r.reviewStatus == QuestionRegionReviewStatus.accepted).length} 题采用 · '
-                          '点击${_workbenchExpanded ? '收起' : '展开校对文字'}',
-                          style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+                        child: _RecognizedQuestionWorkbench(
+                          regions: _regions,
+                          defaultSubject: page.subject,
+                          onUpdate: (index, next) => setState(() {
+                            final previous = _regions[index];
+                            _regions[index] = next.copyWith(
+                              originalRecognizedText: previous.originalRecognizedText ?? previous.recognizedText,
+                            );
+                            _scheduleDraftSave(page.id);
+                          }),
+                          onIgnore: (index) => setState(() {
+                            final region = _regions[index];
+                            _regions[index] = region.copyWith(
+                              reviewStatus: region.reviewStatus == QuestionRegionReviewStatus.ignored
+                                  ? QuestionRegionReviewStatus.accepted
+                                  : QuestionRegionReviewStatus.ignored,
+                            );
+                            _scheduleDraftSave(page.id);
+                          }),
+                          selectedRegionId: _selectedRegionId,
+                          sourceImagePath: page.imagePath,
+                          onSelect: (region) => setState(() => _selectedRegionId = region.id),
                         ),
                       ),
-                    ]),
-                  ),
+                  ],
                 ),
-                if (_workbenchExpanded)
-                  SizedBox(
-                    height: MediaQuery.sizeOf(context).width < 600 ? 280 : 240,
-                    child: _RecognizedQuestionWorkbench(
-                      regions: _regions,
-                      defaultSubject: page.subject,
-                      onUpdate: (index, next) => setState(() {
-                        final previous = _regions[index];
-                        _regions[index] = next.copyWith(
-                          originalRecognizedText: previous.originalRecognizedText ?? previous.recognizedText,
-                        );
-                        _scheduleDraftSave(page.id);
-                      }),
-                      onIgnore: (index) => setState(() {
-                        final region = _regions[index];
-                        _regions[index] = region.copyWith(
-                          reviewStatus: region.reviewStatus == QuestionRegionReviewStatus.ignored
-                              ? QuestionRegionReviewStatus.accepted
-                              : QuestionRegionReviewStatus.ignored,
-                        );
-                        _scheduleDraftSave(page.id);
-                      }),
-                      selectedRegionId: _selectedRegionId,
-                      sourceImagePath: page.imagePath,
-                      onSelect: (region) => setState(() => _selectedRegionId = region.id),
-                    ),
-                  ),
-              ],
+              ),
             ),
           Expanded(
+            flex: 2,
             child: LayoutBuilder(builder: (context, constraints) {
               final size = Size(constraints.maxWidth, constraints.maxHeight);
               return GestureDetector(
