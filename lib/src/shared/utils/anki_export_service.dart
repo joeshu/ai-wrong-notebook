@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:image/image.dart' as image;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
@@ -26,10 +27,13 @@ class AnkiExportService {
   ///
   /// [imageBaseDir] 为题图在 Anki media 文件夹下的相对前缀（如
   /// `wrong_notebook`），留空则图片直接放在 media 根目录。
+  /// [knowledgeTreePaths] 为每题的知识点树路径列表（如 `['数学 > 代数 > 二次方程']`），
+  /// 与 [contentOptions.includeKnowledgeTree] 联动，非空且开关打开时输出到背面。
   Future<String> generateAnkiImportText({
     required List<QuestionRecord> questions,
     required ExportContentOptions contentOptions,
     String? imageBaseDir,
+    Map<String, List<String>>? knowledgeTreePaths,
   }) async {
     final exportDir = await _ensureExportDir();
     final imageDir = Directory('${exportDir.path}/$imageDirName');
@@ -45,7 +49,7 @@ class AnkiExportService {
 
     for (final q in questions) {
       final front = _buildFront(q, contentOptions, imageBaseDir, imageDir);
-      final back = _buildBack(q, contentOptions);
+      final back = _buildBack(q, contentOptions, knowledgeTreePaths);
       final subject = _escapeField(q.subject.label);
       final analysis = q.analysisResult;
       final kps = [...?analysis?.knowledgePoints, ...?analysis?.aiTags]
@@ -104,16 +108,28 @@ class AnkiExportService {
     return parts.join('<br>');
   }
 
-  String _buildBack(QuestionRecord q, ExportContentOptions contentOptions) {
+  String _buildBack(
+    QuestionRecord q,
+    ExportContentOptions contentOptions,
+    Map<String, List<String>>? knowledgeTreePaths,
+  ) {
     final analysis = q.analysisResult;
+    // Phase 11-3：知识点树路径（与 includeKnowledgeTree 联动）。
     if (analysis == null) {
-      // Phase 11-4：即使没有 AI 分析，OCR 原文开关打开时也输出一段。
+      final parts = <String>[];
       if (contentOptions.includeOcrText &&
           q.extractedQuestionText.isNotEmpty &&
           q.extractedQuestionText != q.normalizedQuestionText) {
-        return '<b>OCR 原文：</b>${_escapeField(q.extractedQuestionText)}';
+        parts.add('<b>OCR 原文：</b>${_escapeField(q.extractedQuestionText)}');
       }
-      return '';
+      if (contentOptions.includeKnowledgeTree) {
+        final treePaths = knowledgeTreePaths?[q.id];
+        if (treePaths != null && treePaths.isNotEmpty) {
+          parts.add(
+              '<b>知识点路径：</b>${_escapeField(treePaths.join('；'))}');
+        }
+      }
+      return parts.join('<br><br>');
     }
     final parts = <String>[];
     if (contentOptions.includeCorrectAnswer &&
@@ -149,6 +165,14 @@ class AnkiExportService {
         q.extractedQuestionText != q.normalizedQuestionText) {
       parts.add('<b>OCR 原文：</b>${_escapeField(q.extractedQuestionText)}');
     }
+    // Phase 11-3：知识点树路径（完整面包屑，如 `数学 > 代数 > 二次方程`）。
+    if (contentOptions.includeKnowledgeTree) {
+      final treePaths = knowledgeTreePaths?[q.id];
+      if (treePaths != null && treePaths.isNotEmpty) {
+        parts.add(
+            '<b>知识点路径：</b>${_escapeField(treePaths.join('；'))}');
+      }
+    }
     return parts.join('<br><br>');
   }
 
@@ -156,15 +180,40 @@ class AnkiExportService {
   // 图片与转义
   // ─────────────────────────────────────────────────────────────────────
 
-  /// 把题图复制到 [imageDir]，返回新文件名（如 `image_abc123.jpg`）。
-  /// 失败时返回 null。
+  /// 把题图压缩后写入 [imageDir]，返回新文件名（如 `image_abc123.jpg`）。
+  ///
+  /// Phase 11-3：原实现直接 copySync，大图会撑爆 Anki media 目录。
+  /// 现复用 image 包做缩放（maxWidth 1200）+ JPEG 重编码（quality 80），
+  /// 与 [HtmlExportService._encodeImageIsolate] 保持同一压缩参数。
+  /// PNG 透明图保留为 PNG（level 6），其余统一转 JPEG。
+  /// 解码失败时回退直接复制原文件，保证不阻塞导出。
   String? _copyImage(QuestionRecord q, Directory imageDir) {
     try {
       final source = File(q.imagePath);
       if (!source.existsSync()) return null;
-      final ext = _imageExtension(q.imagePath);
-      final targetName = 'image_${_sanitizeId(q.id)}.$ext';
+      final sourceExt = _imageExtension(q.imagePath);
+      final targetName = 'image_${_sanitizeId(q.id)}.$sourceExt';
       final target = File('${imageDir.path}/$targetName');
+
+      // 尝试压缩：解码 → 缩放 → 重编码。失败则回退直接复制。
+      try {
+        final bytes = source.readAsBytesSync();
+        final decoded = image.decodeImage(bytes);
+        if (decoded != null) {
+          image.Image scaled = decoded;
+          if (decoded.width > 1200) {
+            scaled = image.copyResize(decoded, width: 1200);
+          }
+          if (sourceExt == 'png') {
+            target.writeAsBytesSync(image.encodePng(scaled, level: 6));
+          } else {
+            target.writeAsBytesSync(image.encodeJpg(scaled, quality: 80));
+          }
+          return targetName;
+        }
+      } catch (_) {
+        // 解码失败，回退直接复制原文件。
+      }
       source.copySync(target.path);
       return targetName;
     } catch (_) {

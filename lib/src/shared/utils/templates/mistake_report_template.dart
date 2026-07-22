@@ -108,14 +108,26 @@ body {
 
 .toc { page-break-after: always; }
 .toc h2 { font-size: 20pt; font-weight: 700; margin-bottom: 20px; }
-.toc-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12pt; }
+.toc-group { margin-bottom: 12px; }
+.toc-group > summary {
+  font-size: 12pt; font-weight: 600; color: #6366F1; cursor: pointer;
+  padding: 6px 0; list-style: none;
+}
+.toc-group > summary::-webkit-details-marker { display: none; }
+.toc-group > summary::before { content: "▼ "; font-size: 9pt; color: #aaa; }
+.toc-group:not([open]) > summary::before { content: "▶ "; }
+.toc-item { display: flex; justify-content: space-between; padding: 6px 0 6px 16px; font-size: 12pt; }
 .toc-item .count { color: #888; font-size: 10.5pt; }
 .legend { font-size: 10pt; color: #888; margin-top: 18px; line-height: 2; }
 
+/* Phase 11-6：正文按学科分组也支持折叠 */
 .subject-section { page-break-before: always; }
+.subject-section > details > summary { list-style: none; cursor: pointer; }
+.subject-section > details > summary::-webkit-details-marker { display: none; }
 .subject-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
 .subject-bar { width: 4px; height: 22px; border-radius: 2px; }
 .subject-title { font-size: 18pt; font-weight: 700; }
+.subject-toggle { font-size: 10pt; color: #aaa; margin-left: 6px; }
 
 .question-block {
   margin-bottom: 16px;

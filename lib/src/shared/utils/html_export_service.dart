@@ -632,12 +632,15 @@ class HtmlExportService {
           final list = grouped[subject]!;
           final color = HtmlRenderUtils.subjectColorHex(subject);
           sink.writeln('  <div class="subject-section">');
-          sink.writeln('    <div class="subject-header">');
+          // Phase 11-6：学科分组用 <details> 包裹，默认展开（open），
+          // 点击学科标题可收起/展开该学科题目，便于长报告浏览。
+          sink.writeln('    <details open>');
+          sink.writeln('      <summary class="subject-header">');
           sink.writeln(
-              '      <div class="subject-bar" style="background:$color"></div>');
+              '        <div class="subject-bar" style="background:$color"></div>');
           sink.writeln(
-              '      <div class="subject-title">${HtmlRenderUtils.escapeHtml(subject.label)}（${list.length} 题）</div>');
-          sink.writeln('    </div>');
+              '        <div class="subject-title">${HtmlRenderUtils.escapeHtml(subject.label)}（${list.length} 题）</div>');
+          sink.writeln('      </summary>');
 
           for (final q in list) {
             globalIndex++;
@@ -653,6 +656,7 @@ class HtmlExportService {
             ));
           }
 
+          sink.writeln('    </details>');
           sink.writeln('  </div>');
           await sink.flush();
         }
@@ -749,12 +753,14 @@ class HtmlExportService {
         final list = grouped[subject]!;
         final color = HtmlRenderUtils.subjectColorHex(subject);
         sink.writeln('  <div class="subject-section">');
-        sink.writeln('    <div class="subject-header">');
+        // Phase 11-6：学科分组用 <details> 包裹，默认展开（open）。
+        sink.writeln('    <details open>');
+        sink.writeln('      <summary class="subject-header">');
         sink.writeln(
-            '      <div class="subject-bar" style="background:$color"></div>');
+            '        <div class="subject-bar" style="background:$color"></div>');
         sink.writeln(
-            '      <div class="subject-title">${HtmlRenderUtils.escapeHtml(subject.label)}（${list.length} 题）</div>');
-        sink.writeln('    </div>');
+            '        <div class="subject-title">${HtmlRenderUtils.escapeHtml(subject.label)}（${list.length} 题）</div>');
+        sink.writeln('      </summary>');
 
         for (final q in list) {
           globalIndex++;
@@ -770,6 +776,7 @@ class HtmlExportService {
           ));
         }
 
+        sink.writeln('    </details>');
         sink.writeln('  </div>');
       }
     }
@@ -864,13 +871,18 @@ class HtmlExportService {
       final sortedSubjects = HtmlRenderUtils.sortedSubjects(grouped);
       sink.writeln('  <div class="toc">');
       sink.writeln('    <h2>目&emsp;录</h2>');
+      // Phase 11-6：目录用 <details> 折叠，默认展开（open），
+      // 点击学科名可收起/展开对应分组的题目列表。
+      sink.writeln('    <details class="toc-group" open>');
+      sink.writeln('      <summary>按学科分组（${sortedSubjects.length} 个学科）</summary>');
       for (final subject in sortedSubjects) {
         final list = grouped[subject]!;
-        sink.writeln('    <div class="toc-item">');
-        sink.writeln('      <span>${HtmlRenderUtils.escapeHtml(subject.label)}</span>');
-        sink.writeln('      <span class="count">${list.length} 题</span>');
-        sink.writeln('    </div>');
+        sink.writeln('      <div class="toc-item">');
+        sink.writeln('        <span>${HtmlRenderUtils.escapeHtml(subject.label)}</span>');
+        sink.writeln('        <span class="count">${list.length} 题</span>');
+        sink.writeln('      </div>');
       }
+      sink.writeln('    </details>');
       sink.writeln('    <div class="legend">');
       sink.writeln(
           '      掌握程度：● 待学习&emsp;● 复习中&emsp;● 已掌握');

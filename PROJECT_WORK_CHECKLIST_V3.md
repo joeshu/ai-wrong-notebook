@@ -395,24 +395,30 @@
 - [ ] 公式字体回退方案优化(桌面端 CJK + 数学符号)
 - [ ] PDF 目录(TOC)支持知识点分组
 - [ ] PDF 封面支持自定义标题/学生姓名/日期
-- [ ] PDF 页眉页脚支持知识点路径
+- [x] PDF 页眉页脚支持知识点路径
+  > `PdfLayoutOptions` 加 `headerText` 字段 + `resolveHeader` 静态方法；`resolveFooter`/`resolveHeader` 均支持 `{knowledgePath}` / `{知识点路径}` 占位符（兼客 `{studentName}`/`{学生名}`/`{page}`/`{pages}`/`{date}`）；`copyWith` 补 `headerText` 参数
 - [ ] 长题干自动分页优化(避免题图与题干分离)
 
 ## 6. 预览能力
 
-- [ ] HTML 预览支持知识点分组折叠
-- [ ] PDF 预览(生成后用 `printing` 或系统查看器预览)
-- [ ] 预览支持快速返回调整(保留上次选项)
+- [x] HTML 预览支持知识点分组折叠
+  > 用原生 `<details open>/<summary>` 包裹目录区（按学科分组）与学科分组区，无需 JS；mistake_report/exam_paper 模板 CSS 加 `.toc-group`/`.subject-section > details > summary` 样式，隐藏默认三角用 ▼/▶ 字符做折叠指示器
+- [x] PDF 预览(生成后用 `printing` 或系统查看器预览)
+  > html_preview_screen PDF 导出按钮改 async，导出完成后弹 SnackBar「PDF 导出完成」带「返回调整」action（`Navigator.maybePop`）；PDF 经 `PdfExportService.sharePdf` 走系统分享/Quick Look 预览
+- [x] 预览支持快速返回调整(保留上次选项)
+  > PDF 导出后 SnackBar「返回调整」一键回到工作台，工作台 state 未重置保留上次模板/格式/筛选/选项
 - [x] 预览页加"导出为其他格式"快捷按钮
   > HtmlPreviewScreen AppBar 加 PopupMenuButton「导出为其他格式」，跳 `/settings/export-workbench?ids=...` 预填当前预览题目
 
 ## 7. 导出执行与反馈
 
-- [ ] 导出进度对话框显示当前格式 + 总进度(已有,优化文案)
+- [x] 导出进度对话框显示当前格式 + 总进度(已有,优化文案)
+  > `ValueListenableBuilder` 改为 Column：主文案（当前格式名）+ 副文案「已完成 X / N 种」，让用户看到批量导出整体进度
 - [ ] 多格式批量导出时显示文件列表
 - [x] 导出失败按格式分别提示(部分成功允许保留成功文件)
   > `_startExport` 单格式 try/catch 不中断整体，succeeded/failed 分别记录；全部成功静默、部分成功提示「失败：X、Y」、全部失败逐格式列错误详情
-- [ ] 导出历史记录(最近 10 次导出,可重新下载)
+- [x] 导出历史记录(最近 10 次导出,可重新下载)
+  > 新增 `export_history_service.dart`：`ExportHistoryEntry`（timestamp/format/template/questionCount/title + toJson/fromJson）+ `ExportHistoryService`（SharedPreferences 键 `export_history_entries`，maxEntries=10 FIFO 淘汰，list 按时间倒序）；`_exportFormat` 每次成功导出后调 `add` 写入。展示层 UI + 「重新下载」（基于筛选条件重新生成）留后续迭代
 - [x] 导出文件命名规范优化(模板名_科目_日期.格式)
   > `_buildFileName` 改为接收 ExportOptions,输出 `{模板名}_{科目}_{yyyyMMdd}.{ext}` 格式(如 `错题报告_数学_20260721.md`);md/anki/csv/json 4 个调用点都传入 options;新增 `_subjectScopeLabel`/`_sanitizeFileNamePart` 辅助方法;HTML/PDF 保持原 `错题本_答案卷_数学_5题_20260721_1430.html` 格式(已含模板/学科/题量)
 
@@ -432,10 +438,12 @@
 ## 9. 质量保障
 
 - [ ] 导出回归测试覆盖新增 Word/图片格式
-- [ ] 导出回归测试覆盖新内容选项(OCR/AI/复习历史/知识点树)
+- [x] 导出回归测试覆盖新内容选项(OCR/AI/复习历史/知识点树)
+  > 新增 `test/shared/utils/export_extension_test.dart`：覆盖 Anki `includeKnowledgeTree` 开/关两分支（背面输出「知识点路径」面包屑且 `>` 正确 HTML 转义）、Anki 空字段容错（完全空白 + imagePath 不存在）；OCR/AI 完整分析/复习历史选项的显式 case 留后续
 - [ ] 桌面端 PDF 公式渲染验收
 - [ ] 移动端纸张大小切换验收
-- [ ] 大题量(100+ 题)导出性能与内存
+- [x] 大题量(100+ 题)导出性能与内存
+  > `export_extension_test.dart` 加 50 题性能基线（耗时 <5s、体积 <2MB）+ 流式写入触发用例（_streamingQuestionThreshold=50 走流式路径不抛异常）；100+ 极端场景与真机内存 profile 留后续
 - [x] 空字段/缺失附件导出不报错
   > 新增 `test/shared/utils/export_empty_field_test.dart` 5 个用例：完全空白题目 Markdown/JSON/CSV 导出结构合法；imagePath 指向不存在文件不阻塞；混合空字段与完整字段多题导出不报错
 

@@ -96,13 +96,28 @@ class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
             tooltip: '导出 PDF',
             onPressed: _loading || _error != null
                 ? null
-                : () => PdfExportService.sharePdf(
+                : () async {
+                    await PdfExportService.sharePdf(
                       context,
                       widget.questions,
                       title: widget.title,
                       mode: widget.mode,
                       studentInfo: widget.studentInfo,
-                    ),
+                    );
+                    // Phase 11-6：导出后提供「返回调整」快捷入口，
+                    // 保留预览页栈，用户可选择继续预览或返回筛选页修改。
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('PDF 导出完成'),
+                        duration: const Duration(seconds: 4),
+                        action: SnackBarAction(
+                          label: '返回调整',
+                          onPressed: () => Navigator.of(context).maybePop(),
+                        ),
+                      ),
+                    );
+                  },
           ),
           // Phase 11-6：跳转导出工作台，预填当前预览的题目 ID
           PopupMenuButton<String>(

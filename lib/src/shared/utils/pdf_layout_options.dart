@@ -1,8 +1,9 @@
 /// PDF 排版选项：控制 PDF 导出的纸张、方向、边距、字号及附加页。
 ///
-/// 仅作为导出工作台的状态容器与 UI 配置，当前 [PdfExportService] 内部
-/// 仍按 A4 默认渲染；这里的字段保留供后续接入原生 PDF 排版时使用，
-/// 同时让用户在导出工作台提前感知可调项。
+/// 桌面端 [PdfExportService] 已接入全部字段（pageSize/margin/fontSize 等），
+/// 移动端靠 HTML 模板的 `@page` CSS 控制纸张（`generateCss(layout)` 已读取
+/// [pageSize]/[orientation]/[margin]），原生 `flutter_native_html_to_pdf` API
+/// 仅作兜底（其 `PdfPageSize` 枚举仅支持 a4/a5，letter/b5 由 CSS 兜底）。
 class PdfLayoutOptions {
   const PdfLayoutOptions({
     this.pageSize = PdfPageSize.a4,
@@ -14,6 +15,7 @@ class PdfLayoutOptions {
     this.includeHeader = true,
     this.includeFooter = true,
     this.footerText,
+    this.headerText,
   });
 
   /// 默认排版选项：A4 纵向、正常边距、中字号，含封面/页眉/页脚。
@@ -45,23 +47,31 @@ class PdfLayoutOptions {
   final bool includeFooter;
 
   /// 自定义页脚文本：非空时覆盖默认的 `第 X 页 / 共 Y 页` 计数器。
-  /// 支持占位符：`{page}`、`{pages}`、`{date}`、`{studentName}`（也兼容 `{学生名}`）。
+  /// 支持占位符：`{page}`、`{pages}`、`{date}`、`{studentName}`（也兼容 `{学生名}`）、
+  /// `{knowledgePath}`（Phase 11-5，当前页主导知识点路径，调用方按页填充）。
   /// 为 null 或空串时使用默认计数器表达式。
   final String? footerText;
+
+  /// 自定义页眉文本：非空时覆盖默认的标题页眉。
+  /// 支持占位符同 [footerText]，`{knowledgePath}` 用于显示当前页所属学科/知识点。
+  /// 为 null 或空串时使用默认标题（由导出标题填充）。
+  final String? headerText;
 
   /// 解析页脚预览文本：供屏幕预览的占位 div 使用（实际打印时由 CSS
   /// @bottom-center counter 生成）。
   ///
   /// [footerText] 为 null/空时返回默认的 `第 {page} 页 / 共 {pages} 页`；
   /// 否则将 `footerText` 中的 `{page}` / `{pages}` / `{date}` / `{studentName}`
-  /// 占位符（以及中文别名 `{学生名}`）替换为实际值后返回。
+  /// / `{knowledgePath}` 占位符（以及中文别名 `{学生名}`、`{知识点路径}`）
+  /// 替换为实际值后返回。
   static String resolveFooter(
     String? footerText,
     int page,
     int pages,
     String dateStr,
-    String? studentName,
-  ) {
+    String? studentName, {
+    String? knowledgePath,
+  }) {
     if (footerText == null || footerText.isEmpty) {
       return '第 $page 页 / 共 $pages 页';
     }
@@ -70,7 +80,29 @@ class PdfLayoutOptions {
         .replaceAll('{pages}', pages.toString())
         .replaceAll('{date}', dateStr)
         .replaceAll('{studentName}', studentName ?? '')
-        .replaceAll('{学生名}', studentName ?? '');
+        .replaceAll('{学生名}', studentName ?? '')
+        .replaceAll('{knowledgePath}', knowledgePath ?? '')
+        .replaceAll('{知识点路径}', knowledgePath ?? '');
+  }
+
+  /// 解析页眉预览文本（Phase 11-5）。
+  ///
+  /// [headerText] 为 null/空时返回 [defaultHeader]（导出标题）；
+  /// 否则按占位符替换（同 [resolveFooter]）。
+  static String resolveHeader(
+    String? headerText,
+    String defaultHeader, {
+    String? knowledgePath,
+    String? studentName,
+  }) {
+    if (headerText == null || headerText.isEmpty) {
+      return defaultHeader;
+    }
+    return headerText
+        .replaceAll('{studentName}', studentName ?? '')
+        .replaceAll('{学生名}', studentName ?? '')
+        .replaceAll('{knowledgePath}', knowledgePath ?? '')
+        .replaceAll('{知识点路径}', knowledgePath ?? '');
   }
 
   PdfLayoutOptions copyWith({
@@ -83,6 +115,7 @@ class PdfLayoutOptions {
     bool? includeHeader,
     bool? includeFooter,
     String? footerText,
+    String? headerText,
   }) {
     return PdfLayoutOptions(
       pageSize: pageSize ?? this.pageSize,
@@ -94,6 +127,7 @@ class PdfLayoutOptions {
       includeHeader: includeHeader ?? this.includeHeader,
       includeFooter: includeFooter ?? this.includeFooter,
       footerText: footerText ?? this.footerText,
+      headerText: headerText ?? this.headerText,
     );
   }
 }

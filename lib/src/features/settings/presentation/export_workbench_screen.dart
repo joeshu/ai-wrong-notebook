@@ -13,6 +13,7 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/anki_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/csv_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_template.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
@@ -619,7 +620,19 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
                   final idx =
                       (v * formats.length).floor().clamp(0, formats.length - 1);
                   final label = _formatLabel(formats[idx]);
-                  return Text('正在导出 $label（${(v * 100).round()}%）');
+                  // Phase 11-7：副文案显示已完成格式数 / 总数。
+                  final done = idx; // idx 为当前正在导出的格式索引，已完成 idx 个
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Text('正在导出 $label（${(v * 100).round()}%）'),
+                      const SizedBox(height: 4),
+                      Text(
+                        '已完成 $done / ${formats.length} 种',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  );
                 },
               ),
             ],
@@ -647,6 +660,14 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         try {
           await _exportFormat(formats[i], options, sub);
           succeeded.add(formats[i]);
+          // Phase 11-7：写入导出历史记录（最近 10 次）。
+          await ExportHistoryService.add(ExportHistoryEntry(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            format: _formatLabel(formats[i]),
+            template: options.templateType.label,
+            questionCount: questions.length,
+            title: '错题本整理报告',
+          ));
         } catch (e) {
           failed.add(MapEntry(formats[i], e));
         }
@@ -804,6 +825,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         final ankiText = await AnkiExportService().generateAnkiImportText(
           questions: questions,
           contentOptions: contentOptions,
+          knowledgeTreePaths: knowledgeTreePaths,
         );
         await AnkiExportService().shareAnkiExport(
             ankiText, _buildFileName('txt', options: options));
