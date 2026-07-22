@@ -137,7 +137,10 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                               .map((s) => s.trim())
                               .where((s) => s.isNotEmpty)
                               .toList(growable: false);
-                      return ExportWorkbenchScreen(initialQuestionIds: ids);
+                      return ExportWorkbenchScreen(
+                        initialQuestionIds: ids,
+                        showBackButton: true,
+                      );
                     },
                   ),
                   GoRoute(
