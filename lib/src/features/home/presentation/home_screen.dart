@@ -8,11 +8,11 @@ import 'package:smart_wrong_notebook/src/common/widgets/stats_chart.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
-import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge_point_practice_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -182,20 +182,11 @@ class HomeScreen extends ConsumerWidget {
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
-          // Phase 8-2：知识树快照——按科目聚合掌握度，点击跳转 /knowledge-tree。
-          ref.watch(subjectMasterySnapshotProvider).when(
-                data: (snapshots) => snapshots.isEmpty
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.only(top: AppSpace.lg),
-                        child: _SubjectMasterySection(
-                          snapshots: snapshots,
-                          onTap: () => context.go('/knowledge-tree'),
-                        ),
-                      ),
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-              ),
+          // 导出与分享区块——快速导出入口 + 最近导出记录。
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.lg),
+            child: const _ExportCenterSection(),
+          ),
           // Phase 8-3：近 7 天学习趋势折线图。
           ref.watch(reviewTrend7DaysProvider).when(
                 data: (trend) => Padding(
@@ -1470,21 +1461,21 @@ class _EmptyActionGuide extends StatelessWidget {
   }
 }
 
-/// Phase 8-2：知识树快照区块——按科目展示掌握度进度条。
+/// 导出与分享区块——提供快速导出入口与最近导出记录。
 ///
-/// 点击任意科目或区块标题跳转 `/knowledge-tree` 查看完整知识树。
-class _SubjectMasterySection extends StatelessWidget {
-  const _SubjectMasterySection({
-    required this.snapshots,
-    required this.onTap,
-  });
-
-  final List<SubjectMasterySnapshot> snapshots;
-  final VoidCallback onTap;
+/// 点击格式卡片或「进入工作台」跳转 `/settings/export-workbench`；
+/// 最近导出记录来自 [exportHistoryProvider]。
+class _ExportCenterSection extends ConsumerWidget {
+  const _ExportCenterSection();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final questionCount = ref.watch(questionListProvider).maybeWhen(
+          data: (q) => q.length,
+          orElse: () => null,
+        );
+    final historyAsync = ref.watch(exportHistoryProvider);
     return AppCard(
       padding: const EdgeInsets.all(AppSpace.lg),
       child: Column(
@@ -1492,18 +1483,18 @@ class _SubjectMasterySection extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Icon(CupertinoIcons.tree,
+              const Icon(CupertinoIcons.arrow_up_doc,
                   size: 18, color: AppColors.primary),
               const SizedBox(width: AppSpace.sm),
-              const Text('知识树快照',
+              const Text(AppStrings.settingsExportShare,
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
               const Spacer(),
               GestureDetector(
-                onTap: onTap,
+                onTap: () => context.push('/settings/export-workbench'),
                 child: Row(
                   children: <Widget>[
                     Text(
-                      '查看全部',
+                      '进入工作台',
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.primary,
@@ -1516,121 +1507,175 @@ class _SubjectMasterySection extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            AppStrings.settingsExportWorkbenchSubtitle,
+            style: TextStyle(
+                fontSize: 12, color: colorScheme.onSurfaceVariant),
+          ),
           const SizedBox(height: AppSpace.md),
-          ...snapshots.map((s) => _SubjectMasteryRow(
-                snapshot: s,
-                onTap: onTap,
-              )),
+          Text('支持格式',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurfaceVariant)),
+          const SizedBox(height: AppSpace.sm),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _kExportQuickEntries
+                .map((e) => _ExportFormatChip(entry: e))
+                .toList(),
+          ),
+          const SizedBox(height: AppSpace.md),
+          Text('最近导出',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurfaceVariant)),
+          const SizedBox(height: AppSpace.sm),
+          historyAsync.when(
+            data: (entries) {
+              if (entries.isEmpty) {
+                return Text(
+                  questionCount == 0
+                      ? '题库为空，暂无可导出内容'
+                      : '暂无导出记录，去工作台生成第一份报告',
+                  style: TextStyle(
+                      fontSize: 12, color: colorScheme.onSurfaceVariant),
+                );
+              }
+              return Column(
+                children: entries
+                    .take(3)
+                    .map((e) => _ExportHistoryTile(entry: e))
+                    .toList(),
+              );
+            },
+            loading: () => const SizedBox(
+              height: 20,
+              child: Center(
+                child: SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+            error: (_, __) => Text(
+              '导出记录读取失败',
+              style: TextStyle(
+                  fontSize: 12, color: colorScheme.onSurfaceVariant),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _SubjectMasteryRow extends StatelessWidget {
-  const _SubjectMasteryRow({required this.snapshot, required this.onTap});
+class _ExportQuickEntry {
+  const _ExportQuickEntry({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+  final String label;
+  final IconData icon;
+  final Color color;
+}
 
-  final SubjectMasterySnapshot snapshot;
-  final VoidCallback onTap;
+const List<_ExportQuickEntry> _kExportQuickEntries = <_ExportQuickEntry>[
+  _ExportQuickEntry(
+      label: 'HTML', icon: CupertinoIcons.doc_text, color: AppColors.primary),
+  _ExportQuickEntry(
+      label: 'PDF',
+      icon: CupertinoIcons.doc_richtext,
+      color: AppColors.danger),
+  _ExportQuickEntry(
+      label: 'Markdown',
+      icon: CupertinoIcons.text_badge_plus,
+      color: AppColors.accentPurple),
+  _ExportQuickEntry(
+      label: 'Anki',
+      icon: CupertinoIcons.rectangle_stack,
+      color: AppColors.warning),
+  _ExportQuickEntry(
+      label: 'CSV', icon: CupertinoIcons.table, color: AppColors.success),
+  _ExportQuickEntry(
+      label: 'JSON',
+      icon: CupertinoIcons.square_stack_3d_up,
+      color: AppColors.info),
+];
+
+class _ExportFormatChip extends StatelessWidget {
+  const _ExportFormatChip({required this.entry});
+  final _ExportQuickEntry entry;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final subject = snapshot.subject;
-    final mastery = snapshot.averageMastery;
-    final pending = snapshot.pendingReviewCount;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Row(
-          children: <Widget>[
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: subject.color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(subject.icon, size: 16, color: subject.color),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    children: <Widget>[
-                      Text(subject.label,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 13)),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${snapshot.knowledgePointCount} 个知识点',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: colorScheme.onSurfaceVariant),
-                      ),
-                      if (pending > 0) ...<Widget>[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: AppColors.warning.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '待复习 $pending',
-                            style: const TextStyle(
-                                fontSize: 10,
-                                color: AppColors.warning,
-                                fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: (mastery / 100).clamp(0.0, 1.0),
-                      minHeight: 6,
-                      backgroundColor:
-                          colorScheme.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        _masteryColor(mastery),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            SizedBox(
-              width: 42,
-              child: Text(
-                '${mastery.toStringAsFixed(0)}%',
-                textAlign: TextAlign.right,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: entry.color.withValues(alpha: isDark ? 0.18 : 0.1),
+      borderRadius: BorderRadius.circular(AppRadius.small),
+      child: InkWell(
+        onTap: () => context.push('/settings/export-workbench'),
+        borderRadius: BorderRadius.circular(AppRadius.small),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(entry.icon, size: 14, color: entry.color),
+              const SizedBox(width: 4),
+              Text(
+                entry.label,
                 style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: _masteryColor(mastery),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: entry.color,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Color _masteryColor(double value) {
-    if (value >= 80) return AppColors.success;
-    if (value >= 30) return AppColors.warning;
-    return AppColors.danger;
+class _ExportHistoryTile extends StatelessWidget {
+  const _ExportHistoryTile({required this.entry});
+  final ExportHistoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+      child: Row(
+        children: <Widget>[
+          Icon(CupertinoIcons.checkmark_circle_fill,
+              size: 14, color: AppColors.success.withValues(alpha: 0.7)),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Text(
+              '${entry.format} · ${entry.template} · ${entry.questionCount} 题',
+              style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Text(
+            _formatRelativeTime(
+                DateTime.fromMillisecondsSinceEpoch(entry.timestamp)),
+            style: TextStyle(
+                fontSize: 11, color: colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
   }
 }
 

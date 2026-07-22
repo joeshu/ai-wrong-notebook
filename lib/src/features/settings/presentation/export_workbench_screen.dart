@@ -668,6 +668,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
             questionCount: questions.length,
             title: '错题本整理报告',
           ));
+          invalidateExportHistory(ref);
         } catch (e) {
           failed.add(MapEntry(formats[i], e));
         }
