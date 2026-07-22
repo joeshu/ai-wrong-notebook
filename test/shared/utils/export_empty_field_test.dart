@@ -63,7 +63,7 @@ void main() {
       );
       final lines = csv.split('\n').where((l) => l.isNotEmpty).toList();
       expect(lines.length, greaterThanOrEqualTo(2)); // 表头 + 1 行
-      expect(lines.first, contains('科目'));
+      expect(lines.first, contains('学科'));
     });
 
     test(' imagePath 指向不存在文件时不阻塞 Markdown 导出', () async {
