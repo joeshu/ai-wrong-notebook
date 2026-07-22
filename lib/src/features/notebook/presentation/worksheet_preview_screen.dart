@@ -61,7 +61,7 @@ class _WorksheetPreviewScreenState
               .whereType<QuestionRecord>()
               .toList();
           if (ordered.isEmpty) {
-            return AppEmptyState(
+            return const AppEmptyState(
               icon: CupertinoIcons.doc_text,
               title: '题目加载失败',
               description: '所选题目在本地题库中已不存在。',
@@ -163,7 +163,7 @@ class _PreviewQuestionCard extends StatelessWidget {
               width: double.infinity,
               height: 80,
               decoration: BoxDecoration(
-                color: scheme.surfaceContainerHighest.withOpacity(0.4),
+                color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(8),
                 border: Border(
                   left: BorderSide(color: scheme.outlineVariant, width: 2),

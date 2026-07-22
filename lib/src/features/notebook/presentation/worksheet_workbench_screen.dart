@@ -537,7 +537,7 @@ class _WorksheetWorkbenchScreenState
                       ),
                       OutlinedButton.icon(
                         onPressed: () => _openKnowledgeMultiSelectSheet(),
-                        icon: const Icon(CupertinoIcons.account_tree, size: 16),
+                        icon: const Icon(Icons.account_tree_outlined, size: 16),
                         label: const Text('按知识点', style: TextStyle(fontSize: 13)),
                       ),
                     ],
@@ -1236,7 +1236,7 @@ class _KnowledgeMultiSelectSheetState
             ),
             Row(
               children: <Widget>[
-                const Icon(CupertinoIcons.account_tree, size: 20),
+                const Icon(Icons.account_tree_outlined, size: 20),
                 const SizedBox(width: 8),
                 Text('按知识点组卷',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -1380,7 +1380,7 @@ class _TriCheckbox extends StatelessWidget {
         width: 18,
         height: 18,
         decoration: BoxDecoration(
-          color: scheme.primary.withOpacity(0.3),
+          color: scheme.primary.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(4),
         ),
         child: Center(
