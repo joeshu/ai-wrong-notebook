@@ -1243,7 +1243,7 @@ class _DetectionResultCard extends StatelessWidget {
           ),
         ],
 
-        const Padding(padding: EdgeInsets.only(top: 4), child: Text('可拖动、缩放或删除题框；确认后进入逐题校对。', style: TextStyle(fontSize: 11, color: Color(0xFF475569))),
+        const Padding(padding: EdgeInsets.only(top: 4), child: Text('可拖动、缩放或删除题框；确认后进入逐题校对。', style: TextStyle(fontSize: 11, color: Color(0xFF475569)))),
       ]),
     ),
   );
