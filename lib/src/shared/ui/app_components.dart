@@ -140,18 +140,18 @@ class AppGradientButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final button = Container(
-      height: 52,
+      height: 46,
       decoration: BoxDecoration(
         gradient: gradient,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(23),
         boxShadow: shadows ?? AppShadows.float,
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(23),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(26),
+          borderRadius: BorderRadius.circular(23),
           splashColor: Colors.white.withValues(alpha: 0.16),
           highlightColor: Colors.white.withValues(alpha: 0.08),
           child: Container(
@@ -204,7 +204,7 @@ class AppHeroCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(AppSpace.xl),
+      padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.md),
       decoration: BoxDecoration(
         gradient: AppGradients.hero(context),
         borderRadius: BorderRadius.circular(AppRadius.large),
@@ -216,29 +216,29 @@ class AppHeroCard extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w800,
               color: Colors.white,
-              height: 1.25,
+              height: 1.2,
             ),
           ),
           if (subtitle != null) ...<Widget>[
-            const SizedBox(height: AppSpace.sm),
+            const SizedBox(height: 6),
             Text(
               subtitle!,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 color: Colors.white.withValues(alpha: 0.88),
                 height: 1.4,
               ),
             ),
           ],
           if (action != null) ...<Widget>[
-            const SizedBox(height: AppSpace.lg),
+            const SizedBox(height: AppSpace.md),
             action!,
           ],
           if (secondaryAction != null) ...<Widget>[
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             secondaryAction!,
           ],
         ],
@@ -270,43 +270,50 @@ class AppStatCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final card = Container(
-      padding: const EdgeInsets.all(AppSpace.lg),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm + 2),
       decoration: BoxDecoration(
         color: isDark ? colorScheme.surfaceContainerHighest : colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
         boxShadow: isDark ? AppShadows.none : AppShadows.sm,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: <Widget>[
-          if (icon != null)
+          if (icon != null) ...<Widget>[
             Container(
-              width: 32,
-              height: 32,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
                 color: AppColors.semanticContainer(accentColor, isDark: isDark),
                 borderRadius: BorderRadius.circular(AppRadius.small),
               ),
-              child: Icon(icon, size: 16, color: accentColor),
+              child: Icon(icon, size: 15, color: accentColor),
             ),
-          const SizedBox(height: AppSpace.sm),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: accentColor,
-              height: 1.2,
-            ),
-          ),
-          const SizedBox(height: AppSpace.xs),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: colorScheme.onSurfaceVariant,
+            const SizedBox(width: AppSpace.sm),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: accentColor,
+                    height: 1.1,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -473,15 +480,15 @@ class AppActionCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppCard(
-      padding: const EdgeInsets.all(AppSpace.md),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm + 2),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.medium),
         child: Row(
           children: <Widget>[
             Container(
-              width: 44,
-              height: 44,
+              width: 36,
+              height: 36,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -494,13 +501,13 @@ class AppActionCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.small),
                 boxShadow: isDark ? AppShadows.none : <BoxShadow>[
                   BoxShadow(
-                    color: accentColor.withValues(alpha: 0.25),
-                    blurRadius: 8,
+                    color: accentColor.withValues(alpha: 0.22),
+                    blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: Icon(icon, size: 22, color: Colors.white),
+              child: Icon(icon, size: 18, color: Colors.white),
             ),
             const SizedBox(width: AppSpace.md),
             Expanded(

@@ -35,7 +35,7 @@ class HomeScreen extends ConsumerWidget {
 
     return SafeArea(
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.xl),
         children: <Widget>[
           AppHeroCard(
             title: AppStrings.homeGreeting,
@@ -46,7 +46,7 @@ class HomeScreen extends ConsumerWidget {
               onTap: () => context.go('/add'),
             ),
           ),
-          const SizedBox(height: AppSpace.lg),
+          const SizedBox(height: AppSpace.md),
           // Phase 8-1：统一今日行动面板。
           // 优先级：复习 → 未完成识别 → 添加新错题；卡片可同时显示，
           // 按优先级从上到下排列；全部为空时显示空状态引导。
@@ -104,18 +104,34 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppSpace.md),
-          _QuickStartRow(
-            onCapture: () => context.go('/add'),
-            onImportPdf: () => context.push('/worksheet/import'),
-          ),
-          const SizedBox(height: AppSpace.lg),
-          Text(AppStrings.homeStatsTitle, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppSpace.md),
+          Text(AppStrings.homeStatsTitle, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpace.sm),
           RepaintBoundary(
             child: questionsAsync.when(
               data: (questions) => _buildStatsSection(context, questions),
               loading: () => const _StatsGridSkeleton(),
               error: (_, __) => AppErrorState(message: AppStrings.homeStatsError, onRetry: () => ref.invalidate(questionListProvider)),
+            ),
+          ),
+          // 最近新增上移：紧随统计之后，确保首屏可见。
+          const SizedBox(height: AppSpace.md),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: <Widget>[
+              Text(AppStrings.homeRecentTitle, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              TextButton(
+                onPressed: () => context.go('/notebook'),
+                child: const Text(AppStrings.homeViewAll),
+              ),
+            ],
+          ),
+          questionsAsync.when(
+            data: (questions) =>
+                _RecentList(questions: questions.take(3).toList(), ref: ref),
+            loading: () => const AppLoadingState(label: '正在加载最近错题…'),
+            error: (e, _) => AppErrorState(
+              error: e,
+              onRetry: () => ref.invalidate(questionListProvider),
             ),
           ),
           questionsAsync.when(
@@ -125,7 +141,7 @@ class HomeScreen extends ConsumerWidget {
                   .length;
               if (lowConfidenceCount == 0) return const SizedBox.shrink();
               return Padding(
-                padding: const EdgeInsets.only(top: AppSpace.lg),
+                padding: const EdgeInsets.only(top: AppSpace.md),
                 child: _LowConfidenceHintCard(
                   count: lowConfidenceCount,
                   onTap: () {
@@ -143,7 +159,7 @@ class HomeScreen extends ConsumerWidget {
             data: (stats) => stats.isEmpty
                 ? const SizedBox.shrink()
                 : Padding(
-                    padding: const EdgeInsets.only(top: AppSpace.lg),
+                    padding: const EdgeInsets.only(top: AppSpace.md),
                     child: _MistakeCategorySummary(
                       stats: stats,
                       onSelect: (category) {
@@ -159,13 +175,13 @@ class HomeScreen extends ConsumerWidget {
           ),
           // 导出与分享区块——快速导出入口 + 最近导出记录。
           Padding(
-            padding: const EdgeInsets.only(top: AppSpace.lg),
+            padding: const EdgeInsets.only(top: AppSpace.md),
             child: const _ExportCenterSection(),
           ),
           // Phase 8-3：近 7 天学习趋势折线图。
           ref.watch(reviewTrend7DaysProvider).when(
                 data: (trend) => Padding(
-                  padding: const EdgeInsets.only(top: AppSpace.lg),
+                  padding: const EdgeInsets.only(top: AppSpace.md),
                   child: _ReviewTrendSection(trend: trend),
                 ),
                 loading: () => const SizedBox.shrink(),
@@ -185,7 +201,7 @@ class HomeScreen extends ConsumerWidget {
                 // 关联，给出引导空状态。
                 if (questions.isEmpty) return const SizedBox.shrink();
                 return Padding(
-                  padding: const EdgeInsets.only(top: AppSpace.lg),
+                  padding: const EdgeInsets.only(top: AppSpace.md),
                   child: AppCard(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -212,7 +228,7 @@ class HomeScreen extends ConsumerWidget {
                 );
               }
               return Padding(
-                padding: const EdgeInsets.only(top: AppSpace.lg),
+                padding: const EdgeInsets.only(top: AppSpace.md),
                 child: _WeakPointSection(
                   ranked: ranked,
                   questions: questions,
@@ -221,28 +237,6 @@ class HomeScreen extends ConsumerWidget {
             },
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
-          ),
-
-          const SizedBox(height: AppSpace.xl),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Text(AppStrings.homeRecentTitle, style: Theme.of(context).textTheme.titleLarge),
-              TextButton(
-                onPressed: () => context.go('/notebook'),
-                child: const Text(AppStrings.homeViewAll),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpace.sm),
-          questionsAsync.when(
-            data: (questions) =>
-                _RecentList(questions: questions.take(5).toList(), ref: ref),
-            loading: () => const AppLoadingState(label: '正在加载最近错题…'),
-            error: (e, _) => AppErrorState(
-              error: e,
-              onRetry: () => ref.invalidate(questionListProvider),
-            ),
           ),
         ],
       ),
@@ -368,48 +362,6 @@ class _TodayPlanSkeleton extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _QuickStartRow extends StatelessWidget {
-  const _QuickStartRow({required this.onCapture, required this.onImportPdf});
-  final VoidCallback onCapture;
-  final VoidCallback onImportPdf;
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Text(
-          AppStrings.homeQuickStart,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: AppSpace.sm),
-        Row(
-          children: <Widget>[
-            Expanded(
-              child: AppButton(
-                label: AppStrings.homeCapture,
-                icon: CupertinoIcons.camera,
-                variant: AppButtonVariant.outline,
-                onTap: onCapture,
-                isExpanded: true,
-              ),
-            ),
-            const SizedBox(width: AppSpace.sm),
-            Expanded(
-              child: AppButton(
-                label: '导入 PDF',
-                icon: CupertinoIcons.doc_richtext,
-                variant: AppButtonVariant.outline,
-                onTap: onImportPdf,
-                isExpanded: true,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 }
 
 class _StatsGridSkeleton extends StatelessWidget {
