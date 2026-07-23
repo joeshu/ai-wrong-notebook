@@ -15,6 +15,7 @@ import 'package:smart_wrong_notebook/src/shared/models/question_display_status.d
 import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -36,42 +37,16 @@ class HomeScreen extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(AppStrings.homeGreeting,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: AppSpace.xs),
-                    Text(AppStrings.homeSubtitle,
-                        style: TextStyle(
-                            fontSize: 13,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant)),
-                  ],
-                ),
-              ),
-              Material(
-                color: Theme.of(context).colorScheme.secondaryContainer,
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  onTap: () => context.go('/add'),
-                  borderRadius: BorderRadius.circular(12),
-                  child: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Icon(CupertinoIcons.add),
-                  ),
-                ),
-              ),
-            ],
+          AppHeroCard(
+            title: AppStrings.homeGreeting,
+            subtitle: AppStrings.homeSubtitle,
+            action: AppGradientButton(
+              label: AppStrings.homeCapture,
+              icon: CupertinoIcons.camera_fill,
+              onTap: () => context.go('/add'),
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpace.lg),
           // Phase 8-1：统一今日行动面板。
           // 优先级：复习 → 未完成识别 → 添加新错题；卡片可同时显示，
           // 按优先级从上到下排列；全部为空时显示空状态引导。
@@ -401,34 +376,39 @@ class _QuickStartRow extends StatelessWidget {
   final VoidCallback onImportPdf;
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-      Text(AppStrings.homeQuickStart, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-      const SizedBox(height: AppSpace.sm),
-      Row(
-        children: <Widget>[
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: onCapture,
-              icon: const Icon(CupertinoIcons.add, size: 18),
-              label: const Text(AppStrings.homeCapture),
-            ),
-          ),
-          const SizedBox(width: AppSpace.sm),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onImportPdf,
-              icon: Icon(CupertinoIcons.doc_richtext, size: 18, color: AppColors.accentPurple),
-              label: Text('导入 PDF', style: TextStyle(color: AppColors.accentPurple)),
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: colorScheme.outlineVariant),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          AppStrings.homeQuickStart,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppSpace.sm),
+        Row(
+          children: <Widget>[
+            Expanded(
+              child: AppButton(
+                label: AppStrings.homeCapture,
+                icon: CupertinoIcons.camera,
+                variant: AppButtonVariant.outline,
+                onTap: onCapture,
+                isExpanded: true,
               ),
             ),
-          ),
-        ],
-      ),
-    ]);
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: AppButton(
+                label: '导入 PDF',
+                icon: CupertinoIcons.doc_richtext,
+                variant: AppButtonVariant.outline,
+                onTap: onImportPdf,
+                isExpanded: true,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 
@@ -476,9 +456,9 @@ class _StatCardSkeleton extends StatelessWidget {
   }
 }
 
-const Color _kMasteredColor = Color(0xFF22C55E);
-const Color _kReviewingColor = Color(0xFFF59E0B);
-const Color _kNewColor = Color(0xFF9CA3AF);
+const Color _kMasteredColor = AppColors.success;
+const Color _kReviewingColor = AppColors.warning;
+const Color _kNewColor = AppColors.newQuestion;
 
 Color _mistakeCategoryColor(MistakeCategory category) {
   switch (category) {
@@ -1372,54 +1352,26 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.sm),
-      child: AppCard(
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppSpace.md, vertical: AppSpace.sm),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.medium),
-          child: Row(
-            children: <Widget>[
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: isDark ? 0.18 : 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 20, color: color),
-              ),
-              const SizedBox(width: AppSpace.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(title,
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant)),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpace.sm),
-              Text(trailing,
-                  style: TextStyle(
-                      fontSize: 12, color: color, fontWeight: FontWeight.w700)),
-              const SizedBox(width: 2),
-              Icon(CupertinoIcons.chevron_right, size: 14, color: color),
-            ],
+    return AppActionCard(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      accentColor: color,
+      onTap: onTap,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Text(
+            trailing,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
+          const SizedBox(width: 2),
+          Icon(CupertinoIcons.chevron_right, size: 14, color: color),
+        ],
       ),
     );
   }

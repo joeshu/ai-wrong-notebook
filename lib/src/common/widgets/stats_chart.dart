@@ -1,6 +1,10 @@
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class StatsBarChart extends StatelessWidget {
   const StatsBarChart({
@@ -194,118 +198,52 @@ class StatsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Column(
       children: <Widget>[
         Row(
           children: <Widget>[
             Expanded(
-              child: _StatCard(
+              child: AppStatCard(
                 label: '题库总量',
                 value: '$total',
-                bg: const Color(0xFFEFF6FF),
-                darkBg: const Color(0xFF2563EB).withValues(alpha: 0.14),
-                border: const Color(0xFFBFDBFE),
-                darkBorder: const Color(0xFF2563EB).withValues(alpha: 0.35),
-                text: const Color(0xFF2563EB),
+                icon: CupertinoIcons.book,
+                accentColor: AppColors.primary,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(
-              child: _StatCard(
+              child: AppStatCard(
                 label: '今日新增',
                 value: '$todayNew',
-                bg: const Color(0xFFF9FAFB),
-                darkBg: colorScheme.onSurfaceVariant.withValues(alpha: 0.12),
-                border: const Color(0xFFE5E7EB),
-                darkBorder:
-                    colorScheme.onSurfaceVariant.withValues(alpha: 0.28),
-                text: isDark
-                    ? colorScheme.onSurfaceVariant
-                    : const Color(0xFF6B7280),
+                icon: CupertinoIcons.plus_app,
+                accentColor: AppColors.info,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         Row(
           children: <Widget>[
             Expanded(
-              child: _StatCard(
+              child: AppStatCard(
                 label: '已掌握',
                 value: '$mastered',
-                bg: const Color(0xFFF0FDF4),
-                darkBg: const Color(0xFF16A34A).withValues(alpha: 0.14),
-                border: const Color(0xFFBBF7D0),
-                darkBorder: const Color(0xFF16A34A).withValues(alpha: 0.35),
-                text: const Color(0xFF16A34A),
+                icon: CupertinoIcons.checkmark_seal_fill,
+                accentColor: AppColors.success,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(
-              child: _StatCard(
+              child: AppStatCard(
                 label: '待复习',
                 value: '$pending',
-                bg: const Color(0xFFFFF7ED),
-                darkBg: const Color(0xFFEA580C).withValues(alpha: 0.14),
-                border: const Color(0xFFFED7AA),
-                darkBorder: const Color(0xFFEA580C).withValues(alpha: 0.35),
-                text: const Color(0xFFEA580C),
+                icon: CupertinoIcons.clock,
+                accentColor: AppColors.warning,
               ),
             ),
           ],
         ),
       ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.bg,
-    required this.darkBg,
-    required this.border,
-    required this.darkBorder,
-    required this.text,
-  });
-
-  final String label;
-  final String value;
-  final Color bg;
-  final Color darkBg;
-  final Color border;
-  final Color darkBorder;
-  final Color text;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isDark ? darkBg : bg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isDark ? darkBorder : border),
-      ),
-      child: Column(
-        children: <Widget>[
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: text,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 11, color: text)),
-        ],
-      ),
     );
   }
 }

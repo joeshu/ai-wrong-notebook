@@ -139,7 +139,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     if (layoutProvider.isNotEmpty)
                       AppTag(
                         label: '切题：$layoutProvider',
-                        textColor: const Color(0xFF0369A1),
+                        textColor: AppColors.infoDark,
                         backgroundColor: AppColors.infoContainerLight,
                       ),
                   ],
@@ -164,8 +164,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                       if (activeCandidate != null)
                         AppTag(
                           label: '当前第 ${activeCandidate.order} 题',
-                          textColor: const Color(0xFFB45309),
-                          backgroundColor: const Color(0xFFFEF3C7),
+                          textColor: AppColors.accentAmber,
+                          backgroundColor: AppColors.accentAmberContainerLight,
                         ),
                     ],
                   ),

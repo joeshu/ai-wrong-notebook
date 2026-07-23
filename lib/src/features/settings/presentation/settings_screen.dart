@@ -7,6 +7,7 @@ import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -32,31 +33,37 @@ class SettingsScreen extends ConsumerWidget {
             const SizedBox(height: AppSpace.md),
             Row(
               children: <Widget>[
-                _ThemeButton(
-                  label: AppStrings.settingsThemeSystem,
-                  icon: CupertinoIcons.device_phone_portrait,
-                  isSelected: themeMode == ThemeMode.system,
-                  onTap: () => ref
-                      .read(themeModeProvider.notifier)
-                      .setMode(ThemeMode.system),
+                Expanded(
+                  child: AppThemeCard(
+                    label: AppStrings.settingsThemeSystem,
+                    icon: CupertinoIcons.device_phone_portrait,
+                    isSelected: themeMode == ThemeMode.system,
+                    onTap: () => ref
+                        .read(themeModeProvider.notifier)
+                        .setMode(ThemeMode.system),
+                  ),
                 ),
                 const SizedBox(width: AppSpace.sm),
-                _ThemeButton(
-                  label: AppStrings.settingsThemeLight,
-                  icon: CupertinoIcons.sun_max,
-                  isSelected: themeMode == ThemeMode.light,
-                  onTap: () => ref
-                      .read(themeModeProvider.notifier)
-                      .setMode(ThemeMode.light),
+                Expanded(
+                  child: AppThemeCard(
+                    label: AppStrings.settingsThemeLight,
+                    icon: CupertinoIcons.sun_max,
+                    isSelected: themeMode == ThemeMode.light,
+                    onTap: () => ref
+                        .read(themeModeProvider.notifier)
+                        .setMode(ThemeMode.light),
+                  ),
                 ),
                 const SizedBox(width: AppSpace.sm),
-                _ThemeButton(
-                  label: AppStrings.settingsThemeDark,
-                  icon: CupertinoIcons.moon,
-                  isSelected: themeMode == ThemeMode.dark,
-                  onTap: () => ref
-                      .read(themeModeProvider.notifier)
-                      .setMode(ThemeMode.dark),
+                Expanded(
+                  child: AppThemeCard(
+                    label: AppStrings.settingsThemeDark,
+                    icon: CupertinoIcons.moon,
+                    isSelected: themeMode == ThemeMode.dark,
+                    onTap: () => ref
+                        .read(themeModeProvider.notifier)
+                        .setMode(ThemeMode.dark),
+                  ),
                 ),
               ],
             ),
@@ -417,67 +424,6 @@ class _StatusBadge extends StatelessWidget {
           fontSize: 11,
           color: color,
           fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _ThemeButton extends StatelessWidget {
-  const _ThemeButton({
-    required this.label,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? colorScheme.primary
-                : colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(AppRadius.small),
-            border: Border.all(
-              color: isSelected
-                  ? colorScheme.primary
-                  : colorScheme.outlineVariant,
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(
-                icon,
-                size: 20,
-                color: isSelected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(height: AppSpace.xs),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isSelected
-                      ? colorScheme.onPrimary
-                      : colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

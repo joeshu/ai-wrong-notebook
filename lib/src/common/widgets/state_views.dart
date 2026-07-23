@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 
 class ErrorView extends StatelessWidget {
   const ErrorView({
@@ -17,7 +18,7 @@ class ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const orange = Color(0xFFEA580C);
+    const orange = AppColors.warning;
 
     return Center(
       child: Padding(
@@ -31,7 +32,7 @@ class ErrorView extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isDark
                     ? orange.withValues(alpha: 0.16)
-                    : const Color(0xFFFFF7ED),
+                    : AppColors.warningContainerLight,
                 borderRadius: BorderRadius.circular(32),
               ),
               child: Icon(
