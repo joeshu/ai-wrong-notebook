@@ -356,7 +356,7 @@ class _GeometryPainter extends CustomPainter {
           text: ang.label,
           style: TextStyle(
             color: red.withValues(alpha: (p - 0.5) * 2),
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: FontWeight.w500,
           ),
         ),

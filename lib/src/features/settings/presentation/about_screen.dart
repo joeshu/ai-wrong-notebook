@@ -133,7 +133,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
               child: Text(
                 'Made with Flutter',
                 style: TextStyle(
-                    fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),
             ),
           ],

@@ -491,7 +491,7 @@ class _SummaryCard extends StatelessWidget {
               Text(
                 '共 $total 题',
                 style: TextStyle(
-                    fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    fontSize: 12, color: colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -526,7 +526,7 @@ class _SummaryCard extends StatelessWidget {
             todayTarget == 0
                 ? '今日暂无复习计划'
                 : '$reviewedToday / $todayTarget ${AppStrings.reviewTodayProgress}',
-            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 4),
           LinearProgressIndicator(
@@ -749,7 +749,7 @@ class _WeakPointEntryCard extends StatelessWidget {
                     child: Text(
                       '$masteryPct%',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         color: masteryColor,
                         fontWeight: FontWeight.w700,
                       ),
@@ -761,7 +761,7 @@ class _WeakPointEntryCard extends StatelessWidget {
               Text(
                 disabled ? '暂无待复习' : '待复习 $dueCount 题',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: disabled ? colorScheme.onSurfaceVariant : masteryColor,
                   fontWeight: FontWeight.w600,
                 ),
@@ -780,7 +780,7 @@ class _WeakPointEntryCard extends StatelessWidget {
                   Text(
                     disabled ? '稍后再练' : '开始专项',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: disabled ? colorScheme.onSurfaceVariant : masteryColor,
                       fontWeight: FontWeight.w700,
                     ),
@@ -812,7 +812,7 @@ class _MiniStat extends StatelessWidget {
             style: TextStyle(
                 fontSize: 18, fontWeight: FontWeight.bold, color: color)),
         const SizedBox(height: 1),
-        Text(label, style: TextStyle(fontSize: 10, color: color)),
+        Text(label, style: TextStyle(fontSize: 12, color: color)),
       ],
     );
   }
@@ -880,7 +880,7 @@ class _ReviewQuestionList extends StatelessWidget {
 
     return ListView.separated(
       controller: scrollController,
-      padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.xs, AppSpace.lg, AppSpace.lg),
+      padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.sm, AppSpace.lg, AppSpace.lg),
       itemCount: questions.length,
       separatorBuilder: (_, __) => const SizedBox(height: AppSpace.sm),
       itemBuilder: (context, index) => _ReviewCard(
@@ -944,14 +944,14 @@ class _MasteryChip extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: isDark ? 0.16 : 0.1),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         _masteryLabel(level),
-        style: TextStyle(fontSize: 10, color: color),
+        style: TextStyle(fontSize: 12, color: color),
       ),
     );
   }
@@ -1121,7 +1121,7 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
           Text(
             '本题未保存参考答案，可直接评价或打开详情查看',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
@@ -1250,7 +1250,7 @@ class _ReviewCardContent extends StatelessWidget {
                     Text(
                       batchLabel!,
                       style: TextStyle(
-                          fontSize: 11, color: colorScheme.onSurfaceVariant),
+                          fontSize: 12, color: colorScheme.onSurfaceVariant),
                     ),
                   ],
                   if (question.nextReviewAt != null) ...<Widget>[
@@ -1258,7 +1258,7 @@ class _ReviewCardContent extends StatelessWidget {
                     Text(
                       _nextReviewLabel(question.nextReviewAt!),
                       style: TextStyle(
-                          fontSize: 11, color: colorScheme.onSurfaceVariant),
+                          fontSize: 12, color: colorScheme.onSurfaceVariant),
                     ),
                   ],
                   const SizedBox(height: AppSpace.xs),
@@ -1281,7 +1281,7 @@ class _ReviewCardContent extends StatelessWidget {
                           backgroundColor: isDark
                               ? tagColor.withValues(alpha: 0.14)
                               : AppColors.accentAmberContainerLight,
-                          fontSize: 10,
+                          fontSize: 12,
                         );
                       }),
                     ],

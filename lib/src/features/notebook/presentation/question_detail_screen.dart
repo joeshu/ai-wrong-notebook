@@ -1051,7 +1051,7 @@ class _QuestionTab extends StatelessWidget {
                             Icon(CupertinoIcons.zoom_in, size: 12, color: Colors.white),
                             SizedBox(width: 3),
                             Text('查看原图',
-                                style: TextStyle(fontSize: 10, color: Colors.white)),
+                                style: TextStyle(fontSize: 12, color: Colors.white)),
                           ],
                         ),
                       ),
@@ -1270,7 +1270,7 @@ class _OcrContentCard extends StatelessWidget {
         children: <Widget>[
           if (hasDiff) ...<Widget>[
             Text('识别原文',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
             const SizedBox(height: AppSpace.xs),
             Container(
               width: double.infinity,
@@ -1286,7 +1286,7 @@ class _OcrContentCard extends StatelessWidget {
             ),
             const SizedBox(height: AppSpace.md),
             Text('校对后',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
             const SizedBox(height: AppSpace.xs),
             Container(
               width: double.infinity,
@@ -1312,7 +1312,7 @@ class _OcrContentCard extends StatelessWidget {
           if (aiReconstructed != null && aiReconstructed.isNotEmpty) ...<Widget>[
             const SizedBox(height: AppSpace.md),
             Text('AI 重构题干',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.success)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.success)),
             const SizedBox(height: AppSpace.xs),
             Container(
               width: double.infinity,
@@ -1334,7 +1334,7 @@ class _OcrContentCard extends StatelessWidget {
           if (formulas.isNotEmpty) ...<Widget>[
             const SizedBox(height: AppSpace.md),
             Text('公式（${formulas.length}）',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
             const SizedBox(height: AppSpace.xs),
             ...formulas.map((item) => Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 4),
@@ -1356,7 +1356,7 @@ class _OcrContentCard extends StatelessWidget {
           if (tables.isNotEmpty) ...<Widget>[
             const SizedBox(height: AppSpace.md),
             Text('表格（${tables.length}）',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
             const SizedBox(height: AppSpace.xs),
             ...tables.map((table) => Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 4),
@@ -1366,7 +1366,7 @@ class _OcrContentCard extends StatelessWidget {
           if (options.isNotEmpty) ...<Widget>[
             const SizedBox(height: AppSpace.md),
             Text('选项（${options.length}）',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colorScheme.onSurfaceVariant)),
             const SizedBox(height: AppSpace.xs),
             Container(
               width: double.infinity,
@@ -1411,7 +1411,7 @@ class _OcrContentCard extends StatelessWidget {
                     child: Text(
                       figureNote,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: isDark ? colorScheme.onSurface : const Color(0xFF92400E),
                         height: 1.4,
                       ),
@@ -1496,7 +1496,7 @@ class _MarkdownTablePreview extends StatelessWidget {
                           c,
                           contentFormat: QuestionContentFormat.latexMixed,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: isHeader
                                 ? colorScheme.primary
                                 : colorScheme.onSurface,
@@ -1790,7 +1790,7 @@ class _ExpectedAnswerCardState extends State<_ExpectedAnswerCard> {
           Text(
             isCorrect ? '判分正确' : '判分错误',
             style: TextStyle(
-                fontSize: 11, color: color, fontWeight: FontWeight.w500),
+                fontSize: 12, color: color, fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -2011,7 +2011,7 @@ class _ProfileTile extends StatelessWidget {
               children: <Widget>[
                 Text(data.label,
                     style: TextStyle(
-                        fontSize: 10, color: colorScheme.onSurfaceVariant)),
+                        fontSize: 12, color: colorScheme.onSurfaceVariant)),
                 Text(data.value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -2104,7 +2104,7 @@ class _AiInputSnapshotCard extends StatelessWidget {
           // 输入文本：默认展示校对文本；若与原文不一致，额外展示原文
           Text('发送给 AI 的题干',
               style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: colorScheme.onSurfaceVariant)),
           const SizedBox(height: AppSpace.xs),
@@ -2125,7 +2125,7 @@ class _AiInputSnapshotCard extends StatelessWidget {
             const SizedBox(height: AppSpace.xs),
             Text('（视觉模式同时发送原图与 OCR 原文）',
                 style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     fontStyle: FontStyle.italic,
                     color: colorScheme.onSurfaceVariant)),
           ],
@@ -2133,7 +2133,7 @@ class _AiInputSnapshotCard extends StatelessWidget {
             const SizedBox(height: AppSpace.md),
             Text('AI 重构后的题干',
                 style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppColors.accentAmber)),
             const SizedBox(height: AppSpace.xs),
@@ -2192,7 +2192,7 @@ class _SnapshotChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
               color: color,
             ),
@@ -2706,7 +2706,7 @@ class _StructuredKnowledgeLinkRow extends ConsumerWidget {
                           child: const Text(
                             '主',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 12,
                               fontWeight: FontWeight.w600,
                               color: AppColors.primary,
                             ),
@@ -2736,7 +2736,7 @@ class _StructuredKnowledgeLinkRow extends ConsumerWidget {
                         Text(
                           'AI',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
@@ -2746,7 +2746,7 @@ class _StructuredKnowledgeLinkRow extends ConsumerWidget {
                         Text(
                           '手动',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 12,
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),

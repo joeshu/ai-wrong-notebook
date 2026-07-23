@@ -596,7 +596,7 @@ class _UnavailablePageThumbnail extends StatelessWidget {
           else
             const Text(
               '原图不可用',
-              style: TextStyle(fontSize: 10, color: Color(0xFF6B7280)),
+              style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
             ),
         ],
       ),
@@ -773,7 +773,7 @@ class _QueueQuestionTile extends StatelessWidget {
             decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(11)),
             child: isProcessing && autoAnalyzing
                 ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
-                : Text('${index + 1}', style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+                : Text('${index + 1}', style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
           Expanded(child: Text(
@@ -783,7 +783,7 @@ class _QueueQuestionTile extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: isProcessing ? Theme.of(context).colorScheme.onSurfaceVariant : null),
           )),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w500)),
+          Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
           const SizedBox(width: 6),
           if (isFailed && onRetry != null && !autoAnalyzing)
             IconButton(
@@ -842,7 +842,7 @@ class _ImportOverviewCard extends StatelessWidget {
             const Icon(CupertinoIcons.chart_bar_square, color: Color(0xFF4F46E5)),
             const SizedBox(width: 8),
             Expanded(child: Text('本次导入总览 · $pageCount 页 / $questionCount 道题', style: const TextStyle(fontWeight: FontWeight.w700))),
-            Text('已选 $selectedPageCount 页', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+            Text('已选 $selectedPageCount 页', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
           ]),
           const SizedBox(height: 10),
           Row(
@@ -851,22 +851,22 @@ class _ImportOverviewCard extends StatelessWidget {
               Column(children: <Widget>[
                 Text('$analyzedCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF16A34A))),
                 const SizedBox(height: 2),
-                const Text('已分析', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                const Text('已分析', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
               ]),
               Column(children: <Widget>[
                 Text('$ocrDraftCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF2563EB))),
                 const SizedBox(height: 2),
-                const Text('OCR 草稿', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                const Text('OCR 草稿', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
               ]),
               Column(children: <Widget>[
                 Text('$pendingCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF64748B))),
                 const SizedBox(height: 2),
-                const Text('待处理', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                const Text('待处理', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
               ]),
               Column(children: <Widget>[
                 Text('$failedCount', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFFEA580C))),
                 const SizedBox(height: 2),
-                const Text('失败', style: TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                const Text('失败', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
               ]),
             ],
           ),

@@ -282,7 +282,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   }) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.lg, vertical: AppSpace.xs),
+          horizontal: AppSpace.lg, vertical: AppSpace.sm),
       itemCount: visibleQuestions.length + (hasPracticeAction ? 1 : 0),
       itemBuilder: (context, index) {
         if (hasPracticeAction && index == 0) {
@@ -335,7 +335,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
   }) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.lg, vertical: AppSpace.xs),
+          horizontal: AppSpace.lg, vertical: AppSpace.sm),
       itemCount: visibleQuestions.length + (hasPracticeAction ? 1 : 0),
       itemBuilder: (context, index) {
         if (hasPracticeAction && index == 0) {
@@ -412,7 +412,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(
-          horizontal: AppSpace.lg, vertical: AppSpace.xs),
+          horizontal: AppSpace.lg, vertical: AppSpace.sm),
       itemCount: itemCount,
       itemBuilder: (context, index) {
         var i = index;
@@ -594,7 +594,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 prefixIcon: const Icon(CupertinoIcons.search, size: 20),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(CupertinoIcons.xmark_circle, size: 18),
+                        icon: const Icon(CupertinoIcons.xmark_circle, size: 20),
                         onPressed: () {
                           _searchController.clear();
                           ref.read(searchQueryProvider.notifier).state = '';
@@ -937,7 +937,7 @@ class _QuestionCard extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: AppSpace.md),
         decoration: BoxDecoration(
           color:
               isDark ? Colors.red.withValues(alpha: 0.14) : Colors.red.shade50,
@@ -950,7 +950,7 @@ class _QuestionCard extends StatelessWidget {
         label:
             '错题: ${question.correctedText}，科目: ${question.subject.label}，状态: ${_masteryLabel(question.masteryLevel)}，日期: ${_formatDate(question.createdAt)}，左滑删除',
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.only(bottom: AppSpace.md),
           child: GestureDetector(
             onTap: selectionMode ? onSelect : onTap,
             child: Opacity(
@@ -1037,7 +1037,7 @@ class _QuestionCard extends StatelessWidget {
                                     backgroundColor: isAiTag
                                         ? AppColors.accentAmberContainerLight
                                         : AppColors.primaryContainerLight,
-                                    fontSize: 10,
+                                    fontSize: 12,
                                     onTap: () => onKnowledgePointTap(tag),
                                   );
                                 }),
@@ -1047,7 +1047,7 @@ class _QuestionCard extends StatelessWidget {
                                     textColor: colorScheme.onSurfaceVariant,
                                     backgroundColor:
                                         colorScheme.surfaceContainerHighest,
-                                    fontSize: 10,
+                                    fontSize: 12,
                                   ),
                               ],
                             ),
@@ -1179,7 +1179,7 @@ class _QuestionCard extends StatelessWidget {
       children: <Widget>[
         Text.rich(
           TextSpan(
-            style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
             children: spans,
           ),
           maxLines: 1,
@@ -1443,7 +1443,7 @@ class _MetaBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: color,
             ),
@@ -1668,7 +1668,7 @@ class _CompactQuestionRow extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
-        margin: const EdgeInsets.only(bottom: 6),
+        margin: const EdgeInsets.only(bottom: AppSpace.sm),
         decoration: BoxDecoration(
           color:
               isDark ? Colors.red.withValues(alpha: 0.14) : Colors.red.shade50,
@@ -1677,7 +1677,7 @@ class _CompactQuestionRow extends StatelessWidget {
         child: const Icon(CupertinoIcons.trash, color: Colors.red),
       ),
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.only(bottom: AppSpace.sm),
         child: GestureDetector(
           onTap: selectionMode ? onSelect : onTap,
           child: Opacity(
@@ -1716,7 +1716,7 @@ class _CompactQuestionRow extends StatelessWidget {
                             Text(
                               question.subject.label,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: question.subject.color,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1763,7 +1763,7 @@ class _CompactQuestionRow extends StatelessWidget {
                           Text(
                             _masteryLabel(question.masteryLevel),
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: masteryColor,
                               fontWeight: FontWeight.w600,
                             ),
@@ -1939,7 +1939,7 @@ class _TimelineQuestionRow extends StatelessWidget {
                             Text(
                               question.subject.label,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: question.subject.color,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1947,12 +1947,12 @@ class _TimelineQuestionRow extends StatelessWidget {
                             Text(
                               '· ${_masteryLabel(question.masteryLevel)}',
                               style: TextStyle(
-                                  fontSize: 11, color: masteryColor),
+                                  fontSize: 12, color: masteryColor),
                             ),
                             Text(
                               '· ${question.createdAt.hour.toString().padLeft(2, '0')}:${question.createdAt.minute.toString().padLeft(2, '0')}',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: colorScheme.onSurfaceVariant,
                               ),
                             ),

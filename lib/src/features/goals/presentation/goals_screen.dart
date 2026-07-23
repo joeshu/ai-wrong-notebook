@@ -257,7 +257,7 @@ class _TodayProgressCard extends StatelessWidget {
                   child: Text(
                     '已打卡',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: AppColors.success,
                       fontWeight: FontWeight.w600,
                     ),
@@ -482,7 +482,7 @@ class _CheckinCalendar extends StatelessWidget {
                       : Text(
                           '${day.day}',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 12,
                             color: colorScheme.onSurfaceVariant,
                           ),
                         ),
@@ -508,7 +508,7 @@ class _CheckinCalendar extends StatelessWidget {
               Text(
                 '共 ${checkins.where((c) => c.manualCheckin || (settings.autoCheckin && c.completedCount >= settings.dailyTarget)).length} 天打卡',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -548,7 +548,7 @@ class _LegendDot extends StatelessWidget {
         const SizedBox(width: AppSpace.xs),
         Text(
           label,
-          style: TextStyle(fontSize: 11, color: textColor),
+          style: TextStyle(fontSize: 12, color: textColor),
         ),
       ],
     );

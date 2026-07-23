@@ -182,7 +182,7 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
               const SizedBox(height: 10),
               Text(
                 '说明：拍照/相册的单题会使用“AI 服务”中的当前模型解析；PaddleOCR 与 MinerU 仅用于“试卷批量导入 → 整页框选切题”的候选题框识别，识别后会显示实际服务名称。',
-                style: TextStyle(fontSize: 11, height: 1.4, color: colorScheme.onSurfaceVariant),
+                style: TextStyle(fontSize: 12, height: 1.4, color: colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 10),
               _buildQuickCaptureSwitch(colorScheme),
@@ -691,7 +691,7 @@ class _CaptureModeSelector extends StatelessWidget {
         Text(
           _description(mode),
           style: TextStyle(
-              fontSize: 11, color: colorScheme.onSurfaceVariant),
+              fontSize: 12, color: colorScheme.onSurfaceVariant),
         ),
       ],
     );
@@ -730,7 +730,7 @@ class _RecognitionChoiceSelector extends StatelessWidget {
         }).toList(),
       ),
       const SizedBox(height: 5),
-      Text(selected.description, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+      Text(selected.description, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
     ],
   );
 }

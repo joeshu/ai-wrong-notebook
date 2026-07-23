@@ -712,7 +712,7 @@ class _RecentQuestionCard extends StatelessWidget {
                   label: question.subject.label,
                   textColor: question.subject.color,
                   backgroundColor: question.subject.color.withValues(alpha: 0.08),
-                  fontSize: 10,
+                  fontSize: 12,
                 ),
                 ...allTags.take(2).map((tag) {
                   final isAiTag = aiTags.contains(tag);
@@ -722,7 +722,7 @@ class _RecentQuestionCard extends StatelessWidget {
                     backgroundColor: isAiTag
                         ? AppColors.accentAmberContainerLight
                         : AppColors.primaryContainerLight,
-                    fontSize: 10,
+                    fontSize: 12,
                   );
                 }),
               ],
@@ -973,7 +973,7 @@ class _WeakPointCard extends StatelessWidget {
           const Icon(CupertinoIcons.scope, size: 18, color: AppColors.warningDark),
           const SizedBox(width: AppSpace.sm),
           const Expanded(child: Text('优先巩固薄弱知识点', style: TextStyle(fontWeight: FontWeight.w700))),
-          Text('点击筛选 / 专项练习', style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant)),
+          Text('点击筛选 / 专项练习', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
         ]),
         const SizedBox(height: AppSpace.sm),
         ...rows.map((row) {
@@ -1029,7 +1029,7 @@ class _WeakPointCard extends StatelessWidget {
                           row.reason!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ],
@@ -1192,7 +1192,7 @@ class _LowConfidenceHintCard extends StatelessWidget {
                     Text(
                       '建议进入错题本校对，避免错题内容有误',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: AppColors.warningDark.withValues(alpha: 0.8),
                       ),
                     ),
@@ -1623,7 +1623,7 @@ class _ExportHistoryTile extends StatelessWidget {
             _formatRelativeTime(
                 DateTime.fromMillisecondsSinceEpoch(entry.timestamp)),
             style: TextStyle(
-                fontSize: 11, color: colorScheme.onSurfaceVariant),
+                fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -1731,7 +1731,7 @@ class _ReviewTrendSection extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(label,
                                 style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 12,
                                     color: colorScheme.onSurfaceVariant)),
                           );
                         },

@@ -141,7 +141,7 @@ class _PreviewQuestionCard extends StatelessWidget {
                   child: Text(
                     subtitleParts.join(' · '),
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12,
                       color: scheme.onSurfaceVariant,
                     ),
                     maxLines: 1,

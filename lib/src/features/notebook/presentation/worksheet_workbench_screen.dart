@@ -891,7 +891,7 @@ class _FilterChip extends StatelessWidget {
         children: <Widget>[
           Text(label, style: TextStyle(fontSize: 12, color: textColor)),
           const SizedBox(width: 4),
-          Text('$count', style: TextStyle(fontSize: 11, color: selected ? Colors.white : scheme.onSurfaceVariant)),
+          Text('$count', style: TextStyle(fontSize: 12, color: selected ? Colors.white : scheme.onSurfaceVariant)),
         ],
       ),
       backgroundColor: bgColor,
@@ -1074,7 +1074,7 @@ class _SmartAssemblySheetState extends State<_SmartAssemblySheet> {
                             ? '低掌握度知识点的题目采样权重更高'
                             : '所有题目等权采样，仅按难度配比组卷',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
@@ -1162,7 +1162,7 @@ class _DifficultySlider extends StatelessWidget {
             child: Text(
               '${(value * 100).round()}% · $count题',
               style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ),
@@ -1384,7 +1384,7 @@ class _KnowledgeCheckTile extends StatelessWidget {
                   Text(
                     node.subject!.label,
                     style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
               ],

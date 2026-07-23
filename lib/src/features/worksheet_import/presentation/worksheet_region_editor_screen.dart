@@ -244,7 +244,7 @@ class _WorksheetRegionEditorScreenState
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
             child: Text(
               '在图上拖动框选题目区域，松开生成题框；轻点放默认题框。拖动蓝框调整，× 删除。',
-              style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
           ),
           if (_regions.isNotEmpty)
@@ -1108,7 +1108,7 @@ class _DetectionActionCard extends StatelessWidget {
             const Expanded(
               child: Text(
                 '未配置的服务不可用，请先填写版面识别 Token。',
-                style: TextStyle(fontSize: 10, color: Color(0xFF9A3412)),
+                style: TextStyle(fontSize: 12, color: Color(0xFF9A3412)),
               ),
             ),
             TextButton(
@@ -1243,7 +1243,7 @@ class _DetectionResultCard extends StatelessWidget {
           ),
         ],
 
-        const Padding(padding: EdgeInsets.only(top: 4), child: Text('可拖动、缩放或删除题框；确认后进入逐题校对。', style: TextStyle(fontSize: 11, color: Color(0xFF475569)))),
+        const Padding(padding: EdgeInsets.only(top: 4), child: Text('可拖动、缩放或删除题框；确认后进入逐题校对。', style: TextStyle(fontSize: 12, color: Color(0xFF475569)))),
       ]),
     ),
   );
@@ -1469,7 +1469,7 @@ class _RecognitionEvidencePreviewState
                     const Icon(CupertinoIcons.exclamationmark_triangle, size: 11, color: Colors.white),
                     const SizedBox(width: 2),
                     Text('题框风险 ${spatialRisks.length}',
-                        style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
+                        style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
@@ -1488,7 +1488,7 @@ class _RecognitionEvidencePreviewState
                 children: <Widget>[
                   Icon(Icons.zoom_in_rounded, size: 12, color: Colors.white),
                   SizedBox(width: 2),
-                  Text('点击放大', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600)),
+                  Text('点击放大', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -1551,7 +1551,7 @@ class _RecognitionEvidencePreviewState
           stem.isEmpty ? '暂无题干文字' : stem,
           maxLines: stemMaxLines,
           overflow: stemMaxLines == null ? TextOverflow.visible : TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11, height: 1.35),
+          style: const TextStyle(fontSize: 12, height: 1.35),
         ),
         if (formulas.isNotEmpty) ...<Widget>[
           const SizedBox(height: 4),
@@ -1561,7 +1561,7 @@ class _RecognitionEvidencePreviewState
               'ƒ $item',
               maxLines: formulaMaxLines,
               overflow: formulaMaxLines == null ? TextOverflow.visible : TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontFamily: 'monospace'),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF475569), fontFamily: 'monospace'),
             ),
           )),
         ],
@@ -1577,7 +1577,7 @@ class _RecognitionEvidencePreviewState
                       line,
                       maxLines: expanded ? null : 1,
                       overflow: expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 10, color: Color(0xFF475569), fontFamily: 'monospace'),
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF475569), fontFamily: 'monospace'),
                     ),
                   ))),
         ],
@@ -1607,8 +1607,8 @@ class _RecognitionEvidencePreviewState
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Text('⚠ ', style: TextStyle(fontSize: 10, color: Color(0xFFDC2626))),
-                Expanded(child: Text(risk, style: const TextStyle(fontSize: 10, color: Color(0xFF9A3412)))),
+                const Text('⚠ ', style: TextStyle(fontSize: 12, color: Color(0xFFDC2626))),
+                Expanded(child: Text(risk, style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412)))),
               ],
             ),
           )),
@@ -1978,7 +1978,7 @@ class _RecognizedQuestionWorkbenchState
                       const SizedBox(height: 3),
                       Wrap(spacing: 2, runSpacing: 2, children: item.recognizedBlockTypes.where((block) => block != '文字').take(2).map(_MiniTypeTag.new).toList()),
                       const SizedBox(height: 3),
-                      Text(ignored ? '⊘ 已忽略' : risky ? '⚠ 待处理风险' : modified ? '✎ 已修改' : item.analyzeWithAi ? '✓ 采用 + AI' : '✓ 采用 · 仅 OCR', style: const TextStyle(fontSize: 9)),
+                      Text(ignored ? '⊘ 已忽略' : risky ? '⚠ 待处理风险' : modified ? '✎ 已修改' : item.analyzeWithAi ? '✓ 采用 + AI' : '✓ 采用 · 仅 OCR', style: const TextStyle(fontSize: 11)),
                     ],
                   ),
                 ),
@@ -2241,7 +2241,7 @@ class _RecognizedQuestionWorkbenchState
             icon: const Icon(CupertinoIcons.chevron_left, size: 15),
             label: const Text('上一题'),
           ),
-          Text('${index + 1} / ${widget.regions.length}', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+          Text('${index + 1} / ${widget.regions.length}', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
           TextButton.icon(
             onPressed: index >= widget.regions.length - 1 ? null : () {
               setState(() => _selectedIndex = index + 1);
@@ -2268,7 +2268,7 @@ class _RecognizedQuestionWorkbenchState
         if (region.reviewStatus == QuestionRegionReviewStatus.ignored)
           const Padding(
             padding: EdgeInsets.only(bottom: 6),
-            child: Text('⊘ 此题已忽略，不会被裁切、保存或交给 AI；可点击“恢复采用”撤销。', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+            child: Text('⊘ 此题已忽略，不会被裁切、保存或交给 AI；可点击“恢复采用”撤销。', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
           ),
         if (risks.isNotEmpty)
           _RiskActionCard(
@@ -2278,7 +2278,7 @@ class _RecognizedQuestionWorkbenchState
             onOpenAdvanced: () => setState(() => _showAdvanced = true),
             onEditOptions: () => _openOptionEditor(context, index, region),
           ),
-        Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+        Text('题框区域：x ${region.normalizedRect.left.toStringAsFixed(2)} · y ${region.normalizedRect.top.toStringAsFixed(2)} · ${region.normalizedRect.width.toStringAsFixed(2)} × ${region.normalizedRect.height.toStringAsFixed(2)}。可在下方试卷图拖动蓝框调整。', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
@@ -2292,7 +2292,7 @@ class _RecognizedQuestionWorkbenchState
           Row(children: <Widget>[
             const Icon(CupertinoIcons.pencil_circle_fill, size: 15, color: Color(0xFF2563EB)),
             const SizedBox(width: 4),
-            const Text('已修改识别结果', style: TextStyle(fontSize: 11, color: Color(0xFF2563EB))),
+            const Text('已修改识别结果', style: TextStyle(fontSize: 12, color: Color(0xFF2563EB))),
             const Spacer(),
             TextButton(
               onPressed: () => showDialog<void>(
@@ -2418,7 +2418,7 @@ class _RecognizedQuestionWorkbenchState
               padding: const EdgeInsets.only(left: 4, top: 2),
               child: Text(
                 _optionsFor(region).join('\n'),
-                style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
               ),
             ),
         ],
@@ -2443,7 +2443,7 @@ class _RecognizedQuestionWorkbenchState
               padding: const EdgeInsets.only(left: 4, top: 2),
               child: Text(
                 region.diagramNote!,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF475569)),
+                style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
               ),
             ),
         ],
@@ -2474,7 +2474,7 @@ class _RecognizedQuestionWorkbenchState
           value: region.analyzeWithAi,
           onChanged: (value) => widget.onUpdate(index, region.copyWith(analyzeWithAi: value)),
           title: Text(region.analyzeWithAi ? '✓ 采用，并交给普通 AI 深度分析' : '✓ 采用，仅保存 OCR / 文档结果', style: const TextStyle(fontSize: 12)),
-          subtitle: Text(region.analyzeWithAi ? '生成讲解、错因、知识点与练习' : '不调用普通 AI，可稍后在错题本中分析', style: const TextStyle(fontSize: 10)),
+          subtitle: Text(region.analyzeWithAi ? '生成讲解、错因、知识点与练习' : '不调用普通 AI，可稍后在错题本中分析', style: const TextStyle(fontSize: 11)),
         ),
       ],
     );
@@ -2505,7 +2505,7 @@ class _RiskActionCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 7), padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(8)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-        Text('⚠ ${risks.join('；')}', style: const TextStyle(fontSize: 11, color: Color(0xFF9A3412))),
+        Text('⚠ ${risks.join('；')}', style: const TextStyle(fontSize: 12, color: Color(0xFF9A3412))),
         const SizedBox(height: 5),
         Wrap(spacing: 6, runSpacing: 4, children: <Widget>[
           if (needsText) TextButton.icon(onPressed: onEditText, icon: const Icon(CupertinoIcons.pencil, size: 14), label: const Text('校对题干')),
@@ -2659,7 +2659,7 @@ class _MiniTypeTag extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
     decoration: BoxDecoration(color: const Color(0xFFF5F3FF), borderRadius: BorderRadius.circular(4)),
-    child: Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6D28D9))),
+    child: Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF6D28D9))),
   );
 }
 

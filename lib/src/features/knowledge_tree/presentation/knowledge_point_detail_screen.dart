@@ -326,7 +326,7 @@ class _QuestionRow extends StatelessWidget {
       ),
       subtitle: Text(
         '${question.subject.label} · $masteryLabel',
-        style: TextStyle(fontSize: 11, color: masteryColor),
+        style: TextStyle(fontSize: 12, color: masteryColor),
       ),
       trailing: const Icon(CupertinoIcons.chevron_right, size: 16, color: Colors.grey),
       onTap: onTap,

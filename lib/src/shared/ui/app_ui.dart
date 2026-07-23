@@ -98,7 +98,7 @@ class AppTag extends StatelessWidget {
         : colorScheme.outlineVariant.withValues(alpha: 0.5);
 
     final child = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(AppRadius.small),

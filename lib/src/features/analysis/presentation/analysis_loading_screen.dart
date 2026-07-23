@@ -558,7 +558,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Text(_debugInfo ?? '',
                         style: const TextStyle(
-                            fontSize: 11, fontFamily: 'monospace')),
+                            fontSize: 12, fontFamily: 'monospace')),
                   ),
                 ],
               ),

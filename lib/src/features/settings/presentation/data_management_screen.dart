@@ -1694,7 +1694,7 @@ class _ExportFileTile extends StatelessWidget {
       subtitle: Text(
         '$sizeStr · $timeStr',
         style: TextStyle(
-            fontSize: 11, color: colorScheme.onSurfaceVariant),
+            fontSize: 12, color: colorScheme.onSurfaceVariant),
       ),
       trailing: PopupMenuButton<String>(
         icon: const Icon(CupertinoIcons.ellipsis_circle, size: 22),

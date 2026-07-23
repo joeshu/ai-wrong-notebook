@@ -1123,7 +1123,7 @@ class _FormatGroupLabel extends StatelessWidget {
         const SizedBox(width: 6),
         Text(hint,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               color: theme.colorScheme.onSurfaceVariant,
             )),
       ],
@@ -1206,7 +1206,7 @@ class _TemplateCard extends StatelessWidget {
                 child: Text(
                   '适用：${template.useCase}',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     color: colorScheme.onSecondaryContainer,
                   ),
                   maxLines: 1,

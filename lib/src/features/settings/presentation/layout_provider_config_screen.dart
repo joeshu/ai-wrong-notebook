@@ -302,7 +302,7 @@ class _ConnectionTestPanel extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
         const Text('测试连接', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text('测试会验证实际接口：PaddleOCR 提交最小任务、MinerU 创建上传任务、普通 AI 发起最小文本请求；不会上传你的试卷。', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+        const Text('测试会验证实际接口：PaddleOCR 提交最小任务、MinerU 创建上传任务、普通 AI 发起最小文本请求；不会上传你的试卷。', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: <Widget>[
           OutlinedButton.icon(onPressed: testing ? null : onPaddle, icon: const Icon(CupertinoIcons.checkmark_shield, size: 16), label: const Text('测试 PaddleOCR')),
@@ -320,7 +320,7 @@ class _ConnectionTestPanel extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: color.withValues(alpha: .08), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withValues(alpha: .28))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
-              Row(children: <Widget>[Icon(result!.ok ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.exclamationmark_triangle_fill, size: 18, color: color), const SizedBox(width: 6), Expanded(child: Text(result!.title, style: TextStyle(fontWeight: FontWeight.w700, color: color))), Text('${result!.elapsed.inMilliseconds}ms', style: TextStyle(fontSize: 11, color: color))]),
+              Row(children: <Widget>[Icon(result!.ok ? CupertinoIcons.check_mark_circled_solid : CupertinoIcons.exclamationmark_triangle_fill, size: 18, color: color), const SizedBox(width: 6), Expanded(child: Text(result!.title, style: TextStyle(fontWeight: FontWeight.w700, color: color))), Text('${result!.elapsed.inMilliseconds}ms', style: TextStyle(fontSize: 12, color: color))]),
               const SizedBox(height: 4),
               Text(result!.detail, style: const TextStyle(fontSize: 12, height: 1.35)),
             ]),

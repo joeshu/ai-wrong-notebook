@@ -355,7 +355,7 @@ class AppFilterChip extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          height: 36,
+          height: 38,
           padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),

@@ -319,7 +319,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                                     SizedBox(width: 3),
                                     Text('查看原图',
                                         style: TextStyle(
-                                            fontSize: 10, color: Colors.white)),
+                                            fontSize: 12, color: Colors.white)),
                                   ],
                                 ),
                               ),
@@ -616,7 +616,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                                 child: Text(
                                   e.difficulty,
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     color:
                                         _difficultyColor(context, e.difficulty),
                                     fontWeight: FontWeight.w500,

@@ -433,7 +433,7 @@ class _MasteryPill extends StatelessWidget {
       ),
       child: Text(
         '${percentage.toStringAsFixed(0)}%',
-        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+        style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600),
       ),
     );
   }

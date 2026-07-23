@@ -565,7 +565,7 @@ class _ManagementTileState extends State<_ManagementTile> {
                     child: Text(
                       point.subject!.label,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         color: point.subject!.color,
                       ),
                     ),
@@ -577,7 +577,7 @@ class _ManagementTileState extends State<_ManagementTile> {
                     padding: EdgeInsets.only(left: 4),
                     child: Text(
                       '已停用',
-                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ),
                 IconButton(
@@ -844,7 +844,7 @@ class _ParentPickerDialog extends StatelessWidget {
                       trailing: p.id == currentParentId
                           ? const Text('当前',
                               style:
-                                  TextStyle(fontSize: 11, color: Colors.grey))
+                                  TextStyle(fontSize: 12, color: Colors.grey))
                           : null,
                       onTap: () => Navigator.pop(context, p.id),
                     ),
