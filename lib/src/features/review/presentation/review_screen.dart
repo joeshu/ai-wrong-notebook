@@ -314,7 +314,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
             body: Column(
               children: <Widget>[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.md),
+                  padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.sm),
                   child: _SummaryCard(
                     total: questions.length,
                     pending: pending.length,
@@ -531,7 +531,7 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(height: 4),
           LinearProgressIndicator(
             value: todayTarget == 0 ? 0 : reviewedToday / todayTarget,
-            minHeight: 5,
+            minHeight: 6,
           ),
         ],
       ),
@@ -712,7 +712,7 @@ class _WeakPointEntryCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.medium),
         child: Container(
-          width: 168,
+          width: 180,
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpace.md, vertical: AppSpace.sm),
           decoration: BoxDecoration(

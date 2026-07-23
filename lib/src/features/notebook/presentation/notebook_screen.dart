@@ -584,9 +584,9 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
       ),
       body: Column(
         children: <Widget>[
-          // Search bar
+          // 搜索栏
           Padding(
-            padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.sm, AppSpace.lg, AppSpace.sm),
+            padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.sm, AppSpace.lg, AppSpace.xs),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -684,59 +684,57 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
-            child: Row(
-              children: <Widget>[
-                const Icon(CupertinoIcons.archivebox,
-                    size: 14, color: Colors.grey),
-                const SizedBox(width: 6),
-                const Expanded(
-                  child: Text('显示归档', style: TextStyle(fontSize: 12)),
-                ),
-                Switch.adaptive(
-                  value: _showArchived,
-                  onChanged: (value) => setState(() => _showArchived = value),
-                ),
-              ],
-            ),
-          ),
-          // Phase 6-1：视图切换（卡片 / 列表 / 时间线）
+          // 视图切换 + 显示归档（合并为一行，节省纵向空间）
           Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: AppSpace.lg, vertical: AppSpace.xs),
-            child: SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<NotebookViewMode>(
-                segments: const <ButtonSegment<NotebookViewMode>>[
-                  ButtonSegment<NotebookViewMode>(
-                    value: NotebookViewMode.card,
-                    icon: Icon(CupertinoIcons.square_grid_2x2, size: 16),
-                    label: Text('卡片'),
-                  ),
-                  ButtonSegment<NotebookViewMode>(
-                    value: NotebookViewMode.list,
-                    icon: Icon(CupertinoIcons.list_bullet, size: 16),
-                    label: Text('列表'),
-                  ),
-                  ButtonSegment<NotebookViewMode>(
-                    value: NotebookViewMode.timeline,
-                    icon:
-                        Icon(CupertinoIcons.calendar, size: 16),
-                    label: Text('时间线'),
-                  ),
-                ],
-                selected: <NotebookViewMode>{_viewMode},
-                onSelectionChanged: (selection) =>
-                    _setViewMode(selection.first),
-                showSelectedIcon: false,
-                style: ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  textStyle: WidgetStateProperty.all(
-                    const TextStyle(fontSize: 12),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: SegmentedButton<NotebookViewMode>(
+                    segments: const <ButtonSegment<NotebookViewMode>>[
+                      ButtonSegment<NotebookViewMode>(
+                        value: NotebookViewMode.card,
+                        icon: Icon(CupertinoIcons.square_grid_2x2, size: 16),
+                        label: Text('卡片'),
+                      ),
+                      ButtonSegment<NotebookViewMode>(
+                        value: NotebookViewMode.list,
+                        icon: Icon(CupertinoIcons.list_bullet, size: 16),
+                        label: Text('列表'),
+                      ),
+                      ButtonSegment<NotebookViewMode>(
+                        value: NotebookViewMode.timeline,
+                        icon: Icon(CupertinoIcons.calendar, size: 16),
+                        label: Text('时间线'),
+                      ),
+                    ],
+                    selected: <NotebookViewMode>{_viewMode},
+                    onSelectionChanged: (selection) =>
+                        _setViewMode(selection.first),
+                    showSelectedIcon: false,
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      textStyle: WidgetStateProperty.all(
+                        const TextStyle(fontSize: 12),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: AppSpace.sm),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(CupertinoIcons.archivebox,
+                        size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Switch.adaptive(
+                      value: _showArchived,
+                      onChanged: (value) => setState(() => _showArchived = value),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           if (activeFilterLabels.isNotEmpty)
@@ -744,7 +742,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               labels: activeFilterLabels,
               onClear: () => _clearFilters(ref),
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           // List
           Expanded(
             child: questionsAsync.when(
@@ -956,7 +954,7 @@ class _QuestionCard extends StatelessWidget {
             child: Opacity(
               opacity: isArchived ? 0.55 : 1.0,
               child: AppCard(
-                padding: const EdgeInsets.all(AppSpace.md),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm + 2),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -1437,7 +1435,7 @@ class _MetaBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           if (icon != null) ...<Widget>[
-            Icon(icon, size: 9, color: color),
+            Icon(icon, size: 12, color: color),
             const SizedBox(width: 2),
           ],
           Text(

@@ -267,7 +267,7 @@ class AppListTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.medium),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.md),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm + 2),
         child: Row(
           children: <Widget>[
             Container(

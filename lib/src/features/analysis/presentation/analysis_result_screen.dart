@@ -99,7 +99,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpace.xl),
+        padding: const EdgeInsets.all(AppSpace.lg),
         children: <Widget>[
           // 统一标签分类框：科目 | AI识别 | 状态 | 知识点
           Container(

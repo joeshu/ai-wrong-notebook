@@ -126,8 +126,8 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ),
           labelColor: colorScheme.onPrimary,
           unselectedLabelColor: colorScheme.onSurfaceVariant,
-          labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          unselectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           tabs: const <Widget>[
             Tab(text: AppStrings.detailTabQuestion),
             Tab(text: AppStrings.detailTabAnalysis),
@@ -850,7 +850,7 @@ class _QuestionTab extends StatelessWidget {
     final result = current.analysisResult;
 
     return ListView(
-      padding: const EdgeInsets.all(AppSpace.lg),
+      padding: const EdgeInsets.all(AppSpace.md),
       children: <Widget>[
         if (_statusBanner(context, current) != null) ...<Widget>[
           _statusBanner(context, current)!,
@@ -2230,7 +2230,7 @@ class _AnalysisTab extends StatelessWidget {
       final hasError = current.lastAnalysisError != null &&
           current.lastAnalysisError!.isNotEmpty;
       return SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpace.lg),
+        padding: const EdgeInsets.all(AppSpace.md),
         child: AppCard(
           child: Column(
             children: <Widget>[
@@ -2281,7 +2281,7 @@ class _AnalysisTab extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(AppSpace.lg),
+      padding: const EdgeInsets.all(AppSpace.md),
       children: <Widget>[
         AppInfoSection(
           icon: result!.visualAssumptionStatus == VisualAssumptionStatus.needsReview
@@ -3157,7 +3157,7 @@ class _PracticeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(AppSpace.lg),
+      padding: const EdgeInsets.all(AppSpace.md),
       children: <Widget>[
         _PracticeSummaryCard(current: current),
       ],
@@ -3184,7 +3184,7 @@ class _RecordTab extends ConsumerWidget {
     final logsAsync = ref.watch(reviewLogsForQuestionProvider(current.id));
 
     return ListView(
-      padding: const EdgeInsets.all(AppSpace.lg),
+      padding: const EdgeInsets.all(AppSpace.md),
       children: <Widget>[
         AppCard(
           child: Column(

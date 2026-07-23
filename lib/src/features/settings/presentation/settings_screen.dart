@@ -25,12 +25,12 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.settingsTitle)),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpace.xl),
+        padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             AppSectionTitle(AppStrings.settingsAppearance),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             Row(
               children: <Widget>[
                 Expanded(
@@ -67,9 +67,9 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             AppSectionTitle(AppStrings.settingsReminders),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             AppCard(
               child: AppListTile(
                 icon: CupertinoIcons.bell,
@@ -84,10 +84,10 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => _setReminderEnabled(context, ref, !reminderEnabled),
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             // Phase 9-3：学习设置区块
             AppSectionTitle(AppStrings.settingsLearning),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             AppCard(
               child: AppListTile(
                 icon: CupertinoIcons.flag_fill,
@@ -98,15 +98,15 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => context.go('/settings/learning'),
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             AppSectionTitle(AppStrings.settingsAiService),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             // Phase 9-5：状态聚合徽章
             _EngineStatusRow(
               aiConfig: aiConfig,
               layoutConfig: layoutConfig,
             ),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             AppCard(
               child: Column(
                 children: <Widget>[
@@ -153,9 +153,9 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             AppSectionTitle(AppStrings.settingsContent),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             AppCard(
               child: Column(
                 children: <Widget>[
@@ -182,9 +182,9 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             AppSectionTitle(AppStrings.settingsLearningAnalytics),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             AppCard(
               child: Column(
                 children: <Widget>[
@@ -225,10 +225,10 @@ class SettingsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             // Phase 11-1：导出工作台提升为独立区块（原位于"学习分析"区块末尾）
             AppSectionTitle(AppStrings.settingsExportShare),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             AppCard(
               child: AppListTile(
                 icon: CupertinoIcons.square_arrow_up,
@@ -239,9 +239,9 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => context.go('/settings/export-workbench'),
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             AppSectionTitle(AppStrings.settingsDataSecurity),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             AppCard(
               child: AppListTile(
                 icon: CupertinoIcons.shield_lefthalf_fill,
@@ -252,10 +252,10 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => context.go('/settings/data'),
               ),
             ),
-            const SizedBox(height: AppSpace.xl),
+            const SizedBox(height: AppSpace.lg),
             // Phase 9-4：关于区块
             AppSectionTitle(AppStrings.settingsAbout),
-            const SizedBox(height: AppSpace.md),
+            const SizedBox(height: AppSpace.sm),
             AppCard(
               child: AppListTile(
                 icon: CupertinoIcons.info,
