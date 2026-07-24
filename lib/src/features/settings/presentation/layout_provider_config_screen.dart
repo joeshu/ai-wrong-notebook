@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/data/services/provider_connection_test_service.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 
 class LayoutProviderConfigScreen extends ConsumerStatefulWidget {
   const LayoutProviderConfigScreen({super.key});
@@ -20,6 +21,8 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
   bool _saving = false;
   bool _testing = false;
   ConnectionTestResult? _testResult;
+  bool _hasStoredPaddle = false;
+  bool _hasStoredMineru = false;
 
   @override
   void initState() {
@@ -41,12 +44,17 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
   Future<void> _load() async {
     if (_loaded) return;
     final config = await restoreLayoutProviderConfig(ref);
+    final layoutRepository = ref.read(layoutProviderRepositoryProvider);
+    final paddle = await layoutRepository.readPaddleToken();
+    final mineru = await layoutRepository.readMineruToken();
     if (!mounted) return;
     setState(() {
       _type = config.type;
       _url.text = config.baseUrl;
       _key.text = config.apiKey;
       _secondaryKey.text = config.secondaryApiKey;
+      _hasStoredPaddle = paddle.isNotEmpty;
+      _hasStoredMineru = mineru.isNotEmpty;
       _loaded = true;
     });
   }
@@ -99,7 +107,14 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
           ),
         ),
         const SizedBox(height: 12),
-        _ConfigurationStatusCard(type: _type, apiKey: _key.text, secondaryApiKey: _secondaryKey.text, loaded: _loaded),
+        _ConfigurationStatusCard(
+          type: _type,
+          apiKey: _key.text,
+          secondaryApiKey: _secondaryKey.text,
+          loaded: _loaded,
+          hasStoredToken: _type == LayoutProviderType.mineruCloud ? _hasStoredMineru : _hasStoredPaddle,
+          hasStoredSecondaryToken: _hasStoredMineru,
+        ),
         const SizedBox(height: 12),
         _ConnectionTestPanel(
           testing: _testing,
@@ -146,15 +161,21 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
     });
     final service = ProviderConnectionTestService();
     final layoutRepository = ref.read(layoutProviderRepositoryProvider);
+    // cloud 模式下优先用文本框里的 Token；文本框为空时回退到系统安全存储
+    // 中已保存（且已验证可用）的 Token，避免“已调通却因文本框为空而测失败”。
+    final paddleStored = await layoutRepository.readPaddleToken();
+    final mineruStored = await layoutRepository.readMineruToken();
     final paddleToken = _type == LayoutProviderType.paddleCloud ||
             _type == LayoutProviderType.autoCloud
-        ? _key.text.trim()
-        : await layoutRepository.readPaddleToken();
+        ? (_key.text.trim().isNotEmpty ? _key.text.trim() : paddleStored)
+        : paddleStored;
     final mineruToken = _type == LayoutProviderType.mineruCloud
-        ? _key.text.trim()
+        ? (_key.text.trim().isNotEmpty ? _key.text.trim() : mineruStored)
         : _type == LayoutProviderType.autoCloud
-            ? _secondaryKey.text.trim()
-            : await layoutRepository.readMineruToken();
+            ? (_secondaryKey.text.trim().isNotEmpty
+                ? _secondaryKey.text.trim()
+                : mineruStored)
+            : mineruStored;
     final result = switch (target) {
       _ConnectionTarget.paddle => await service.testPaddle(paddleToken),
       _ConnectionTarget.mineru => await service.testMineru(mineruToken),
@@ -226,35 +247,58 @@ class _InfoCard extends StatelessWidget {
   const _InfoCard(this.text);
   final String text;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(color: const Color(0xFFF0FDFA), borderRadius: BorderRadius.circular(10)),
-    child: Text(text, style: const TextStyle(fontSize: 12)),
-  );
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: isDark ? AppColors.accentTealContainerLight.withValues(alpha: 0.12) : AppColors.accentTealContainerLight, borderRadius: BorderRadius.circular(10)),
+      child: Text(text, style: TextStyle(fontSize: 12, color: isDark ? AppColors.accentTealLight : AppColors.accentTeal)),
+    );
+  }
 }
 
 
 class _ConfigurationStatusCard extends StatelessWidget {
-  const _ConfigurationStatusCard({required this.type, required this.apiKey, required this.secondaryApiKey, required this.loaded});
+  const _ConfigurationStatusCard({
+    required this.type,
+    required this.apiKey,
+    required this.secondaryApiKey,
+    required this.loaded,
+    this.hasStoredToken = false,
+    this.hasStoredSecondaryToken = false,
+  });
   final LayoutProviderType type;
   final String apiKey;
   final String secondaryApiKey;
   final bool loaded;
+  final bool hasStoredToken;
+  final bool hasStoredSecondaryToken;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // 文本框有字 或 安全存储里确有对应 Token，均视为“已具备凭据”。
+    final paddleReady = type == LayoutProviderType.paddleCloud &&
+        (apiKey.trim().isNotEmpty || hasStoredToken);
+    final mineruReady = type == LayoutProviderType.mineruCloud &&
+        (apiKey.trim().isNotEmpty || hasStoredToken);
+    final autoReady = type == LayoutProviderType.autoCloud &&
+        (apiKey.trim().isNotEmpty || hasStoredToken) &&
+        (secondaryApiKey.trim().isNotEmpty || hasStoredSecondaryToken);
     final ready = type == LayoutProviderType.currentVision ||
         type == LayoutProviderType.manualOnly ||
-        (type == LayoutProviderType.customHttp) ||
-        (type == LayoutProviderType.paddleCloud && apiKey.trim().isNotEmpty) ||
-        (type == LayoutProviderType.mineruCloud && apiKey.trim().isNotEmpty) ||
-        (type == LayoutProviderType.autoCloud && apiKey.trim().isNotEmpty && secondaryApiKey.trim().isNotEmpty);
+        type == LayoutProviderType.customHttp ||
+        paddleReady ||
+        mineruReady ||
+        autoReady;
     final text = !loaded
         ? '正在读取已保存的配置…'
         : ready
             ? '配置可用：导入整页试卷后，在“整页框选切题”页面点击识别即可看到实际服务名称和耗时。'
             : '配置不完整：已选择服务，但安全存储中未读到所需 Token。请重新填写并保存。';
-    final color = ready ? const Color(0xFF166534) : const Color(0xFFB45309);
+    final color = ready
+        ? (isDark ? AppColors.successLight : AppColors.successDark)
+        : (isDark ? AppColors.warningLight : AppColors.warningDark);
     return Container(
       margin: const EdgeInsets.only(top: 4),
       padding: const EdgeInsets.all(12),
@@ -287,22 +331,23 @@ class _ConnectionTestPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = result == null
-        ? const Color(0xFF475569)
+        ? AppColors.slateDark
         : result!.ok
-            ? const Color(0xFF166534)
-            : const Color(0xFFB91C1C);
+            ? (isDark ? AppColors.successLight : AppColors.successDark)
+            : (isDark ? AppColors.dangerLight : AppColors.dangerDark);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: isDark ? AppColors.slateContainerDark : AppColors.slateContainerLight,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: isDark ? AppColors.slateContainerLight : AppColors.slateLight.withValues(alpha: 0.5)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: <Widget>[
         const Text('测试连接', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 4),
-        const Text('测试会验证实际接口：PaddleOCR 提交最小任务、MinerU 创建上传任务、普通 AI 发起最小文本请求；不会上传你的试卷。', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+        Text('测试会验证实际接口：PaddleOCR 提交最小任务、MinerU 创建上传任务、普通 AI 发起最小文本请求；不会上传你的试卷。', style: TextStyle(fontSize: 12, color: isDark ? AppColors.slateLight : AppColors.slate)),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: <Widget>[
           OutlinedButton.icon(onPressed: testing ? null : onPaddle, icon: const Icon(CupertinoIcons.checkmark_shield, size: 16), label: const Text('测试 PaddleOCR')),
