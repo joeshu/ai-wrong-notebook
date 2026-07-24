@@ -1,5 +1,7 @@
+import 'ai_analysis_contract.dart';
 import 'analysis_result.dart';
 import 'generated_exercise.dart';
+import 'mistake_category.dart';
 import 'question_record.dart';
 import 'subject.dart';
 
@@ -20,6 +22,20 @@ class ParsedAnalysisResult extends AnalysisResult {
     super.consistencyStatus,
     super.consistencyNote,
     super.wasVerifierUsed,
+    super.schemaVersion,
+    super.promptVersion,
+    super.modelName,
+    super.confidence,
+    super.uncertainties,
+    super.evidence,
+    super.mistakeCategory,
+    super.originalQuestion,
+    super.normalizedQuestion,
+    super.studentAnswer,
+    super.standardAnswer,
+    super.solutionSteps,
+    super.reviewPlan,
+    super.isLegacyContract,
   });
 
   final String rawContent;
@@ -40,6 +56,20 @@ class ParsedAnalysisResult extends AnalysisResult {
     AnalysisConsistencyStatus? consistencyStatus,
     String? consistencyNote,
     bool? wasVerifierUsed,
+    int? schemaVersion,
+    String? promptVersion,
+    String? modelName,
+    AiConfidence? confidence,
+    List<AiUncertainty>? uncertainties,
+    List<AiEvidence>? evidence,
+    MistakeCategory? mistakeCategory,
+    String? originalQuestion,
+    String? normalizedQuestion,
+    String? studentAnswer,
+    String? standardAnswer,
+    List<String>? solutionSteps,
+    AiReviewPlan? reviewPlan,
+    bool? isLegacyContract,
   }) {
     return ParsedAnalysisResult(
       rawContent: rawContent,
@@ -60,6 +90,20 @@ class ParsedAnalysisResult extends AnalysisResult {
       consistencyStatus: consistencyStatus ?? this.consistencyStatus,
       consistencyNote: consistencyNote ?? this.consistencyNote,
       wasVerifierUsed: wasVerifierUsed ?? this.wasVerifierUsed,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      promptVersion: promptVersion ?? this.promptVersion,
+      modelName: modelName ?? this.modelName,
+      confidence: confidence ?? this.confidence,
+      uncertainties: uncertainties ?? this.uncertainties,
+      evidence: evidence ?? this.evidence,
+      mistakeCategory: mistakeCategory ?? this.mistakeCategory,
+      originalQuestion: originalQuestion ?? this.originalQuestion,
+      normalizedQuestion: normalizedQuestion ?? this.normalizedQuestion,
+      studentAnswer: studentAnswer ?? this.studentAnswer,
+      standardAnswer: standardAnswer ?? this.standardAnswer,
+      solutionSteps: solutionSteps ?? this.solutionSteps,
+      reviewPlan: reviewPlan ?? this.reviewPlan,
+      isLegacyContract: isLegacyContract ?? this.isLegacyContract,
     );
   }
 }

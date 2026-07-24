@@ -87,6 +87,59 @@ void main() {
     expect(restored.finalAnswerDerivation, contains(r'\frac{1}{2}'));
   });
 
+  test('service preserves strict Contract V2 metadata', () {
+    final service = AiAnalysisService.fake();
+    const raw = r'''
+{
+  "schemaVersion": 2,
+  "promptVersion": "analysis-v2.0.0",
+  "modelName": "fixture-model",
+  "subject": "数学",
+  "confidence": {
+    "overall": 0.91,
+    "fields": {
+      "normalizedQuestion": 0.96,
+      "studentAnswer": 0.75,
+      "standardAnswer": 0.97,
+      "solutionSteps": 0.93,
+      "knowledgePoints": 0.88,
+      "generatedExercises": 0.8
+    }
+  },
+  "uncertainties": [],
+  "evidence": [],
+  "mistakeCategory": null,
+  "originalQuestion": "x+1=4，求x",
+  "normalizedQuestion": "解方程 x+1=4",
+  "studentAnswer": "",
+  "standardAnswer": "3",
+  "solutionSteps": ["移项得 x=3"],
+  "knowledgePoints": ["一元一次方程"],
+  "generatedExercises": [],
+  "mistakeReason": "",
+  "studyAdvice": "完成后检查移项符号",
+  "aiTags": ["方程"],
+  "reviewPlan": {
+    "reviewAfterDays": 3,
+    "focus": ["移项符号"],
+    "reason": "巩固基础规则"
+  }
+}
+''';
+
+    final analysis = service.parseAnalysisResponseForTest(raw);
+
+    expect(analysis.hasContractV2, isTrue);
+    expect(analysis.schemaVersion, 2);
+    expect(analysis.promptVersion, 'analysis-v2.0.0');
+    expect(analysis.modelName, 'fixture-model');
+    expect(analysis.confidence?.overall, 0.91);
+    expect(analysis.standardAnswer, '3');
+    expect(analysis.finalAnswer, '3');
+    expect(analysis.solutionSteps, ['移项得 x=3']);
+    expect(analysis.reviewPlan?.reviewAfterDays, 3);
+  });
+
   test('service parses visual assumptions and marks low confidence for review',
       () {
     final service = AiAnalysisService.fake();

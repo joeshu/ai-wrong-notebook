@@ -2684,6 +2684,7 @@ class AiAnalysisService {
     }
 
     final visualAssumptions = _parseVisualAssumptions(map['visualAssumptions']);
+    final contractMetadata = AnalysisResult.fromJson(map);
 
     return ParsedAnalysisResult(
       rawContent: content,
@@ -2713,6 +2714,20 @@ class AiAnalysisService {
       studyAdvice: _normalizeExtractedQuestionText(
         map['studyAdvice'] as String? ?? '',
       ),
+      schemaVersion: contractMetadata.schemaVersion,
+      promptVersion: contractMetadata.promptVersion,
+      modelName: contractMetadata.modelName,
+      confidence: contractMetadata.confidence,
+      uncertainties: contractMetadata.uncertainties,
+      evidence: contractMetadata.evidence,
+      mistakeCategory: contractMetadata.mistakeCategory,
+      originalQuestion: contractMetadata.originalQuestion,
+      normalizedQuestion: contractMetadata.normalizedQuestion,
+      studentAnswer: contractMetadata.studentAnswer,
+      standardAnswer: contractMetadata.standardAnswer,
+      solutionSteps: contractMetadata.solutionSteps,
+      reviewPlan: contractMetadata.reviewPlan,
+      isLegacyContract: contractMetadata.isLegacyContract,
     );
   }
 
