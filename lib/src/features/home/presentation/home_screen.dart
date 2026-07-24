@@ -1265,6 +1265,33 @@ class _UnifiedActionPanel extends StatelessWidget {
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
+        if (plan.streakDays > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpace.sm),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: AppGradients.primaryHorizontal,
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: AppShadows.sm,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Icon(CupertinoIcons.flame_fill, size: 16, color: Colors.white),
+                  const SizedBox(width: 6),
+                  Text(
+                    '已连续学习 ${plan.streakDays} 天',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ...cards,
       ],
     );
