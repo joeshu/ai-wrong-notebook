@@ -81,7 +81,7 @@ abstract final class AppTextStyle {
   );
 
   /// 将家族字体注入到任意基础样式上，保持全站字体一致。
-  static TextStyle apply(TextStyle base) => GoogleFonts.notoSansSC(
+  static TextStyle apply(TextStyle base) => GoogleFonts.notoSansSc(
         textStyle: base,
         fontSize: base.fontSize,
         fontWeight: base.fontWeight,

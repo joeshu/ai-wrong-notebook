@@ -1377,7 +1377,7 @@ class _ReviewCardContent extends StatelessWidget {
                       child: CachedQuestionImage(
                         question.imagePath!,
                         fit: BoxFit.cover,
-                        borderRadius: AppRadius.small,
+                        borderRadius: BorderRadius.circular(AppRadius.small),
                       ),
                     ),
                   ],

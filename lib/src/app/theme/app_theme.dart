@@ -228,7 +228,7 @@ TextTheme _buildTextTheme(TextTheme base, ColorScheme scheme) {
     labelSmall: base.labelSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
   );
   // 统一注入品牌字体家族（思源黑体 Noto Sans SC），保证全站字形一致。
-  return GoogleFonts.notoSansSCTextTheme(themed);
+  return GoogleFonts.notoSansScTextTheme(themed);
 }
 
 ElevatedButtonThemeData _elevatedButtonTheme(ColorScheme scheme) {
