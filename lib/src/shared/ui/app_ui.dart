@@ -141,7 +141,7 @@ class AppInfoSection extends StatefulWidget {
   final Widget child;
   final Color iconColor;
   final Color backgroundColor;
-  final Color borderColor;
+  final Color? borderColor;
   final Color titleColor;
 
   /// 是否可折叠。为 `false`（默认）时内容始终展开，行为与改造前一致。
