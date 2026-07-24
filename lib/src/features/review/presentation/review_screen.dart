@@ -2,6 +2,7 @@ import 'dart:math' show Random;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
@@ -12,7 +13,10 @@ import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 /// Phase 7-1：复习模式——顺序 / 随机 / 专项。
@@ -482,16 +486,16 @@ class _SummaryCard extends StatelessWidget {
             children: <Widget>[
               Text(
                 AppStrings.reviewOverallProgress,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: AppTextStyle.apply(AppTextStyle.subtitle).copyWith(
+                  color: colorScheme.onSurface,
+                ),
               ),
               const Spacer(),
               Text(
                 '共 $total 题',
-                style: TextStyle(
-                    fontSize: 12, color: colorScheme.onSurfaceVariant),
+                style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -503,21 +507,24 @@ class _SummaryCard extends StatelessWidget {
               _MiniStat(
                   value: '$pending',
                   label: AppStrings.reviewPending,
-                  color: AppColors.warning),
+                  color: AppColors.warning,
+                  icon: CupertinoIcons.alarm),
               _MiniStat(
                   value: '$last7DaysReviews',
                   label: '近7天',
                   color: colorScheme.primary,
-              ),
+                  icon: CupertinoIcons.calendar),
               _MiniStat(
                 value: '$masteryRate%',
                 label: '掌握率',
                 color: masteryColor,
+                icon: CupertinoIcons.chart_bar,
               ),
               _MiniStat(
                 value: '$streakDays',
                 label: '连续天',
                 color: AppColors.accentAmber,
+                icon: CupertinoIcons.flame,
               ),
             ],
           ),
@@ -697,7 +704,7 @@ class _WeakPointEntryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final disabled = onTap == null;
     final bg = disabled
-        ? (isDark ? colorScheme.surfaceContainerHighest : const Color(0xFFF1F5F9))
+        ? (isDark ? colorScheme.surfaceContainerHighest : AppColors.slateContainerLight)
         : (isDark
             ? masteryColor.withValues(alpha: 0.14)
             : masteryColor.withValues(alpha: 0.08));
@@ -796,23 +803,34 @@ class _WeakPointEntryCard extends StatelessWidget {
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat(
-      {required this.value, required this.label, required this.color});
+  const _MiniStat({
+    required this.value,
+    required this.label,
+    required this.color,
+    this.icon = CupertinoIcons.circle,
+  });
 
   final String value;
   final String label;
   final Color color;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
+        Icon(icon, size: 18, color: color),
+        const SizedBox(height: 4),
         Text(value,
-            style: TextStyle(
-                fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-        const SizedBox(height: 1),
-        Text(label, style: TextStyle(fontSize: 12, color: color)),
+            style: AppTextStyle.apply(AppTextStyle.subtitle).copyWith(
+              color: color,
+            )),
+        const SizedBox(height: 2),
+        Text(label,
+            style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+              color: color,
+            )),
       ],
     );
   }
@@ -828,11 +846,10 @@ class _EmptyCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppCard(
-      backgroundColor:
-          isDark ? AppColors.success.withValues(alpha: 0.12) : const Color(0xFFF0FDF4),
-      borderColor: isDark
-          ? AppColors.success.withValues(alpha: 0.35)
-          : const Color(0xFFBBF7D0),
+      backgroundColor: isDark
+          ? AppColors.success.withValues(alpha: 0.12)
+          : AppColors.successContainerLight,
+      borderColor: AppColors.success.withValues(alpha: 0.35),
       child: Column(
         children: <Widget>[
           Icon(CupertinoIcons.star,
@@ -893,6 +910,7 @@ class _ReviewQuestionList extends StatelessWidget {
         onRated: onRated,
         onNext: onNext,
         autoAdvance: autoAdvance,
+        delay: AppMotion.staggerStep * index,
       ),
     );
   }
@@ -974,6 +992,7 @@ class _ReviewCard extends ConsumerStatefulWidget {
     this.onRated,
     this.onNext,
     this.autoAdvance = false,
+    this.delay = Duration.zero,
   });
 
   final QuestionRecord question;
@@ -982,6 +1001,7 @@ class _ReviewCard extends ConsumerStatefulWidget {
   final ValueChanged<ReviewRating>? onRated;
   final VoidCallback? onNext;
   final bool autoAdvance;
+  final Duration delay;
 
   @override
   ConsumerState<_ReviewCard> createState() => _ReviewCardState();
@@ -1098,7 +1118,12 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
       );
     }
 
-    return Column(
+    return Animate(
+      effects: <Effect>[
+        FadeEffect(duration: AppMotion.fast, curve: AppMotion.standard, delay: widget.delay),
+        SlideEffect(begin: Offset(0, 0.04), end: Offset.zero, duration: AppMotion.fast, curve: AppMotion.standard, delay: widget.delay),
+      ],
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         _ReviewCardContent(
@@ -1133,24 +1158,116 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
             title: '参考答案',
             iconColor: AppColors.successDark,
             backgroundColor: AppColors.successContainerLight,
-            borderColor: const Color(0xFFBBF7D0),
+            borderColor: AppColors.success.withValues(alpha: 0.3),
             titleColor: AppColors.successDark,
             child: MathContentView(answer, contentFormat: widget.question.contentFormat),
           ),
         ],
         const SizedBox(height: AppSpace.sm),
-        Text('回忆结果', style: Theme.of(context).textTheme.labelMedium),
+        Text('回忆结果', style: AppTextStyle.apply(AppTextStyle.label).copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        )),
         const SizedBox(height: AppSpace.xs),
         Row(
           children: <Widget>[
-            Expanded(child: OutlinedButton(onPressed: _rating ? null : () => _rate(ReviewRating.forgot), child: const Text('忘记'))),
+            Expanded(
+              child: _RateButton(
+                rating: ReviewRating.forgot,
+                loading: _rating,
+                onTap: () => _rate(ReviewRating.forgot),
+              ),
+            ),
             const SizedBox(width: AppSpace.xs),
-            Expanded(child: OutlinedButton(onPressed: _rating ? null : () => _rate(ReviewRating.hard), child: const Text('模糊'))),
+            Expanded(
+              child: _RateButton(
+                rating: ReviewRating.hard,
+                loading: _rating,
+                onTap: () => _rate(ReviewRating.hard),
+              ),
+            ),
             const SizedBox(width: AppSpace.xs),
-            Expanded(child: FilledButton(onPressed: _rating ? null : () => _rate(ReviewRating.easy), child: const Text('掌握'))),
+            Expanded(
+              child: _RateButton(
+                rating: ReviewRating.easy,
+                loading: _rating,
+                onTap: () => _rate(ReviewRating.easy),
+              ),
+            ),
           ],
         ),
       ],
+    ),
+    );
+  }
+}
+
+/// 复习评分按钮：按「忘记 / 模糊 / 掌握」三档赋予语义色与图标，
+/// 让每题的回忆结果选择更有辨识度与反馈感。
+class _RateButton extends StatelessWidget {
+  const _RateButton({
+    required this.rating,
+    this.loading = false,
+    required this.onTap,
+  });
+
+  final ReviewRating rating;
+  final bool loading;
+  final VoidCallback onTap;
+
+  static const Map<ReviewRating, (Color, IconData, String)> _meta =
+      <ReviewRating, (Color, IconData, String)>{
+    ReviewRating.forgot: (AppColors.danger, CupertinoIcons.xmark_circle_fill, '忘记'),
+    ReviewRating.hard: (AppColors.warning, CupertinoIcons.exclamationmark_circle_fill, '模糊'),
+    ReviewRating.easy: (AppColors.success, CupertinoIcons.checkmark_circle_fill, '掌握'),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = _meta[rating]!;
+    final color = meta.$1;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final disabled = loading;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: disabled ? null : onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: AppMotion.micro,
+          curve: AppMotion.standard,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: disabled
+                ? (isDark ? AppColors.slateContainerDark : AppColors.slateContainerLight)
+                : color.withValues(alpha: isDark ? 0.18 : 0.1),
+            border: Border.all(
+              color: disabled
+                  ? Colors.transparent
+                  : color.withValues(alpha: isDark ? 0.4 : 0.32),
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: loading
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(meta.$2, size: 20, color: color),
+                    const SizedBox(height: 4),
+                    Text(
+                      meta.$3,
+                      style: AppTextStyle.apply(AppTextStyle.label).copyWith(
+                        color: color,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
     );
   }
 }
@@ -1219,16 +1336,24 @@ class _ReviewCardContent extends StatelessWidget {
         onTap: onOpen,
         borderRadius: BorderRadius.circular(AppRadius.medium),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: question.subject.color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: <Color>[
+                    question.subject.color.withValues(alpha: 0.18),
+                    question.subject.color.withValues(alpha: 0.08),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(question.subject.icon,
-                  size: 18, color: question.subject.color),
+                  size: 20, color: question.subject.color),
             ),
             const SizedBox(width: AppSpace.md),
             Expanded(
@@ -1239,26 +1364,47 @@ class _ReviewCardContent extends StatelessWidget {
                     question.correctedText,
                     contentFormat: question.contentFormat,
                     mode: MathContentViewMode.compact,
-                    maxLines: 1,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                        color: colorScheme.onSurface),
+                    maxLines: 3,
+                    style: AppTextStyle.apply(AppTextStyle.body).copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: colorScheme.onSurface,
+                    ),
                   ),
+                  if (question.imagePath?.isNotEmpty ?? false) ...<Widget>[
+                    const SizedBox(height: AppSpace.sm),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.small),
+                      child: CachedQuestionImage(
+                        question.imagePath!,
+                        fit: BoxFit.cover,
+                        borderRadius: AppRadius.small,
+                      ),
+                    ),
+                  ],
                   if (batchLabel != null) ...<Widget>[
                     const SizedBox(height: AppSpace.xs),
                     Text(
                       batchLabel!,
-                      style: TextStyle(
-                          fontSize: 12, color: colorScheme.onSurfaceVariant),
+                      style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                   if (question.nextReviewAt != null) ...<Widget>[
                     const SizedBox(height: AppSpace.xs),
-                    Text(
-                      _nextReviewLabel(question.nextReviewAt!),
-                      style: TextStyle(
-                          fontSize: 12, color: colorScheme.onSurfaceVariant),
+                    Row(
+                      children: <Widget>[
+                        Icon(CupertinoIcons.calendar,
+                            size: 13, color: colorScheme.onSurfaceVariant),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _nextReviewLabel(question.nextReviewAt!),
+                            style: AppTextStyle.apply(AppTextStyle.caption)
+                                .copyWith(color: colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   const SizedBox(height: AppSpace.xs),
@@ -1269,8 +1415,10 @@ class _ReviewCardContent extends StatelessWidget {
                     children: <Widget>[
                       Text(
                         question.subject.label,
-                        style: TextStyle(
-                            fontSize: 12, color: question.subject.color),
+                        style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+                          color: question.subject.color,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       _MasteryChip(level: question.masteryLevel),
                       ...question.aiTags.take(3).map((tag) {
@@ -1289,6 +1437,7 @@ class _ReviewCardContent extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(width: AppSpace.xs),
             Icon(CupertinoIcons.chevron_right,
                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
                 size: 22),
