@@ -1280,19 +1280,21 @@ class _RateButton extends StatelessWidget {
                   width: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(meta.$2, size: 15, color: color),
-                    const SizedBox(width: 4),
-                    Text(
-                      meta.$3,
-                      style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
-                        color: color,
-                        fontWeight: FontWeight.w600,
+              : Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(meta.$2, size: 15, color: color),
+                      const SizedBox(width: 4),
+                      Text(
+                        meta.$3,
+                        style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+                          color: color,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
         ),
       ),
@@ -1333,19 +1335,21 @@ class _CompactRevealButton extends StatelessWidget {
             color: colorScheme.outlineVariant.withValues(alpha: isDark ? 0.3 : 0.5),
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(icon, size: 15, color: colorScheme.onSurfaceVariant),
-            const SizedBox(width: 3),
-            Text(
-              label,
-              style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
-                color: colorScheme.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(icon, size: 15, color: colorScheme.onSurfaceVariant),
+              const SizedBox(width: 3),
+              Text(
+                label,
+                style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1428,13 +1432,12 @@ class _ReviewCardContent extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  // 题目正文（空则显示提示）
-                  Text(
+                  // 题目正文：使用 MathContentView 默认（full）模式正确渲染 LaTeX
+                  MathContentView(
                     question.correctedText.isNotEmpty
                         ? question.correctedText
                         : '📷 查看图片题目',
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                    contentFormat: question.contentFormat,
                     style: AppTextStyle.apply(AppTextStyle.body).copyWith(
                       fontWeight: FontWeight.w500,
                       color: question.correctedText.isNotEmpty
