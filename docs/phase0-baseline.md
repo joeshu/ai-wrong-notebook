@@ -7,6 +7,9 @@
 - Working tree at branch creation: clean
 - Production Dart files: 197
 - Test Dart files: 76
+- Baseline CI run `30089889268`: failed before Phase 1A with 5 existing
+  `RenderFlex` overflows in review widget tests. Root cause: the full attachment
+  failure card was rendered inside a 64×64 question thumbnail.
 - Existing CI: `.github/workflows/ci.yml`
   - `flutter pub get`
   - `flutter analyze --no-fatal-warnings --no-fatal-infos`

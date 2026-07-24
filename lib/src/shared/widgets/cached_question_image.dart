@@ -226,50 +226,82 @@ class _ImageFailureCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final text = errorMessage ?? failure.label;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      color: isDark ? const Color(0xFF1F1414) : const Color(0xFFFEF2F2),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(failure.icon, size: 28, color: failure.color),
-          const SizedBox(height: 6),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: failure.color),
+    final backgroundColor =
+        isDark ? const Color(0xFF1F1414) : const Color(0xFFFEF2F2);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compactHeight =
+            constraints.maxHeight.isFinite && constraints.maxHeight < 96;
+        final compactWidth =
+            constraints.maxWidth.isFinite && constraints.maxWidth < 120;
+        if (compactHeight || compactWidth) {
+          final icon = Icon(failure.icon, size: 22, color: failure.color);
+          return Semantics(
+            label: text,
+            button: onReselect != null,
+            child: Tooltip(
+              message: text,
+              child: Material(
+                color: backgroundColor,
+                child: InkWell(
+                  onTap: onReselect,
+                  child: Center(child: icon),
+                ),
+              ),
+            ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          color: backgroundColor,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(failure.icon, size: 28, color: failure.color),
+              const SizedBox(height: 6),
+              Text(
+                text,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: failure.color),
+              ),
+              if (filename != null && filename!.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 4),
+                Text(
+                  '文件：$filename',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDark
+                        ? const Color(0xFFA1A1AA)
+                        : const Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+              if (onReselect != null) ...<Widget>[
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: onReselect,
+                  icon:
+                      const Icon(CupertinoIcons.photo_on_rectangle, size: 14),
+                  label:
+                      const Text('重新选图', style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                    minimumSize: const Size(0, 24),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ],
           ),
-          if (filename != null && filename!.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(
-              '文件：$filename',
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                color: isDark
-                    ? const Color(0xFFA1A1AA)
-                    : const Color(0xFF6B7280),
-              ),
-            ),
-          ],
-          if (onReselect != null) ...<Widget>[
-            const SizedBox(height: 8),
-            TextButton.icon(
-              onPressed: onReselect,
-              icon: const Icon(CupertinoIcons.photo_on_rectangle, size: 14),
-              label: const Text('重新选图', style: TextStyle(fontSize: 11)),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                minimumSize: const Size(0, 24),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
 }
