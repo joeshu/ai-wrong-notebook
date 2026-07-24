@@ -1163,16 +1163,6 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
           onOpen: widget.onOpen,
           batchLabel: widget.batchLabel,
         ),
-        const SizedBox(height: AppSpace.xs),
-        OutlinedButton.icon(
-          onPressed: hasAnswer ? () => setState(() => _revealed = !_revealed) : widget.onOpen,
-          icon: Icon(hasAnswer
-              ? (_revealed ? CupertinoIcons.eye_slash : CupertinoIcons.eye)
-              : CupertinoIcons.doc_text_search),
-          label: Text(hasAnswer
-              ? (_revealed ? '收起答案' : '回忆后查看答案')
-              : '打开详情查看完整题目'),
-        ),
         if (!hasAnswer) ...<Widget>[
           const SizedBox(height: AppSpace.xs),
           Text(
@@ -1198,6 +1188,15 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
         const SizedBox(height: AppSpace.xs),
         Row(
           children: <Widget>[
+            // 「查看答案」紧凑按钮（与评分按钮同行）
+            _CompactRevealButton(
+              hasAnswer: hasAnswer,
+              revealed: _revealed,
+              onTap: hasAnswer
+                  ? () => setState(() => _revealed = !_revealed)
+                  : widget.onOpen,
+            ),
+            const SizedBox(width: AppSpace.xs),
             Expanded(
               child: _RateButton(
                 rating: ReviewRating.forgot,
@@ -1295,6 +1294,58 @@ class _RateButton extends StatelessWidget {
                     ),
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 紧凑型「查看答案」按钮，用于与评分按钮合并在同一行。
+class _CompactRevealButton extends StatelessWidget {
+  const _CompactRevealButton({
+    required this.hasAnswer,
+    required this.revealed,
+    required this.onTap,
+  });
+
+  final bool hasAnswer;
+  final bool revealed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final icon = hasAnswer
+        ? (revealed ? CupertinoIcons.eye_slash : CupertinoIcons.eye)
+        : CupertinoIcons.doc_text_search;
+    final label = hasAnswer ? (revealed ? '收起' : '查看') : '详情';
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.slateContainerDark : AppColors.slateContainerLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: isDark ? 0.3 : 0.5),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: 15, color: colorScheme.onSurfaceVariant),
+            const SizedBox(width: 3),
+            Text(
+              label,
+              style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
