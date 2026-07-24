@@ -1410,16 +1410,20 @@ class _ReviewCardContent extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final hasImage = question.imagePath?.isNotEmpty ?? false;
+    // 图片缩略图固定占位 64px，让文字始终占满剩余宽度
+    const double thumbSize = 64;
+
     return AppCard(
       padding: const EdgeInsets.fromLTRB(AppSpace.md, AppSpace.md, AppSpace.sm, AppSpace.md),
       child: InkWell(
         onTap: onOpen,
         borderRadius: BorderRadius.circular(AppRadius.medium),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Stack(
           children: <Widget>[
-            // 左侧：文字主体（始终存在）
-            Expanded(
+            // 主体：文字内容（始终占满全宽，右边给图片缩略图预留 64px + 间距）
+            Padding(
+              padding: EdgeInsets.only(right: hasImage ? thumbSize + AppSpace.sm : 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -1507,23 +1511,33 @@ class _ReviewCardContent extends StatelessWidget {
                 ],
               ),
             ),
-            // 右侧：图片缩略图（固定尺寸，不影响左侧文字）
-            if (question.imagePath?.isNotEmpty ?? false) ...<Widget>[
-              const SizedBox(width: AppSpace.sm),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.small),
-                child: CachedQuestionImage(
-                  question.imagePath!,
-                  fit: BoxFit.cover,
-                  maxWidth: 200,
+            // 右上角：图片缩略图（固定 64×64，不影响主体布局）
+            if (hasImage)
+              Positioned(
+                top: 0,
+                right: AppSpace.xs,
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.small),
+                  child: SizedBox(
+                    width: thumbSize,
+                    height: thumbSize,
+                    child: CachedQuestionImage(
+                      question.imagePath!,
+                      fit: BoxFit.cover,
+                      maxWidth: 200,
+                      borderRadius: BorderRadius.circular(AppRadius.small),
+                    ),
+                  ),
                 ),
               ),
-            ],
-            const SizedBox(width: AppSpace.xs),
-            Icon(CupertinoIcons.chevron_right,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
-                size: 18),
+            // 右下角：跳转箭头
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: Icon(CupertinoIcons.chevron_right,
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
+                  size: 16),
+            ),
           ],
         ),
       ),
