@@ -1281,11 +1281,11 @@ class _RateButton extends StatelessWidget {
                   width: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Column(
+              : Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(meta.$2, size: 17, color: color),
-                    const SizedBox(height: 2),
+                    Icon(meta.$2, size: 15, color: color),
+                    const SizedBox(width: 4),
                     Text(
                       meta.$3,
                       style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
@@ -1360,7 +1360,7 @@ class _ReviewCardContent extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AppCard(
-      padding: const EdgeInsets.all(AppSpace.md),
+      padding: const EdgeInsets.fromLTRB(AppSpace.md, AppSpace.md, AppSpace.sm, AppSpace.md),
       child: InkWell(
         onTap: onOpen,
         borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -1382,37 +1382,50 @@ class _ReviewCardContent extends StatelessWidget {
                     ),
                   ),
                   if (question.imagePath?.isNotEmpty ?? false) ...<Widget>[
-                    const SizedBox(height: AppSpace.sm),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(AppRadius.small),
-                      child: CachedQuestionImage(
-                        question.imagePath!,
-                        fit: BoxFit.cover,
+                    const SizedBox(height: AppSpace.xs),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 80),
+                      child: ClipRRect(
                         borderRadius: BorderRadius.circular(AppRadius.small),
+                        child: CachedQuestionImage(
+                          question.imagePath!,
+                          fit: BoxFit.cover,
+                          borderRadius: BorderRadius.circular(AppRadius.small),
+                        ),
                       ),
                     ),
                   ],
                   if (batchLabel != null) ...<Widget>[
-                    const SizedBox(height: AppSpace.xs),
-                    Text(
-                      batchLabel!,
-                      style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: <Widget>[
+                        Icon(CupertinoIcons.photo_on_rectangle,
+                            size: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            batchLabel!,
+                            style: AppTextStyle.apply(AppTextStyle.overline).copyWith(
+                              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                   if (question.nextReviewAt != null) ...<Widget>[
-                    const SizedBox(height: AppSpace.xs),
+                    const SizedBox(height: 2),
                     Row(
                       children: <Widget>[
                         Icon(CupertinoIcons.calendar,
-                            size: 13, color: colorScheme.onSurfaceVariant),
-                        const SizedBox(width: 4),
+                            size: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                        const SizedBox(width: 3),
                         Expanded(
                           child: Text(
                             _nextReviewLabel(question.nextReviewAt!),
                             style: AppTextStyle.apply(AppTextStyle.caption)
-                                .copyWith(color: colorScheme.onSurfaceVariant),
+                                .copyWith(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
                           ),
                         ),
                       ],
@@ -1420,8 +1433,8 @@ class _ReviewCardContent extends StatelessWidget {
                   ],
                   const SizedBox(height: AppSpace.xs),
                   Wrap(
-                    spacing: AppSpace.sm,
-                    runSpacing: AppSpace.xs,
+                    spacing: AppSpace.xs,
+                    runSpacing: 2,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: <Widget>[
                       Text(
@@ -1440,7 +1453,7 @@ class _ReviewCardContent extends StatelessWidget {
                           backgroundColor: isDark
                               ? tagColor.withValues(alpha: 0.14)
                               : AppColors.accentAmberContainerLight,
-                          fontSize: 12,
+                          fontSize: 11,
                         );
                       }),
                     ],
@@ -1451,7 +1464,7 @@ class _ReviewCardContent extends StatelessWidget {
             const SizedBox(width: AppSpace.xs),
             Icon(CupertinoIcons.chevron_right,
                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
-                size: 22),
+                size: 20),
           ],
         ),
       ),
