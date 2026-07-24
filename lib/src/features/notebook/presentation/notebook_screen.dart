@@ -1020,34 +1020,29 @@ class _QuestionCard extends StatelessWidget {
                           _buildMetaInfo(context, displayStatus, isArchived),
                           if (allTags.isNotEmpty) ...<Widget>[
                             const SizedBox(height: AppSpace.xs),
-                            Wrap(
-                              spacing: AppSpace.xs,
-                              runSpacing: AppSpace.xs,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: <Widget>[
-                                ...allTags.take(2).map((tag) {
-                                  final isAiTag = aiTags.contains(tag);
-                                  return AppTag(
-                                    label: tag,
-                                    textColor: isAiTag
-                                        ? AppColors.accentAmber
-                                        : AppColors.primaryDark,
-                                    backgroundColor: isAiTag
-                                        ? AppColors.accentAmberContainerLight
-                                        : AppColors.primaryContainerLight,
-                                    fontSize: 12,
-                                    onTap: () => onKnowledgePointTap(tag),
-                                  );
-                                }),
-                                if (allTags.length > 2)
-                                  AppTag(
-                                    label: '+${allTags.length - 2}',
-                                    textColor: colorScheme.onSurfaceVariant,
-                                    backgroundColor:
-                                        colorScheme.surfaceContainerHighest,
-                                    fontSize: 12,
-                                  ),
-                              ],
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: <Widget>[
+                                  ...allTags.map((tag) {
+                                    final isAiTag = aiTags.contains(tag);
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: AppSpace.xs),
+                                      child: AppTag(
+                                        label: tag,
+                                        textColor: isAiTag
+                                            ? AppColors.accentAmber
+                                            : AppColors.primaryDark,
+                                        backgroundColor: isAiTag
+                                            ? AppColors.accentAmberContainerLight
+                                            : AppColors.primaryContainerLight,
+                                        fontSize: 12,
+                                        onTap: () => onKnowledgePointTap(tag),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
                             ),
                           ],
                         ],

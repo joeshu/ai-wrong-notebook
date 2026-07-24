@@ -1485,31 +1485,36 @@ class _ReviewCardContent extends StatelessWidget {
                   ],
                   // 标签行
                   const SizedBox(height: 4),
-                  Wrap(
-                    spacing: AppSpace.xs,
-                    runSpacing: 2,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: <Widget>[
-                      Text(
-                        question.subject.label,
-                        style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
-                          color: question.subject.color,
-                          fontWeight: FontWeight.w600,
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: <Widget>[
+                        Text(
+                          question.subject.label,
+                          style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+                            color: question.subject.color,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      _MasteryChip(level: question.masteryLevel),
-                      ...question.aiTags.take(3).map((tag) {
-                        const tagColor = AppColors.accentAmber;
-                        return AppTag(
-                          label: tag,
-                          textColor: isDark ? colorScheme.onSurface : tagColor,
-                          backgroundColor: isDark
-                              ? tagColor.withValues(alpha: 0.14)
-                              : AppColors.accentAmberContainerLight,
-                          fontSize: 11,
-                        );
-                      }),
-                    ],
+                        const SizedBox(width: 4),
+                        _MasteryChip(level: question.masteryLevel),
+                        const SizedBox(width: 4),
+                        ...question.aiTags.map((tag) {
+                          const tagColor = AppColors.accentAmber;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: AppTag(
+                              label: tag,
+                              textColor: isDark ? colorScheme.onSurface : tagColor,
+                              backgroundColor: isDark
+                                  ? tagColor.withValues(alpha: 0.14)
+                                  : AppColors.accentAmberContainerLight,
+                              fontSize: 11,
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
                   ),
                 ],
               ),
