@@ -647,7 +647,7 @@ class _NodeActionSheet extends StatelessWidget {
             onTap: () => Navigator.pop(context, _NodeAction.move),
           ),
           ListTile(
-            leading: const Icon(CupertinoIcons.merge,
+            leading: const Icon(CupertinoIcons.link,
                 color: AppColors.accentPurple),
             title: const Text('合并到...'),
             onTap: () => Navigator.pop(context, _NodeAction.merge),

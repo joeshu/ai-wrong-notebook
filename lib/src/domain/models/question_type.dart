@@ -46,7 +46,7 @@ extension QuestionTypeLabel on QuestionType {
         QuestionType.essay => CupertinoIcons.doc_text,
         QuestionType.calculation => CupertinoIcons.function,
         QuestionType.proof => CupertinoIcons.equal_circle,
-        QuestionType.experiment => CupertinoIcons.flask,
+        QuestionType.experiment => CupertinoIcons.lightbulb,
         QuestionType.other => CupertinoIcons.question,
       };
 }

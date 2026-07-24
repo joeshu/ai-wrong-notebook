@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
@@ -379,16 +380,16 @@ class _HomeStatStrip extends StatelessWidget {
       child: Row(
         children: <Widget>[
           _StatMetric(
-            icon: CupertinoIcons.flame_fill,
+            icon: CupertinoIcons.flame,
             value: '$streakDays',
             unit: '天',
             label: '连续学习',
             color: AppColors.accentAmber,
             delay: AppMotion.staggerStep,
           ),
-          _vDivider(),
+          _vDivider(context),
           _StatMetric(
-            icon: CupertinoIcons.calendar_badge_plus,
+            icon: CupertinoIcons.calendar,
             value: '$dueCount',
             unit: '题',
             label: '今日待复习',
@@ -397,7 +398,7 @@ class _HomeStatStrip extends StatelessWidget {
           ),
           _vDivider(),
           _StatMetric(
-            icon: CupertinoIcons.doc_text_fill,
+            icon: CupertinoIcons.doc_text,
             value: '$totalCount',
             unit: '题',
             label: '累计错题',
@@ -409,7 +410,7 @@ class _HomeStatStrip extends StatelessWidget {
     );
   }
 
-  Widget _vDivider() => Container(
+  Widget _vDivider(BuildContext context) => Container(
         width: 1,
         height: 36,
         color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.6),
@@ -1409,7 +1410,7 @@ class _UnifiedActionPanel extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  const Icon(CupertinoIcons.flame_fill, size: 16, color: Colors.white),
+                  const Icon(CupertinoIcons.flame, size: 16, color: Colors.white),
                   const SizedBox(width: 6),
                   Text(
                     '已连续学习 ${plan.streakDays} 天',
