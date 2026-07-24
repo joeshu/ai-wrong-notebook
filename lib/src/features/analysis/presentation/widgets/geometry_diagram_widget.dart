@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 class GeometryDiagramWidget extends StatefulWidget {
   const GeometryDiagramWidget({
@@ -105,7 +106,7 @@ class _GeometryDiagramWidgetState extends State<GeometryDiagramWidget>
             child: TextButton.icon(
               onPressed: _toggleAuxiliary,
               icon: Icon(
-                _showAuxiliary ? Icons.visibility_off : Icons.visibility,
+                _showAuxiliary ? CupertinoIcons.eye_slash : CupertinoIcons.eye,
                 size: 18,
               ),
               label: Text(

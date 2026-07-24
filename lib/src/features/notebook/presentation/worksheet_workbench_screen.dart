@@ -509,7 +509,7 @@ class _WorksheetWorkbenchScreenState
                       ),
                       OutlinedButton.icon(
                         onPressed: () => _openKnowledgeMultiSelectSheet(),
-                        icon: const Icon(Icons.account_tree_outlined, size: 16),
+                        icon: const Icon(CupertinoIcons.graph, size: 16),
                         label: const Text('按知识点', style: TextStyle(fontSize: 13)),
                       ),
                     ],
@@ -1285,7 +1285,7 @@ class _KnowledgeMultiSelectSheetState
             ),
             Row(
               children: <Widget>[
-                const Icon(Icons.account_tree_outlined, size: 20),
+                const Icon(CupertinoIcons.graph, size: 20),
                 const SizedBox(width: 8),
                 Text('按知识点组卷',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(

@@ -1268,7 +1268,7 @@ class _OcrContentCard extends StatelessWidget {
     }
 
     return AppInfoSection(
-      icon: Icons.compare_arrows,
+      icon: CupertinoIcons.arrow_left_right,
       title: 'OCR 识别内容对照',
       iconColor: AppColors.info,
       backgroundColor: isDark ? colorScheme.surface : AppColors.infoContainerLight,
@@ -1414,7 +1414,7 @@ class _OcrContentCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Icon(Icons.image_search, size: 14, color: AppColors.accentAmber),
+                  Icon(CupertinoIcons.photo, size: 14, color: AppColors.accentAmber),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -2093,7 +2093,7 @@ class _AiInputSnapshotCard extends StatelessWidget {
                 label: hasImage ? '原图可用' : '无原图',
                 icon: hasImage
                     ? CupertinoIcons.photo
-                    : Icons.image_not_supported_outlined,
+                    : CupertinoIcons.photo,
                 color: hasImage ? AppColors.success : AppColors.danger,
               ),
               _SnapshotChip(

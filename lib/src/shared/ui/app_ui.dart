@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
 
 abstract final class AppSpace {
   static const double xs = 4;
@@ -39,6 +42,8 @@ class AppCard extends StatelessWidget {
     this.backgroundColor,
     this.borderColor,
     this.shadow,
+    this.entrance = true,
+    this.delay = Duration.zero,
   });
 
   final Widget child;
@@ -48,6 +53,8 @@ class AppCard extends StatelessWidget {
   final Color? backgroundColor;
   final Color? borderColor;
   final List<BoxShadow>? shadow;
+  final bool entrance;
+  final Duration delay;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +63,7 @@ class AppCard extends StatelessWidget {
 
     final bg = backgroundColor ??
         (isDark ? colorScheme.surfaceContainerLow : colorScheme.surface);
-    return Container(
+    final card = Container(
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(
@@ -69,6 +76,18 @@ class AppCard extends StatelessWidget {
       ),
       child: child,
     );
+    // 统一的入场动效：淡入 + 轻微上移，符合 AppMotion 规范。
+    if (!entrance) return card;
+    return card
+        .animate()
+        .fadeIn(duration: AppMotion.fast, curve: AppMotion.standard, delay: delay)
+        .slideY(
+          begin: 0.06,
+          end: 0,
+          duration: AppMotion.fast,
+          curve: AppMotion.standard,
+          delay: delay,
+        );
   }
 }
 
@@ -325,16 +344,59 @@ class AppEmptyState extends StatelessWidget {
   final String? description;
   final Widget? action;
   @override
-  Widget build(BuildContext context) => Center(child: Padding(
-    padding: const EdgeInsets.all(AppSpace.xl),
-    child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
-      Icon(icon, size: 44, color: Theme.of(context).colorScheme.onSurfaceVariant),
-      const SizedBox(height: AppSpace.md),
-      Text(title, style: Theme.of(context).textTheme.titleMedium),
-      if (description != null) ...<Widget>[const SizedBox(height: AppSpace.xs), Text(description!, textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant))],
-      if (action != null) ...<Widget>[const SizedBox(height: AppSpace.lg), action!],
-    ]),
-  ));
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            // 渐变圆形托底，给裸图标增加“插画感”的视觉重量。
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                gradient: AppGradients.primary,
+                shape: BoxShape.circle,
+                boxShadow: isDark ? null : AppShadows.sm,
+              ),
+              child: Container(
+                margin: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 40, color: Colors.white),
+              ),
+            ),
+            const SizedBox(height: AppSpace.lg),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: AppTextStyle.apply(AppTextStyle.title).copyWith(
+                color: isDark ? Colors.white : AppColors.slateDark,
+              ),
+            ),
+            if (description != null) ...<Widget>[
+              const SizedBox(height: AppSpace.xs),
+              Text(
+                description!,
+                textAlign: TextAlign.center,
+                style: AppTextStyle.apply(AppTextStyle.body).copyWith(
+                  color: isDark ? AppColors.slateLight : AppColors.slate,
+                ),
+              ),
+            ],
+            if (action != null) ...<Widget>[
+              const SizedBox(height: AppSpace.lg),
+              action!,
+            ],
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: AppMotion.medium, curve: AppMotion.standard);
+  }
 }
 
 class AppErrorState extends StatelessWidget {

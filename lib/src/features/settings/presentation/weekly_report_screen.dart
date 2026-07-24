@@ -211,12 +211,12 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
         ),
         actions: <Widget>[
           IconButton(
-            icon: const Icon(Icons.share_outlined),
+            icon: const Icon(CupertinoIcons.share),
             tooltip: '分享',
             onPressed: _loading || _error != null ? null : _onShare,
           ),
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf_outlined),
+            icon: const Icon(CupertinoIcons.doc),
             tooltip: '导出 PDF',
             onPressed: _loading || _error != null ? null : _onExportPdf,
           ),
@@ -246,7 +246,7 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              const Icon(Icons.error_outline,
+              const Icon(CupertinoIcons.exclamationmark_circle,
                   size: 48, color: AppColors.danger),
               const SizedBox(height: 12),
               Text(

@@ -192,13 +192,13 @@ enum ImageLoadFailure {
   IconData get icon {
     switch (this) {
       case ImageLoadFailure.emptyPath:
-        return Icons.image_not_supported_outlined;
+        return CupertinoIcons.photo;
       case ImageLoadFailure.notFound:
-        return Icons.link_off;
+        return CupertinoIcons.link;
       case ImageLoadFailure.decodeFailed:
-        return Icons.broken_image_outlined;
+        return CupertinoIcons.photo;
       case ImageLoadFailure.exception:
-        return Icons.error_outline;
+        return CupertinoIcons.exclamationmark_circle;
     }
   }
 

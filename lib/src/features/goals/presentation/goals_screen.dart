@@ -477,7 +477,7 @@ class _CheckinCalendar extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: isCheckedIn
-                      ? const Icon(Icons.check,
+                      ? const Icon(CupertinoIcons.check_mark,
                           size: 14, color: Colors.white)
                       : Text(
                           '${day.day}',

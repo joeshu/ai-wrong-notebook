@@ -641,13 +641,13 @@ class _NodeActionSheet extends StatelessWidget {
             onTap: () => Navigator.pop(context, _NodeAction.rename),
           ),
           ListTile(
-            leading: const Icon(Icons.drive_file_move_outline,
+            leading: const Icon(CupertinoIcons.folder,
                 color: AppColors.accentTeal),
             title: const Text('移动到...'),
             onTap: () => Navigator.pop(context, _NodeAction.move),
           ),
           ListTile(
-            leading: const Icon(Icons.merge_type,
+            leading: const Icon(CupertinoIcons.merge,
                 color: AppColors.accentPurple),
             title: const Text('合并到...'),
             onTap: () => Navigator.pop(context, _NodeAction.merge),

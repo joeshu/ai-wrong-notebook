@@ -5,6 +5,7 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/data/services/provider_connection_test_service.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_feedback.dart';
 
 class LayoutProviderConfigScreen extends ConsumerStatefulWidget {
   const LayoutProviderConfigScreen({super.key});
@@ -207,7 +208,8 @@ class _LayoutProviderConfigScreenState extends ConsumerState<LayoutProviderConfi
     await persistLayoutProviderConfig(ref, LayoutProviderConfig(type: _type, baseUrl: _url.text.trim(), apiKey: _key.text.trim(), secondaryApiKey: _secondaryKey.text.trim()));
     if (!mounted) return;
     setState(() => _saving = false);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('版面识别设置已保存')));
+    AppHaptics.success();
+    AppToast.success(context, '版面识别设置已保存');
   }
 }
 

@@ -18,6 +18,8 @@ import 'package:smart_wrong_notebook/src/shared/widgets/subject_avatar.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -103,6 +105,18 @@ class HomeScreen extends ConsumerWidget {
               loading: () => const _TodayPlanSkeleton(),
               error: (_, __) => const SizedBox.shrink(),
             ),
+          ),
+          const SizedBox(height: AppSpace.md),
+          // Phase 12：数据概览指标条，作为首页主视觉锚点，
+          // 把“连续学习 / 今日待复习 / 累计错题”集中呈现。
+          todayPlanAsync.when(
+            data: (plan) => _HomeStatStrip(
+              streakDays: plan.streakDays,
+              dueCount: plan.dueCount,
+              totalCount: questionsAsync.valueOrNull?.length ?? 0,
+            ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
           const SizedBox(height: AppSpace.md),
           Text(AppStrings.homeStatsTitle, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -341,6 +355,123 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// 首页数据概览指标条：连续学习天数 / 今日待复习 / 累计错题。
+/// 作为主视觉锚点，把用户最关心的三个数字集中呈现。
+class _HomeStatStrip extends StatelessWidget {
+  const _HomeStatStrip({
+    required this.streakDays,
+    required this.dueCount,
+    required this.totalCount,
+  });
+
+  final int streakDays;
+  final int dueCount;
+  final int totalCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.md, horizontal: AppSpace.sm),
+      child: Row(
+        children: <Widget>[
+          _StatMetric(
+            icon: CupertinoIcons.flame_fill,
+            value: '$streakDays',
+            unit: '天',
+            label: '连续学习',
+            color: AppColors.accentAmber,
+            delay: AppMotion.staggerStep,
+          ),
+          _vDivider(),
+          _StatMetric(
+            icon: CupertinoIcons.calendar_badge_plus,
+            value: '$dueCount',
+            unit: '题',
+            label: '今日待复习',
+            color: AppColors.primary,
+            delay: AppMotion.staggerStep * 2,
+          ),
+          _vDivider(),
+          _StatMetric(
+            icon: CupertinoIcons.doc_text_fill,
+            value: '$totalCount',
+            unit: '题',
+            label: '累计错题',
+            color: AppColors.accentTeal,
+            delay: AppMotion.staggerStep * 3,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _vDivider() => Container(
+        width: 1,
+        height: 36,
+        color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.6),
+      );
+}
+
+class _StatMetric extends StatelessWidget {
+  const _StatMetric({
+    required this.icon,
+    required this.value,
+    required this.unit,
+    required this.label,
+    required this.color,
+    this.delay = Duration.zero,
+  });
+
+  final IconData icon;
+  final String value;
+  final String unit;
+  final String label;
+  final Color color;
+  final Duration delay;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Expanded(
+      child: Column(
+        children: <Widget>[
+          Icon(icon, size: 20, color: color),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: <Widget>[
+              Text(
+                value,
+                style: AppTextStyle.apply(AppTextStyle.headline).copyWith(
+                  color: isDark ? Colors.white : AppColors.slateDark,
+                ),
+              ),
+              const SizedBox(width: 2),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  unit,
+                  style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+                    color: isDark ? AppColors.slateLight : AppColors.slate,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
+              color: isDark ? AppColors.slateLight : AppColors.slate,
+            ),
+          ),
+        ],
+      ).animate().fadeIn(duration: AppMotion.fast, delay: delay, curve: AppMotion.standard),
     );
   }
 }

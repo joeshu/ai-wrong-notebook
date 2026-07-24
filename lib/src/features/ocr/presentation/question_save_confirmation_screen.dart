@@ -556,7 +556,7 @@ class _QuestionSaveConfirmationScreenState
           children: <Widget>[
             const Padding(
               padding: EdgeInsets.only(top: 2),
-              child: Icon(Icons.warning_amber_rounded,
+              child: Icon(CupertinoIcons.exclamationmark_triangle,
                   color: AppColors.accentAmber, size: 20),
             ),
             const SizedBox(width: AppSpace.sm),

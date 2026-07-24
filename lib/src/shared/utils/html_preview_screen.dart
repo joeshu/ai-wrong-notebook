@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
@@ -78,7 +79,7 @@ class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
         title: const Text('导出预览'),
         actions: <Widget>[
           IconButton(
-            icon: const Icon(Icons.share_outlined),
+            icon: const Icon(CupertinoIcons.share),
             tooltip: '分享 HTML',
             onPressed: _loading || _error != null
                 ? null
@@ -92,7 +93,7 @@ class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
                     ),
           ),
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf_outlined),
+            icon: const Icon(CupertinoIcons.doc),
             tooltip: '导出 PDF',
             onPressed: _loading || _error != null
                 ? null
@@ -121,7 +122,7 @@ class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
           ),
           // Phase 11-6：跳转导出工作台，预填当前预览的题目 ID
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
+            icon: const Icon(CupertinoIcons.ellipsis),
             tooltip: '导出为其他格式',
             enabled: !_loading && _error == null && widget.questions.isNotEmpty,
             onSelected: (value) {
@@ -134,7 +135,7 @@ class _HtmlPreviewScreenState extends State<HtmlPreviewScreen> {
               PopupMenuItem<String>(
                 value: 'workbench',
                 child: Row(children: <Widget>[
-                  Icon(Icons.apps_outlined, size: 18),
+                  Icon(CupertinoIcons.square_grid_2x2, size: 18),
                   SizedBox(width: 8),
                   Text('导出为其他格式'),
                 ]),

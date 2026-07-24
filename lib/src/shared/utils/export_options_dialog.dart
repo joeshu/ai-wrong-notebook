@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/domain/models/learning_context.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
@@ -507,7 +508,7 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
                   if (_timeRange == _TimeRange.custom) ...<Widget>[
                     const SizedBox(width: 8),
                     TextButton.icon(
-                      icon: const Icon(Icons.calendar_today, size: 16),
+                      icon: const Icon(CupertinoIcons.calendar, size: 16),
                       label: Text(_customDateRange == null
                           ? '选择日期'
                           : '${_formatDate(_customDateRange!.start)} ~ '
@@ -907,7 +908,7 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.unfold_more,
+              Icon(CupertinoIcons.chevron_down,
                   size: 18,
                   color: Theme.of(context).colorScheme.onSurfaceVariant),
             ],
@@ -1238,7 +1239,7 @@ class _MultiSelectDialogState extends State<_MultiSelectDialog> {
                 decoration: const InputDecoration(
                   isDense: true,
                   hintText: '搜索',
-                  prefixIcon: Icon(Icons.search, size: 18),
+                  prefixIcon: Icon(CupertinoIcons.search, size: 18),
                 ),
                 onChanged: (v) => setState(() => _query = v.trim()),
               ),

@@ -1486,7 +1486,7 @@ class _RecognitionEvidencePreviewState
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  Icon(Icons.zoom_in_rounded, size: 12, color: Colors.white),
+                  Icon(CupertinoIcons.zoom_in, size: 12, color: Colors.white),
                   SizedBox(width: 2),
                   Text('点击放大', style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w600)),
                 ],
@@ -1681,7 +1681,7 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
                 right: 12,
                 child: SafeArea(
                   child: IconButton.filledTonal(
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(CupertinoIcons.xmark),
                     onPressed: () => Navigator.of(context).maybePop(),
                   ),
                 ),

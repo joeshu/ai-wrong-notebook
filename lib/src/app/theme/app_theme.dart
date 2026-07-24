@@ -1,5 +1,6 @@
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 
 /// 构建浅色主题。
@@ -209,7 +210,7 @@ ThemeData buildDarkTheme() {
 }
 
 TextTheme _buildTextTheme(TextTheme base, ColorScheme scheme) {
-  return base.copyWith(
+  final themed = base.copyWith(
     displayLarge: base.displayLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
     displayMedium: base.displayMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
     displaySmall: base.displaySmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.3),
@@ -226,6 +227,8 @@ TextTheme _buildTextTheme(TextTheme base, ColorScheme scheme) {
     labelMedium: base.labelMedium?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
     labelSmall: base.labelSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
   );
+  // 统一注入品牌字体家族（思源黑体 Noto Sans SC），保证全站字形一致。
+  return googleFontsNotoSansSCTextTheme(themed);
 }
 
 ElevatedButtonThemeData _elevatedButtonTheme(ColorScheme scheme) {
