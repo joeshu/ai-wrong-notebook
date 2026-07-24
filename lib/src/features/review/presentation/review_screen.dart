@@ -1367,71 +1367,66 @@ class _ReviewCardContent extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
+            // 左侧：文字主体（始终存在）
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
-                  MathContentView(
-                    question.correctedText,
-                    contentFormat: question.contentFormat,
-                    mode: MathContentViewMode.compact,
+                  // 题目正文（空则显示提示）
+                  Text(
+                    question.correctedText.isNotEmpty
+                        ? question.correctedText
+                        : '📷 查看图片题目',
                     maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                     style: AppTextStyle.apply(AppTextStyle.body).copyWith(
                       fontWeight: FontWeight.w500,
-                      color: colorScheme.onSurface,
+                      color: question.correctedText.isNotEmpty
+                          ? colorScheme.onSurface
+                          : colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                     ),
                   ),
-                  if (question.imagePath?.isNotEmpty ?? false) ...<Widget>[
-                    const SizedBox(height: AppSpace.xs),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 80),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(AppRadius.small),
-                        child: CachedQuestionImage(
-                          question.imagePath!,
-                          fit: BoxFit.cover,
-                          borderRadius: BorderRadius.circular(AppRadius.small),
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (batchLabel != null) ...<Widget>[
-                    const SizedBox(height: 2),
+                  // 元信息行：batchLabel + nextReview 合并为一行
+                  if (batchLabel != null || question.nextReviewAt != null) ...<Widget>[
+                    const SizedBox(height: 4),
                     Row(
                       children: <Widget>[
-                        Icon(CupertinoIcons.photo_on_rectangle,
-                            size: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
-                        const SizedBox(width: 3),
-                        Flexible(
-                          child: Text(
-                            batchLabel!,
-                            style: AppTextStyle.apply(AppTextStyle.overline).copyWith(
-                              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                        if (batchLabel != null) ...<Widget>[
+                          Icon(CupertinoIcons.photo_on_rectangle,
+                              size: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                          const SizedBox(width: 2),
+                          Flexible(
+                            child: Text(
+                              batchLabel!,
+                              style: AppTextStyle.apply(AppTextStyle.overline).copyWith(
+                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
+                        ],
+                        if (batchLabel != null && question.nextReviewAt != null)
+                          const SizedBox(width: AppSpace.sm),
+                        if (question.nextReviewAt != null) ...<Widget>[
+                          Icon(CupertinoIcons.calendar,
+                              size: 11, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                          const SizedBox(width: 2),
+                          Flexible(
+                            child: Text(
+                              _nextReviewLabel(question.nextReviewAt!),
+                              style: AppTextStyle.apply(AppTextStyle.overline).copyWith(
+                                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
-                  if (question.nextReviewAt != null) ...<Widget>[
-                    const SizedBox(height: 2),
-                    Row(
-                      children: <Widget>[
-                        Icon(CupertinoIcons.calendar,
-                            size: 12, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
-                        const SizedBox(width: 3),
-                        Expanded(
-                          child: Text(
-                            _nextReviewLabel(question.nextReviewAt!),
-                            style: AppTextStyle.apply(AppTextStyle.caption)
-                                .copyWith(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: AppSpace.xs),
+                  // 标签行
+                  const SizedBox(height: 4),
                   Wrap(
                     spacing: AppSpace.xs,
                     runSpacing: 2,
@@ -1461,10 +1456,23 @@ class _ReviewCardContent extends StatelessWidget {
                 ],
               ),
             ),
+            // 右侧：图片缩略图（固定尺寸，不影响左侧文字）
+            if (question.imagePath?.isNotEmpty ?? false) ...<Widget>[
+              const SizedBox(width: AppSpace.sm),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.small),
+                child: CachedQuestionImage(
+                  question.imagePath!,
+                  fit: BoxFit.cover,
+                  maxWidth: 200,
+                  borderRadius: BorderRadius.circular(AppRadius.small),
+                ),
+              ),
+            ],
             const SizedBox(width: AppSpace.xs),
             Icon(CupertinoIcons.chevron_right,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.65),
-                size: 20),
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
+                size: 18),
           ],
         ),
       ),
