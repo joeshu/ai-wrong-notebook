@@ -10,8 +10,24 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // 进入设置主页时主动回填一次版面识别配置（含安全存储中的 Token），
+    // 避免 _EngineStatusRow 因 apiKey / secondaryApiKey 为空而把已调通的
+    // PaddleOCR / MinerU 误报为红色未配置。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) restoreLayoutProviderConfig(ref);
+    });
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -332,11 +348,8 @@ String _layoutLabel(LayoutProviderConfig config) {
   if (config.isReady) return '就绪';
   switch (config.type) {
     case LayoutProviderType.paddleCloud:
-      return '未配置';
     case LayoutProviderType.mineruCloud:
-      return '未配置';
     case LayoutProviderType.autoCloud:
-      return '部分';
     case LayoutProviderType.customHttp:
       return '未配置';
     case LayoutProviderType.currentVision:
@@ -354,6 +367,16 @@ class _EngineStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 依据“当前所选类型实际会调用的引擎”判定就绪状态，
+    // 而非用 type==paddleCloud 这类硬匹配——否则自动策略
+    // (autoCloud) 下 PaddleOCR / MinerU 都会落入 else 分支被误报为红色 ✗。
+    final usesPaddle = layoutConfig.type == LayoutProviderType.paddleCloud ||
+        layoutConfig.type == LayoutProviderType.autoCloud;
+    final usesMineru = layoutConfig.type == LayoutProviderType.mineruCloud ||
+        layoutConfig.type == LayoutProviderType.autoCloud;
+    final paddleReady = usesPaddle && layoutConfig.apiKey.isNotEmpty;
+    final mineruReady = usesMineru && layoutConfig.secondaryApiKey.isNotEmpty;
+
     return Row(
       children: <Widget>[
         _StatusBadge(
@@ -362,23 +385,21 @@ class _EngineStatusRow extends StatelessWidget {
         ),
         const SizedBox(width: AppSpace.sm),
         _StatusBadge(
-          ready: layoutConfig.type == LayoutProviderType.paddleCloud &&
-              layoutConfig.isReady,
-          warning: layoutConfig.type == LayoutProviderType.paddleCloud &&
-              !layoutConfig.isReady,
-          label: layoutConfig.type == LayoutProviderType.paddleCloud
-              ? (layoutConfig.isReady ? 'PaddleOCR ✓' : 'PaddleOCR ⚠')
-              : 'PaddleOCR —',
+          ready: paddleReady,
+          warning: usesPaddle && !paddleReady,
+          neutral: !usesPaddle,
+          label: !usesPaddle
+              ? 'PaddleOCR —'
+              : (paddleReady ? 'PaddleOCR ✓' : 'PaddleOCR ⚠'),
         ),
         const SizedBox(width: AppSpace.sm),
         _StatusBadge(
-          ready: layoutConfig.type == LayoutProviderType.mineruCloud &&
-              layoutConfig.isReady,
-          warning: layoutConfig.type == LayoutProviderType.mineruCloud &&
-              !layoutConfig.isReady,
-          label: layoutConfig.type == LayoutProviderType.mineruCloud
-              ? (layoutConfig.isReady ? 'MinerU ✓' : 'MinerU ✗')
-              : 'MinerU —',
+          ready: mineruReady,
+          warning: usesMineru && !mineruReady,
+          neutral: !usesMineru,
+          label: !usesMineru
+              ? 'MinerU —'
+              : (mineruReady ? 'MinerU ✓' : 'MinerU ⚠'),
         ),
       ],
     );
@@ -391,14 +412,17 @@ class _StatusBadge extends StatelessWidget {
     required this.ready,
     required this.label,
     this.warning = false,
+    this.neutral = false,
   });
 
   final bool ready;
   final bool warning;
+  final bool neutral;
   final String label;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final Color color;
     final Color bg;
     if (ready) {
@@ -407,7 +431,11 @@ class _StatusBadge extends StatelessWidget {
     } else if (warning) {
       color = AppColors.warning;
       bg = AppColors.warningContainerLight;
+    } else if (neutral) {
+      color = isDark ? AppColors.slateLight : AppColors.slate;
+      bg = isDark ? AppColors.slateContainerDark : AppColors.slateContainerLight;
     } else {
+      // 仅当“已启用但判定失败”时才用危险红，避免中性引擎误报红。
       color = AppColors.danger;
       bg = AppColors.dangerContainerLight;
     }
