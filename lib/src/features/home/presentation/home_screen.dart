@@ -277,13 +277,7 @@ class HomeScreen extends ConsumerWidget {
         ),
         if (total > 0) ...<Widget>[
           const SizedBox(height: AppSpace.lg),
-          Container(
-            padding: const EdgeInsets.all(AppSpace.lg),
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(AppRadius.medium),
-              border: Border.all(color: colorScheme.outlineVariant),
-            ),
+          AppCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[

@@ -54,11 +54,13 @@ class AppCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final bg = backgroundColor ??
+        (isDark ? colorScheme.surfaceContainerLow : colorScheme.surface);
     return Container(
       margin: margin,
       padding: padding,
       decoration: BoxDecoration(
-        color: backgroundColor ?? colorScheme.surface,
+        color: bg,
         borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(
           color: borderColor ?? colorScheme.outlineVariant,
@@ -128,7 +130,7 @@ class AppInfoSection extends StatefulWidget {
     required this.child,
     this.iconColor = AppColors.primary,
     this.backgroundColor = AppColors.primaryContainerLight,
-    this.borderColor = const Color(0xFFC7D2FE),
+    this.borderColor,
     this.titleColor = AppColors.primaryDark,
     this.collapsible = false,
     this.initiallyExpanded = true,
@@ -193,10 +195,14 @@ class _AppInfoSectionState extends State<AppInfoSection> {
       ],
     );
 
+    final resolvedBorder = widget.borderColor ??
+        (isDark
+            ? widget.iconColor.withValues(alpha: 0.28)
+            : const Color(0xFFC7D2FE));
     return AppCard(
       borderRadius: AppRadius.large,
       backgroundColor: isDark ? colorScheme.surface : widget.backgroundColor,
-      borderColor: isDark ? widget.iconColor.withValues(alpha: 0.28) : widget.borderColor,
+      borderColor: resolvedBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
