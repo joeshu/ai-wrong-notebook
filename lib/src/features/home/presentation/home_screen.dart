@@ -396,7 +396,7 @@ class _HomeStatStrip extends StatelessWidget {
             color: AppColors.primary,
             delay: AppMotion.staggerStep * 2,
           ),
-          _vDivider(),
+          _vDivider(context),
           _StatMetric(
             icon: CupertinoIcons.doc_text,
             value: '$totalCount',
