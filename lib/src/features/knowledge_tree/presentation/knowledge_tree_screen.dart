@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -202,7 +203,7 @@ class _MasteryDistributionCard extends StatelessWidget {
           const AppSectionTitle('掌握度分布'),
           const SizedBox(height: AppSpace.sm),
           if (total == 0)
-            const Text('暂无题目数据', style: TextStyle(color: Colors.grey))
+            const Text('暂无题目数据', style: TextStyle(color: AppColors.slate))
           else ...<Widget>[
             _DistributionBar(
               label: '掌握',
@@ -267,7 +268,7 @@ class _DistributionBar extends StatelessWidget {
           width: 72,
           child: Text(
             '$count 题 · ${(ratio * 100).toStringAsFixed(0)}%',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+            style: const TextStyle(fontSize: 12, color: AppColors.slate),
           ),
         ),
       ],
@@ -322,7 +323,7 @@ class _WeakTile extends StatelessWidget {
           if (node.mastery != null)
             Text(
               '${node.mastery!.totalQuestions} 错题',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: const TextStyle(fontSize: 12, color: AppColors.slate),
             ),
         ],
       ),
@@ -378,7 +379,7 @@ class _KnowledgeTreeTileState extends State<_KnowledgeTreeTile> {
                           ? CupertinoIcons.chevron_down
                           : CupertinoIcons.chevron_right,
                       size: 16,
-                      color: Colors.grey,
+                      color: AppColors.slate,
                     ),
                   )
                 else
@@ -392,7 +393,7 @@ class _KnowledgeTreeTileState extends State<_KnowledgeTreeTile> {
                   const SizedBox(width: AppSpace.sm),
                   Text(
                     '${mastery.totalQuestions} 题',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: const TextStyle(fontSize: 12, color: AppColors.slate),
                   ),
                 ] else
                   Text(

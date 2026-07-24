@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -124,7 +125,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               child: const Text('取消')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             child: const Text('删除'),
           ),
         ],
@@ -372,9 +373,9 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
             const SizedBox(height: 8),
             _DataCard(
               icon: CupertinoIcons.trash,
-              iconColor: Colors.red,
+              iconColor: AppColors.danger,
               title: '清空所有数据',
-              titleColor: Colors.red,
+              titleColor: AppColors.danger,
               subtitle: '删除所有错题和复习记录；建议先创建完整备份',
               onTap: () => _confirmClearAll(context, ref, questions.length),
             ),
@@ -1130,7 +1131,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
               Navigator.pop(ctx);
               _clearAllData(ref, context);
             },
-            child: const Text('清空', style: TextStyle(color: Colors.red)),
+            child: const Text('清空', style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -1747,9 +1748,9 @@ class _ExportFileTile extends StatelessWidget {
           const PopupMenuItem<String>(
             value: 'delete',
             child: ListTile(
-              leading: Icon(CupertinoIcons.delete, color: Colors.red),
+              leading: Icon(CupertinoIcons.delete, color: AppColors.danger),
               title: Text('删除',
-                  style: TextStyle(color: Colors.red)),
+                  style: TextStyle(color: AppColors.danger)),
               contentPadding: EdgeInsets.zero,
               dense: true,
             ),

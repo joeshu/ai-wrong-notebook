@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -20,22 +21,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       icon: CupertinoIcons.camera,
       title: '拍照录题',
       description: '快速拍照，智能识别',
-      color: Color(0xFF6366F1),
-      bg: Color(0xFFEEF2FF),
+      color: AppColors.primary,
+      bg: AppColors.primaryContainerLight,
     ),
     _OnboardPage(
       icon: CupertinoIcons.smiley,
       title: 'AI 解析',
       description: '深入分析，精准诊断',
-      color: Color(0xFFD97706),
-      bg: Color(0xFFFFFBEB),
+      color: AppColors.warning,
+      bg: AppColors.warningContainerLight,
     ),
     _OnboardPage(
       icon: CupertinoIcons.pencil,
       title: '举一反三',
       description: '针对性练习，巩固知识点',
-      color: Color(0xFF16A34A),
-      bg: Color(0xFFF0FDF4),
+      color: AppColors.success,
+      bg: AppColors.successContainerLight,
     ),
   ];
 

@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -64,7 +65,7 @@ class _KnowledgePointDetailScreenState
             children: <Widget>[
               Text(
                 detail.point.subject?.label ?? '未分类科目',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: const TextStyle(fontSize: 12, color: AppColors.slate),
               ),
               const SizedBox(height: AppSpace.xs),
               Text(
@@ -275,7 +276,7 @@ class _StatCell extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 22, fontWeight: FontWeight.bold)),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(label, style: const TextStyle(fontSize: 12, color: AppColors.slate)),
           ],
         ),
       ),
@@ -328,7 +329,7 @@ class _QuestionRow extends StatelessWidget {
         '${question.subject.label} · $masteryLabel',
         style: TextStyle(fontSize: 12, color: masteryColor),
       ),
-      trailing: const Icon(CupertinoIcons.chevron_right, size: 16, color: Colors.grey),
+      trailing: const Icon(CupertinoIcons.chevron_right, size: 16, color: AppColors.slate),
       onTap: onTap,
     );
   }

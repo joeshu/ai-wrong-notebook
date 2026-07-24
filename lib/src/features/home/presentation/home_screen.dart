@@ -14,6 +14,7 @@ import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
+import 'package:smart_wrong_notebook/src/shared/widgets/subject_avatar.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -635,16 +636,7 @@ class _RecentQuestionCard extends StatelessWidget {
           child: ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.xs),
-            leading: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: question.subject.color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(question.subject.icon,
-                  size: 16, color: question.subject.color),
-            ),
+            leading: SubjectAvatar(question: question, size: 36, iconSize: 16),
             title: MathContentView(
               question.correctedText,
               contentFormat: question.contentFormat,

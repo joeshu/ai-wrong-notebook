@@ -108,9 +108,9 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
                 PopupMenuItem(
                   value: 'delete',
                   child: Row(children: <Widget>[
-                    Icon(CupertinoIcons.trash, color: Colors.red, size: 20),
+                    Icon(CupertinoIcons.trash, color: AppColors.danger, size: 20),
                     SizedBox(width: 8),
-                    Text('删除', style: TextStyle(color: Colors.red)),
+                    Text('删除', style: TextStyle(color: AppColors.danger)),
                   ]),
                 ),
               ],
@@ -463,7 +463,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
               if (ctx.mounted) Navigator.pop(ctx);
               if (context.mounted) context.go('/notebook');
             },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: const Text('删除', style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -1042,16 +1042,25 @@ class _QuestionTab extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.58),
+                          color: Colors.black.withValues(alpha: 0.62),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
-                            Icon(CupertinoIcons.zoom_in, size: 12, color: Colors.white),
+                            Icon(CupertinoIcons.zoom_in, size: 12, color: Colors.white,
+                                shadows: <Shadow>[
+                                  Shadow(color: Colors.black54, blurRadius: 2),
+                                ]),
                             SizedBox(width: 3),
                             Text('查看原图',
-                                style: TextStyle(fontSize: 12, color: Colors.white)),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  shadows: <Shadow>[
+                                    Shadow(color: Colors.black54, blurRadius: 2),
+                                  ],
+                                )),
                           ],
                         ),
                       ),
@@ -2788,9 +2797,9 @@ class _StructuredKnowledgeLinkRow extends ConsumerWidget {
                 PopupMenuItem(
                   value: 'remove',
                   child: const Row(children: <Widget>[
-                    Icon(CupertinoIcons.trash, size: 18, color: Colors.red),
+                    Icon(CupertinoIcons.trash, size: 18, color: AppColors.danger),
                     SizedBox(width: 8),
-                    Text('移除关联', style: TextStyle(color: Colors.red)),
+                    Text('移除关联', style: TextStyle(color: AppColors.danger)),
                   ]),
                 ),
               ],
@@ -2832,7 +2841,7 @@ class _StructuredKnowledgeLinkRow extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             child: const Text('移除'),
           ),
         ],

@@ -83,7 +83,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               invalidateQuestionList(ref);
               if (ctx.mounted) Navigator.pop(ctx);
             },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: const Text('删除', style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -725,8 +725,8 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const Icon(CupertinoIcons.archivebox,
-                        size: 14, color: Colors.grey),
+                    Icon(CupertinoIcons.archivebox,
+                        size: 14, color: colorScheme.onSurfaceVariant),
                     const SizedBox(width: 4),
                     Switch.adaptive(
                       value: _showArchived,
@@ -938,10 +938,10 @@ class _QuestionCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: AppSpace.md),
         decoration: BoxDecoration(
           color:
-              isDark ? Colors.red.withValues(alpha: 0.14) : Colors.red.shade50,
+              AppColors.danger.withValues(alpha: isDark ? 0.22 : 0.10),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(CupertinoIcons.trash, color: Colors.red),
+        child: const Icon(CupertinoIcons.trash, color: AppColors.danger),
       ),
       child: Semantics(
         button: true,
@@ -1152,11 +1152,11 @@ class _QuestionCard extends StatelessWidget {
       spans.add(const TextSpan(text: ' · '));
       spans.add(const WidgetSpan(
         alignment: PlaceholderAlignment.middle,
-        child: Icon(CupertinoIcons.archivebox, size: 11, color: Colors.grey),
+        child: Icon(CupertinoIcons.archivebox, size: 11, color: AppColors.slate),
       ));
       spans.add(const TextSpan(
         text: '已归档',
-        style: TextStyle(color: Colors.grey),
+        style: TextStyle(color: AppColors.slate),
       ));
     }
 
@@ -1669,10 +1669,10 @@ class _CompactQuestionRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: AppSpace.sm),
         decoration: BoxDecoration(
           color:
-              isDark ? Colors.red.withValues(alpha: 0.14) : Colors.red.shade50,
+              AppColors.danger.withValues(alpha: isDark ? 0.22 : 0.10),
           borderRadius: BorderRadius.circular(AppRadius.medium),
         ),
-        child: const Icon(CupertinoIcons.trash, color: Colors.red),
+        child: const Icon(CupertinoIcons.trash, color: AppColors.danger),
       ),
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpace.sm),
@@ -1733,7 +1733,7 @@ class _CompactQuestionRow extends StatelessWidget {
                             if (isArchived)
                               _MetaBadge(
                                 label: '已归档',
-                                color: Colors.grey,
+                                color: AppColors.slate,
                                 icon: CupertinoIcons.archivebox,
                               ),
                           ],
@@ -1880,10 +1880,10 @@ class _TimelineQuestionRow extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
           color:
-              isDark ? Colors.red.withValues(alpha: 0.14) : Colors.red.shade50,
+              AppColors.danger.withValues(alpha: isDark ? 0.22 : 0.10),
           borderRadius: BorderRadius.circular(AppRadius.medium),
         ),
-        child: const Icon(CupertinoIcons.trash, color: Colors.red),
+        child: const Icon(CupertinoIcons.trash, color: AppColors.danger),
       ),
       child: GestureDetector(
         onTap: selectionMode ? onSelect : onTap,

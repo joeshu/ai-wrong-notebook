@@ -781,9 +781,9 @@ class _WorksheetHistoryDialog extends StatelessWidget {
                   PopupMenuItem(
                     value: _DraftAction.delete,
                     child: Row(children: <Widget>[
-                      Icon(CupertinoIcons.delete, size: 18, color: Colors.red),
+                      Icon(CupertinoIcons.delete, size: 18, color: AppColors.danger),
                       SizedBox(width: 8),
-                      Text('删除', style: TextStyle(color: Colors.red)),
+                      Text('删除', style: TextStyle(color: AppColors.danger)),
                     ]),
                   ),
                 ],

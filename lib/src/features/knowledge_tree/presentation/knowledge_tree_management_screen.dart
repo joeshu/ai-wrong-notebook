@@ -144,12 +144,12 @@ class _KnowledgeTreeManagementScreenState
             child: Row(
               children: <Widget>[
                 const Icon(CupertinoIcons.info_circle,
-                    size: 16, color: Colors.grey),
+                    size: 16, color: AppColors.slate),
                 const SizedBox(width: AppSpace.sm),
                 Expanded(
                   child: Text(
                     '共 ${points.length} 个知识点（已启用 $enabledCount）',
-                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                    style: const TextStyle(fontSize: 13, color: AppColors.slate),
                   ),
                 ),
               ],
@@ -538,7 +538,7 @@ class _ManagementTileState extends State<_ManagementTile> {
                           ? CupertinoIcons.chevron_down
                           : CupertinoIcons.chevron_right,
                       size: 16,
-                      color: Colors.grey,
+                      color: AppColors.slate,
                     ),
                   )
                 else
@@ -577,7 +577,7 @@ class _ManagementTileState extends State<_ManagementTile> {
                     padding: EdgeInsets.only(left: 4),
                     child: Text(
                       '已停用',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: AppColors.slate),
                     ),
                   ),
                 IconButton(
@@ -624,7 +624,7 @@ class _NodeActionSheet extends StatelessWidget {
               child: Text(
                 point.name,
                 style: const TextStyle(
-                    fontSize: 14, color: Colors.grey),
+                    fontSize: 14, color: AppColors.slate),
               ),
             ),
           ),
@@ -726,7 +726,7 @@ class _NodeEditDialogState extends State<_NodeEditDialog> {
         children: <Widget>[
           if (widget.parentName != null) ...<Widget>[
             Text('父节点：${widget.parentName}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                style: const TextStyle(fontSize: 12, color: AppColors.slate)),
             const SizedBox(height: AppSpace.sm),
           ],
           TextField(
@@ -740,7 +740,7 @@ class _NodeEditDialogState extends State<_NodeEditDialog> {
           if (!widget.nameOnly) ...<Widget>[
             const SizedBox(height: AppSpace.md),
             const Text('科目（可选）',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+                style: TextStyle(fontSize: 12, color: AppColors.slate)),
             const SizedBox(height: AppSpace.xs),
             DropdownButtonFormField<Subject?>(
               value: _subject,
@@ -817,7 +817,7 @@ class _ParentPickerDialog extends StatelessWidget {
                 mergeMode
                     ? '源节点：$sourceName'
                     : '当前父节点：${currentParentId == null ? "（根节点）" : currentParentId}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: const TextStyle(fontSize: 12, color: AppColors.slate),
               ),
               const SizedBox(height: AppSpace.sm),
             ],
@@ -828,7 +828,7 @@ class _ParentPickerDialog extends StatelessWidget {
                   if (!mergeMode)
                     ListTile(
                       leading:
-                          const Icon(CupertinoIcons.tray, color: Colors.grey),
+                          const Icon(CupertinoIcons.tray, color: AppColors.slate),
                       title: const Text('作为根节点'),
                       onTap: () =>
                           Navigator.pop(context, _rootSentinel),
@@ -844,7 +844,7 @@ class _ParentPickerDialog extends StatelessWidget {
                       trailing: p.id == currentParentId
                           ? const Text('当前',
                               style:
-                                  TextStyle(fontSize: 12, color: Colors.grey))
+                                  TextStyle(fontSize: 12, color: AppColors.slate))
                           : null,
                       onTap: () => Navigator.pop(context, p.id),
                     ),
@@ -917,7 +917,7 @@ class _TemplatePreviewDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(template.description,
-              style: const TextStyle(fontSize: 13, color: Colors.grey)),
+              style: const TextStyle(fontSize: 13, color: AppColors.slate)),
           const SizedBox(height: AppSpace.sm),
           Text('根节点 ${template.rootCount} · 共 ${template.points.length} 个知识点',
               style: const TextStyle(fontSize: 13)),

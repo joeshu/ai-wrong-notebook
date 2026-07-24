@@ -308,18 +308,25 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 6, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.58),
+                                  color: Colors.black.withValues(alpha: 0.62),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: const Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: <Widget>[
                                     Icon(CupertinoIcons.zoom_in,
-                                        size: 12, color: Colors.white),
+                                        size: 12, color: Colors.white,
+                                        shadows: <Shadow>[
+                                          Shadow(color: Colors.black54, blurRadius: 2),
+                                        ]),
                                     SizedBox(width: 3),
                                     Text('查看原图',
                                         style: TextStyle(
-                                            fontSize: 12, color: Colors.white)),
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                            shadows: <Shadow>[
+                                              Shadow(color: Colors.black54, blurRadius: 2),
+                                            ])),
                                   ],
                                 ),
                               ),
@@ -1050,10 +1057,10 @@ String _masteryLabel(MasteryLevel level) {
 Color _masteryColor(MasteryLevel level) {
   switch (level) {
     case MasteryLevel.newQuestion:
-      return Colors.grey;
+      return AppColors.slate;
     case MasteryLevel.reviewing:
-      return Colors.orange;
+      return AppColors.warning;
     case MasteryLevel.mastered:
-      return Colors.green;
+      return AppColors.success;
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -742,7 +743,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
                       const SizedBox(height: 4),
                       Text(
                         '已完成 $done / ${formats.length} 种',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(fontSize: 12, color: AppColors.slate),
                       ),
                     ],
                   );
@@ -1291,7 +1292,7 @@ class _ExportHistoryListTile extends StatelessWidget {
       subtitle: Text(_formatBytes(file.statSync().size)),
       trailing: Wrap(spacing: 0, children: <Widget>[
         IconButton(onPressed: onShare, icon: const Icon(CupertinoIcons.share), tooltip: '分享'),
-        IconButton(onPressed: onDelete, icon: const Icon(CupertinoIcons.delete, color: Colors.red), tooltip: '删除'),
+        IconButton(onPressed: onDelete, icon: const Icon(CupertinoIcons.delete, color: AppColors.danger), tooltip: '删除'),
       ]),
     );
   }

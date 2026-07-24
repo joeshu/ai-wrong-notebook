@@ -13,6 +13,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/stage_indicator.dart';
 
 class AnalysisLoadingScreen extends ConsumerStatefulWidget {
@@ -522,13 +523,13 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
               height: 64,
               decoration: BoxDecoration(
                 color: Theme.of(context).brightness == Brightness.dark
-                    ? const Color(0xFFEA580C).withValues(alpha: 0.16)
-                    : const Color(0xFFFFF7ED),
+                    ? AppColors.danger.withValues(alpha: 0.16)
+                    : AppColors.dangerContainerLight,
                 borderRadius: BorderRadius.circular(32),
               ),
               child: const Icon(
                 CupertinoIcons.exclamationmark_circle,
-                color: Color(0xFFEA580C),
+                color: AppColors.danger,
                 size: 32,
               ),
             ),
@@ -536,7 +537,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
             Text(
               _errorMessage!,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: Color(0xFF9A3412)),
+              style: TextStyle(fontSize: 14, color: AppColors.dangerDark),
             ),
             const SizedBox(height: 24),
             Container(
@@ -779,7 +780,7 @@ class _LoadingViewState extends State<_LoadingView>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final colorScheme = Theme.of(context).colorScheme;
-    const accent = Color(0xFF6366F1);
+    const accent = AppColors.primary;
     final hasProgress = widget.progressText != null;
     return Center(
       child: SingleChildScrollView(

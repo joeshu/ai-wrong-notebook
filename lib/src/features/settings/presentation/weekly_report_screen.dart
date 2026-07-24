@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -246,12 +247,12 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               const Icon(Icons.error_outline,
-                  size: 48, color: Colors.red),
+                  size: 48, color: AppColors.danger),
               const SizedBox(height: 12),
               Text(
                 '生成失败：$_error',
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
+                style: const TextStyle(color: AppColors.danger),
               ),
               const SizedBox(height: 16),
               OutlinedButton(
