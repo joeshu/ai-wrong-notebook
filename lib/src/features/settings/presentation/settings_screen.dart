@@ -30,7 +30,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final reminderEnabled = ref.watch(reviewReminderEnabledProvider);
     final colorScheme = Theme.of(context).colorScheme;
