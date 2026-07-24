@@ -56,8 +56,26 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   /// 待复习列表的滚动控制器，用于支持「下一题」自动滚动。
   final ScrollController _pendingScrollController = ScrollController();
 
+  /// 整体进度卡片是否可见：向下滚动浏览题目时自动收起，回到顶部时再现。
+  bool _summaryVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingScrollController.addListener(_onPendingScroll);
+  }
+
+  void _onPendingScroll() {
+    // 滚动超过一屏高度的一半即认为进入「浏览题目」状态，收起进度卡片。
+    final shouldShow = _pendingScrollController.offset <= 240;
+    if (shouldShow != _summaryVisible && mounted) {
+      setState(() => _summaryVisible = shouldShow);
+    }
+  }
+
   @override
   void dispose() {
+    _pendingScrollController.removeListener(_onPendingScroll);
     _pendingScrollController.dispose();
     super.dispose();
   }
@@ -317,18 +335,32 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
             ),
             body: Column(
               children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.sm),
-                  child: _SummaryCard(
-                    total: questions.length,
-                    pending: pending.length,
-                    scheduled: scheduled.length,
-                    reviewedToday: reviewedToday,
-                    todayTarget: todayTarget,
-                    last7DaysReviews: last7DaysReviews,
-                    masteryRate: masteryRate,
-                    streakDays: streakDays,
+                AnimatedSwitcher(
+                  duration: AppMotion.fast,
+                  switchInCurve: AppMotion.standard,
+                  switchOutCurve: AppMotion.standard,
+                  transitionBuilder: (child, animation) => SizeTransition(
+                    sizeFactor: animation,
+                    axisAlignment: -1,
+                    child: FadeTransition(opacity: animation, child: child),
                   ),
+                  child: _summaryVisible
+                      ? Padding(
+                          key: const ValueKey('summary'),
+                          padding: const EdgeInsets.fromLTRB(
+                              AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.sm),
+                          child: _SummaryCard(
+                            total: questions.length,
+                            pending: pending.length,
+                            scheduled: scheduled.length,
+                            reviewedToday: reviewedToday,
+                            todayTarget: todayTarget,
+                            last7DaysReviews: last7DaysReviews,
+                            masteryRate: masteryRate,
+                            streakDays: streakDays,
+                          ),
+                        )
+                      : const SizedBox.shrink(key: ValueKey('summary-hidden')),
                 ),
                 // Phase 7-1：复习模式选择 + 薄弱点专项入口。
                 _ReviewModeBar(
@@ -1163,10 +1195,6 @@ class _ReviewCardState extends ConsumerState<_ReviewCard> {
             child: MathContentView(answer, contentFormat: widget.question.contentFormat),
           ),
         ],
-        const SizedBox(height: AppSpace.sm),
-        Text('回忆结果', style: AppTextStyle.apply(AppTextStyle.label).copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        )),
         const SizedBox(height: AppSpace.xs),
         Row(
           children: <Widget>[
@@ -1235,7 +1263,7 @@ class _RateButton extends StatelessWidget {
         child: AnimatedContainer(
           duration: AppMotion.micro,
           curve: AppMotion.standard,
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: disabled
                 ? (isDark ? AppColors.slateContainerDark : AppColors.slateContainerLight)
@@ -1245,23 +1273,24 @@ class _RateButton extends StatelessWidget {
                   ? Colors.transparent
                   : color.withValues(alpha: isDark ? 0.4 : 0.32),
             ),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: loading
               ? const SizedBox(
-                  height: 18,
-                  width: 18,
+                  height: 16,
+                  width: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Icon(meta.$2, size: 20, color: color),
-                    const SizedBox(height: 4),
+                    Icon(meta.$2, size: 17, color: color),
+                    const SizedBox(height: 2),
                     Text(
                       meta.$3,
-                      style: AppTextStyle.apply(AppTextStyle.label).copyWith(
+                      style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
                         color: color,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
@@ -1338,24 +1367,6 @@ class _ReviewCardContent extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: <Color>[
-                    question.subject.color.withValues(alpha: 0.18),
-                    question.subject.color.withValues(alpha: 0.08),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(question.subject.icon,
-                  size: 20, color: question.subject.color),
-            ),
-            const SizedBox(width: AppSpace.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
