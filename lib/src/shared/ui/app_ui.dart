@@ -195,10 +195,11 @@ class _AppInfoSectionState extends State<AppInfoSection> {
       ],
     );
 
-    final resolvedBorder = widget.borderColor ??
-        (isDark
-            ? widget.iconColor.withValues(alpha: 0.28)
-            : const Color(0xFFC7D2FE));
+    // 深色模式下忽略调用方传入的浅色边框，改用图标主色低透明描边，
+    // 避免浅蓝/浅橙/浅绿边框在深色背景上突兀；浅色保持原色以区分区块色调。
+    final resolvedBorder = isDark
+        ? widget.iconColor.withValues(alpha: 0.28)
+        : (widget.borderColor ?? const Color(0xFFC7D2FE));
     return AppCard(
       borderRadius: AppRadius.large,
       backgroundColor: isDark ? colorScheme.surface : widget.backgroundColor,

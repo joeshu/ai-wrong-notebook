@@ -242,15 +242,14 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
               backgroundColor: AppColors.dangerContainerLight,
               borderColor: const Color(0xFFFECACA),
               title: '第 ${activeCandidate?.order ?? 1}题解析失败',
-              titleColor: const Color(0xFFB91C1C),
+              titleColor: isDark ? AppColors.dangerLight : AppColors.dangerDark,
               child: MathContentView(
                 activeCandidateAnalysis?.errorMessage?.isNotEmpty == true
                     ? '已自动重试，仍未成功。该题暂不可保存，可返回重新解析。\n${activeCandidateAnalysis!.errorMessage}'
                     : '已自动重试，仍未成功。该题暂不可保存，可返回重新解析。',
                 style: TextStyle(
                   fontSize: 14,
-                  color:
-                      isDark ? colorScheme.onSurface : const Color(0xFFB91C1C),
+                  color: isDark ? AppColors.dangerLight : AppColors.dangerDark,
                   height: 1.5,
                 ),
               ),
@@ -384,9 +383,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     displayResult.finalAnswer,
                     style: TextStyle(
                         fontSize: 14,
-                        color: isDark
-                            ? colorScheme.onSurface
-                            : const Color(0xFF15803D),
+                        color: isDark ? AppColors.successLight : const Color(0xFF15803D),
                         fontWeight: FontWeight.w600),
                   ),
                   if (_consistencyNotice(displayResult) != null) ...<Widget>[
@@ -411,9 +408,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                 displayResult.mistakeReason,
                 style: TextStyle(
                     fontSize: 14,
-                    color: isDark
-                        ? colorScheme.onSurface
-                        : const Color(0xFFC2410C),
+                    color: isDark ? AppColors.dangerLight : const Color(0xFFC2410C),
                     height: 1.5),
               ),
             ),
@@ -425,14 +420,12 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
               backgroundColor: AppColors.accentAmberContainerLight,
               borderColor: const Color(0xFFFDE68A),
               title: '学习建议',
-              titleColor: const Color(0xFF92400E),
+              titleColor: isDark ? AppColors.accentAmber : const Color(0xFF92400E),
               child: MathContentView(
                 displayResult.studyAdvice,
                 style: TextStyle(
                     fontSize: 14,
-                    color: isDark
-                        ? colorScheme.onSurface
-                        : const Color(0xFFB45309),
+                    color: isDark ? AppColors.accentAmber : const Color(0xFFB45309),
                     height: 1.5),
               ),
             ),
@@ -444,7 +437,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                 backgroundColor: AppColors.accentTealContainerLight,
                 borderColor: const Color(0xFF99F6E4),
                 title: '当前子题状态',
-                titleColor: const Color(0xFF115E59),
+                titleColor: isDark ? AppColors.accentTealLight : const Color(0xFF115E59),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -452,9 +445,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                       candidateInsight,
                       style: TextStyle(
                           fontSize: 13,
-                          color: isDark
-                              ? colorScheme.onSurface
-                              : const Color(0xFF134E4A),
+                          color: isDark ? AppColors.accentTealLight : const Color(0xFF134E4A),
                           height: 1.5),
                     ),
                     const SizedBox(height: AppSpace.sm),
@@ -483,21 +474,11 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: displayKnowledgePoints
-                    .map((p) => Container(
+                    .map((p) => AppCard(
                           margin: const EdgeInsets.only(bottom: AppSpace.xs + 2),
                           padding: const EdgeInsets.symmetric(
                               horizontal: AppSpace.sm + 2, vertical: AppSpace.xs + 1),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? colorScheme.surface
-                                : AppColors.primaryContainerLight,
-                            borderRadius: BorderRadius.circular(AppRadius.small),
-                            border: Border.all(
-                              color: isDark
-                                  ? colorScheme.outlineVariant
-                                  : const Color(0xFFC7D2FE),
-                            ),
-                          ),
+                          borderRadius: AppRadius.small,
                           child: MathContentView(
                             p,
                             style: TextStyle(
@@ -520,20 +501,10 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                       .titleSmall
                       ?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: AppSpace.sm + 2),
-              ...displayResult.steps.asMap().entries.map((e) => Container(
+              ...displayResult.steps.asMap().entries.map((e) => AppCard(
                     margin: const EdgeInsets.only(bottom: AppSpace.sm + 2),
                     padding: const EdgeInsets.all(AppSpace.md),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? colorScheme.surface
-                          : const Color(0xFFFAFAFF),
-                      borderRadius: BorderRadius.circular(AppRadius.medium),
-                      border: Border.all(
-                        color: isDark
-                            ? colorScheme.outlineVariant
-                            : const Color(0xFFE0E7FF),
-                      ),
-                    ),
+                    borderRadius: AppRadius.medium,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
@@ -541,19 +512,15 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                           width: 24,
                           height: 24,
                           decoration: BoxDecoration(
-                            color: isDark
-                                ? colorScheme.primary.withValues(alpha: 0.14)
-                                : AppColors.primaryContainerLight,
+                            gradient: AppGradients.primaryHorizontal,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Center(
                               child: Text('${e.key + 1}',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                       fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark
-                                          ? colorScheme.primary
-                                          : AppColors.primaryDark))),
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white))),
                         ),
                         const SizedBox(width: AppSpace.sm + 2),
                         Expanded(
@@ -598,15 +565,9 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
               const SizedBox(height: AppSpace.sm + 2),
               ...displayExercises.map((e) => Padding(
                     padding: const EdgeInsets.only(bottom: AppSpace.sm),
-                    child: Container(
+                    child: AppCard(
                       padding: const EdgeInsets.all(AppSpace.md),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surface,
-                        borderRadius: BorderRadius.circular(AppRadius.medium),
-                        border: Border.all(
-                            color:
-                                Theme.of(context).colorScheme.outlineVariant),
-                      ),
+                      borderRadius: AppRadius.medium,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
