@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
@@ -43,6 +43,13 @@ ReviewLog _reviewLog(String questionId) {
 }
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      AiAnalysisService.diagnosticsRawResponseEnabledKey: false,
+      AiAnalysisService.diagnosticsRawRetentionDaysKey: 7,
+    });
+  });
+
   testWidgets('shows review log count and clears questions with logs',
       (tester) async {
     final questionRepository = InMemoryQuestionRepository();
@@ -103,5 +110,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('0 题'), findsOneWidget);
     expect(find.text('0 条'), findsOneWidget);
+  });
+
+  testWidgets('shows ai diagnostics controls with safe defaults',
+      (tester) async {
+    final questionRepository = InMemoryQuestionRepository();
+    final reviewLogRepository = InMemoryReviewLogRepository();
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: <Override>[
+        questionRepositoryProvider.overrideWithValue(questionRepository),
+        reviewLogRepositoryProvider.overrideWithValue(reviewLogRepository),
+      ],
+      child: const MaterialApp(home: DataManagementScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('AI 诊断数据'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('保存原始 AI 响应用于诊断'), findsOneWidget);
+    expect(find.text('默认关闭；仅保存长度、指纹、修复策略与采集时间等安全摘要'),
+        findsOneWidget);
+    expect(find.text('原始响应保留天数'), findsOneWidget);
+    expect(find.text('7 天'), findsOneWidget);
+    expect(find.text('清理 AI 原始响应'), findsOneWidget);
   });
 }

@@ -42,10 +42,27 @@ When raw retention is enabled explicitly, the raw response can be attached to di
 - Raw cleanup does not remove fingerprints, lengths, or repair metadata.
 - Legacy records without diagnostics remain valid.
 
+## 1D fast-close additions
+
+To close Phase 1D quickly without growing a separate diagnostics product surface, the data-management flow adds the minimum operational controls:
+
+- Data Management now exposes an **AI diagnostics data** section.
+- A user-facing toggle controls whether raw AI responses are retained for debugging.
+- Retention days can be set with bounded preset values.
+- A manual cleanup action removes only raw response bodies while preserving safe fingerprints and summary metadata.
+- Opening the Data Management screen silently expires overdue raw responses.
+
+## Close-out boundary
+
+Phase 1D intentionally stops here:
+
+- keep the privacy-safe summary permanently available for debugging
+- keep raw response retention opt-in and time-bounded
+- support both automatic expiry and manual cleanup
+- avoid building a full diagnostics viewer/exporter in this phase
+
 ## Deferred
 
-- Settings UI toggle for raw retention
-- Data management button to clear diagnostics
 - Dedicated diagnostics export screen
 - Provider-specific request/response correlation IDs
 - Raw extraction diagnostics for OCR responses

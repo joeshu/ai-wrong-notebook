@@ -17,7 +17,21 @@ void main() {
     expect(diagnostics.contentLength, 999);
   });
 
-  test('expireRawResponses keeps unexpired raw response', () {
+  test('stripRawResponses leaves record unchanged when no raw response exists', () {
+    final record = _record(raw: 'raw').copyWith(
+      analysisResult: _record(raw: 'raw')
+          .analysisResult!
+          .copyWith(responseDiagnostics: _record(raw: 'raw')
+              .analysisResult!
+              .responseDiagnostics!
+              .withoutRawResponse()),
+    );
+
+    final stripped = service.stripRawResponses(record);
+
+    expect(identical(stripped, record), isTrue);
+  });
+
     final kept = service.expireRawResponses(
       _record(raw: 'raw', capturedAt: DateTime.utc(2026, 7, 25)),
       now: DateTime.utc(2026, 7, 26),

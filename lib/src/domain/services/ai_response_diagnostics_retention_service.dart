@@ -29,14 +29,23 @@ class AiResponseDiagnosticsRetentionService {
     AnalysisResult Function(AnalysisResult) mapper,
   ) {
     final analysis = record.analysisResult;
-    final mappedAnalysis = analysis == null ? null : mapper(analysis);
+    var changed = false;
+    AnalysisResult? mappedAnalysis;
+    if (analysis != null) {
+      mappedAnalysis = mapper(analysis);
+      changed = !identical(mappedAnalysis, analysis);
+    }
     final mappedCandidates = record.candidateAnalyses
         .map((candidate) {
           final candidateAnalysis = candidate.analysisResult;
           if (candidateAnalysis == null) return candidate;
-          return candidate.copyWith(analysisResult: mapper(candidateAnalysis));
+          final mapped = mapper(candidateAnalysis);
+          if (identical(mapped, candidateAnalysis)) return candidate;
+          changed = true;
+          return candidate.copyWith(analysisResult: mapped);
         })
         .toList(growable: false);
+    if (!changed) return record;
     return record.copyWith(
       analysisResult: mappedAnalysis,
       candidateAnalyses: mappedCandidates,
