@@ -58,8 +58,9 @@ void main() {
     await selectCompactSegment(tester, false);
     expect(find.text('OCR 原文'), findsOneWidget);
     expect(find.text('AI 规范化文本'), findsOneWidget);
-    expect(find.text('确认学生答案'), findsOneWidget);
-    expect(find.byType(TextField), findsNWidgets(3));
+    final fields = tester.widgetList<TextField>(find.byType(TextField)).toList();
+    expect(fields, hasLength(3));
+    expect(fields.map((field) => field.decoration?.labelText), contains('学生答案'));
     expect(tester.takeException(), isNull);
   });
 

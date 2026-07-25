@@ -372,10 +372,10 @@ class _StrategyCard extends StatelessWidget {
       button: true,
       label: '${preset.label}模型策略',
       child: Material(
-        key: Key('model-strategy-${preset.name}'),
         color: selected ? scheme.primaryContainer : scheme.surface,
         borderRadius: BorderRadius.circular(AppRadius.medium),
         child: InkWell(
+          key: Key('model-strategy-${preset.name}'),
           onTap: saving ? null : onTap,
           borderRadius: BorderRadius.circular(AppRadius.medium),
           child: Container(

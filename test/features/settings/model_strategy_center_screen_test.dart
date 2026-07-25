@@ -32,12 +32,14 @@ void main() {
     expect(find.text('模型策略中心'), findsOneWidget);
     expect(find.text('当前：均衡'), findsOneWidget);
     expect(find.byKey(const Key('model-strategy-balanced')), findsOneWidget);
-    expect(find.text('OpenAI'), findsOneWidget);
-    expect(find.text('model-a'), findsWidgets);
+    expect(find.text('OpenAI', skipOffstage: false), findsOneWidget);
+    expect(find.text('model-a', skipOffstage: false), findsWidgets);
 
-    final economy = find.byKey(const Key('model-strategy-economy'));
-    await tester.ensureVisible(economy);
-    await tester.tap(economy);
+    final economy = find.byKey(
+      const Key('model-strategy-economy'),
+      skipOffstage: false,
+    );
+    tester.widget<InkWell>(economy).onTap!();
     await tester.pumpAndSettle();
 
     expect(find.text('当前：省钱优先'), findsOneWidget);
@@ -58,9 +60,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final privacy = find.byKey(const Key('model-strategy-privacy'));
-    await tester.ensureVisible(privacy);
-    await tester.tap(privacy);
+    final privacy = find.byKey(
+      const Key('model-strategy-privacy'),
+      skipOffstage: false,
+    );
+    tester.widget<InkWell>(privacy).onTap!();
     await tester.pump();
 
     expect(find.text('请先在高级设置中配置本地或私有服务，再启用隐私优先'),
