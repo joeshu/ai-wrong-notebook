@@ -20,7 +20,19 @@ jobs:
       - run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+        shell: bash
+        run: |
+          set +e
+          flutter analyze --machine --no-fatal-warnings --no-fatal-infos > analyzer.txt 2>&1
+          status=$?
+          while IFS= read -r message; do
+            [[ "$message" != *"error •"* ]] && continue
+            message=${message//'%'/'%25'}
+            message=${message//$'\r'/'%0D'}
+            message=${message//$'\n'/'%0A'}
+            echo "::error title=Flutter Analyzer::$message"
+          done < analyzer.txt
+          exit "$status"
 
       - name: Run tests
         run: flutter test
