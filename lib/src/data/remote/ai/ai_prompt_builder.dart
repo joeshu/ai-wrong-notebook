@@ -45,7 +45,7 @@ modelName 固定为 ${jsonEncode(modelName)}。
 schemaVersion, promptVersion, modelName, subject, confidence, uncertainties,
 evidence, mistakeCategory, originalQuestion, normalizedQuestion, studentAnswer,
 standardAnswer, solutionSteps, knowledgePoints, generatedExercises,
-mistakeReason, studyAdvice, aiTags, reviewPlan。
+mistakeReason, studyAdvice, aiTags, reviewPlan, specializedAnalysis。
 
 结构要求：
 - confidence: {"overall": 0.0, "fields": {"字段名": 0.0}}
@@ -54,6 +54,8 @@ mistakeReason, studyAdvice, aiTags, reviewPlan。
 - mistakeCategory: "concept|comprehension|calculation|strategy|format|careless" 或 null
 - generatedExercises: [{"id":"", "difficulty":"简单|同级|提高", "question":"", "options":["A. ","B. ","C. ","D. "], "answer":"A|B|C|D", "explanation":"", "diagramData":null}]
 - reviewPlan: {"reviewAfterDays": 0, "focus": [""], "reason": ""}
+- specializedAnalysis: 普通题返回 null；方程、方程组、几何或证明题返回 {"profile":"algebraEquation|equationSystem|geometry|proofArgument","givens":[],"goal":"","entities":[],"relations":[],"constraints":[],"reasoningSteps":[{"index":1,"statement":"","basis":"","dependsOn":[]}],"verification":[],"risks":[],"isModelProvided":true}
+- 方程必须在 verification 中给出代回原式的核对；几何步骤必须写定理依据；证明步骤 basis 为空时必须在 risks 标记依据缺失。
 ''';
 
   String buildFieldRepairPrompt({
@@ -140,6 +142,7 @@ ${studentAnswer.trim().isEmpty ? '（未提供）' : studentAnswer}
       'studyAdvice',
       'aiTags',
       'reviewPlan',
+      'specializedAnalysis',
     ],
     'properties': <String, dynamic>{
       'schemaVersion': <String, dynamic>{'type': 'integer', 'const': 2},
@@ -273,6 +276,70 @@ ${studentAnswer.trim().isEmpty ? '（未提供）' : studentAnswer}
           'reason': _stringSchema,
         },
       ),
+      'specializedAnalysis': <String, dynamic>{
+        'anyOf': <Map<String, dynamic>>[
+          _objectSchema(
+            required: const <String>[
+              'profile',
+              'givens',
+              'goal',
+              'entities',
+              'relations',
+              'constraints',
+              'reasoningSteps',
+              'verification',
+              'risks',
+              'isModelProvided',
+            ],
+            properties: <String, dynamic>{
+              'profile': <String, dynamic>{
+                'type': 'string',
+                'enum': <String>[
+                  'algebraEquation',
+                  'equationSystem',
+                  'geometry',
+                  'proofArgument',
+                ],
+              },
+              for (final key in <String>[
+                'givens',
+                'entities',
+                'relations',
+                'constraints',
+                'verification',
+                'risks',
+              ])
+                key: <String, dynamic>{
+                  'type': 'array',
+                  'items': _stringSchema,
+                },
+              'goal': _stringSchema,
+              'reasoningSteps': <String, dynamic>{
+                'type': 'array',
+                'items': _objectSchema(
+                  required: const <String>[
+                    'index',
+                    'statement',
+                    'basis',
+                    'dependsOn',
+                  ],
+                  properties: <String, dynamic>{
+                    'index': <String, dynamic>{'type': 'integer'},
+                    'statement': _stringSchema,
+                    'basis': _stringSchema,
+                    'dependsOn': <String, dynamic>{
+                      'type': 'array',
+                      'items': <String, dynamic>{'type': 'integer'},
+                    },
+                  },
+                ),
+              },
+              'isModelProvided': <String, dynamic>{'type': 'boolean'},
+            },
+          ),
+          <String, dynamic>{'type': 'null'},
+        ],
+      },
     },
   };
 

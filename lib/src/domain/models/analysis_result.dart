@@ -2,6 +2,7 @@ import 'ai_analysis_contract.dart';
 import 'ai_analysis_review.dart';
 import 'ai_response_diagnostics.dart';
 import 'mistake_category.dart';
+import 'specialized_analysis.dart';
 import 'subject.dart';
 
 enum AnalysisConsistencyStatus {
@@ -147,6 +148,7 @@ class AnalysisResult {
     this.reviewDecision = const AiAnalysisReviewDecision.unknown(),
     this.pipeline = const AiAnalysisPipelineSnapshot.notStarted(),
     this.responseDiagnostics,
+    this.specializedAnalysis,
   });
 
   factory AnalysisResult.fromJson(Map<String, dynamic> json) {
@@ -163,6 +165,7 @@ class AnalysisResult {
     final reviewDecisionJson = json['reviewDecision'];
     final pipelineJson = json['pipeline'];
     final diagnosticsJson = json['responseDiagnostics'];
+    final specializedJson = json['specializedAnalysis'];
     final standardAnswer = json['standardAnswer'] as String? ??
         json['finalAnswer'] as String? ??
         '';
@@ -233,6 +236,11 @@ class AnalysisResult {
       responseDiagnostics: diagnosticsJson is Map
           ? AiResponseDiagnostics.fromJson(
               Map<String, dynamic>.from(diagnosticsJson),
+            )
+          : null,
+      specializedAnalysis: specializedJson is Map
+          ? SpecializedAnalysis.fromJson(
+              Map<String, dynamic>.from(specializedJson),
             )
           : null,
     );
@@ -342,6 +350,7 @@ class AnalysisResult {
       'reviewDecision': reviewDecision.toJson(),
       'pipeline': pipeline.toJson(),
       'responseDiagnostics': responseDiagnostics?.toJson(),
+      'specializedAnalysis': specializedAnalysis?.toJson(),
     };
   }
 
@@ -379,6 +388,7 @@ class AnalysisResult {
   final AiAnalysisReviewDecision reviewDecision;
   final AiAnalysisPipelineSnapshot pipeline;
   final AiResponseDiagnostics? responseDiagnostics;
+  final SpecializedAnalysis? specializedAnalysis;
 
   bool get hasContractV2 =>
       schemaVersion >= AiAnalysisSchema.currentVersion && !isLegacyContract;
@@ -418,6 +428,7 @@ class AnalysisResult {
     AiAnalysisReviewDecision? reviewDecision,
     AiAnalysisPipelineSnapshot? pipeline,
     AiResponseDiagnostics? responseDiagnostics,
+    SpecializedAnalysis? specializedAnalysis,
   }) {
     return AnalysisResult(
       subject: subject ?? this.subject,
@@ -454,6 +465,7 @@ class AnalysisResult {
       reviewDecision: reviewDecision ?? this.reviewDecision,
       pipeline: pipeline ?? this.pipeline,
       responseDiagnostics: responseDiagnostics ?? this.responseDiagnostics,
+      specializedAnalysis: specializedAnalysis ?? this.specializedAnalysis,
     );
   }
 }

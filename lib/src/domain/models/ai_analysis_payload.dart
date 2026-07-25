@@ -5,6 +5,7 @@ import 'analysis_result.dart';
 import 'generated_exercise.dart';
 import 'mistake_category.dart';
 import 'question_record.dart';
+import 'specialized_analysis.dart';
 import 'subject.dart';
 
 class ParsedAnalysisResult extends AnalysisResult {
@@ -41,6 +42,7 @@ class ParsedAnalysisResult extends AnalysisResult {
     super.reviewDecision,
     super.pipeline,
     super.responseDiagnostics,
+    super.specializedAnalysis,
   });
 
   final String rawContent;
@@ -78,6 +80,7 @@ class ParsedAnalysisResult extends AnalysisResult {
     AiAnalysisReviewDecision? reviewDecision,
     AiAnalysisPipelineSnapshot? pipeline,
     AiResponseDiagnostics? responseDiagnostics,
+    SpecializedAnalysis? specializedAnalysis,
   }) {
     return ParsedAnalysisResult(
       rawContent: rawContent,
@@ -115,6 +118,7 @@ class ParsedAnalysisResult extends AnalysisResult {
       reviewDecision: reviewDecision ?? this.reviewDecision,
       pipeline: pipeline ?? this.pipeline,
       responseDiagnostics: responseDiagnostics ?? this.responseDiagnostics,
+      specializedAnalysis: specializedAnalysis ?? this.specializedAnalysis,
     );
   }
 }

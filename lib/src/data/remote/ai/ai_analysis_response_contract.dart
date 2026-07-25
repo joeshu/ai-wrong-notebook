@@ -1,4 +1,5 @@
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
+import 'package:smart_wrong_notebook/src/domain/models/specialized_analysis.dart';
 
 /// Versioned validation at the AI network boundary.
 ///
@@ -46,6 +47,15 @@ class AiAnalysisResponseContract {
     final reviewPlan = AiReviewPlan.fromJson(
       _requiredMap(result, 'reviewPlan'),
     );
+    final specializedRaw = result['specializedAnalysis'];
+    if (specializedRaw != null && specializedRaw is! Map) {
+      throw const FormatException('AI specializedAnalysis 必须是对象或 null');
+    }
+    final specializedAnalysis = specializedRaw is Map
+        ? SpecializedAnalysis.fromJson(
+            Map<String, dynamic>.from(specializedRaw),
+          )
+        : null;
 
     final subject = _requiredString(result, 'subject');
     final originalQuestion = _requiredString(result, 'originalQuestion');
@@ -128,6 +138,7 @@ class AiAnalysisResponseContract {
       ..['mistakeReason'] = mistakeReason
       ..['studyAdvice'] = studyAdvice
       ..['aiTags'] = aiTags
+      ..['specializedAnalysis'] = specializedAnalysis?.toJson()
       ..['isLegacyContract'] = false;
     return result;
   }
@@ -199,6 +210,7 @@ class AiAnalysisResponseContract {
       ..['modelName'] = ''
       ..['promptVersion'] = 'legacy-v1'
       ..['reviewPlan'] = null
+      ..['specializedAnalysis'] = null
       ..['isLegacyContract'] = true;
     return result;
   }

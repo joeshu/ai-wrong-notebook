@@ -19,6 +19,7 @@ import 'package:smart_wrong_notebook/src/shared/widgets/confidence_badge.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/features/analysis/presentation/specialized_analysis_section.dart';
 
 class AnalysisResultScreen extends ConsumerStatefulWidget {
   const AnalysisResultScreen({super.key});
@@ -316,6 +317,12 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                 ),
               ),
             ),
+            if (displayResult.specializedAnalysis != null) ...<Widget>[
+              const SizedBox(height: AppSpace.md),
+              SpecializedAnalysisSection(
+                analysis: displayResult.specializedAnalysis!,
+              ),
+            ],
             const SizedBox(height: AppSpace.sm),
             // 原题（包含图片和文本）
             AppInfoSection(

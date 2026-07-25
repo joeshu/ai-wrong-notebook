@@ -16,6 +16,7 @@ import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
+import 'package:smart_wrong_notebook/src/domain/models/specialized_analysis.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_payload.dart';
@@ -805,6 +806,23 @@ class AiAnalysisService {
         isLegacyContract: false,
       );
 
+  AnalysisResult _enrichSpecializedAnalysis(
+    AnalysisResult analysis,
+    String questionText,
+  ) {
+    const enricher = SpecializedAnalysisEnricher();
+    final specialized = enricher.enrich(
+      questionText: questionText,
+      solutionSteps: analysis.solutionSteps.isNotEmpty
+          ? analysis.solutionSteps
+          : analysis.steps,
+      modelAnalysis: analysis.specializedAnalysis,
+    );
+    return specialized == null
+        ? analysis
+        : analysis.copyWith(specializedAnalysis: specialized);
+  }
+
   Future<AnalysisResult> _applyResponseDiagnosticsRetentionPolicy(
     AnalysisResult analysis,
   ) async {
@@ -903,7 +921,10 @@ class AiAnalysisService {
           shouldAnalyzeImageFirst: shouldAnalyzeImageFirst,
         );
         return _finalizeAnalysisResult(_ensureAnalysisConsistency(
-          _stampAnalysisAudit(analysis, config.model),
+          _enrichSpecializedAnalysis(
+            _stampAnalysisAudit(analysis, config.model),
+            correctedText,
+          ),
           questionText: correctedText,
           subjectName: subjectName,
           imagePath: imagePath,
@@ -918,7 +939,10 @@ class AiAnalysisService {
         isCompositeLanguageAnalysis: isCompositeLanguageAnalysis,
       );
       return _finalizeAnalysisResult(_ensureAnalysisConsistency(
-        _stampAnalysisAudit(analysis, config.model),
+        _enrichSpecializedAnalysis(
+          _stampAnalysisAudit(analysis, config.model),
+          correctedText,
+        ),
         questionText: correctedText,
         subjectName: subjectName,
         imagePath: null,
@@ -2821,6 +2845,7 @@ class AiAnalysisService {
       reviewPlan: contractMetadata.reviewPlan,
       isLegacyContract: contractMetadata.isLegacyContract,
       responseDiagnostics: diagnostics,
+      specializedAnalysis: contractMetadata.specializedAnalysis,
     );
   }
 
