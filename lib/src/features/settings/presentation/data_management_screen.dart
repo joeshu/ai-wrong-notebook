@@ -46,6 +46,13 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   int _aiDiagnosticsRetentionDays =
       AiAnalysisService.defaultDiagnosticsRawRetentionDays;
   bool _aiDiagnosticsBusy = false;
+
+  int _sanitizeAiDiagnosticsRetentionDays(int? days) {
+    final value = days ?? AiAnalysisService.defaultDiagnosticsRawRetentionDays;
+    if (value < 1) return 1;
+    if (value > 30) return 30;
+    return value;
+  }
   /// 加密备份文件魔数 "WNB1"，用于识别加密格式。
   static final _encryptedMagic = <int>[0x57, 0x4E, 0x42, 0x31];
   _ImportUndo? _lastImport;
@@ -106,8 +113,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         _aiDiagnosticsRawEnabled =
             prefs.getBool(AiAnalysisService.diagnosticsRawResponseEnabledKey) ??
                 false;
-        _aiDiagnosticsRetentionDays = AiAnalysisService
-            .sanitizeDiagnosticsRawRetentionDays(
+        _aiDiagnosticsRetentionDays = _sanitizeAiDiagnosticsRetentionDays(
           prefs.getInt(AiAnalysisService.diagnosticsRawRetentionDaysKey),
         );
       });
@@ -134,8 +140,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   }
 
   Future<void> _setAiDiagnosticsRetentionDays(int days) async {
-    final sanitized =
-        AiAnalysisService.sanitizeDiagnosticsRawRetentionDays(days);
+    final sanitized = _sanitizeAiDiagnosticsRetentionDays(days);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(
