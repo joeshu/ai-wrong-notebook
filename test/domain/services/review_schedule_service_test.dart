@@ -69,6 +69,13 @@ void main() {
       service.isDue(_question(status: ContentStatus.processing), now: now),
       isFalse,
     );
+    expect(
+      service.isDue(
+        _question(status: ContentStatus.needsConfirmation),
+        now: now,
+      ),
+      isFalse,
+    );
   });
 
   // --- FSRS-4.5 行为 ---

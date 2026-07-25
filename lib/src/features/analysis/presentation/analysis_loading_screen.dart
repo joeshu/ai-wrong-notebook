@@ -1,19 +1,27 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
+import 'package:smart_wrong_notebook/src/domain/services/ai_analysis_review_policy.dart';
+import 'package:smart_wrong_notebook/src/domain/services/recognition_confirmation_policy.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/stage_indicator.dart';
 
 class AnalysisLoadingScreen extends ConsumerStatefulWidget {
@@ -29,7 +37,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
   String? _debugInfo;
   int _step = 0;
   String? _progressText;
-  Timer? _stepTimer;
   // 是否由极速模式进入（拍照后跳过裁剪/校对直接进入解析）。
   // 失败时若为 true，则提供"重新裁剪 / 重新拍照 / 取消"按钮。
   bool _isQuickCapture = false;
@@ -40,12 +47,11 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
   // 上层总超时阈值。超过 Dio receiveTimeout (240s) 即不合理，给一个更早的兜底。
   static const _analysisTimeout = Duration(seconds: 120);
 
-  final _steps = const ['正在识别题目...', '正在理解题意...', '正在生成解析...', '即将完成...'];
+  final _steps = const ['提取题目结构', '确认题目边界', '执行 AI 分析', '校验并保存'];
 
   @override
   void initState() {
     super.initState();
-    _animateSteps();
     // 先读取极速模式标记，再启动解析流程；避免 catch 块读到默认 false
     // 时显示错误的回退按钮组。
     _initQuickCaptureThenAnalyze();
@@ -69,24 +75,16 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     }
   }
 
-  void _animateSteps() {
-    _stepTimer?.cancel();
-    _stepTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_step < _steps.length - 1) {
-        setState(() => _step++);
-      } else {
-        timer.cancel();
-      }
+  void _reportStage(int step, String message) {
+    if (!mounted) return;
+    setState(() {
+      _step = step.clamp(0, _steps.length - 1).toInt();
+      _progressText = message;
     });
   }
 
   @override
   void dispose() {
-    _stepTimer?.cancel();
     _timeoutTimer?.cancel();
     super.dispose();
   }
@@ -101,7 +99,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       if (_errorMessage != null) return;
       setState(() {
         _isTimeout = true;
-        _stepTimer?.cancel();
         _errorMessage = '识别超时（已等待 ${_analysisTimeout.inSeconds} 秒）。'
             '可重试当前引擎，或切换到其他识别引擎。';
       });
@@ -152,7 +149,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     if (reusable != null) {
       ref.read(currentQuestionProvider.notifier).state = reusable;
       if (mounted) {
-        _stepTimer?.cancel();
         _clearTimeoutTimer();
         context.go('/analysis/result');
       }
@@ -184,7 +180,9 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       var working = current;
       final shouldAnalyzeImageDirectly = _shouldAnalyzeImageDirectly(working);
       if (working.normalizedQuestionText.isEmpty &&
-          !shouldAnalyzeImageDirectly) {
+          (!shouldAnalyzeImageDirectly ||
+              working.tags.contains(RecognitionConfirmationPolicy.requiredTag))) {
+        _reportStage(0, '正在从原图提取题干、选项与学生答案…');
         // 录入模式由 capture_entry_sheet 的模式选择器决定，默认 printed。
         final captureMode = ref.read(captureModeProvider);
         final extraction = await service.extractQuestionStructure(
@@ -205,7 +203,45 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         ref.read(currentQuestionProvider.notifier).state = working;
       }
 
+      // Recognition confirmation is a hard gate before problem solving. Worksheet
+      // candidates have already passed the shared region workbench and therefore
+      // continue through the automatic queue without a duplicate prompt.
+      final worksheetAuto = ref.read(worksheetAutoAnalyzeProvider);
+      if (working.analysisResult == null &&
+          working.tags.contains(RecognitionConfirmationPolicy.requiredTag) &&
+          working.contentStatus == ContentStatus.processing &&
+          !worksheetAuto) {
+        final autoConfirm = (await SharedPreferences.getInstance())
+                .getBool('recognition_high_confidence_auto_confirm') ??
+            false;
+        final text = working.normalizedQuestionText.trim();
+        final formulaMarkers = RegExp(r'\$').allMatches(text).length;
+        final safeHighConfidence = autoConfirm &&
+            (working.ocrConfidence ?? 0) >= .85 &&
+            text.isNotEmpty &&
+            formulaMarkers.isEven &&
+            File(working.imagePath).existsSync();
+        if (!safeHighConfidence) {
+          final pending = working.copyWith(
+            contentStatus: ContentStatus.needsConfirmation,
+          );
+          await ref.read(questionRepositoryProvider).saveDraft(pending);
+          ref.read(currentQuestionProvider.notifier).state = pending;
+          _clearTimeoutTimer();
+          if (mounted) context.go('/capture/recognition-confirmation');
+          return;
+        }
+        working = working.copyWith(
+          contentStatus: ContentStatus.analyzing,
+          tags: working.tags
+              .where((tag) => tag != RecognitionConfirmationPolicy.requiredTag)
+              .toList(growable: false),
+        );
+        ref.read(currentQuestionProvider.notifier).state = working;
+      }
+
       if (!(working.splitResult?.hasMultipleCandidates ?? false)) {
+        _reportStage(1, '正在检查题目结构与多题边界…');
         final splitSeed = _splitSeedText(working);
         if (splitSeed.isNotEmpty) {
           final splitResult = await service.splitQuestionCandidates(
@@ -225,8 +261,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         final totalCandidates = working.splitResult!.candidates.length;
         if (mounted) {
           setState(() {
-            _stepTimer?.cancel();
-            _progressText = '正在并行分析 $totalCandidates 道题...';
+                _progressText = '正在并行分析 $totalCandidates 道题...';
           });
         }
         candidateSnapshots = await service.analyzeSplitCandidates(
@@ -265,6 +300,9 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       }
 
       AnalysisResult analysis;
+      _reportStage(2, firstSuccessfulCandidate != null
+          ? '正在汇总各题真实分析结果…'
+          : '正在调用 AI 生成解析与错因…');
       if (firstSuccessfulCandidate != null) {
         analysis = firstSuccessfulCandidate.analysisResult!;
       } else {
@@ -273,6 +311,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
             correctedText: textForAnalysis,
             subjectName: working.subject.name,
             imagePath: shouldUseImageForAnalysis ? working.imagePath : null,
+            studentAnswer: working.studentAnswer ?? '',
           );
         } on AiAnalysisException {
           // 视觉模型失败时，已校对的文字题仍有可用价值。退回文本分析，
@@ -286,6 +325,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
             correctedText: fallbackText,
             subjectName: working.subject.name,
             imagePath: null,
+            studentAnswer: working.studentAnswer ?? '',
           );
         }
       }
@@ -312,41 +352,102 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
                   sourceQuestionText: working.correctedText,
                 ));
 
+      _reportStage(3, '正在校验字段置信度并写入安全结果…');
+      const reviewPolicy = AiAnalysisReviewPolicy();
+      final hasStudentAnswer = (working.studentAnswer ?? '').trim().isNotEmpty;
+      var reviewDecision = reviewPolicy.evaluate(
+        analysis,
+        hasStudentAnswer: hasStudentAnswer,
+      );
+
+      final reviewedCandidates = candidateSnapshots.map((payload) {
+        final candidateAnalysis = payload.analysisResult;
+        if (candidateAnalysis == null) {
+          return CandidateAnalysisSnapshot(
+            candidateId: payload.candidateId,
+            order: payload.order,
+            questionText: payload.questionText,
+            analysisResult: null,
+            savedExercises: payload.savedExercises,
+            subject: payload.subject,
+            aiTags: payload.aiTags,
+            aiKnowledgePoints: payload.aiKnowledgePoints,
+            status: payload.status,
+            errorMessage: payload.errorMessage,
+          );
+        }
+        final decision = reviewPolicy.evaluate(
+          candidateAnalysis,
+          hasStudentAnswer: hasStudentAnswer,
+        );
+        final reviewed = candidateAnalysis.copyWith(
+          reviewDecision: decision,
+          pipeline: reviewPolicy.completedPipeline(decision),
+        );
+        return CandidateAnalysisSnapshot(
+          candidateId: payload.candidateId,
+          order: payload.order,
+          questionText: payload.questionText,
+          analysisResult: reviewed,
+          savedExercises: payload.savedExercises,
+          subject: payload.subject,
+          aiTags: payload.aiTags,
+          aiKnowledgePoints: payload.aiKnowledgePoints,
+          status: payload.status,
+          errorMessage: payload.errorMessage,
+        );
+      }).toList(growable: false);
+
+      final candidateReviews = reviewedCandidates
+          .map((candidate) => candidate.analysisResult?.reviewDecision)
+          .whereType<AiAnalysisReviewDecision>()
+          .where((decision) => decision.requiresConfirmation)
+          .toList(growable: false);
+      if (candidateReviews.isNotEmpty) {
+        reviewDecision = AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: <String>{
+            ...reviewDecision.fields,
+            for (final decision in candidateReviews) ...decision.fields,
+          }.toList(growable: false)..sort(),
+          reasons: <String>{
+            ...reviewDecision.reasons,
+            for (final decision in candidateReviews) ...decision.reasons,
+          }.toList(growable: false),
+          evaluatedAt: DateTime.now(),
+        );
+      }
+      final reviewedAnalysis = analysis.copyWith(
+        reviewDecision: reviewDecision,
+        pipeline: reviewPolicy.completedPipeline(reviewDecision),
+      );
+      final contentStatus = reviewDecision.requiresConfirmation
+          ? ContentStatus.needsConfirmation
+          : ContentStatus.ready;
+
       final updated = working
           .copyWith(
-            contentStatus: ContentStatus.ready,
-            analysisResult: analysis,
+            contentStatus: contentStatus,
+            analysisResult: reviewedAnalysis,
             savedExercises: generatedExercises,
-            subject: analysis.subject ?? working.subject,
-            aiTags: analysis.aiTags,
-            aiKnowledgePoints: analysis.knowledgePoints,
+            subject: reviewedAnalysis.subject ?? working.subject,
+            aiTags: reviewedAnalysis.aiTags,
+            aiKnowledgePoints: reviewedAnalysis.knowledgePoints,
             aiReconstructedText: aiReconstructed,
-            candidateAnalyses: candidateSnapshots.map((payload) {
-              return CandidateAnalysisSnapshot(
-                candidateId: payload.candidateId,
-                order: payload.order,
-                questionText: payload.questionText,
-                analysisResult: payload.analysisResult,
-                savedExercises: payload.savedExercises,
-                subject: payload.subject,
-                aiTags: payload.aiTags,
-                aiKnowledgePoints: payload.aiKnowledgePoints,
-                status: payload.status,
-                errorMessage: payload.errorMessage,
-              );
-            }).toList(),
+            candidateAnalyses: reviewedCandidates,
           )
           .withLastAnalysisError(null);
       ref.read(currentQuestionProvider.notifier).state = updated;
       await _replaceWorksheetQueueItem(updated);
       _clearTimeoutTimer();
 
-      // Phase 4-C：AI 分析完成后，把知识点文本映射到受控节点，
-      // 未匹配的进入待确认队列供用户手动映射。后台执行不阻塞 UI。
-      _mapAnalysisKnowledgePoints(updated);
+      // Only trusted analyses enter the controlled knowledge tree automatically.
+      // Low-confidence results stay isolated until the user confirms them.
+      if (!reviewDecision.requiresConfirmation) {
+        _mapAnalysisKnowledgePoints(updated);
+      }
 
       if (mounted) {
-        _stepTimer?.cancel();
         final wasAutoQueue = ref.read(worksheetAutoAnalyzeProvider);
         if (_continueWorksheetQueue(updated)) return;
         if (wasAutoQueue) {
@@ -501,23 +602,32 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
           onPressed: () => context.go(_isQuickCapture ? '/' : '/capture/correction'),
         ),
       ),
-      body: _errorMessage != null
-          ? _buildErrorView()
-          : _LoadingView(
-              step: _step,
-              steps: _steps,
-              progressText: _progressText,
-            ),
+      body: AppPage(
+        maxWidth: AppContentWidth.narrow,
+        padding: EdgeInsets.zero,
+        child: _errorMessage != null
+            ? _buildRecoveryView()
+            : _AnalysisPipelineView(
+                step: _step,
+                steps: _steps,
+                progressText: _progressText,
+              ),
+      ),
     );
   }
 
-  Widget _buildErrorView() {
+  Widget _buildRecoveryView() {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppSpace.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            const AppTaskFlow(
+              steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+              currentStep: 2,
+            ),
+            const SizedBox(height: AppSpace.xl),
             Container(
               width: 64,
               height: 64,
@@ -605,27 +715,74 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
                     label: const Text('重新拍照'),
                   ),
                 ],
-              )
-            else
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  TextButton.icon(
-                    onPressed: () => context.go('/capture/correction'),
-                    icon: const Icon(CupertinoIcons.pencil),
-                    label: const Text('返回校对'),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => context.go('/notebook'),
-                    icon: const Icon(CupertinoIcons.book),
-                    label: const Text('查看已保存草稿'),
-                  ),
-                ],
               ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                TextButton.icon(
+                  onPressed: () => context.go('/capture/recognition-confirmation'),
+                  icon: const Icon(CupertinoIcons.pencil),
+                  label: const Text('手动录入'),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.go('/notebook'),
+                  icon: const Icon(CupertinoIcons.doc),
+                  label: const Text('保留草稿'),
+                ),
+                TextButton.icon(
+                  onPressed: _abandonAndCleanup,
+                  icon: const Icon(CupertinoIcons.trash),
+                  label: const Text('放弃并清理'),
+                  style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _abandonAndCleanup() async {
+    final current = ref.read(currentQuestionProvider);
+    if (current == null) {
+      if (mounted) context.go('/');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('放弃并清理草稿？'),
+        content: const Text('将删除当前题目的临时草稿；仅当裁剪图没有被其他题目引用时才删除图片。'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('确认清理')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final repository = ref.read(questionRepositoryProvider);
+    final others = (await repository.listAll()).where((item) => item.id != current.id).toList();
+    await repository.delete(current.id);
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet != null && worksheet.pages.any((item) => item.id == current.id)) {
+      await persistWorksheetImport(
+        ref,
+        worksheet.copyWith(
+          pages: worksheet.pages.where((item) => item.id != current.id).toList(),
+        ),
+      );
+    }
+    if (current.imagePath.isNotEmpty &&
+        !others.any((item) => item.imagePath == current.imagePath)) {
+      final image = File(current.imagePath);
+      if (await image.exists()) await image.delete();
+    }
+    ref.read(currentQuestionProvider.notifier).state = null;
+    invalidateQuestionList(ref);
+    if (mounted) context.go('/');
   }
 
   void _retry() {
@@ -635,7 +792,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       _step = 0;
     });
     _runAnalysis();
-    _animateSteps();
   }
 
   /// 弹出引擎选择器，让用户在普通 AI / PaddleOCR / MinerU 间切换。
@@ -742,8 +898,8 @@ enum _EngineChoice {
       };
 }
 
-class _LoadingView extends StatefulWidget {
-  const _LoadingView({
+class _AnalysisPipelineView extends StatefulWidget {
+  const _AnalysisPipelineView({
     required this.step,
     required this.steps,
     this.progressText,
@@ -754,20 +910,36 @@ class _LoadingView extends StatefulWidget {
   final String? progressText;
 
   @override
-  State<_LoadingView> createState() => _LoadingViewState();
+  State<_AnalysisPipelineView> createState() => _AnalysisPipelineViewState();
 }
 
-class _LoadingViewState extends State<_LoadingView>
+class _AnalysisPipelineViewState extends State<_AnalysisPipelineView>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  late final AnimationController _controller;
+  bool _reduced = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 3),
+      duration: AppMotion.progressLoop,
       vsync: this,
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduced = AppMotion.isReduced(context);
+    if (_reduced == reduced && (_controller.isAnimating || reduced)) return;
+    _reduced = reduced;
+    if (reduced) {
+      _controller
+        ..stop()
+        ..value = 0;
+    } else {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -784,18 +956,26 @@ class _LoadingViewState extends State<_LoadingView>
     final hasProgress = widget.progressText != null;
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(AppSpace.xxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            const AppTaskFlow(
+              steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+              currentStep: 2,
+            ),
+            const SizedBox(height: AppSpace.xxl),
             Container(
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: isDark
-                    ? accent.withValues(alpha: 0.18)
-                    : const Color(0xFFEEF2FF),
-                borderRadius: BorderRadius.circular(44),
+                color: AppColors.semanticContainer(
+                  accent,
+                  isDark: isDark,
+                  lightAlpha: 0.08,
+                  darkAlpha: 0.18,
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: AnimatedBuilder(
                 animation: _controller,
@@ -809,7 +989,7 @@ class _LoadingViewState extends State<_LoadingView>
             const SizedBox(height: 28),
             const CircularProgressIndicator(
               strokeWidth: 3,
-              color: Color(0xFF6366F1),
+              color: AppColors.primary,
             ),
             const SizedBox(height: 28),
             // 阶段进度条：4 个圆点 + 当前阶段高亮

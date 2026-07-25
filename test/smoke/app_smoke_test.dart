@@ -68,7 +68,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('今天，开始学习'), findsOneWidget);
+      expect(find.text('今天先推进最值钱的一步'), findsOneWidget);
       // 新增的「学习目标与打卡」入口卡片把「最近新增」挤出默认视口，需要滚动。
       await tester.scrollUntilVisible(
         find.text('最近新增'),

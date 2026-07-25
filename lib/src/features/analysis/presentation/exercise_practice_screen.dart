@@ -7,6 +7,9 @@ import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/widgets/geometry_diagram_widget.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
 class ExercisePracticeScreen extends ConsumerStatefulWidget {
@@ -120,7 +123,10 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
           onPressed: () => context.go(fallbackRoute),
         ),
       ),
-      body: Column(
+      body: AppPage(
+        maxWidth: AppContentWidth.standard,
+        padding: EdgeInsets.zero,
+        child: Column(
         children: <Widget>[
           LinearProgressIndicator(
             value: answeredCount / exercises.length,
@@ -289,7 +295,7 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
                               ),
                               if (answered && isCorrectAnswer)
                                 const Icon(CupertinoIcons.checkmark_circle,
-                                    color: Color(0xFF16A34A), size: 20)
+                                    color: AppColors.success, size: 20)
                               else if (answered && isSelected && !isCorrect)
                                 const Icon(CupertinoIcons.xmark_circle,
                                     color: Color(0xFFEA580C), size: 20),
@@ -433,6 +439,7 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -457,7 +464,9 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
           onPressed: () => context.go(fallbackRoute),
         ),
       ),
-      body: SafeArea(
+      body: AppPage(
+        maxWidth: AppContentWidth.standard,
+        padding: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -479,14 +488,13 @@ class _ExercisePracticeState extends ConsumerState<ExercisePracticeScreen> {
                           width: 68,
                           height: 68,
                           decoration: BoxDecoration(
-                            color:
-                                const Color(0xFF16A34A).withValues(alpha: 0.12),
+                            color: AppColors.success.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(34),
                           ),
                           child: const Icon(
                             CupertinoIcons.checkmark_circle_fill,
                             size: 38,
-                            color: Color(0xFF16A34A),
+                            color: AppColors.success,
                           ),
                         ),
                         const SizedBox(height: 18),

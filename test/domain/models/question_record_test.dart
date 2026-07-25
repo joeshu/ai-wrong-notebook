@@ -316,7 +316,7 @@ void main() {
       expect(kept.originalImageFilename, 'photo.jpg');
     });
 
-    test('ContentStatus 5 值 round-trip', () {
+    test('ContentStatus values round-trip', () {
       for (final status in ContentStatus.values) {
         final record = _base().copyWith(contentStatus: status);
         final restored = QuestionRecord.fromJson(record.toJson());

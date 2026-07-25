@@ -1,3 +1,4 @@
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/weekly_report_aggregator.dart';
 
 /// 生成学情周报 HTML 文档。
@@ -12,6 +13,7 @@ String generateWeeklyReportHtmlSync(
   WeeklyReportData data, {
   String? studentName,
   String? watermark,
+  AppVisualStyle visualStyle = AppVisualStyle.academic,
 }) {
   final buf = StringBuffer();
   buf.writeln('<!DOCTYPE html>');
@@ -23,6 +25,7 @@ String generateWeeklyReportHtmlSync(
   buf.writeln('<title>本周学情报告</title>');
   buf.writeln('<style>');
   buf.writeln(_buildCss());
+  buf.writeln(_buildVisualStyleCss(visualStyle));
   buf.writeln('</style>');
   buf.writeln('</head>');
   buf.writeln('<body>');
@@ -56,17 +59,74 @@ Future<String> generateWeeklyReportHtml(
   WeeklyReportData data, {
   String? studentName,
   String? watermark,
+  AppVisualStyle visualStyle = AppVisualStyle.academic,
 }) async {
   return generateWeeklyReportHtmlSync(
     data,
     studentName: studentName,
     watermark: watermark,
+    visualStyle: visualStyle,
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
 // CSS
 // ─────────────────────────────────────────────────────────────────────────
+
+String _buildVisualStyleCss(AppVisualStyle style) {
+  final (:accent, :accentSoft, :background, :surface, :border, :radius) =
+      switch (style) {
+    AppVisualStyle.academic => (
+        accent: '#4056C7',
+        accentSoft: '#EEF0FF',
+        background: '#F6F7FC',
+        surface: '#FFFFFF',
+        border: '#DDE1F2',
+        radius: '14px',
+      ),
+    AppVisualStyle.paper => (
+        accent: '#8A5A35',
+        accentSoft: '#F1E5D6',
+        background: '#F7F1E6',
+        surface: '#FFFDF8',
+        border: '#DCC9B3',
+        radius: '6px',
+      ),
+    AppVisualStyle.aurora => (
+        accent: '#6547D4',
+        accentSoft: '#EEE9FF',
+        background: '#F6F3FF',
+        surface: '#FFFFFF',
+        border: '#DAD0FF',
+        radius: '20px',
+      ),
+    AppVisualStyle.forest => (
+        accent: '#25735A',
+        accentSoft: '#E1F0E8',
+        background: '#F1F7F3',
+        surface: '#FCFFFD',
+        border: '#C8DED2',
+        radius: '12px',
+      ),
+  };
+  return '''
+:root {
+  --bg: $background;
+  --surface: $surface;
+  --border: $border;
+  --accent: $accent;
+  --accent-soft: $accentSoft;
+  --work-radius: $radius;
+}
+.stat-card { border-radius: var(--work-radius); }
+.cover h1::after {
+  content: " · ${style.label}";
+  font-size: 11pt;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+''';
+}
 
 String _buildCss() {
   return '''

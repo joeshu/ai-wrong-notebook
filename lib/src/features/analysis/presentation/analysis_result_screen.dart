@@ -4,7 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_patch.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
+import 'package:smart_wrong_notebook/src/domain/services/ai_analysis_confirmation_service.dart';
+import 'package:smart_wrong_notebook/src/domain/services/ai_analysis_review_policy.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
@@ -12,7 +18,9 @@ import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/confidence_badge.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/features/analysis/presentation/specialized_analysis_section.dart';
 
 class AnalysisResultScreen extends ConsumerStatefulWidget {
   const AnalysisResultScreen({super.key});
@@ -24,6 +32,8 @@ class AnalysisResultScreen extends ConsumerStatefulWidget {
 
 class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
   int _activeCandidateIndex = 0;
+  bool _isConfirming = false;
+  String? _repairingField;
 
   @override
   Widget build(BuildContext context) {
@@ -77,8 +87,11 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             hasIndependentAnalysis: activeCandidateAnalysis != null,
           )
         : null;
+    final requiresConfirmation =
+        displayResult?.reviewDecision.requiresConfirmation ?? false;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final analysisStyle = AppVisualTokens.of(context).style;
     final layoutProvider = record.tags
         .where((tag) => tag.startsWith('layout_provider:'))
         .map((tag) => tag.substring('layout_provider:'.length))
@@ -98,9 +111,41 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: AppPage(
+        maxWidth: AppContentWidth.wide,
+        padding: EdgeInsets.zero,
+        child: ListView(
+        cacheExtent: 4000,
         padding: const EdgeInsets.all(AppSpace.lg),
         children: <Widget>[
+          const AppTaskFlow(
+            steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+            currentStep: 2,
+          ),
+          const SizedBox(height: AppSpace.lg),
+          if (displayResult?.reviewDecision.requiresConfirmation ?? false) ...<Widget>[
+            _ReviewRequiredBanner(
+              decision: displayResult!.reviewDecision,
+              confidence: displayResult.confidence?.overall,
+              onConfirm: _isConfirming ||
+                      hasMultipleCandidates ||
+                      record.contentStatus != ContentStatus.needsConfirmation
+                  ? null
+                  : () => _confirmCurrentResult(record),
+              isConfirming: _isConfirming,
+            ),
+            const SizedBox(height: AppSpace.md),
+            _ReviewFieldPanel(
+              record: record,
+              result: displayResult,
+              actionsEnabled: !hasMultipleCandidates &&
+                  record.contentStatus == ContentStatus.needsConfirmation,
+              repairingField: _repairingField,
+              onEdit: (field) => _editReviewField(record, displayResult, field),
+              onRetry: (field) => _retryReviewField(record, displayResult, field),
+            ),
+            const SizedBox(height: AppSpace.md),
+          ],
           // 统一标签分类框：科目 | AI识别 | 状态 | 知识点
           Container(
             padding: const EdgeInsets.symmetric(
@@ -121,14 +166,14 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     AppTag(
                       label:
                           displayResult?.subject?.label ?? record.subject.label,
-                      textColor: AppColors.primaryDark,
-                      backgroundColor: AppColors.primaryContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.primary,
                     ),
                     if (displayResult?.subject != null)
-                      const AppTag(
+                      AppTag(
                         label: 'AI识别',
-                        textColor: AppColors.success,
-                        backgroundColor: AppColors.successContainerLight,
+                        useThemeTone: true,
+                        themeTone: AppTagTone.success,
                       ),
                     AppTag(
                       label: _masteryLabel(record.masteryLevel),
@@ -139,8 +184,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     if (layoutProvider.isNotEmpty)
                       AppTag(
                         label: '切题：$layoutProvider',
-                        textColor: AppColors.infoDark,
-                        backgroundColor: AppColors.infoContainerLight,
+                        useThemeTone: true,
+                        themeTone: AppTagTone.secondary,
                       ),
                   ],
                 ),
@@ -152,20 +197,20 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     children: <Widget>[
                       AppTag(
                         label: '候选 ${record.splitResult!.candidates.length} 题',
-                        textColor: AppColors.accentPurple,
-                        backgroundColor: AppColors.accentPurpleContainerLight,
+                        useThemeTone: true,
+                        themeTone: AppTagTone.tertiary,
                       ),
                       AppTag(
                         label:
                             _splitStrategyLabel(record.splitResult!.strategy),
-                        textColor: AppColors.slate,
-                        backgroundColor: AppColors.slateContainerLight,
+                        useThemeTone: true,
+                        themeTone: AppTagTone.neutral,
                       ),
                       if (activeCandidate != null)
                         AppTag(
                           label: '当前第 ${activeCandidate.order} 题',
-                          textColor: AppColors.accentAmber,
-                          backgroundColor: AppColors.accentAmberContainerLight,
+                          useThemeTone: true,
+                          themeTone: AppTagTone.warning,
                         ),
                     ],
                   ),
@@ -195,8 +240,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     children: displayAiTags
                         .map((tag) => AppTag(
                               label: tag,
-                              textColor: AppColors.accentAmber,
-                              backgroundColor: AppColors.accentAmberContainerLight,
+                              useThemeTone: true,
+                              themeTone: AppTagTone.warning,
                             ))
                         .toList(),
                   ),
@@ -216,8 +261,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     children: record.customTags
                         .map((t) => AppTag(
                               label: t,
-                              textColor: AppColors.primaryDark,
-                              backgroundColor: AppColors.primaryContainerLight,
+                              useThemeTone: true,
+                              themeTone: AppTagTone.primary,
                             ))
                         .toList(),
                   ),
@@ -256,15 +301,63 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             ),
           ],
           if (displayResult != null) ...<Widget>[
-            const SizedBox(height: AppSpace.lg + 4),
+            const SizedBox(height: AppSpace.lg),
+            _TenSecondSummary(
+              style: analysisStyle,
+              result: displayResult,
+              consistencyNotice: _consistencyNotice(displayResult),
+            ),
+            const SizedBox(height: AppSpace.md),
+            _AnalysisLayerHeader(
+              title: '展开学习',
+              subtitle: '以下内容默认收起，需要时再查看完整依据。',
+              icon: CupertinoIcons.book,
+            ),
+            const SizedBox(height: AppSpace.sm),
+            _StyledInsightSection(
+              style: analysisStyle,
+              title: '错误定位',
+              subtitle: switch (analysisStyle) {
+                AppVisualStyle.academic => '先明确错在哪里，再决定是补概念、补步骤还是补审题。',
+                AppVisualStyle.paper => '像批改作业一样，把真正失分点圈出来。',
+                AppVisualStyle.aurora => '优先锁定最核心的错误信号，减少无效信息。',
+                AppVisualStyle.forest => '先看这一题最需要修正的一点，不必一次背太多。',
+              },
+              icon: CupertinoIcons.scope,
+              tone: AppTagTone.warning,
+              collapsible: true,
+              initiallyExpanded: false,
+              child: MathContentView(
+                displayResult.mistakeReason,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? AppColors.warningLight : AppColors.warningDark,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (displayResult.specializedAnalysis != null) ...<Widget>[
+              const SizedBox(height: AppSpace.md),
+              SpecializedAnalysisSection(
+                analysis: displayResult.specializedAnalysis!,
+              ),
+            ],
+            const SizedBox(height: AppSpace.sm),
             // 原题（包含图片和文本）
-            AppInfoSection(
-              icon: CupertinoIcons.doc_text,
-              iconColor: AppColors.primary,
-              backgroundColor: AppColors.primaryContainerLight,
-              borderColor: const Color(0xFFC7D2FE),
+            _StyledInsightSection(
+              style: analysisStyle,
               title: '原题',
-              titleColor: AppColors.primaryDark,
+              subtitle: switch (analysisStyle) {
+                AppVisualStyle.academic => '核对题干、条件和作答对象，避免后续分析建立在错误前提上。',
+                AppVisualStyle.paper => '先把原题完整读清，再看后面的批注与结论。',
+                AppVisualStyle.aurora => '把输入源对齐，确保后续解析都基于同一道题。',
+                AppVisualStyle.forest => '先安静地把题目看一遍，别急着跳到结论。',
+              },
+              icon: CupertinoIcons.doc_text,
+              tone: AppTagTone.primary,
+              collapsible: true,
+              initiallyExpanded: false,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -351,31 +444,28 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             ),
             const SizedBox(height: AppSpace.sm + 2),
             // Answer
-            AppInfoSection(
-              icon: displayResult.visualAssumptionStatus ==
-                      VisualAssumptionStatus.needsReview
-                  ? CupertinoIcons.exclamationmark_triangle
-                  : CupertinoIcons.checkmark_circle,
-              iconColor: displayResult.visualAssumptionStatus ==
-                      VisualAssumptionStatus.needsReview
-                  ? AppColors.warning
-                  : AppColors.success,
-              backgroundColor: displayResult.visualAssumptionStatus ==
-                      VisualAssumptionStatus.needsReview
-                  ? AppColors.warningContainerLight
-                  : AppColors.successContainerLight,
-              borderColor: displayResult.visualAssumptionStatus ==
-                      VisualAssumptionStatus.needsReview
-                  ? const Color(0xFFFED7AA)
-                  : const Color(0xFFBBF7D0),
+            _StyledInsightSection(
+              style: analysisStyle,
               title: displayResult.visualAssumptionStatus ==
                       VisualAssumptionStatus.needsReview
                   ? '可能解法'
                   : '正确解答',
-              titleColor: displayResult.visualAssumptionStatus ==
+              subtitle: switch (analysisStyle) {
+                AppVisualStyle.academic => '先给结论，再核对依据和一致性。',
+                AppVisualStyle.paper => '把最后可采用的答案整理成可回看的结论。',
+                AppVisualStyle.aurora => '优先看 AI 最终输出与一致性信号。',
+                AppVisualStyle.forest => '只先关注这题最需要记住的结果。',
+              },
+              icon: displayResult.visualAssumptionStatus ==
                       VisualAssumptionStatus.needsReview
-                  ? AppColors.warningDark
-                  : AppColors.successDark,
+                  ? CupertinoIcons.exclamationmark_triangle
+                  : CupertinoIcons.checkmark_circle,
+              tone: displayResult.visualAssumptionStatus ==
+                      VisualAssumptionStatus.needsReview
+                  ? AppTagTone.warning
+                  : AppTagTone.success,
+              collapsible: true,
+              initiallyExpanded: false,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -395,32 +485,22 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: AppSpace.sm + 2),
-            // Mistake reason
-            AppInfoSection(
-              icon: CupertinoIcons.exclamationmark_triangle,
-              iconColor: AppColors.warning,
-              backgroundColor: AppColors.warningContainerLight,
-              borderColor: const Color(0xFFFED7AA),
-              title: '错因分析',
-              titleColor: AppColors.warningDark,
-              child: MathContentView(
-                displayResult.mistakeReason,
-                style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? AppColors.dangerLight : const Color(0xFFC2410C),
-                    height: 1.5),
-              ),
-            ),
+
             const SizedBox(height: AppSpace.sm + 2),
             // Study advice
-            AppInfoSection(
-              icon: CupertinoIcons.lightbulb,
-              iconColor: AppColors.accentAmber,
-              backgroundColor: AppColors.accentAmberContainerLight,
-              borderColor: const Color(0xFFFDE68A),
+            _StyledInsightSection(
+              style: analysisStyle,
               title: '学习建议',
-              titleColor: isDark ? AppColors.accentAmber : const Color(0xFF92400E),
+              subtitle: switch (analysisStyle) {
+                AppVisualStyle.academic => '把下一步练习动作压缩成可执行建议。',
+                AppVisualStyle.paper => '更像老师批注，告诉你这题之后该怎么练。',
+                AppVisualStyle.aurora => '把注意力收拢到最值得修正的一点。',
+                AppVisualStyle.forest => '减少负担，只看眼下最需要记住的提醒。',
+              },
+              icon: CupertinoIcons.lightbulb,
+              tone: AppTagTone.tertiary,
+              collapsible: true,
+              initiallyExpanded: false,
               child: MathContentView(
                 displayResult.studyAdvice,
                 style: TextStyle(
@@ -431,13 +511,17 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             ),
             if (candidateInsight != null) ...<Widget>[
               const SizedBox(height: AppSpace.sm + 2),
-              AppInfoSection(
-                icon: CupertinoIcons.layers,
-                iconColor: AppColors.accentTeal,
-                backgroundColor: AppColors.accentTealContainerLight,
-                borderColor: const Color(0xFF99F6E4),
+              _StyledInsightSection(
+                style: analysisStyle,
                 title: '当前子题状态',
-                titleColor: isDark ? AppColors.accentTealLight : const Color(0xFF115E59),
+                subtitle: switch (analysisStyle) {
+                  AppVisualStyle.academic => '当前查看的是切题后的独立分析结果。',
+                  AppVisualStyle.paper => '把这道子题单独拎出来，避免上下题信息混杂。',
+                  AppVisualStyle.aurora => '聚焦当前子题，不让多题内容干扰判断。',
+                  AppVisualStyle.forest => '先只看这一题，减少一次处理的信息量。',
+                },
+                icon: CupertinoIcons.layers,
+                tone: AppTagTone.secondary,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -492,46 +576,54 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     .toList(),
               ),
             ],
-            // Steps
+            // Detailed reasoning stays available without competing with the conclusion.
             if (displayResult.steps.isNotEmpty) ...<Widget>[
               const SizedBox(height: AppSpace.lg),
-              Text('解题步骤',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpace.sm + 2),
-              ...displayResult.steps.asMap().entries.map((e) => AppCard(
-                    margin: const EdgeInsets.only(bottom: AppSpace.sm + 2),
-                    padding: const EdgeInsets.all(AppSpace.md),
-                    borderRadius: AppRadius.medium,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            gradient: AppGradients.primaryHorizontal,
-                            borderRadius: BorderRadius.circular(12),
+              AppInfoSection(
+                icon: CupertinoIcons.list_number,
+                title: '详细解题步骤',
+                collapsible: true,
+                initiallyExpanded: false,
+                child: Column(
+                  children: displayResult.steps.asMap().entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.md),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Container(
+                            width: 24,
+                            height: 24,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(AppRadius.pill),
+                            ),
+                            child: Text(
+                              '${entry.key + 1}',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
                           ),
-                          child: Center(
-                              child: Text('${e.key + 1}',
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white))),
-                        ),
-                        const SizedBox(width: AppSpace.sm + 2),
-                        Expanded(
-                            child: MathContentView(e.value,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: colorScheme.onSurface,
-                                    height: 1.5))),
-                      ],
-                    ),
-                  )),
+                          const SizedBox(width: AppSpace.sm),
+                          Expanded(
+                            child: MathContentView(
+                              entry.value,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: colorScheme.onSurface,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(growable: false),
+                ),
+              ),
             ],
             // Exercises
             if (displayExercises.isNotEmpty) ...<Widget>[
@@ -647,14 +739,19 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             const SizedBox(height: AppSpace.xl),
           ],
         ],
+        ),
       ),
       bottomNavigationBar: displayResult == null
           ? null
           : SafeArea(
-              top: true,
+              top: false,
               child: Container(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.sm),
+                  AppSpace.xl,
+                  AppSpace.sm,
+                  AppSpace.xl,
+                  AppSpace.sm,
+                ),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   border: Border(
@@ -664,43 +761,64 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     ),
                   ),
                 ),
-                child: Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () =>
-                            _startPractice(record, activeCandidateAnalysis),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        child: const Text('开始练习'),
-                      ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: AppContentWidth.standard,
                     ),
-                    const SizedBox(width: AppSpace.md),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () async {
-                          final splitter = ref.read(questionSplitServiceProvider);
-                          ref
-                              .read(currentQuestionSplitSessionProvider.notifier)
-                              .state = await buildQuestionSplitSession(
-                            record,
-                            splitter: splitter,
-                          );
-                          if (!context.mounted) return;
-                          context.go('/capture/split-confirmation');
-                        },
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        child: const Text('保存到错题本'),
-                      ),
-                    ),
-                  ],
+                    child: requiresConfirmation
+                        ? FilledButton(
+                            onPressed: () => _openSaveFlow(record),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(
+                                AppControlSize.standard,
+                              ),
+                            ),
+                            child: const Text('保存为待确认'),
+                          )
+                        : Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => _openSaveFlow(record),
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(
+                                      AppControlSize.standard,
+                                    ),
+                                  ),
+                                  child: const Text('保存到错题本'),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpace.md),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => _startPractice(
+                                    record,
+                                    activeCandidateAnalysis,
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(
+                                      AppControlSize.standard,
+                                    ),
+                                  ),
+                                  child: const Text('开始练习'),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
               ),
             ),
     );
+  }
+
+  Future<void> _openSaveFlow(QuestionRecord record) async {
+    final splitter = ref.read(questionSplitServiceProvider);
+    ref.read(currentQuestionSplitSessionProvider.notifier).state =
+        await buildQuestionSplitSession(record, splitter: splitter);
+    if (!mounted) return;
+    context.go('/capture/split-confirmation');
   }
 
   Future<void> _confirmDiscard(QuestionRecord record) async {
@@ -733,6 +851,296 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
     invalidateQuestionList(ref);
     if (!mounted) return;
     context.go(worksheet == null ? '/' : '/worksheet/import');
+  }
+
+  Future<void> _editReviewField(
+    QuestionRecord record,
+    AnalysisResult result,
+    String fieldName,
+  ) async {
+    if (!_isEditableReviewField(fieldName)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_reviewFieldLabel(fieldName)} 暂不支持直接编辑')),
+      );
+      return;
+    }
+    final controller = TextEditingController(
+      text: _reviewFieldEditableValue(result, record, fieldName),
+    );
+    final edited = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('编辑${_reviewFieldLabel(fieldName)}'),
+        content: TextField(
+          key: ValueKey<String>('review-field-editor-$fieldName'),
+          controller: controller,
+          maxLines: fieldName == 'solutionSteps' || fieldName == 'knowledgePoints'
+              ? 8
+              : 5,
+          decoration: InputDecoration(
+            helperText: fieldName == 'solutionSteps' ||
+                    fieldName == 'knowledgePoints'
+                ? '每行一项'
+                : '请按核对后的内容填写',
+            border: const OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('保存修改'),
+          ),
+        ],
+      ),
+    );
+    // Do not dispose immediately after showDialog returns: the closing overlay
+    // animation can still rebuild the TextField for one frame in widget tests.
+    if (!mounted || edited == null) return;
+    final trimmed = edited.trim();
+    if (trimmed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('字段内容不能为空')),
+      );
+      return;
+    }
+
+    final updatedResult = _applyManualFieldEdit(result, fieldName, trimmed);
+    final affectedFields = _affectedFieldsAfterManualEdit(fieldName);
+    final decision = AiAnalysisReviewDecision(
+      disposition: AiAnalysisReviewDisposition.needsConfirmation,
+      fields: affectedFields,
+      reasons: <String>[
+        '用户编辑了${_reviewFieldLabel(fieldName)}，请核对后确认采用',
+      ],
+      evaluatedAt: DateTime.now(),
+    );
+    final reviewedResult = updatedResult.copyWith(
+      reviewDecision: decision,
+      pipeline: const AiAnalysisPipelineSnapshot(
+        status: AiAnalysisPipelineStatus.waitingForConfirmation,
+        currentStage: AiAnalysisPipelineStage.questionConfirmation,
+        message: '用户已编辑字段，等待确认',
+      ),
+    );
+    var updatedRecord = record.copyWith(
+      contentStatus: ContentStatus.needsConfirmation,
+      analysisResult: reviewedResult,
+      aiTags: reviewedResult.aiTags,
+      aiKnowledgePoints: reviewedResult.knowledgePoints,
+    );
+    if (fieldName == AiAnalysisField.normalizedQuestion.name) {
+      updatedRecord = updatedRecord.copyWith(
+        normalizedQuestionText: trimmed,
+        aiReconstructedText: trimmed,
+      );
+    } else if (fieldName == AiAnalysisField.studentAnswer.name) {
+      updatedRecord = updatedRecord.copyWith(studentAnswer: trimmed);
+    } else if (fieldName == AiAnalysisField.standardAnswer.name) {
+      updatedRecord = updatedRecord.copyWith(expectedAnswer: trimmed);
+    }
+    await _persistReviewedRecord(updatedRecord);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已更新${_reviewFieldLabel(fieldName)}，请再次核对后确认')),
+    );
+  }
+
+  Future<void> _retryReviewField(
+    QuestionRecord record,
+    AnalysisResult result,
+    String fieldName,
+  ) async {
+    final retryFields = _retryFieldsForReviewField(fieldName);
+    if (retryFields == null || retryFields.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_reviewFieldLabel(fieldName)} 暂不支持局部重试')),
+      );
+      return;
+    }
+    if (_repairingField != null) return;
+    setState(() => _repairingField = fieldName);
+    try {
+      final repaired = await ref.read(aiAnalysisServiceProvider).retryAnalysisFields(
+            current: result,
+            fields: retryFields,
+            confirmedQuestion: record.correctedText,
+            subjectName: record.subject.name,
+            studentAnswer: record.studentAnswer ?? result.studentAnswer,
+            imagePath: record.imagePath,
+          );
+      const policy = AiAnalysisReviewPolicy();
+      final hasStudentAnswer =
+          (record.studentAnswer ?? repaired.studentAnswer).trim().isNotEmpty;
+      var decision = policy.evaluate(
+        repaired,
+        hasStudentAnswer: hasStudentAnswer,
+      );
+      if (!decision.requiresConfirmation) {
+        decision = AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: retryFields.map((field) => field.name).toList(growable: false),
+          reasons: const <String>['字段已重新分析，请核对后确认采用'],
+          evaluatedAt: DateTime.now(),
+        );
+      }
+      final reviewedResult = repaired.copyWith(
+        reviewDecision: decision,
+        pipeline: policy.completedPipeline(decision),
+      );
+      final updatedRecord = record.copyWith(
+        contentStatus: ContentStatus.needsConfirmation,
+        analysisResult: reviewedResult,
+        subject: reviewedResult.subject ?? record.subject,
+        aiTags: reviewedResult.aiTags,
+        aiKnowledgePoints: reviewedResult.knowledgePoints,
+      );
+      await _persistReviewedRecord(updatedRecord);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已重新分析${_reviewFieldLabel(fieldName)}，请核对后确认')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('局部重试失败：$error')),
+      );
+    } finally {
+      if (mounted) setState(() => _repairingField = null);
+    }
+  }
+
+  Future<void> _persistReviewedRecord(QuestionRecord updated) async {
+    await ref.read(questionRepositoryProvider).saveDraft(updated);
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet != null && !worksheet.sourcePageIds.contains(updated.id)) {
+      await persistWorksheetImport(
+        ref,
+        worksheet.copyWith(
+          pages: worksheet.pages
+              .map((page) => page.id == updated.id ? updated : page)
+              .toList(),
+        ),
+      );
+    }
+    ref.read(currentQuestionProvider.notifier).state = updated;
+    invalidateQuestionList(ref);
+  }
+
+  AnalysisResult _applyManualFieldEdit(
+    AnalysisResult result,
+    String fieldName,
+    String value,
+  ) {
+    final lines = value
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+    switch (fieldName) {
+      case 'normalizedQuestion':
+        return result.copyWith(
+          normalizedQuestion: value,
+          reconstructedQuestionText: value,
+        );
+      case 'studentAnswer':
+        return result.copyWith(studentAnswer: value);
+      case 'standardAnswer':
+        return result.copyWith(finalAnswer: value, standardAnswer: value);
+      case 'solutionSteps':
+        return result.copyWith(steps: lines, solutionSteps: lines);
+      case 'knowledgePoints':
+        return result.copyWith(knowledgePoints: lines);
+      case 'mistakeReason':
+        return result.copyWith(mistakeReason: value);
+      case 'studyAdvice':
+        return result.copyWith(studyAdvice: value);
+      default:
+        return result;
+    }
+  }
+
+  List<String> _affectedFieldsAfterManualEdit(String fieldName) {
+    switch (fieldName) {
+      case 'normalizedQuestion':
+      case 'studentAnswer':
+        return const <String>[
+          'normalizedQuestion',
+          'studentAnswer',
+          'standardAnswer',
+          'solutionSteps',
+          'mistakeReason',
+          'knowledgePoints',
+          'reviewPlan',
+        ];
+      case 'standardAnswer':
+      case 'solutionSteps':
+        return const <String>[
+          'standardAnswer',
+          'solutionSteps',
+          'mistakeReason',
+          'knowledgePoints',
+          'reviewPlan',
+        ];
+      default:
+        return <String>[fieldName];
+    }
+  }
+
+  Future<void> _confirmCurrentResult(QuestionRecord record) async {
+    if (_isConfirming || record.contentStatus != ContentStatus.needsConfirmation) {
+      return;
+    }
+    setState(() => _isConfirming = true);
+    try {
+      final confirmed = const AiAnalysisConfirmationService().confirm(
+        record,
+        source: AiConfirmationSource.currentResult,
+      );
+      await ref.read(questionRepositoryProvider).saveDraft(confirmed);
+      final worksheet = ref.read(currentWorksheetImportProvider);
+      if (worksheet != null && !worksheet.sourcePageIds.contains(confirmed.id)) {
+        await persistWorksheetImport(
+          ref,
+          worksheet.copyWith(
+            pages: worksheet.pages
+                .map((page) => page.id == confirmed.id ? confirmed : page)
+                .toList(),
+          ),
+        );
+      }
+      ref.read(currentQuestionProvider.notifier).state = confirmed;
+      invalidateQuestionList(ref);
+      // Knowledge links are created only after explicit confirmation.
+      if (confirmed.aiKnowledgePoints.isNotEmpty) {
+        try {
+          await ref.read(knowledgePointMappingServiceProvider).createLinksForQuestion(
+                questionId: confirmed.id,
+                knowledgePointTexts: confirmed.aiKnowledgePoints,
+              );
+          invalidatePendingKnowledgePoints(ref);
+        } catch (_) {
+          // A mapping failure must not undo the user's explicit confirmation.
+        }
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已确认，题目现在可以进入练习和复习计划')),
+      );
+      setState(() {});
+    } on AiAnalysisConfirmationException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('确认失败：${error.message}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isConfirming = false);
+    }
   }
 
   void _startPractice(
@@ -921,6 +1329,7 @@ class _CandidateSwitcherCard extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpace.sm),
                   child: ChoiceChip(
+                    key: ValueKey<String>('candidate-chip-${candidate.order}'),
                     label: Text('第 ${candidate.order} 题'),
                     selected: isActive,
                     onSelected: (_) => onSelected(entry.key),
@@ -943,6 +1352,747 @@ class _CandidateSwitcherCard extends StatelessWidget {
               }).toList(),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewRequiredBanner extends StatelessWidget {
+  const _ReviewRequiredBanner({
+    required this.decision,
+    required this.confidence,
+    this.onConfirm,
+    this.isConfirming = false,
+  });
+
+  final AiAnalysisReviewDecision decision;
+  final double? confidence;
+  final VoidCallback? onConfirm;
+  final bool isConfirming;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final score = confidence == null
+        ? '可信度未知'
+        : '整体可信度 ${(confidence! * 100).round()}%';
+    return Semantics(
+      container: true,
+      label: 'AI 结果待人工确认，$score',
+      child: Container(
+        key: const ValueKey<String>('analysis-review-required-banner'),
+        padding: const EdgeInsets.all(AppSpace.md),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? AppColors.warning.withValues(alpha: 0.16)
+              : AppColors.warningContainerLight,
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+          border: Border.all(
+            color: AppColors.warning.withValues(alpha: 0.45),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Icon(
+              CupertinoIcons.exclamationmark_shield,
+              color: AppColors.warningDark,
+              size: 22,
+            ),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'AI 结果待人工确认 · $score',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    decision.fields.isEmpty
+                        ? '存在低置信度或无法自动核验的内容。'
+                        : '需核对：${decision.fields.join('、')}。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (decision.reasons.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      decision.reasons.take(2).join('；'),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpace.xs),
+                  const Text(
+                    '确认前不会进入复习计划，也不能直接开始练习。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.warningDark,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.tonalIcon(
+                      key: const ValueKey<String>('analysis-confirm-result-button'),
+                      onPressed: onConfirm,
+                      icon: isConfirming
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(CupertinoIcons.checkmark_shield),
+                      label: Text(isConfirming ? '正在确认...' : '我已核对，确认采用'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewFieldPanel extends StatelessWidget {
+  const _ReviewFieldPanel({
+    required this.record,
+    required this.result,
+    required this.actionsEnabled,
+    required this.repairingField,
+    required this.onEdit,
+    required this.onRetry,
+  });
+
+  final QuestionRecord record;
+  final AnalysisResult result;
+  final bool actionsEnabled;
+  final String? repairingField;
+  final ValueChanged<String> onEdit;
+  final ValueChanged<String> onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final fields = result.reviewDecision.fields.isEmpty
+        ? const <String>['analysis']
+        : result.reviewDecision.fields;
+    return Container(
+      key: const ValueKey<String>('review-field-panel'),
+      padding: const EdgeInsets.all(AppSpace.md),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(CupertinoIcons.list_bullet, size: 18),
+              const SizedBox(width: AppSpace.xs),
+              Text(
+                '待确认字段',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          if (!actionsEnabled)
+            Text(
+              '多题候选或非待确认状态下先展示字段风险，暂不直接编辑。',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ...fields.map((field) => Padding(
+                padding: const EdgeInsets.only(top: AppSpace.sm),
+                child: _ReviewFieldCard(
+                  fieldName: field,
+                  value: _reviewFieldDisplayValue(result, record, field),
+                  confidence: _reviewFieldConfidence(result, field),
+                  reason: _reviewFieldReason(result, field),
+                  evidence: _reviewFieldEvidence(result, field),
+                  canEdit: actionsEnabled && _isEditableReviewField(field),
+                  canRetry: actionsEnabled &&
+                      _retryFieldsForReviewField(field) != null &&
+                      repairingField == null,
+                  isRetrying: repairingField == field,
+                  onEdit: () => onEdit(field),
+                  onRetry: () => onRetry(field),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewFieldCard extends StatelessWidget {
+  const _ReviewFieldCard({
+    required this.fieldName,
+    required this.value,
+    required this.confidence,
+    required this.reason,
+    required this.evidence,
+    required this.canEdit,
+    required this.canRetry,
+    required this.isRetrying,
+    required this.onEdit,
+    required this.onRetry,
+  });
+
+  final String fieldName;
+  final String value;
+  final double? confidence;
+  final String reason;
+  final String evidence;
+  final bool canEdit;
+  final bool canRetry;
+  final bool isRetrying;
+  final VoidCallback onEdit;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final confidenceText = confidence == null
+        ? '置信度未知'
+        : '置信度 ${(confidence! * 100).round()}%';
+    return Container(
+      key: ValueKey<String>('review-field-card-$fieldName'),
+      padding: const EdgeInsets.all(AppSpace.sm),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(AppRadius.small + 2),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Expanded(
+                child: Text(
+                  _reviewFieldLabel(fieldName),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              AppTag(
+                label: confidenceText,
+                textColor: AppColors.warningDark,
+                backgroundColor: AppColors.warningContainerLight,
+              ),
+            ],
+          ),
+          if (reason.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              reason,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ],
+          if (evidence.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              '证据：$evidence',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ],
+          if (value.isNotEmpty) ...<Widget>[
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              value,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: scheme.onSurface),
+            ),
+          ],
+          const SizedBox(height: AppSpace.xs),
+          Wrap(
+            spacing: AppSpace.xs,
+            children: <Widget>[
+              TextButton.icon(
+                key: ValueKey<String>('review-field-edit-$fieldName'),
+                onPressed: canEdit ? onEdit : null,
+                icon: const Icon(CupertinoIcons.pencil, size: 16),
+                label: const Text('编辑'),
+              ),
+              OutlinedButton.icon(
+                onPressed: canRetry ? onRetry : null,
+                icon: isRetrying
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(CupertinoIcons.arrow_clockwise, size: 16),
+                label: Text(isRetrying ? '重试中' : '重新分析'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+AiAnalysisField? _parseReviewField(String fieldName) {
+  for (final field in AiAnalysisField.values) {
+    if (field.name == fieldName) return field;
+  }
+  return null;
+}
+
+Set<AiAnalysisField>? _retryFieldsForReviewField(String fieldName) {
+  final field = _parseReviewField(fieldName);
+  if (field == null) return null;
+  if (field == AiAnalysisField.mistakeReason ||
+      field == AiAnalysisField.mistakeCategory) {
+    return const <AiAnalysisField>{
+      AiAnalysisField.mistakeCategory,
+      AiAnalysisField.mistakeReason,
+    };
+  }
+  return <AiAnalysisField>{field};
+}
+
+bool _isEditableReviewField(String fieldName) => const <String>{
+      'normalizedQuestion',
+      'studentAnswer',
+      'standardAnswer',
+      'solutionSteps',
+      'knowledgePoints',
+      'mistakeReason',
+      'studyAdvice',
+    }.contains(fieldName);
+
+String _reviewFieldLabel(String fieldName) {
+  switch (fieldName) {
+    case 'analysis':
+      return '整体分析';
+    case 'normalizedQuestion':
+      return '规范题干';
+    case 'studentAnswer':
+      return '学生作答';
+    case 'standardAnswer':
+      return '标准答案';
+    case 'solutionSteps':
+      return '解题步骤';
+    case 'knowledgePoints':
+      return '知识点';
+    case 'mistakeCategory':
+      return '错因分类';
+    case 'mistakeReason':
+      return '错因说明';
+    case 'studyAdvice':
+      return '学习建议';
+    case 'reviewPlan':
+      return '复习计划';
+    case 'generatedExercises':
+      return '练习题';
+    case 'visualAssumptions':
+      return '图形假设';
+    default:
+      return fieldName;
+  }
+}
+
+String _reviewFieldEditableValue(
+  AnalysisResult result,
+  QuestionRecord record,
+  String fieldName,
+) {
+  switch (fieldName) {
+    case 'solutionSteps':
+      return result.solutionSteps.isNotEmpty
+          ? result.solutionSteps.join('\n')
+          : result.steps.join('\n');
+    case 'knowledgePoints':
+      return result.knowledgePoints.join('\n');
+    default:
+      return _reviewFieldDisplayValue(result, record, fieldName);
+  }
+}
+
+String _reviewFieldDisplayValue(
+  AnalysisResult result,
+  QuestionRecord record,
+  String fieldName,
+) {
+  switch (fieldName) {
+    case 'normalizedQuestion':
+      return result.normalizedQuestion.isNotEmpty
+          ? result.normalizedQuestion
+          : record.correctedText;
+    case 'studentAnswer':
+      return (record.studentAnswer ?? result.studentAnswer).trim();
+    case 'standardAnswer':
+      return result.standardAnswer.isNotEmpty
+          ? result.standardAnswer
+          : result.finalAnswer;
+    case 'solutionSteps':
+      return (result.solutionSteps.isNotEmpty ? result.solutionSteps : result.steps)
+          .join('\n');
+    case 'knowledgePoints':
+      return result.knowledgePoints.join('、');
+    case 'mistakeCategory':
+      return result.mistakeCategory?.name ?? '';
+    case 'mistakeReason':
+      return result.mistakeReason;
+    case 'studyAdvice':
+      return result.studyAdvice;
+    case 'reviewPlan':
+      final plan = result.reviewPlan;
+      if (plan == null) return '';
+      return '${plan.reviewAfterDays} 天后复习：${plan.focus.join('、')}';
+    case 'visualAssumptions':
+      return result.visualAssumptions?.reviewReason ?? '';
+    default:
+      return '';
+  }
+}
+
+double? _reviewFieldConfidence(AnalysisResult result, String fieldName) {
+  if (fieldName == 'analysis') return result.confidence?.overall;
+  return result.confidence?.fields[fieldName];
+}
+
+String _reviewFieldReason(AnalysisResult result, String fieldName) {
+  final uncertainty = result.uncertainties
+      .where((item) => item.field == fieldName)
+      .map((item) => item.description)
+      .join('；');
+  if (uncertainty.isNotEmpty) return uncertainty;
+  final label = _reviewFieldLabel(fieldName);
+  for (final reason in result.reviewDecision.reasons) {
+    if (reason.contains(fieldName) || reason.contains(label)) return reason;
+  }
+  return result.reviewDecision.reasons.isEmpty
+      ? ''
+      : result.reviewDecision.reasons.first;
+}
+
+String _reviewFieldEvidence(AnalysisResult result, String fieldName) {
+  final evidence = result.evidence
+      .where((item) => item.field == fieldName)
+      .map((item) => item.quote.isEmpty ? item.explanation : item.quote)
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
+  return evidence.take(2).join('；');
+}
+
+class _TenSecondSummary extends StatelessWidget {
+  const _TenSecondSummary({
+    required this.style,
+    required this.result,
+    required this.consistencyNotice,
+  });
+
+  final AppVisualStyle style;
+  final AnalysisResult result;
+  final _ConsistencyNoticeData? consistencyNotice;
+
+  @override
+  Widget build(BuildContext context) {
+    final visual = AppVisualTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final confidence = result.confidence?.overall;
+    final needsReview = result.reviewDecision.requiresConfirmation;
+    final confidenceLabel = needsReview
+        ? '采用前需确认'
+        : confidence == null
+            ? '可信度未标注'
+            : '可信度 ${(confidence * 100).round()}%';
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.md,
+              vertical: AppSpace.sm + 2,
+            ),
+            decoration: BoxDecoration(
+              gradient: visual.heroGradient,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(visual.cardRadius - 1),
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(
+                  CupertinoIcons.bolt_fill,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                const SizedBox(width: AppSpace.sm),
+                const Expanded(
+                  child: Text(
+                    '10 秒结论',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    confidenceLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpace.md),
+            child: Column(
+              children: <Widget>[
+                if (consistencyNotice != null) ...<Widget>[
+                  _ConsistencyNotice(notice: consistencyNotice!),
+                  const SizedBox(height: AppSpace.md),
+                ],
+                _SummaryLine(
+                  icon: CupertinoIcons.scope,
+                  label: '错在哪里',
+                  content: result.mistakeReason,
+                  color: scheme.error,
+                ),
+                const SizedBox(height: AppSpace.md),
+                _SummaryLine(
+                  icon: CupertinoIcons.checkmark_circle_fill,
+                  label: result.visualAssumptionStatus ==
+                          VisualAssumptionStatus.needsReview
+                      ? '可能答案'
+                      : '正确答案',
+                  content: result.finalAnswer,
+                  color: scheme.primary,
+                ),
+                const SizedBox(height: AppSpace.md),
+                _SummaryLine(
+                  icon: CupertinoIcons.arrow_right_circle_fill,
+                  label: '下一步',
+                  content: result.studyAdvice,
+                  color: scheme.tertiary,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryLine extends StatelessWidget {
+  const _SummaryLine({
+    required this.icon,
+    required this.label,
+    required this.content,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String content;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 17),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                MathContentView(
+                  content,
+                  mode: MathContentViewMode.compact,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _AnalysisLayerHeader extends StatelessWidget {
+  const _AnalysisLayerHeader({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: <Widget>[
+          Icon(icon, size: 17, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _StyledInsightSection extends StatelessWidget {
+  const _StyledInsightSection({
+    required this.style,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.tone,
+    required this.child,
+    this.collapsible = false,
+    this.initiallyExpanded = true,
+  });
+
+  final AppVisualStyle style;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final AppTagTone tone;
+  final Widget child;
+  final bool collapsible;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final visual = AppVisualTokens.of(context);
+    final badgeText = switch (style) {
+      AppVisualStyle.academic => '结论卡',
+      AppVisualStyle.paper => '批注区',
+      AppVisualStyle.aurora => '聚焦输出',
+      AppVisualStyle.forest => '先看这一块',
+    };
+
+    return AppInfoSection(
+      icon: icon,
+      title: title,
+      useThemeTone: true,
+      themeTone: tone,
+      collapsible: collapsible,
+      initiallyExpanded: initiallyExpanded,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: visual.heroGradient,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badgeText,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          child,
         ],
       ),
     );

@@ -1,3 +1,8 @@
+import 'ai_analysis_contract.dart';
+import 'ai_analysis_review.dart';
+import 'ai_response_diagnostics.dart';
+import 'mistake_category.dart';
+import 'specialized_analysis.dart';
 import 'subject.dart';
 
 enum AnalysisConsistencyStatus {
@@ -126,6 +131,24 @@ class AnalysisResult {
     this.consistencyStatus = AnalysisConsistencyStatus.unchecked,
     this.consistencyNote = '',
     this.wasVerifierUsed = false,
+    this.schemaVersion = 1,
+    this.promptVersion = 'legacy-v1',
+    this.modelName = '',
+    this.confidence,
+    this.uncertainties = const <AiUncertainty>[],
+    this.evidence = const <AiEvidence>[],
+    this.mistakeCategory,
+    this.originalQuestion = '',
+    this.normalizedQuestion = '',
+    this.studentAnswer = '',
+    this.standardAnswer = '',
+    this.solutionSteps = const <String>[],
+    this.reviewPlan,
+    this.isLegacyContract = true,
+    this.reviewDecision = const AiAnalysisReviewDecision.unknown(),
+    this.pipeline = const AiAnalysisPipelineSnapshot.notStarted(),
+    this.responseDiagnostics,
+    this.specializedAnalysis,
   });
 
   factory AnalysisResult.fromJson(Map<String, dynamic> json) {
@@ -135,17 +158,35 @@ class AnalysisResult {
       subject = _parseSubject(subjectStr);
     }
 
+    final confidenceJson = json['confidence'];
+    final uncertaintiesJson = json['uncertainties'] as List? ?? const <Object>[];
+    final evidenceJson = json['evidence'] as List? ?? const <Object>[];
+    final reviewPlanJson = json['reviewPlan'];
+    final reviewDecisionJson = json['reviewDecision'];
+    final pipelineJson = json['pipeline'];
+    final diagnosticsJson = json['responseDiagnostics'];
+    final specializedJson = json['specializedAnalysis'];
+    final standardAnswer = json['standardAnswer'] as String? ??
+        json['finalAnswer'] as String? ??
+        '';
+    final solutionSteps = List<String>.from(
+      json['solutionSteps'] as List? ?? json['steps'] as List? ?? const <String>[],
+    );
+    final normalizedQuestion = json['normalizedQuestion'] as String? ??
+        json['reconstructedQuestionText'] as String? ??
+        '';
+
     return AnalysisResult(
       subject: subject,
-      finalAnswer: json['finalAnswer'] as String? ?? '',
+      finalAnswer: json['finalAnswer'] as String? ?? standardAnswer,
       finalAnswerDerivation: json['finalAnswerDerivation'] as String? ?? '',
       reconstructedQuestionText:
-          json['reconstructedQuestionText'] as String? ?? '',
+          json['reconstructedQuestionText'] as String? ?? normalizedQuestion,
       visualAssumptions: _parseVisualAssumptions(json['visualAssumptions']),
       visualAssumptionStatus: _parseVisualAssumptionStatus(
         json['visualAssumptionStatus'] as String?,
       ),
-      steps: List<String>.from(json['steps'] as List? ?? []),
+      steps: List<String>.from(json['steps'] as List? ?? solutionSteps),
       aiTags: List<String>.from(json['aiTags'] as List? ?? []),
       knowledgePoints:
           List<String>.from(json['knowledgePoints'] as List? ?? []),
@@ -156,6 +197,52 @@ class AnalysisResult {
       ),
       consistencyNote: json['consistencyNote'] as String? ?? '',
       wasVerifierUsed: json['wasVerifierUsed'] as bool? ?? false,
+      schemaVersion: json['schemaVersion'] as int? ?? 1,
+      promptVersion: json['promptVersion'] as String? ?? 'legacy-v1',
+      modelName: json['modelName'] as String? ?? '',
+      confidence: confidenceJson is Map
+          ? AiConfidence.fromJson(Map<String, dynamic>.from(confidenceJson))
+          : null,
+      uncertainties: uncertaintiesJson
+          .whereType<Map>()
+          .map((item) =>
+              AiUncertainty.fromJson(Map<String, dynamic>.from(item)))
+          .toList(),
+      evidence: evidenceJson
+          .whereType<Map>()
+          .map((item) => AiEvidence.fromJson(Map<String, dynamic>.from(item)))
+          .toList(),
+      mistakeCategory: parseAiMistakeCategory(json['mistakeCategory']),
+      originalQuestion: json['originalQuestion'] as String? ?? '',
+      normalizedQuestion: normalizedQuestion,
+      studentAnswer: json['studentAnswer'] as String? ?? '',
+      standardAnswer: standardAnswer,
+      solutionSteps: solutionSteps,
+      reviewPlan: reviewPlanJson is Map
+          ? AiReviewPlan.fromJson(Map<String, dynamic>.from(reviewPlanJson))
+          : null,
+      isLegacyContract: json['isLegacyContract'] as bool? ??
+          (json['schemaVersion'] as int? ?? 1) < AiAnalysisSchema.currentVersion,
+      reviewDecision: reviewDecisionJson is Map
+          ? AiAnalysisReviewDecision.fromJson(
+              Map<String, dynamic>.from(reviewDecisionJson),
+            )
+          : const AiAnalysisReviewDecision.unknown(),
+      pipeline: pipelineJson is Map
+          ? AiAnalysisPipelineSnapshot.fromJson(
+              Map<String, dynamic>.from(pipelineJson),
+            )
+          : const AiAnalysisPipelineSnapshot.notStarted(),
+      responseDiagnostics: diagnosticsJson is Map
+          ? AiResponseDiagnostics.fromJson(
+              Map<String, dynamic>.from(diagnosticsJson),
+            )
+          : null,
+      specializedAnalysis: specializedJson is Map
+          ? SpecializedAnalysis.fromJson(
+              Map<String, dynamic>.from(specializedJson),
+            )
+          : null,
     );
   }
 
@@ -246,6 +333,24 @@ class AnalysisResult {
       'consistencyStatus': consistencyStatus.name,
       'consistencyNote': consistencyNote,
       'wasVerifierUsed': wasVerifierUsed,
+      'schemaVersion': schemaVersion,
+      'promptVersion': promptVersion,
+      'modelName': modelName,
+      'confidence': confidence?.toJson(),
+      'uncertainties': uncertainties.map((item) => item.toJson()).toList(),
+      'evidence': evidence.map((item) => item.toJson()).toList(),
+      'mistakeCategory': mistakeCategory?.name,
+      'originalQuestion': originalQuestion,
+      'normalizedQuestion': normalizedQuestion,
+      'studentAnswer': studentAnswer,
+      'standardAnswer': standardAnswer,
+      'solutionSteps': solutionSteps,
+      'reviewPlan': reviewPlan?.toJson(),
+      'isLegacyContract': isLegacyContract,
+      'reviewDecision': reviewDecision.toJson(),
+      'pipeline': pipeline.toJson(),
+      'responseDiagnostics': responseDiagnostics?.toJson(),
+      'specializedAnalysis': specializedAnalysis?.toJson(),
     };
   }
 
@@ -264,6 +369,33 @@ class AnalysisResult {
   final String consistencyNote;
   final bool wasVerifierUsed;
 
+  /// Contract V2 metadata. Legacy records keep schemaVersion=1 and
+  /// [isLegacyContract]=true without inventing confidence or evidence.
+  final int schemaVersion;
+  final String promptVersion;
+  final String modelName;
+  final AiConfidence? confidence;
+  final List<AiUncertainty> uncertainties;
+  final List<AiEvidence> evidence;
+  final MistakeCategory? mistakeCategory;
+  final String originalQuestion;
+  final String normalizedQuestion;
+  final String studentAnswer;
+  final String standardAnswer;
+  final List<String> solutionSteps;
+  final AiReviewPlan? reviewPlan;
+  final bool isLegacyContract;
+  final AiAnalysisReviewDecision reviewDecision;
+  final AiAnalysisPipelineSnapshot pipeline;
+  final AiResponseDiagnostics? responseDiagnostics;
+  final SpecializedAnalysis? specializedAnalysis;
+
+  bool get hasContractV2 =>
+      schemaVersion >= AiAnalysisSchema.currentVersion && !isLegacyContract;
+
+  List<String> lowConfidenceFields({double threshold = 0.7}) =>
+      confidence?.fieldsBelow(threshold) ?? const <String>[];
+
   AnalysisResult copyWith({
     Subject? subject,
     String? finalAnswer,
@@ -279,6 +411,24 @@ class AnalysisResult {
     AnalysisConsistencyStatus? consistencyStatus,
     String? consistencyNote,
     bool? wasVerifierUsed,
+    int? schemaVersion,
+    String? promptVersion,
+    String? modelName,
+    AiConfidence? confidence,
+    List<AiUncertainty>? uncertainties,
+    List<AiEvidence>? evidence,
+    MistakeCategory? mistakeCategory,
+    String? originalQuestion,
+    String? normalizedQuestion,
+    String? studentAnswer,
+    String? standardAnswer,
+    List<String>? solutionSteps,
+    AiReviewPlan? reviewPlan,
+    bool? isLegacyContract,
+    AiAnalysisReviewDecision? reviewDecision,
+    AiAnalysisPipelineSnapshot? pipeline,
+    AiResponseDiagnostics? responseDiagnostics,
+    SpecializedAnalysis? specializedAnalysis,
   }) {
     return AnalysisResult(
       subject: subject ?? this.subject,
@@ -298,6 +448,24 @@ class AnalysisResult {
       consistencyStatus: consistencyStatus ?? this.consistencyStatus,
       consistencyNote: consistencyNote ?? this.consistencyNote,
       wasVerifierUsed: wasVerifierUsed ?? this.wasVerifierUsed,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      promptVersion: promptVersion ?? this.promptVersion,
+      modelName: modelName ?? this.modelName,
+      confidence: confidence ?? this.confidence,
+      uncertainties: uncertainties ?? this.uncertainties,
+      evidence: evidence ?? this.evidence,
+      mistakeCategory: mistakeCategory ?? this.mistakeCategory,
+      originalQuestion: originalQuestion ?? this.originalQuestion,
+      normalizedQuestion: normalizedQuestion ?? this.normalizedQuestion,
+      studentAnswer: studentAnswer ?? this.studentAnswer,
+      standardAnswer: standardAnswer ?? this.standardAnswer,
+      solutionSteps: solutionSteps ?? this.solutionSteps,
+      reviewPlan: reviewPlan ?? this.reviewPlan,
+      isLegacyContract: isLegacyContract ?? this.isLegacyContract,
+      reviewDecision: reviewDecision ?? this.reviewDecision,
+      pipeline: pipeline ?? this.pipeline,
+      responseDiagnostics: responseDiagnostics ?? this.responseDiagnostics,
+      specializedAnalysis: specializedAnalysis ?? this.specializedAnalysis,
     );
   }
 }

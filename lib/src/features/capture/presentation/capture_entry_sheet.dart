@@ -7,7 +7,11 @@ import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/services/recognition_confirmation_policy.dart';
 import 'package:smart_wrong_notebook/src/shared/extensions/layout_provider_type_label.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/engine_choice_sheet.dart';
 import 'package:uuid/uuid.dart';
 
@@ -70,13 +74,17 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const orange = Color(0xFFEA580C);
+    const warning = AppColors.warningDark;
 
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      child: SafeArea(
+      child: AppPage(
+        maxWidth: AppContentWidth.narrow,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.xl,
+          vertical: AppSpace.xl,
+        ),
         child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
@@ -108,7 +116,12 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
+            const AppTaskFlow(
+              steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+              currentStep: 0,
+            ),
+            const SizedBox(height: AppSpace.lg),
             _CaptureModeSelector(
               mode: ref.watch(captureModeProvider),
               onChanged: (mode) =>
@@ -138,10 +151,11 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
             else ...<Widget>[
               _EntryOption(
                 icon: CupertinoIcons.camera,
-                iconColor: const Color(0xFF6366F1),
-                iconBg: isDark
-                    ? const Color(0xFF6366F1).withValues(alpha: 0.16)
-                    : const Color(0xFFEEF2FF),
+                iconColor: AppColors.primary,
+                iconBg: AppColors.semanticContainer(
+                  AppColors.primary,
+                  isDark: isDark,
+                ),
                 label: '拍照',
                 description: '使用相机拍摄错题',
                 onTap: () => _pickWithChoice(fromCamera: true),
@@ -149,10 +163,11 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
               const SizedBox(height: 10),
               _EntryOption(
                 icon: CupertinoIcons.photo,
-                iconColor: const Color(0xFFD97706),
-                iconBg: isDark
-                    ? const Color(0xFFD97706).withValues(alpha: 0.16)
-                    : const Color(0xFFFFFBEB),
+                iconColor: AppColors.accentAmber,
+                iconBg: AppColors.semanticContainer(
+                  AppColors.accentAmber,
+                  isDark: isDark,
+                ),
                 label: '相册',
                 description: '从相册选择图片',
                 onTap: () => _pickWithChoice(fromCamera: false),
@@ -160,10 +175,11 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
               const SizedBox(height: 10),
               _EntryOption(
                 icon: CupertinoIcons.photo_on_rectangle,
-                iconColor: const Color(0xFF0F766E),
-                iconBg: isDark
-                    ? const Color(0xFF0F766E).withValues(alpha: 0.18)
-                    : const Color(0xFFF0FDFA),
+                iconColor: AppColors.accentTeal,
+                iconBg: AppColors.semanticContainer(
+                  AppColors.accentTeal,
+                  isDark: isDark,
+                ),
                 label: '试卷批量导入',
                 description: '一次选择多页，逐页确认切题',
                 onTap: _pickWorksheetPages,
@@ -171,10 +187,11 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
               const SizedBox(height: 10),
               _EntryOption(
                 icon: CupertinoIcons.doc_richtext,
-                iconColor: const Color(0xFF8B5CF6),
-                iconBg: isDark
-                    ? const Color(0xFF8B5CF6).withValues(alpha: 0.16)
-                    : const Color(0xFFF5F3FF),
+                iconColor: AppColors.secondary,
+                iconBg: AppColors.semanticContainer(
+                  AppColors.secondary,
+                  isDark: isDark,
+                ),
                 label: 'PDF 试卷导入',
                 description: '选择 PDF 文件，自动按页切题',
                 onTap: _pickPdfWorksheet,
@@ -190,29 +207,33 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
             if (_errorMessage != null) ...<Widget>[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(AppSpace.md),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? orange.withValues(alpha: 0.14)
-                      : const Color(0xFFFFF7ED),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.semanticContainer(
+                    warning,
+                    isDark: isDark,
+                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.small),
                   border: Border.all(
-                      color: isDark
-                          ? orange.withValues(alpha: 0.35)
-                          : const Color(0xFFFED7AA)),
+                    color: AppColors.semanticBorder(
+                      warning,
+                      isDark: isDark,
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: <Widget>[
                     const Icon(CupertinoIcons.exclamationmark_triangle,
-                        size: 18, color: orange),
+                        size: 18, color: warning),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(_errorMessage!,
-                          style: TextStyle(
-                              fontSize: 12,
-                              color:
-                                  isDark ? orange : const Color(0xFF9A3412))),
-                    ),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: warning,
+                          ),
+                        ),
+                      ),
                     IconButton(
                       icon: const Icon(CupertinoIcons.xmark, size: 16),
                       onPressed: () => setState(() => _errorMessage = null),
@@ -261,7 +282,13 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
           return;
         }
         Navigator.pop(context);
-        ref.read(currentQuestionProvider.notifier).state = result.record;
+        final pendingConfirmation = result.record!.copyWith(
+          tags: <String>{
+            ...result.record!.tags,
+            RecognitionConfirmationPolicy.requiredTag,
+          }.toList(growable: false),
+        );
+        ref.read(currentQuestionProvider.notifier).state = pendingConfirmation;
         if (_isQuickCaptureEnabled) {
           router.go('/analysis/loading');
         } else {
@@ -527,7 +554,13 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
 
       if (result.record != null) {
         Navigator.pop(context);
-        ref.read(currentQuestionProvider.notifier).state = result.record;
+        final pendingConfirmation = result.record!.copyWith(
+          tags: <String>{
+            ...result.record!.tags,
+            RecognitionConfirmationPolicy.requiredTag,
+          }.toList(growable: false),
+        );
+        ref.read(currentQuestionProvider.notifier).state = pendingConfirmation;
         if (_isQuickCaptureEnabled) {
           // 极速模式：跳过裁剪、校对、保存确认页，直接进入 AI 解析加载页。
           // AnalysisLoadingScreen 会读取 currentQuestionProvider 拿到刚拍好的图。

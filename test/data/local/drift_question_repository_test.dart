@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/data/local/app_database.dart' hide GeneratedExercise, QuestionRecord;
 import 'package:smart_wrong_notebook/src/data/repositories/drift_question_repository.dart';
+import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
@@ -199,6 +201,56 @@ void main() {
     expect(loaded, isNotNull);
     expect(loaded!.studentAnswer,
         '由 \$x^2 - 1 = 0\$ 得 \$x^2 = 1\$，所以 \$x = \\pm 1\$。');
+  });
+
+  test('persists needsConfirmation gate and pipeline snapshot', () async {
+    final now = DateTime(2026, 7, 25);
+    final record = QuestionRecord(
+      id: 'q-needs-confirmation',
+      imagePath: '/tmp/q-needs-confirmation.jpg',
+      subject: Subject.math,
+      extractedQuestionText: '解方程 x+1=4',
+      normalizedQuestionText: '解方程 x+1=4',
+      contentFormat: QuestionContentFormat.plain,
+      tags: const <String>[],
+      createdAt: now,
+      updatedAt: now,
+      lastReviewedAt: null,
+      reviewCount: 0,
+      isFavorite: false,
+      contentStatus: ContentStatus.needsConfirmation,
+      masteryLevel: MasteryLevel.newQuestion,
+      analysisResult: const AnalysisResult(
+        finalAnswer: '3',
+        steps: <String>['移项得 x=3'],
+        aiTags: <String>['方程'],
+        knowledgePoints: <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '检查符号',
+        reviewDecision: AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: <String>['standardAnswer'],
+          reasons: <String>['置信度低'],
+        ),
+        pipeline: AiAnalysisPipelineSnapshot(
+          status: AiAnalysisPipelineStatus.waitingForConfirmation,
+          currentStage: AiAnalysisPipelineStage.questionConfirmation,
+          completedStages: <AiAnalysisPipelineStage>[
+            AiAnalysisPipelineStage.solving,
+          ],
+        ),
+      ),
+    );
+
+    await repository.saveDraft(record);
+    final loaded = await repository.getById(record.id);
+
+    expect(loaded?.contentStatus, ContentStatus.needsConfirmation);
+    expect(loaded?.analysisResult?.reviewDecision.requiresConfirmation, isTrue);
+    expect(
+      loaded?.analysisResult?.pipeline.status,
+      AiAnalysisPipelineStatus.waitingForConfirmation,
+    );
   });
 
   test('persists null studentAnswer when not set', () async {

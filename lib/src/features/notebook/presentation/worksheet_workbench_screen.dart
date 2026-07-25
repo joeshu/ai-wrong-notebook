@@ -422,7 +422,17 @@ class _WorksheetWorkbenchScreenState
         ),
         data: (questions) {
           if (questions.isEmpty) {
-            return _EmptyWorkbenchState(onAdd: () => context.go('/'));
+            return AppEmptyState(
+              icon: CupertinoIcons.doc_text_search,
+              title: '还没有可组卷的错题',
+              description:
+                  '先从拍照录题或试卷批量导入添加错题，之后可以在这里筛选、排序并导出练习卷、答案卷和订正卷。',
+              action: FilledButton.icon(
+                onPressed: () => context.go('/'),
+                icon: const Icon(CupertinoIcons.camera),
+                label: const Text('去添加错题'),
+              ),
+            );
           }
 
           final readyCount = questions
@@ -841,27 +851,6 @@ class _SelectedStrip extends StatelessWidget {
       );
 }
 
-
-class _EmptyWorkbenchState extends StatelessWidget {
-  const _EmptyWorkbenchState({required this.onAdd});
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: <Widget>[
-            const Icon(CupertinoIcons.doc_text_search, size: 64, color: Color(0xFF94A3B8)),
-            const SizedBox(height: 16),
-            const Text('还没有可组卷的错题', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 10),
-            const Text('先从拍照录题或试卷批量导入添加错题，之后可以在这里筛选、排序并导出练习卷、答案卷和订正卷。', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF64748B))),
-            const SizedBox(height: 20),
-            FilledButton.icon(onPressed: onAdd, icon: const Icon(CupertinoIcons.camera), label: const Text('去添加错题')),
-          ]),
-        ),
-      );
-}
 
 class _FilterChip extends StatelessWidget {
   const _FilterChip({

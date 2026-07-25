@@ -27,6 +27,7 @@ class _FakeAiAnalysisService extends AiAnalysisService {
     required String correctedText,
     required String subjectName,
     String? imagePath,
+    String studentAnswer = '',
   }) async {
     return _fakeResult();
   }
@@ -36,6 +37,7 @@ class _FakeAiAnalysisService extends AiAnalysisService {
     required String correctedText,
     required String subjectName,
     String? imagePath,
+    String studentAnswer = '',
   }) async {
     return _fakeResult();
   }

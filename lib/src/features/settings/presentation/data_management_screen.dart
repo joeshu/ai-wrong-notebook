@@ -15,12 +15,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/files/backup_attachment_integrity.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
+import 'package:smart_wrong_notebook/src/domain/services/ai_response_diagnostics_retention_service.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
@@ -39,6 +41,17 @@ class DataManagementScreen extends ConsumerStatefulWidget {
 class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   static const _backupSchemaVersion = 6;
   static const _lastImportKey = 'backup_last_import_v1';
+  bool _aiDiagnosticsRawEnabled = false;
+  int _aiDiagnosticsRetentionDays =
+      AiAnalysisService.defaultDiagnosticsRawRetentionDays;
+  bool _aiDiagnosticsBusy = false;
+
+  int _sanitizeAiDiagnosticsRetentionDays(int? days) {
+    final value = days ?? AiAnalysisService.defaultDiagnosticsRawRetentionDays;
+    if (value < 1) return 1;
+    if (value > 30) return 30;
+    return value;
+  }
   /// 加密备份文件魔数 "WNB1"，用于识别加密格式。
   static final _encryptedMagic = <int>[0x57, 0x4E, 0x42, 0x31];
   _ImportUndo? _lastImport;
@@ -52,12 +65,15 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   void initState() {
     super.initState();
     _loadLastImport();
+    _loadAiDiagnosticsSettings();
     // 初始先用空列表占位，避免在测试环境（path_provider 未注册）中
     // CircularProgressIndicator 一直转导致 pumpAndSettle 超时；
     // 首帧后再异步加载真实文件列表。
     _exportFilesFuture = Future.value(const <File>[]);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _reloadExports();
+      if (!mounted) return;
+      _expireAiDiagnosticsRawResponsesSilently();
+      _reloadExports();
     });
   }
 
@@ -94,7 +110,144 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     setState(() => _exportFilesFuture = Future.value(files));
   }
 
-  /// 通过系统分享导出历史中的单个文件。
+  Future<void> _loadAiDiagnosticsSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _aiDiagnosticsRawEnabled =
+            prefs.getBool(AiAnalysisService.diagnosticsRawResponseEnabledKey) ??
+                false;
+        _aiDiagnosticsRetentionDays = _sanitizeAiDiagnosticsRetentionDays(
+          prefs.getInt(AiAnalysisService.diagnosticsRawRetentionDaysKey),
+        );
+      });
+    } catch (_) {
+      // 测试环境或 SharedPreferences 不可用时沿用默认值。
+    }
+  }
+
+  Future<void> _setAiDiagnosticsRawEnabled(bool enabled) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(
+        AiAnalysisService.diagnosticsRawResponseEnabledKey,
+        enabled,
+      );
+      if (!mounted) return;
+      setState(() => _aiDiagnosticsRawEnabled = enabled);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存设置失败: $e')),
+      );
+    }
+  }
+
+  Future<void> _setAiDiagnosticsRetentionDays(int days) async {
+    final sanitized = _sanitizeAiDiagnosticsRetentionDays(days);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+        AiAnalysisService.diagnosticsRawRetentionDaysKey,
+        sanitized,
+      );
+      if (!mounted) return;
+      setState(() => _aiDiagnosticsRetentionDays = sanitized);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存保留天数失败: $e')),
+      );
+    }
+  }
+
+  Future<int> _rewriteQuestionsWithMapper(
+    List<QuestionRecord> questions,
+    QuestionRecord Function(QuestionRecord record) mapper,
+  ) async {
+    final repository = ref.read(questionRepositoryProvider);
+    var changedCount = 0;
+    for (final question in questions) {
+      final updated = mapper(question);
+      if (identical(updated, question)) continue;
+      await repository.update(updated);
+      changedCount++;
+    }
+    return changedCount;
+  }
+
+  Future<void> _expireAiDiagnosticsRawResponsesSilently() async {
+    try {
+      final questions = await ref.read(questionRepositoryProvider).listAll();
+      final retention = const AiResponseDiagnosticsRetentionService();
+      final changedCount = await _rewriteQuestionsWithMapper(
+        questions,
+        (record) => retention.expireRawResponses(record),
+      );
+      if (changedCount > 0) {
+        ref.invalidate(questionListProvider);
+      }
+    } catch (_) {
+      // 静默失败，避免影响数据管理页打开。
+    }
+  }
+
+  Future<void> _clearAiDiagnosticsRawResponses(
+    BuildContext context,
+    List<QuestionRecord> questions,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清理 AI 原始响应'),
+        content: const Text(
+          '将删除已保存的 AI 原始响应内容，仅保留长度、指纹、修复策略和采集时间等安全摘要。此操作不可恢复。',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('立即清理'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _aiDiagnosticsBusy = true);
+    try {
+      final retention = const AiResponseDiagnosticsRetentionService();
+      final changedCount = await _rewriteQuestionsWithMapper(
+        questions,
+        retention.stripRawResponses,
+      );
+      ref.invalidate(questionListProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            changedCount == 0
+                ? '没有检测到需要清理的 AI 原始响应'
+                : '已清理 $changedCount 道题中的 AI 原始响应',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('清理失败: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _aiDiagnosticsBusy = false);
+      }
+    }
+  }
+
   Future<void> _shareExportFile(BuildContext context, File file) async {
     try {
       final box = context.findRenderObject() as RenderBox?;
@@ -423,15 +576,43 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
                   ? null
                   : () => _cleanOrphanImages(context, ref, questions),
             ),
+            const SizedBox(height: 20),
+            const _SectionTitle('AI 诊断数据'),
             const SizedBox(height: 8),
             _DataCard(
-              icon: CupertinoIcons.bolt,
+              icon: CupertinoIcons.shield,
               iconColor: const Color(0xFF6366F1),
-              title: '清理 AI 响应缓存',
-              subtitle: '当前未启用 AI 响应缓存，无需清理',
-              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('当前未启用 AI 响应缓存，无需清理')),
+              title: '保存原始 AI 响应用于诊断',
+              subtitle: _aiDiagnosticsRawEnabled
+                  ? '已开启；仅在问题排查期间短期保留原始响应，建议完成诊断后及时关闭'
+                  : '默认关闭；仅保存长度、指纹、修复策略与采集时间等安全摘要',
+              trailingWidget: Switch.adaptive(
+                value: _aiDiagnosticsRawEnabled,
+                onChanged: _aiDiagnosticsBusy
+                    ? null
+                    : (value) => _setAiDiagnosticsRawEnabled(value),
               ),
+            ),
+            const SizedBox(height: 8),
+            _DataCard(
+              icon: CupertinoIcons.time,
+              iconColor: const Color(0xFF0EA5E9),
+              title: '原始响应保留天数',
+              subtitle: '仅在开启原始响应留存时生效；超期会在打开本页时自动清理',
+              trailing: '$_aiDiagnosticsRetentionDays 天',
+              onTap: _aiDiagnosticsBusy
+                  ? null
+                  : () => _showAiDiagnosticsRetentionPicker(context),
+            ),
+            const SizedBox(height: 8),
+            _DataCard(
+              icon: CupertinoIcons.delete,
+              iconColor: AppColors.danger,
+              title: '清理 AI 原始响应',
+              subtitle: '删除所有已保存的 raw response，仅保留安全摘要指纹',
+              onTap: _aiDiagnosticsBusy
+                  ? null
+                  : () => _clearAiDiagnosticsRawResponses(context, questions),
             ),
             const SizedBox(height: 20),
           ],
@@ -442,6 +623,37 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
           onRetry: () => ref.invalidate(questionListProvider),
         ),
       ),
+    );
+  }
+
+  Future<void> _showAiDiagnosticsRetentionPicker(BuildContext context) async {
+    final selected = await showModalBottomSheet<int>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const ListTile(
+              title: Text('选择原始响应保留天数'),
+              subtitle: Text('范围 1–30 天，默认 7 天'),
+            ),
+            for (final days in <int>[1, 3, 7, 14, 30])
+              ListTile(
+                title: Text('$days 天'),
+                trailing: days == _aiDiagnosticsRetentionDays
+                    ? const Icon(CupertinoIcons.check_mark)
+                    : null,
+                onTap: () => Navigator.of(ctx).pop(days),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null) return;
+    await _setAiDiagnosticsRetentionDays(selected);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已将 AI 原始响应保留期设置为 $selected 天')),
     );
   }
 

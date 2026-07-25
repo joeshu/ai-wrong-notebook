@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// 全局字体层级（Typography Scale）。
 ///
 /// 大厂级产品的“质感”有相当部分来自稳定的字阶与字重节奏：
 /// 同一屏内字号档位收敛、字重对比明确（标题重、正文常规、辅助轻）。
 ///
-/// 中文采用思源黑体（Noto Sans SC），西文/数字采用 Inter，二者字形
-/// 风格接近，混排时不突兀。所有 TextStyle 经 [AppTextStyle.apply]
-/// 统一注入字体家族，避免散落的 `fontSize:` 裸写法。
+/// 中文与西文默认使用系统字体栈，避免首次启动依赖网络下载字体。
+/// 所有 TextStyle 经 [AppTextStyle.apply] 统一保留字阶和字重节奏。
 abstract final class AppTextStyle {
   // ---------- Display：页面级大标题 / Hero 数字 ----------
   static const TextStyle display = TextStyle(
@@ -80,17 +78,8 @@ abstract final class AppTextStyle {
     letterSpacing: 0.6,
   );
 
-  /// 将家族字体注入到任意基础样式上，保持全站字体一致。
-  static TextStyle apply(TextStyle base) => GoogleFonts.notoSansSc(
-        textStyle: base,
-        fontSize: base.fontSize,
-        fontWeight: base.fontWeight,
-        height: base.height,
-        letterSpacing: base.letterSpacing,
-        color: base.color,
-        decoration: base.decoration,
-        fontStyle: base.fontStyle,
-      );
+  /// 保留统一字阶与字重，字体家族交由系统选择，避免运行时网络依赖。
+  static TextStyle apply(TextStyle base) => base;
 
   /// 便捷构造：在 [apply] 基础上覆盖颜色。
   static TextStyle colored(TextStyle base, Color color) =>

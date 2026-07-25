@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
@@ -17,6 +18,7 @@ import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
@@ -582,8 +584,15 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 ),
               ],
       ),
-      body: Column(
+      body: AppPage(
+        maxWidth: AppContentWidth.wide,
+        padding: EdgeInsets.zero,
+        child: Column(
         children: <Widget>[
+          _NotebookArchiveOverview(
+            questions:
+                questionsAsync.valueOrNull ?? const <QuestionRecord>[],
+          ),
           // 搜索栏
           Padding(
             padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.sm, AppSpace.lg, AppSpace.xs),
@@ -796,6 +805,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               ),
             ),
         ],
+        ),
       ),
     );
   }
@@ -813,6 +823,128 @@ enum _NotebookMenuAction {
   nextReview,
 }
 
+class _NotebookArchiveOverview extends StatelessWidget {
+  const _NotebookArchiveOverview({required this.questions});
+
+  final List<QuestionRecord> questions;
+
+  @override
+  Widget build(BuildContext context) {
+    final visual = AppVisualTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    final dueCount = questions
+        .where((q) => q.nextReviewAt != null && !q.nextReviewAt!.isAfter(now))
+        .length;
+    final attentionCount = questions
+        .where((q) =>
+            q.analysisResult == null ||
+            q.contentStatus == ContentStatus.failed ||
+            q.contentStatus == ContentStatus.analysisFailed ||
+            (q.ocrConfidence != null && q.ocrConfidence! < .7))
+        .length;
+    final title = switch (visual.style) {
+      AppVisualStyle.academic => '错题档案总览',
+      AppVisualStyle.paper => '本册错题摘要',
+      AppVisualStyle.aurora => '薄弱点聚焦',
+      AppVisualStyle.forest => '今天温习什么',
+    };
+    final helper = switch (visual.style) {
+      AppVisualStyle.academic => '先处理待校对和到期复习，保持档案清晰可用。',
+      AppVisualStyle.paper => '把待整理的题目补齐，再按章节慢慢回看。',
+      AppVisualStyle.aurora => '优先聚焦需要处理的输入与今日到期任务。',
+      AppVisualStyle.forest => '不用一次做完，先从今天到期的题目开始。',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        AppSpace.sm,
+        AppSpace.lg,
+        AppSpace.xs,
+      ),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpace.md),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                gradient: visual.heroGradient,
+                borderRadius: BorderRadius.circular(visual.controlRadius),
+              ),
+              child: Icon(
+                switch (visual.style) {
+                  AppVisualStyle.academic => CupertinoIcons.chart_bar_square,
+                  AppVisualStyle.paper => CupertinoIcons.book,
+                  AppVisualStyle.aurora => CupertinoIcons.scope,
+                  AppVisualStyle.forest => CupertinoIcons.tree,
+                },
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: AppSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(title, style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(
+                    helper,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      height: 1.35,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            _ArchiveCount(value: questions.length, label: '全部'),
+            const SizedBox(width: AppSpace.sm),
+            _ArchiveCount(value: attentionCount, label: '待处理'),
+            const SizedBox(width: AppSpace.sm),
+            _ArchiveCount(value: dueCount, label: '到期'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArchiveCount extends StatelessWidget {
+  const _ArchiveCount({required this.value, required this.label});
+
+  final int value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: <Widget>[
+          Text(
+            '$value',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      );
+}
+
 class _CardPrimaryAction {
   const _CardPrimaryAction({
     required this.label,
@@ -823,6 +955,39 @@ class _CardPrimaryAction {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+}
+
+class _ArchiveActionButton extends StatelessWidget {
+  const _ArchiveActionButton({required this.action});
+
+  final _CardPrimaryAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: AppSpace.xs),
+      child: TextButton.icon(
+        onPressed: action.onTap,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          minimumSize: const Size(0, 30),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          backgroundColor: scheme.primaryContainer.withValues(alpha: .68),
+          foregroundColor: scheme.onPrimaryContainer,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        icon: Icon(action.icon, size: 14),
+        label: Text(action.label),
+      ),
+    );
+  }
 }
 
 class _KnowledgePointPracticeCard extends StatelessWidget {
@@ -962,12 +1127,23 @@ class _QuestionCard extends StatelessWidget {
                       Checkbox(value: selected, onChanged: (_) => onSelect()),
                       const SizedBox(width: 4),
                     ],
+                    Container(
+                      width: 4,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: _priorityColor(context, displayStatus),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.sm),
                     _SubjectAvatar(question: question),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
+                          _buildArchiveHeader(context, displayStatus),
+                          const SizedBox(height: AppSpace.sm),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
@@ -990,19 +1166,7 @@ class _QuestionCard extends StatelessWidget {
                                 ),
                               ),
                               if (primaryAction != null)
-                                IconButton(
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                      minWidth: 28, minHeight: 28),
-                                  visualDensity: VisualDensity.compact,
-                                  iconSize: 18,
-                                  tooltip: primaryAction!.label,
-                                  icon: Icon(
-                                    primaryAction!.icon,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                  onPressed: primaryAction!.onTap,
-                                )
+                                _ArchiveActionButton(action: primaryAction!)
                               else
                                 Padding(
                                   padding:
@@ -1018,6 +1182,10 @@ class _QuestionCard extends StatelessWidget {
                           ),
                           const SizedBox(height: AppSpace.xs),
                           _buildMetaInfo(context, displayStatus, isArchived),
+                          if (_hasArchiveSignals) ...<Widget>[
+                            const SizedBox(height: AppSpace.xs),
+                            _buildArchiveSignals(context),
+                          ],
                           if (allTags.isNotEmpty) ...<Widget>[
                             const SizedBox(height: AppSpace.xs),
                             SingleChildScrollView(
@@ -1030,12 +1198,10 @@ class _QuestionCard extends StatelessWidget {
                                       padding: const EdgeInsets.only(right: AppSpace.xs),
                                       child: AppTag(
                                         label: tag,
-                                        textColor: isAiTag
-                                            ? AppColors.accentAmber
-                                            : AppColors.primaryDark,
-                                        backgroundColor: isAiTag
-                                            ? AppColors.accentAmberContainerLight
-                                            : AppColors.primaryContainerLight,
+                                        useThemeTone: true,
+                                        themeTone: isAiTag
+                                            ? AppTagTone.warning
+                                            : AppTagTone.secondary,
                                         fontSize: 12,
                                         onTap: () => onKnowledgePointTap(tag),
                                       ),
@@ -1055,6 +1221,101 @@ class _QuestionCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Color _priorityColor(
+    BuildContext context,
+    QuestionDisplayStatus displayStatus,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final confidence = question.ocrConfidence as double?;
+    final dueNow = question.nextReviewAt != null &&
+        !question.nextReviewAt!.isAfter(DateTime.now());
+    if (displayStatus.isFailed) return scheme.error;
+    if (confidence != null && confidence < .7) return AppColors.accentAmber;
+    if (dueNow) return const Color(0xFFEA580C);
+    if (displayStatus.isInProgress) return scheme.primary;
+    if (question.masteryLevel == MasteryLevel.mastered) {
+      return AppColors.success;
+    }
+    return scheme.outlineVariant;
+  }
+
+  bool get _hasArchiveSignals =>
+      question.mistakeCategory != null || question.ocrConfidence != null;
+
+  Widget _buildArchiveSignals(BuildContext context) {
+    final category = question.mistakeCategory as MistakeCategory?;
+    final confidence = question.ocrConfidence as double?;
+    return Wrap(
+      spacing: AppSpace.xs,
+      runSpacing: AppSpace.xs,
+      children: <Widget>[
+        if (category != null)
+          AppTag(
+            label: '错因 · ${category.label}',
+            useThemeTone: true,
+            themeTone: AppTagTone.tertiary,
+            fontSize: 11,
+          ),
+        if (confidence != null)
+          AppTag(
+            label: '识别 ${(confidence * 100).round()}%',
+            useThemeTone: true,
+            themeTone:
+                confidence < .7 ? AppTagTone.warning : AppTagTone.neutral,
+            fontSize: 11,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildArchiveHeader(
+    BuildContext context,
+    QuestionDisplayStatus displayStatus,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final confidence = question.ocrConfidence as double?;
+    final dueNow = question.nextReviewAt != null &&
+        !question.nextReviewAt!.isAfter(DateTime.now());
+
+    final (:label, :tone) = switch ((
+      displayStatus.isFailed,
+      confidence != null && confidence < .7,
+      dueNow,
+      displayStatus.isInProgress,
+    )) {
+      (true, _, _, _) => (label: '待处理', tone: AppTagTone.danger),
+      (_, true, _, _) => (label: '待校对', tone: AppTagTone.warning),
+      (_, _, true, _) => (label: '今日复习', tone: AppTagTone.warning),
+      (_, _, _, true) => (label: '处理中', tone: AppTagTone.primary),
+      _ => (label: '档案就绪', tone: AppTagTone.success),
+    };
+
+    return Row(
+      children: <Widget>[
+        Expanded(
+          child: Text(
+            '${question.subject.label}档案  ·  ${_formatDate(question.createdAt)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: .2,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: AppSpace.sm),
+        AppTag(
+          label: label,
+          useThemeTone: true,
+          themeTone: tone,
+          fontSize: 11,
+        ),
+      ],
     );
   }
 
@@ -1092,30 +1353,22 @@ class _QuestionCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final masteryColor = _masteryColor(context, question.masteryLevel);
     final dueColor = _dueColor(context, question);
-    final showMastery = question.masteryLevel != MasteryLevel.newQuestion;
     final showDue = question.nextReviewAt != null;
 
     final spans = <InlineSpan>[
-      TextSpan(
-        text: question.subject.label,
-        style: TextStyle(
-            color: question.subject.color, fontWeight: FontWeight.w500),
-      ),
-      TextSpan(text: ' · ${_formatDate(question.createdAt)}'),
-    ];
-
-    if (showMastery) {
-      spans.add(const TextSpan(text: ' · '));
-      spans.add(WidgetSpan(
+      WidgetSpan(
         alignment: PlaceholderAlignment.middle,
-        child: Icon(_masteryIcon(question.masteryLevel),
-            size: 11, color: masteryColor),
-      ));
-      spans.add(TextSpan(
+        child: Icon(
+          _masteryIcon(question.masteryLevel),
+          size: 11,
+          color: masteryColor,
+        ),
+      ),
+      TextSpan(
         text: _masteryLabel(question.masteryLevel),
         style: TextStyle(color: masteryColor),
-      ));
-    }
+      ),
+    ];
 
     if (displayStatus.isFailed) {
       final failedColor = AppColors.danger;

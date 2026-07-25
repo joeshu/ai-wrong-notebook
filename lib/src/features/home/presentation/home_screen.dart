@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/common/widgets/stats_chart.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
@@ -20,7 +21,22 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
+
+String _heroTitle(AppVisualStyle style) => switch (style) {
+      AppVisualStyle.academic => '今天先推进最值钱的一步',
+      AppVisualStyle.paper => '把今天的错题写成清楚的一页',
+      AppVisualStyle.aurora => '让 AI 帮你把薄弱点打亮',
+      AppVisualStyle.forest => '按自己的节奏，稳稳前进一点',
+    };
+
+String _heroSubtitle(AppVisualStyle style) => switch (style) {
+      AppVisualStyle.academic => '复习、识别、分析与练习，按优先级逐项推进。',
+      AppVisualStyle.paper => '像整理讲义一样，把题目、错因和结论归纳成可回看的笔记。',
+      AppVisualStyle.aurora => '从识别到解析，把关键错误、步骤和建议集中到同一块工作台。',
+      AppVisualStyle.forest => '不过载、不催促，把今天最重要的一两件事先做完。',
+    };
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -30,24 +46,47 @@ class HomeScreen extends ConsumerWidget {
     final questionsAsync = ref.watch(questionListProvider);
     final todayPlanAsync = ref.watch(todayReviewPlanProvider);
     final mistakeStatsAsync = ref.watch(mistakeCategoryStatsProvider);
+    final mistakeStats = mistakeStatsAsync.valueOrNull ??
+        const <MistakeCategory, int>{};
+    final rankedMistakes = mistakeStats.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topMistakeCategory =
+        rankedMistakes.isEmpty ? null : rankedMistakes.first.key;
     final worksheetSession = ref.watch(currentWorksheetImportProvider);
     final hasPendingBatch = worksheetSession?.pages.any((item) {
           final status = inferQuestionDisplayStatus(item);
-          return status.isInProgress || status.isFailed || status == QuestionDisplayStatus.recognized;
+          return status.isInProgress ||
+              status.isFailed ||
+              status == QuestionDisplayStatus.recognized ||
+              status == QuestionDisplayStatus.needsConfirmation;
         }) ??
         false;
 
-    return SafeArea(
+    final visual = AppVisualTokens.of(context);
+
+    return AppPage(
+      maxWidth: AppContentWidth.wide,
+      padding: EdgeInsets.zero,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.xl),
         children: <Widget>[
           AppHeroCard(
-            title: AppStrings.homeGreeting,
-            subtitle: AppStrings.homeSubtitle,
+            title: _heroTitle(visual.style),
+            subtitle: _heroSubtitle(visual.style),
+            header: _HomeHeroHeader(style: visual.style),
+            footer: _HomeHeroFooter(style: visual.style),
             action: AppGradientButton(
               label: AppStrings.homeCapture,
               icon: CupertinoIcons.camera_fill,
               onTap: () => context.go('/add'),
+            ),
+          ),
+          const SizedBox(height: AppSpace.md),
+          const AppCard(
+            entrance: false,
+            child: AppTaskFlow(
+              steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+              currentStep: 0,
             ),
           ),
           const SizedBox(height: AppSpace.md),
@@ -65,6 +104,7 @@ class HomeScreen extends ConsumerWidget {
                   plan: plan,
                   pendingRecognition: pendingRecognition,
                   hasPendingBatch: hasPendingBatch,
+                  topMistakeCategory: topMistakeCategory,
                   onOpenReview: () => context.go('/review'),
                   onOpenRecognize: hasPendingBatch
                       ? () => context.go('/worksheet/import')
@@ -83,6 +123,7 @@ class HomeScreen extends ConsumerWidget {
                 plan: plan,
                 pendingRecognition: 0,
                 hasPendingBatch: hasPendingBatch,
+                topMistakeCategory: topMistakeCategory,
                 onOpenReview: () => context.go('/review'),
                 onOpenRecognize: hasPendingBatch
                     ? () => context.go('/worksheet/import')
@@ -97,6 +138,7 @@ class HomeScreen extends ConsumerWidget {
                 plan: plan,
                 pendingRecognition: 0,
                 hasPendingBatch: hasPendingBatch,
+                topMistakeCategory: topMistakeCategory,
                 onOpenReview: () => context.go('/review'),
                 onOpenRecognize: hasPendingBatch
                     ? () => context.go('/worksheet/import')
@@ -188,6 +230,15 @@ class HomeScreen extends ConsumerWidget {
                   ),
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
+          ),
+          // 可分享作品：把现有错题导出、复习历史与主题周报组织成作品入口。
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpace.md),
+            child: _ShareWorksSection(
+              onQuestionCard: () => context.go('/settings/export-workbench'),
+              onReviewCard: () => context.go('/review/history'),
+              onWeeklyCard: () => context.go('/settings/weekly-report'),
+            ),
           ),
           // 导出与分享区块——快速导出入口 + 最近导出记录。
           Padding(
@@ -375,34 +426,60 @@ class _HomeStatStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final style = AppVisualTokens.of(context).style;
+    final items = switch (style) {
+      AppVisualStyle.academic => <({IconData icon, String label, String helper, AppTagTone tone})>[
+          (icon: CupertinoIcons.flame, label: '连续学习', helper: '维持节奏', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.calendar, label: '今日待复习', helper: '按清单推进', tone: AppTagTone.primary),
+          (icon: CupertinoIcons.doc_text, label: '累计错题', helper: '长期样本', tone: AppTagTone.secondary),
+        ],
+      AppVisualStyle.paper => <({IconData icon, String label, String helper, AppTagTone tone})>[
+          (icon: CupertinoIcons.book, label: '学习页数', helper: '今天已续写', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.tray, label: '待整理', helper: '先读后批注', tone: AppTagTone.primary),
+          (icon: CupertinoIcons.archivebox, label: '已归档', helper: '错题库存', tone: AppTagTone.secondary),
+        ],
+      AppVisualStyle.aurora => <({IconData icon, String label, String helper, AppTagTone tone})>[
+          (icon: CupertinoIcons.bolt, label: '连续激活', helper: '学习能量', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.scope, label: '待聚焦', helper: '优先处理', tone: AppTagTone.primary),
+          (icon: CupertinoIcons.square_stack_3d_up, label: '训练样本', helper: '分析总量', tone: AppTagTone.secondary),
+        ],
+      AppVisualStyle.forest => <({IconData icon, String label, String helper, AppTagTone tone})>[
+          (icon: CupertinoIcons.tree, label: '稳定坚持', helper: '今天也前进', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.time, label: '待温习', helper: '先看最重要', tone: AppTagTone.primary),
+          (icon: CupertinoIcons.layers_alt, label: '积累题量', helper: '慢慢长成', tone: AppTagTone.secondary),
+        ],
+    };
     return AppCard(
       padding: const EdgeInsets.symmetric(vertical: AppSpace.md, horizontal: AppSpace.sm),
       child: Row(
         children: <Widget>[
           _StatMetric(
-            icon: CupertinoIcons.flame,
+            icon: items[0].icon,
             value: '$streakDays',
             unit: '天',
-            label: '连续学习',
-            color: AppColors.accentAmber,
+            label: items[0].label,
+            helper: items[0].helper,
+            tone: items[0].tone,
             delay: AppMotion.staggerStep,
           ),
           _vDivider(context),
           _StatMetric(
-            icon: CupertinoIcons.calendar,
+            icon: items[1].icon,
             value: '$dueCount',
             unit: '题',
-            label: '今日待复习',
-            color: AppColors.primary,
+            label: items[1].label,
+            helper: items[1].helper,
+            tone: items[1].tone,
             delay: AppMotion.staggerStep * 2,
           ),
           _vDivider(context),
           _StatMetric(
-            icon: CupertinoIcons.doc_text,
+            icon: items[2].icon,
             value: '$totalCount',
             unit: '题',
-            label: '累计错题',
-            color: AppColors.accentTeal,
+            label: items[2].label,
+            helper: items[2].helper,
+            tone: items[2].tone,
             delay: AppMotion.staggerStep * 3,
           ),
         ],
@@ -423,7 +500,8 @@ class _StatMetric extends StatelessWidget {
     required this.value,
     required this.unit,
     required this.label,
-    required this.color,
+    required this.helper,
+    required this.tone,
     this.delay = Duration.zero,
   });
 
@@ -431,16 +509,57 @@ class _StatMetric extends StatelessWidget {
   final String value;
   final String unit;
   final String label;
-  final Color color;
+  final String helper;
+  final AppTagTone tone;
   final Duration delay;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+    final resolvedTone = switch (tone) {
+      AppTagTone.primary => (
+          foreground: scheme.primary,
+          background: scheme.primaryContainer,
+        ),
+      AppTagTone.secondary => (
+          foreground: scheme.secondary,
+          background: scheme.secondaryContainer,
+        ),
+      AppTagTone.tertiary => (
+          foreground: scheme.tertiary,
+          background: scheme.tertiaryContainer,
+        ),
+      AppTagTone.warning => (
+          foreground: const Color(0xFFB45309),
+          background: const Color(0xFFFFEDD5),
+        ),
+      AppTagTone.success => (
+          foreground: const Color(0xFF15803D),
+          background: const Color(0xFFDCFCE7),
+        ),
+      AppTagTone.danger => (
+          foreground: scheme.error,
+          background: scheme.errorContainer,
+        ),
+      AppTagTone.neutral => (
+          foreground: scheme.onSurfaceVariant,
+          background: scheme.surfaceContainerHighest,
+        ),
+    };
+    final color = resolvedTone.foreground;
     return Expanded(
       child: Column(
         children: <Widget>[
-          Icon(icon, size: 20, color: color),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: resolvedTone.background,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
           const SizedBox(height: 6),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -469,6 +588,15 @@ class _StatMetric extends StatelessWidget {
             label,
             style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
               color: isDark ? AppColors.slateLight : AppColors.slate,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            helper,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 10,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -1298,8 +1426,10 @@ int _countPendingRecognition(
   if (worksheetSession != null) {
     for (final page in worksheetSession.pages) {
       final status = inferQuestionDisplayStatus(page);
-      if (status.isInProgress || status.isFailed ||
-          status == QuestionDisplayStatus.recognized) {
+      if (status.isInProgress ||
+          status.isFailed ||
+          status == QuestionDisplayStatus.recognized ||
+          status == QuestionDisplayStatus.needsConfirmation) {
         count++;
       }
     }
@@ -1319,6 +1449,7 @@ class _UnifiedActionPanel extends StatelessWidget {
     required this.plan,
     required this.pendingRecognition,
     required this.hasPendingBatch,
+    required this.topMistakeCategory,
     required this.onOpenReview,
     required this.onOpenRecognize,
     required this.onCapture,
@@ -1327,105 +1458,303 @@ class _UnifiedActionPanel extends StatelessWidget {
   final TodayReviewPlan plan;
   final int pendingRecognition;
   final bool hasPendingBatch;
+  final MistakeCategory? topMistakeCategory;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenRecognize;
   final VoidCallback onCapture;
 
   @override
   Widget build(BuildContext context) {
-    final cards = <Widget>[];
+    final hasDue = plan.dueCount > 0;
+    final hasPending = pendingRecognition > 0;
+    final recommendation = hasDue
+        ? (
+            icon: CupertinoIcons.play_circle_fill,
+            title: '先复习 ${plan.dueCount} 道到期错题',
+            reason: topMistakeCategory == null
+                ? '这些题已经到达复习时间，先处理能降低再次遗忘的概率。'
+                : '${topMistakeCategory!.label}是当前高频错因，今天优先回看相关到期题。',
+            meta: '预计 ${plan.estimatedMinutes} 分钟 · 完成后更新掌握状态',
+            action: '开始复习',
+            onTap: onOpenReview,
+          )
+        : hasPending
+            ? (
+                icon: hasPendingBatch
+                    ? CupertinoIcons.rectangle_stack
+                    : CupertinoIcons.text_badge_checkmark,
+                title: '先确认 $pendingRecognition 项识别内容',
+                reason: '先把题干和低置信字段核对清楚，再让 AI 分析，避免错误结论进入错题本。',
+                meta: '约 ${pendingRecognition * 2} 分钟 · 完成后自动进入分析',
+                action: '继续确认',
+                onTap: onOpenRecognize,
+              )
+            : (
+                icon: CupertinoIcons.camera_fill,
+                title: '记录今天遇到的第一道错题',
+                reason: topMistakeCategory == null
+                    ? '当前没有到期任务，随手记录一道新错题就能开始建立学习档案。'
+                    : '近期${topMistakeCategory!.label}较多，遇到同类题时及时记录更容易发现规律。',
+                meta: '约 2 分钟 · 拍照后自动识别与整理',
+                action: '拍一道题',
+                onTap: onCapture,
+              );
 
-    // 优先级 1：待复习
-    if (plan.dueCount > 0) {
-      cards.add(_ActionTile(
-        icon: CupertinoIcons.play_circle_fill,
-        color: AppColors.warning,
-        title: AppStrings.homeStartReview,
-        subtitle: '${plan.dueCount}${AppStrings.homeReviewDue} · '
-            '${AppStrings.homeReviewEstimated.replaceFirst('{}', '${plan.estimatedMinutes}')}',
-        trailing: AppStrings.homeStartReview,
-        onTap: onOpenReview,
-      ));
-    }
-
-    // 优先级 2：继续未完成识别
-    if (pendingRecognition > 0) {
-      cards.add(_ActionTile(
-        icon: hasPendingBatch
-            ? CupertinoIcons.rectangle_stack
-            : CupertinoIcons.sparkles,
-        color: AppColors.info,
-        title: hasPendingBatch
-            ? AppStrings.homeBatchPriority
-            : '继续未完成识别',
-        subtitle: '$pendingRecognition 项待处理',
-        trailing: hasPendingBatch
-            ? AppStrings.homeBatchContinueProcess
-            : '去处理',
-        onTap: onOpenRecognize,
-      ));
-    }
-
-    // 优先级 3：添加新错题（始终显示）
-    cards.add(_ActionTile(
-      icon: CupertinoIcons.add_circled_solid,
-      color: AppColors.success,
-      title: AppStrings.homeCapture,
-      subtitle: AppStrings.homeSubtitle,
-      trailing: AppStrings.homeCapture,
-      onTap: onCapture,
-    ));
-
-    // 空状态：无待复习、无未完成识别，且仅剩添加卡时，把添加卡替换为引导文案
-    // （添加卡始终显示，但「全部为空」场景下强化引导）。
-    if (plan.dueCount == 0 &&
-        pendingRecognition == 0 &&
-        plan.streakDays == 0) {
-      return _EmptyActionGuide(onCapture: onCapture);
-    }
+    final secondary = <Widget>[
+      if (hasDue && hasPending)
+        _ActionTile(
+          icon: hasPendingBatch
+              ? CupertinoIcons.rectangle_stack
+              : CupertinoIcons.text_badge_checkmark,
+          color: Theme.of(context).colorScheme.secondary,
+          title: '稍后确认识别内容',
+          subtitle: '$pendingRecognition 项待处理',
+          trailing: '去处理',
+          onTap: onOpenRecognize,
+        ),
+      if (hasDue || hasPending)
+        _ActionTile(
+          icon: CupertinoIcons.add_circled_solid,
+          color: Theme.of(context).colorScheme.tertiary,
+          title: AppStrings.homeCapture,
+          subtitle: '遇到新错题时随时补充档案',
+          trailing: AppStrings.homeCapture,
+          onTap: onCapture,
+        ),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.only(bottom: AppSpace.sm),
-          child: Text(
-            '今日行动',
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700),
+        Text(
+          '今天最值得做什么',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          '根据到期复习、待确认内容和近期错因自动排序。',
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
-        if (plan.streakDays > 0)
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpace.sm),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: AppGradients.primaryHorizontal,
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: AppShadows.sm,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Icon(CupertinoIcons.flame, size: 16, color: Colors.white),
-                  const SizedBox(width: 6),
-                  Text(
-                    '已连续学习 ${plan.streakDays} 天',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
+        const SizedBox(height: AppSpace.sm),
+        _BestNextActionCard(
+          icon: recommendation.icon,
+          title: recommendation.title,
+          reason: recommendation.reason,
+          meta: recommendation.meta,
+          action: recommendation.action,
+          streakDays: plan.streakDays,
+          onTap: recommendation.onTap,
+        ),
+        if (secondary.isNotEmpty) ...<Widget>[
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            '其他可做',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-        ...cards,
+          const SizedBox(height: AppSpace.xs),
+          ...secondary,
+        ],
       ],
+    );
+  }
+}
+
+class _BestNextActionCard extends StatelessWidget {
+  const _BestNextActionCard({
+    required this.icon,
+    required this.title,
+    required this.reason,
+    required this.meta,
+    required this.action,
+    required this.streakDays,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String reason;
+  final String meta;
+  final String action;
+  final int streakDays;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final visual = AppVisualTokens.of(context);
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(visual.cardRadius),
+          child: Padding(
+          padding: const EdgeInsets.all(AppSpace.lg),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: visual.heroGradient,
+                  borderRadius: BorderRadius.circular(visual.controlRadius),
+                ),
+                child: Icon(icon, color: Colors.white, size: 23),
+              ),
+              const SizedBox(width: AppSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Wrap(
+                      spacing: AppSpace.xs,
+                      runSpacing: AppSpace.xs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        if (streakDays > 0)
+                          AppTag(
+                            label: '连续 $streakDays 天',
+                            useThemeTone: true,
+                            themeTone: AppTagTone.warning,
+                            fontSize: 11,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      reason,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpace.sm),
+                    Text(
+                      meta,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              FilledButton(
+                onPressed: onTap,
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  minimumSize: const Size(0, 38),
+                ),
+                child: Text(action),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+    );
+  }
+}
+
+class _HomeHeroHeader extends StatelessWidget {
+  const _HomeHeroHeader({required this.style});
+
+  final AppVisualStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .16),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: .22)),
+          ),
+          child: Text(
+            switch (style) {
+              AppVisualStyle.academic => '学习指挥台',
+              AppVisualStyle.paper => '纸页摘要',
+              AppVisualStyle.aurora => '能量面板',
+              AppVisualStyle.forest => '陪伴式复习卡',
+            },
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        const Spacer(),
+        Icon(
+          switch (style) {
+            AppVisualStyle.academic => CupertinoIcons.chart_bar_square,
+            AppVisualStyle.paper => CupertinoIcons.book,
+            AppVisualStyle.aurora => CupertinoIcons.sparkles,
+            AppVisualStyle.forest => CupertinoIcons.leaf_arrow_circlepath,
+          },
+          size: 18,
+          color: Colors.white.withValues(alpha: .92),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeHeroFooter extends StatelessWidget {
+  const _HomeHeroFooter({required this.style});
+
+  final AppVisualStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = switch (style) {
+      AppVisualStyle.academic => const <String>['优先级清晰', '先复习后新增', '看板式推进'],
+      AppVisualStyle.paper => const <String>['题干归档', '错因批注', '结论沉淀'],
+      AppVisualStyle.aurora => const <String>['识别工作台', '错误高亮', '建议聚焦'],
+      AppVisualStyle.forest => const <String>['节奏温和', '负担更低', '长期复习友好'],
+    };
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: items
+          .map((item) => Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  item,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ))
+          .toList(),
     );
   }
 }
@@ -1474,35 +1803,123 @@ class _ActionTile extends StatelessWidget {
   }
 }
 
-class _EmptyActionGuide extends StatelessWidget {
-  const _EmptyActionGuide({required this.onCapture});
+/// 导出与分享区块——提供快速导出入口与最近导出记录。
+///
+/// 点击格式卡片或「进入工作台」跳转 `/settings/export-workbench`；
+/// 最近导出记录来自 [exportHistoryProvider]。
+class _ShareWorksSection extends StatelessWidget {
+  const _ShareWorksSection({
+    required this.onQuestionCard,
+    required this.onReviewCard,
+    required this.onWeeklyCard,
+  });
 
-  final VoidCallback onCapture;
+  final VoidCallback onQuestionCard;
+  final VoidCallback onReviewCard;
+  final VoidCallback onWeeklyCard;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final visual = AppVisualTokens.of(context);
+    final style = visual.style;
     return AppCard(
       padding: const EdgeInsets.all(AppSpace.lg),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(CupertinoIcons.checkmark_seal_fill,
-              size: 36, color: AppColors.success.withValues(alpha: 0.7)),
-          const SizedBox(height: AppSpace.sm),
-          const Text('今日清单已清空',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-          const SizedBox(height: 4),
-          Text(
-            '没有待复习或待处理的错题，继续保持节奏！\n也可以随时录入新的错题。',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: 12, color: colorScheme.onSurfaceVariant),
+          Row(
+            children: <Widget>[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: visual.heroGradient,
+                  borderRadius: BorderRadius.circular(visual.controlRadius),
+                ),
+                child: const Icon(
+                  CupertinoIcons.share,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    const Text(
+                      '分享作品',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      '用${style.label}生成适合保存和分享的学习作品。',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpace.md),
-          FilledButton.icon(
-            onPressed: onCapture,
-            icon: const Icon(CupertinoIcons.add, size: 16),
-            label: const Text(AppStrings.homeCapture),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 560;
+              final works = <Widget>[
+                _ShareWorkTile(
+                  icon: CupertinoIcons.doc_text,
+                  title: '单题解析卡',
+                  subtitle: '题目、错因、答案与建议',
+                  previewLabel: '讲解作品',
+                  onTap: onQuestionCard,
+                ),
+                _ShareWorkTile(
+                  icon: CupertinoIcons.checkmark_seal,
+                  title: '复习完成卡',
+                  subtitle: '完成进度与掌握变化',
+                  previewLabel: '今日成果',
+                  onTap: onReviewCard,
+                ),
+                _ShareWorkTile(
+                  icon: CupertinoIcons.chart_bar_square,
+                  title: '主题学习周报',
+                  subtitle: '错因、薄弱点与趋势',
+                  previewLabel: '成长报告',
+                  onTap: onWeeklyCard,
+                ),
+              ];
+              if (compact) {
+                return SizedBox(
+                  height: 152,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: works.length,
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(width: AppSpace.sm),
+                    itemBuilder: (_, index) => SizedBox(
+                      width: 178,
+                      child: works[index],
+                    ),
+                  ),
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: works
+                    .map((work) => Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: AppSpace.sm),
+                            child: work,
+                          ),
+                        ))
+                    .toList(growable: false),
+              );
+            },
           ),
         ],
       ),
@@ -1510,10 +1927,79 @@ class _EmptyActionGuide extends StatelessWidget {
   }
 }
 
-/// 导出与分享区块——提供快速导出入口与最近导出记录。
-///
-/// 点击格式卡片或「进入工作台」跳转 `/settings/export-workbench`；
-/// 最近导出记录来自 [exportHistoryProvider]。
+class _ShareWorkTile extends StatelessWidget {
+  const _ShareWorkTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.previewLabel,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String previewLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final visual = AppVisualTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(visual.controlRadius),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(visual.controlRadius),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpace.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(visual.controlRadius),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Icon(icon, size: 18, color: scheme.primary),
+                  const Spacer(),
+                  AppTag(
+                    label: previewLabel,
+                    useThemeTone: true,
+                    themeTone: AppTagTone.primary,
+                    fontSize: 10,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpace.lg),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.35,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ExportCenterSection extends ConsumerWidget {
   const _ExportCenterSection();
 
@@ -1532,8 +2018,8 @@ class _ExportCenterSection extends ConsumerWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Icon(CupertinoIcons.arrow_up_doc,
-                  size: 18, color: AppColors.primary),
+              Icon(CupertinoIcons.arrow_up_doc,
+                  size: 18, color: colorScheme.primary),
               const SizedBox(width: AppSpace.sm),
               const Text(AppStrings.settingsExportShare,
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),

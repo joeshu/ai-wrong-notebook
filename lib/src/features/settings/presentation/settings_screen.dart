@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -32,6 +34,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final visualStyle = ref.watch(appVisualStyleProvider);
     final reminderEnabled = ref.watch(reviewReminderEnabledProvider);
     final colorScheme = Theme.of(context).colorScheme;
     // Phase 9-5：watch AI / Layout 配置状态徽章
@@ -40,7 +43,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.settingsTitle)),
-      body: SingleChildScrollView(
+      body: AppPage(
+        maxWidth: AppContentWidth.standard,
+        padding: EdgeInsets.zero,
+        child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,6 +88,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: AppSpace.lg),
+            Text(
+              '界面风格',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            const SizedBox(height: AppSpace.sm),
+            SizedBox(
+              height: 154,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: AppVisualStyle.values.length,
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: AppSpace.sm),
+                itemBuilder: (context, index) {
+                  final style = AppVisualStyle.values[index];
+                  return _VisualStyleCard(
+                    style: style,
+                    selected: visualStyle == style,
+                    darkPreview: themeMode == ThemeMode.dark,
+                    onTap: () => ref
+                        .read(appVisualStyleProvider.notifier)
+                        .setStyle(style),
+                  );
+                },
+              ),
             ),
             const SizedBox(height: AppSpace.lg),
             AppSectionTitle(AppStrings.settingsReminders),
@@ -130,7 +162,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     icon: CupertinoIcons.sparkles,
                     iconColor: AppColors.primary,
                     iconBackgroundColor: AppColors.primaryContainerLight,
-                    title: AppStrings.settingsAiProvider,
+                    title: '模型策略中心',
+                    subtitle: '均衡 · 准确 · 省钱 · 隐私与高级模型配置',
                     trailing: _StatusBadge(
                       ready: _isAiReady(aiConfig),
                       label: _isAiReady(aiConfig) ? '就绪' : '未配置',
@@ -285,6 +318,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -325,6 +359,146 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await svc.cancelScheduledReminder();
       await svc.cancelAll();
     }
+  }
+}
+
+class _VisualStyleCard extends StatelessWidget {
+  const _VisualStyleCard({
+    required this.style,
+    required this.selected,
+    required this.darkPreview,
+    required this.onTap,
+  });
+
+  final AppVisualStyle style;
+  final bool selected;
+  final bool darkPreview;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = AppVisualTokens.forStyle(style, dark: darkPreview);
+    final previewScheme = ColorScheme.fromSeed(
+      seedColor: style.seedColor,
+      brightness: darkPreview ? Brightness.dark : Brightness.light,
+    ).copyWith(surface: style.scaffold(darkPreview));
+    return SizedBox(
+      width: 156,
+      child: Semantics(
+        selected: selected,
+        button: true,
+        label: '${style.label}界面风格',
+        child: Material(
+          key: Key('visual-style-${style.name}'),
+          color: previewScheme.surface,
+          borderRadius: BorderRadius.circular(tokens.cardRadius),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(tokens.cardRadius),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(tokens.cardRadius),
+                border: Border.all(
+                  color: selected
+                      ? Theme.of(context).colorScheme.primary
+                      : previewScheme.outlineVariant,
+                  width: selected ? 2 : 1,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Container(
+                    height: 48,
+                    decoration: BoxDecoration(
+                      gradient: tokens.heroGradient,
+                      borderRadius: BorderRadius.circular(
+                        tokens.controlRadius,
+                      ),
+                    ),
+                    child: Stack(
+                      children: <Widget>[
+                        Positioned(
+                          left: 10,
+                          top: 10,
+                          child: Container(
+                            width: 54,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: .92),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: 10,
+                          top: 24,
+                          child: Container(
+                            width: 84,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: .55),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          style.label,
+                          style: TextStyle(
+                            color: previewScheme.onSurface,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      if (selected)
+                        Icon(CupertinoIcons.checkmark_circle_fill,
+                            size: 17,
+                            color: Theme.of(context).colorScheme.primary),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    style.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: previewScheme.onSurfaceVariant,
+                      fontSize: 10,
+                      height: 1.25,
+                    ),
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: <Widget>[
+                      for (final alpha in <double>[1, .68, .38]) ...<Widget>[
+                        Container(
+                          width: 20,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: style.seedColor.withValues(alpha: alpha),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

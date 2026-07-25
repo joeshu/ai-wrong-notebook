@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/app/onboarding_notifier.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/home/presentation/home_screen.dart';
@@ -13,6 +14,7 @@ import 'package:smart_wrong_notebook/src/features/review/presentation/review_his
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/settings_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/provider_config_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/model_strategy_center_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/layout_provider_config_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/prompt_settings_screen.dart';
@@ -34,6 +36,7 @@ import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_region_editor_screen.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_review_summary_screen.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/question_save_confirmation_screen.dart';
+import 'package:smart_wrong_notebook/src/features/ocr/presentation/recognition_confirmation_screen.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/question_split_confirmation_screen.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_loading_screen.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_result_screen.dart';
@@ -108,8 +111,15 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                 builder: (_, __) => const SettingsScreen(),
                 routes: <RouteBase>[
                   GoRoute(
-                      path: 'provider',
-                      builder: (_, __) => const ProviderConfigScreen()),
+                    path: 'provider',
+                    builder: (_, __) => const ModelStrategyCenterScreen(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'edit',
+                        builder: (_, __) => const ProviderConfigScreen(),
+                      ),
+                    ],
+                  ),
                   GoRoute(
                       path: 'subjects',
                       builder: (_, __) => const SubjectManagementScreen()),
@@ -185,6 +195,10 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
           path: '/capture/correction',
           pageBuilder: (_, __) => _buildPage(const QuestionCorrectionScreen())),
       GoRoute(
+          path: '/capture/recognition-confirmation',
+          pageBuilder: (_, __) =>
+              _buildPage(const RecognitionConfirmationScreen())),
+      GoRoute(
           path: '/capture/save-confirmation',
           pageBuilder: (_, __) =>
               _buildPage(const QuestionSaveConfirmationScreen())),
@@ -243,28 +257,90 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visual = AppVisualTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final decoration = switch (visual.style) {
+      AppVisualStyle.academic => BoxDecoration(
+          color: scheme.surface,
+          border: Border(top: BorderSide(color: scheme.outlineVariant)),
+        ),
+      AppVisualStyle.paper => BoxDecoration(
+          color: scheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: scheme.primary.withValues(alpha: isDark ? .34 : .20),
+            ),
+          ),
+        ),
+      AppVisualStyle.aurora => BoxDecoration(
+          gradient: LinearGradient(
+            colors: <Color>[
+              scheme.surface,
+              scheme.primaryContainer.withValues(alpha: isDark ? .24 : .36),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: scheme.primary.withValues(alpha: isDark ? .12 : .10),
+              blurRadius: 18,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+      AppVisualStyle.forest => BoxDecoration(
+          color: scheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: scheme.secondary.withValues(alpha: isDark ? .28 : .18),
+            ),
+          ),
+        ),
+    };
+
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (int index) => navigationShell.goBranch(index),
-        destinations: const <NavigationDestination>[
-          NavigationDestination(
-              icon: Icon(CupertinoIcons.house), label: AppStrings.homeTab),
-          NavigationDestination(
+      bottomNavigationBar: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        decoration: decoration,
+        child: NavigationBar(
+          backgroundColor: Colors.transparent,
+          selectedIndex: navigationShell.currentIndex,
+          onDestinationSelected: (int index) => navigationShell.goBranch(index),
+          destinations: const <NavigationDestination>[
+            NavigationDestination(
+              icon: Icon(CupertinoIcons.house),
+              selectedIcon: Icon(CupertinoIcons.house_fill),
+              label: AppStrings.homeTab,
+            ),
+            NavigationDestination(
               icon: Icon(CupertinoIcons.plus_circle),
-              label: AppStrings.addTab),
-          NavigationDestination(
-              icon: Icon(CupertinoIcons.book), label: AppStrings.notebookTab),
-          NavigationDestination(
+              selectedIcon: Icon(CupertinoIcons.plus_circle_fill),
+              label: AppStrings.addTab,
+            ),
+            NavigationDestination(
+              icon: Icon(CupertinoIcons.book),
+              selectedIcon: Icon(CupertinoIcons.book_fill),
+              label: AppStrings.notebookTab,
+            ),
+            NavigationDestination(
               icon: Icon(CupertinoIcons.arrow_2_circlepath),
-              label: AppStrings.reviewTab),
-          NavigationDestination(
+              label: AppStrings.reviewTab,
+            ),
+            NavigationDestination(
               icon: Icon(CupertinoIcons.square_arrow_up),
-              label: AppStrings.settingsExportShare),
-          NavigationDestination(
-              icon: Icon(CupertinoIcons.gear), label: AppStrings.settingsTab),
-        ],
+              selectedIcon: Icon(CupertinoIcons.square_arrow_up_fill),
+              label: AppStrings.settingsExportShare,
+            ),
+            NavigationDestination(
+              icon: Icon(CupertinoIcons.gear),
+              selectedIcon: Icon(CupertinoIcons.gear_solid),
+              label: AppStrings.settingsTab,
+            ),
+          ],
+        ),
       ),
     );
   }

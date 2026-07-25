@@ -23,6 +23,7 @@ import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
@@ -136,7 +137,10 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ],
         ),
       ),
-      body: Column(
+      body: AppPage(
+        maxWidth: AppContentWidth.wide,
+        padding: EdgeInsets.zero,
+        child: Column(
         children: <Widget>[
           if (_editing)
             Padding(
@@ -194,6 +198,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -750,6 +755,8 @@ class _RecognitionStatusTags extends StatelessWidget {
     // 统一用 QuestionDisplayStatus 推导识别/AI 文案与配色，
     // 与首页、题卡、批量任务保持一致，避免各页面硬编码口径分裂。
     final displayStatus = inferQuestionDisplayStatus(question);
+    final isAwaitingAiConfirmation =
+        displayStatus == QuestionDisplayStatus.needsConfirmation;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final recognitionLabel = provider ??
         (question.imagePath.isNotEmpty ? '已识别' : '未识别');
@@ -775,27 +782,35 @@ class _RecognitionStatusTags extends StatelessWidget {
                   : AppColors.successContainerLight),
         ),
         AppTag(
-          label: displayStatus == QuestionDisplayStatus.analyzed
-              ? 'AI：已分析'
-              : (displayStatus == QuestionDisplayStatus.analysisFailed
-                  ? 'AI：分析失败'
-                  : 'AI：未分析'),
-          textColor: displayStatus == QuestionDisplayStatus.analyzed
-              ? AppColors.primaryDark
-              : (displayStatus == QuestionDisplayStatus.analysisFailed
-                  ? AppColors.danger
-                  : AppColors.slate),
-          backgroundColor: displayStatus == QuestionDisplayStatus.analyzed
+          label: isAwaitingAiConfirmation
+              ? 'AI：待确认'
+              : displayStatus == QuestionDisplayStatus.analyzed
+                  ? 'AI：已分析'
+                  : (displayStatus == QuestionDisplayStatus.analysisFailed
+                      ? 'AI：分析失败'
+                      : 'AI：未分析'),
+          textColor: isAwaitingAiConfirmation
+              ? AppColors.warningDark
+              : displayStatus == QuestionDisplayStatus.analyzed
+                  ? AppColors.primaryDark
+                  : (displayStatus == QuestionDisplayStatus.analysisFailed
+                      ? AppColors.danger
+                      : AppColors.slate),
+          backgroundColor: isAwaitingAiConfirmation
               ? (isDark
-                  ? AppColors.primary.withValues(alpha: 0.24)
-                  : AppColors.primaryContainerLight)
-              : (displayStatus == QuestionDisplayStatus.analysisFailed
+                  ? AppColors.warning.withValues(alpha: 0.24)
+                  : AppColors.warningContainerLight)
+              : displayStatus == QuestionDisplayStatus.analyzed
                   ? (isDark
-                      ? AppColors.danger.withValues(alpha: 0.24)
-                      : AppColors.dangerContainerLight)
-                  : (isDark
-                      ? AppColors.slate.withValues(alpha: 0.24)
-                      : AppColors.slateContainerLight)),
+                      ? AppColors.primary.withValues(alpha: 0.24)
+                      : AppColors.primaryContainerLight)
+                  : (displayStatus == QuestionDisplayStatus.analysisFailed
+                      ? (isDark
+                          ? AppColors.danger.withValues(alpha: 0.24)
+                          : AppColors.dangerContainerLight)
+                      : (isDark
+                          ? AppColors.slate.withValues(alpha: 0.24)
+                          : AppColors.slateContainerLight)),
         ),
         AppTag(
           label: learningLabel,
@@ -867,34 +882,34 @@ class _QuestionTab extends StatelessWidget {
                 children: <Widget>[
                   AppTag(
                     label: current.subject.label,
-                    textColor: AppColors.primary,
-                    backgroundColor: AppColors.primaryContainerLight,
+                    useThemeTone: true,
+                    themeTone: AppTagTone.primary,
                   ),
                   if (current.questionType != null)
                     AppTag(
                       label: current.questionType!.label,
-                      textColor: AppColors.info,
-                      backgroundColor: AppColors.infoContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.secondary,
                     ),
                   if (result?.subject != null)
-                    const AppTag(
+                    AppTag(
                       label: 'AI识别',
-                      textColor: AppColors.success,
-                      backgroundColor: AppColors.successContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.success,
                     ),
                   _MasteryTag(current: current),
                   _RecognitionStatusTags(question: current),
                   if (_batchLabel(current) != null)
                     AppTag(
                       label: _batchLabel(current)!,
-                      textColor: AppColors.slate,
-                      backgroundColor: AppColors.slateContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.neutral,
                     ),
                   if (current.source != null)
                     AppTag(
                       label: current.source!,
-                      textColor: AppColors.successDark,
-                      backgroundColor: AppColors.successContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.success,
                     ),
                 ],
               ),
@@ -910,8 +925,8 @@ class _QuestionTab extends StatelessWidget {
                   children: current.aiTags
                       .map((tag) => AppTag(
                             label: tag,
-                            textColor: AppColors.accentAmber,
-                            backgroundColor: AppColors.accentAmberContainerLight,
+                            useThemeTone: true,
+                            themeTone: AppTagTone.tertiary,
                           ))
                       .toList(),
                 ),
@@ -928,8 +943,8 @@ class _QuestionTab extends StatelessWidget {
                   children: current.customTags
                       .map((t) => AppTag(
                             label: t,
-                            textColor: AppColors.primaryDark,
-                            backgroundColor: AppColors.primaryContainerLight,
+                            useThemeTone: true,
+                            themeTone: AppTagTone.primary,
                           ))
                       .toList(),
                 ),
@@ -1001,10 +1016,8 @@ class _QuestionTab extends StatelessWidget {
     return AppInfoSection(
       icon: CupertinoIcons.doc_text,
       title: AppStrings.detailOriginalQuestion,
-      iconColor: AppColors.primary,
-      backgroundColor: AppColors.primaryContainerLight,
-      borderColor: const Color(0xFFC7D2FE),
-      titleColor: AppColors.primaryDark,
+      useThemeTone: true,
+      themeTone: AppTagTone.primary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1110,6 +1123,18 @@ class _QuestionTab extends StatelessWidget {
             : 'AI 分析失败：已保留原图与校对题干，可在「分析」页重试',
         color: AppColors.danger,
         backgroundColor: isDark ? const Color(0xFF3B1414) : const Color(0xFFFEF2F2),
+      ));
+    } else if (displayStatus == QuestionDisplayStatus.needsConfirmation) {
+      final fields = question.analysisResult?.reviewDecision.fields ?? const <String>[];
+      alerts.add(_BannerItem(
+        icon: CupertinoIcons.exclamationmark_shield,
+        text: fields.isEmpty
+            ? 'AI 结果待人工确认，确认前不会进入复习计划'
+            : 'AI 结果待确认：${fields.join('、')}。确认前不会进入复习计划',
+        color: AppColors.warningDark,
+        backgroundColor: isDark
+            ? AppColors.warning.withValues(alpha: 0.18)
+            : AppColors.warningContainerLight,
       ));
     } else if (displayStatus == QuestionDisplayStatus.recognizing ||
         displayStatus == QuestionDisplayStatus.analyzing) {
@@ -1537,10 +1562,8 @@ class _ReflectionNoteCard extends StatelessWidget {
     return AppInfoSection(
       icon: CupertinoIcons.pencil_ellipsis_rectangle,
       title: '学习反思',
-      iconColor: AppColors.primary,
-      backgroundColor: AppColors.primaryContainerLight,
-      borderColor: const Color(0xFFC7D2FE),
-      titleColor: AppColors.primaryDark,
+      useThemeTone: true,
+      themeTone: AppTagTone.primary,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1598,10 +1621,8 @@ class _StudentAnswerCard extends StatelessWidget {
     return AppInfoSection(
       icon: CupertinoIcons.doc_richtext,
       title: '我的答案',
-      iconColor: AppColors.accentTeal,
-      backgroundColor: AppColors.accentTealContainerLight,
-      borderColor: const Color(0xFF99F6E4),
-      titleColor: AppColors.accentTeal,
+      useThemeTone: true,
+      themeTone: AppTagTone.secondary,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -2293,6 +2314,24 @@ class _AnalysisTab extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpace.md),
       children: <Widget>[
         AppInfoSection(
+          icon: CupertinoIcons.scope,
+          title: '错误定位',
+          iconColor: AppColors.warning,
+          backgroundColor: AppColors.warningContainerLight,
+          borderColor: AppColors.warning,
+          titleColor: AppColors.warningDark,
+          child: MathContentView(
+            result!.mistakeReason,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? colorScheme.onSurface : AppColors.warningDark,
+              height: 1.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpace.md),
+        AppInfoSection(
           icon: result!.visualAssumptionStatus == VisualAssumptionStatus.needsReview
               ? CupertinoIcons.exclamationmark_triangle
               : CupertinoIcons.checkmark_circle,
@@ -2328,22 +2367,7 @@ class _AnalysisTab extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: AppSpace.md),
-        AppInfoSection(
-          icon: CupertinoIcons.exclamationmark_triangle,
-          title: AppStrings.detailMistakeReason,
-          iconColor: AppColors.warning,
-          backgroundColor: AppColors.warningContainerLight,
-          borderColor: const Color(0xFFFED7AA),
-          titleColor: AppColors.warningDark,
-          child: MathContentView(
-            result!.mistakeReason,
-            style: TextStyle(
-                fontSize: 14,
-                color: isDark ? colorScheme.onSurface : AppColors.warning,
-                height: 1.5),
-          ),
-        ),
+
         const SizedBox(height: AppSpace.md),
         _MistakeCategoryCard(
           selected: current.mistakeCategory,

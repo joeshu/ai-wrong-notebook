@@ -13,6 +13,7 @@ import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -333,10 +334,13 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                 ],
               ),
             ),
-            body: Column(
+            body: AppPage(
+              maxWidth: AppContentWidth.wide,
+              padding: EdgeInsets.zero,
+              child: Column(
               children: <Widget>[
                 AnimatedSwitcher(
-                  duration: AppMotion.fast,
+                  duration: AppMotion.resolve(context, AppMotion.fast),
                   switchInCurve: AppMotion.standard,
                   switchOutCurve: AppMotion.standard,
                   transitionBuilder: (child, animation) => SizeTransition(
@@ -401,6 +405,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         );
@@ -868,35 +873,6 @@ class _MiniStat extends StatelessWidget {
   }
 }
 
-class _EmptyCard extends StatelessWidget {
-  const _EmptyCard({required this.message});
-
-  final String message;
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return AppCard(
-      backgroundColor: isDark
-          ? AppColors.success.withValues(alpha: 0.12)
-          : AppColors.successContainerLight,
-      borderColor: AppColors.success.withValues(alpha: 0.35),
-      child: Column(
-        children: <Widget>[
-          Icon(CupertinoIcons.star,
-              size: 48, color: AppColors.success.withValues(alpha: 0.65)),
-          const SizedBox(height: AppSpace.md),
-          const Text('太棒了！',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: AppSpace.xs),
-          Text(message, style: TextStyle(color: colorScheme.onSurfaceVariant)),
-        ],
-      ),
-    );
-  }
-}
-
 class _ReviewQuestionList extends StatelessWidget {
   const _ReviewQuestionList({
     required this.questions,
@@ -923,7 +899,11 @@ class _ReviewQuestionList extends StatelessWidget {
     if (questions.isEmpty) {
       return SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
-        child: _EmptyCard(message: emptyMessage),
+        child: AppEmptyState(
+          icon: CupertinoIcons.star,
+          title: '太棒了！',
+          description: emptyMessage,
+        ),
       );
     }
 

@@ -268,6 +268,7 @@ class _WorksheetImportScreenState extends ConsumerState<WorksheetImportScreen> {
     ref.read(currentQuestionProvider.notifier).state = question;
     final status = inferQuestionDisplayStatus(question);
     context.go(status == QuestionDisplayStatus.analyzed ||
+        status == QuestionDisplayStatus.needsConfirmation ||
         status == QuestionDisplayStatus.recognized
         ? '/analysis/result'
         : '/analysis/loading');
@@ -749,6 +750,9 @@ class _QueueQuestionTile extends StatelessWidget {
       case QuestionDisplayStatus.recognized:
         color = AppColors.info;
         label = 'OCR 草稿';
+      case QuestionDisplayStatus.needsConfirmation:
+        color = AppColors.warning;
+        label = '待确认';
       case QuestionDisplayStatus.analyzed:
         color = AppColors.success;
         label = '已分析';

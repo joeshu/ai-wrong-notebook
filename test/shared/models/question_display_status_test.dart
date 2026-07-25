@@ -56,6 +56,18 @@ void main() {
       );
     });
 
+    test('needsConfirmation → needsConfirmation', () {
+      expect(
+        inferQuestionDisplayStatus(
+          _record(
+            status: ContentStatus.needsConfirmation,
+            analysisResult: _analysis,
+          ),
+        ),
+        QuestionDisplayStatus.needsConfirmation,
+      );
+    });
+
     test('ready + analysisResult null → recognized（OCR 草稿）', () {
       expect(
         inferQuestionDisplayStatus(
@@ -97,13 +109,13 @@ void main() {
   });
 
   group('QuestionDisplayStatusX 文案与配色', () {
-    test('label 六态各不相同', () {
+    test('label 每个状态各不相同', () {
       final labels = QuestionDisplayStatus.values.map((s) => s.label).toSet();
       expect(labels.length, QuestionDisplayStatus.values.length,
-          reason: '文案应六态各不相同');
+          reason: '文案应各状态互不相同');
     });
 
-    test('foregroundColor 六态分组正确', () {
+    test('foregroundColor 状态分组正确', () {
       // 进行中两态同色（info），失败两态同色（danger）
       expect(QuestionDisplayStatus.recognizing.foregroundColor,
           QuestionDisplayStatus.analyzing.foregroundColor);

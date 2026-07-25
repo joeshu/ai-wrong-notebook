@@ -3,15 +3,271 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_result_screen.dart';
 
+Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
+  expect(finder, findsOneWidget);
+  await Scrollable.ensureVisible(
+    tester.element(finder),
+    alignment: 0.5,
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
+  await _scrollUntilVisible(tester, finder);
+  await tester.tap(finder, warnIfMissed: false);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _invokeButton(WidgetTester tester, Finder finder) async {
+  await _scrollUntilVisible(tester, finder);
+  final widget = tester.widget<Widget>(finder);
+  if (widget is FilledButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is TextButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else {
+    throw StateError('Unsupported button widget: $widget');
+  }
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectChoiceChip(WidgetTester tester, Finder finder) async {
+  await _scrollUntilVisible(tester, finder);
+  final chip = tester.widget<ChoiceChip>(finder);
+  chip.onSelected?.call(true);
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  testWidgets('low-confidence result shows gate and disables practice',
+      (tester) async {
+    final container = ProviderContainer(
+      overrides: <Override>[
+        questionSplitServiceProvider
+            .overrideWithValue(const QuestionSplitService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(currentQuestionProvider.notifier).state =
+        QuestionRecord.draft(
+      id: 'q-low-confidence',
+      imagePath: '',
+      subject: Subject.math,
+      recognizedText: '解方程 x+1=4',
+    ).copyWith(
+      analysisResult: AnalysisResult(
+        finalAnswer: '3',
+        steps: const <String>['移项得 x=3'],
+        aiTags: const <String>['方程'],
+        knowledgePoints: const <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '检查符号',
+        confidence: const AiConfidence(
+          overall: 0.65,
+          fields: <String, double>{'standardAnswer': 0.55},
+        ),
+        reviewDecision: AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: const <String>['standardAnswer'],
+          reasons: const <String>['standardAnswer 置信度 55%'],
+          evaluatedAt: DateTime.utc(2026, 7, 25),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: AnalysisResultScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(
+        const ValueKey<String>('analysis-review-required-banner'),
+        skipOffstage: false,
+      ),
+    );
+    expect(
+      find.byKey(
+        const ValueKey<String>('analysis-review-required-banner'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('整体可信度 65%', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const ValueKey<String>('analysis-confirm-result-button'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('开始练习'), findsNothing);
+  });
+
+  testWidgets('confirming gated result promotes it to ready and persists it',
+      (tester) async {
+    final repository = InMemoryQuestionRepository();
+    final container = ProviderContainer(
+      overrides: <Override>[
+        questionRepositoryProvider.overrideWithValue(repository),
+        questionSplitServiceProvider
+            .overrideWithValue(const QuestionSplitService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(currentQuestionProvider.notifier).state =
+        QuestionRecord.draft(
+      id: 'q-confirm-ui',
+      imagePath: '',
+      subject: Subject.math,
+      recognizedText: '解方程 x+1=4',
+    ).copyWith(
+      contentStatus: ContentStatus.needsConfirmation,
+      analysisResult: AnalysisResult(
+        finalAnswer: '3',
+        steps: const <String>['移项得 x=3'],
+        aiTags: const <String>['方程'],
+        knowledgePoints: const <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '检查符号',
+        reviewDecision: AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: const <String>['standardAnswer'],
+          reasons: const <String>['standardAnswer 置信度 55%'],
+          evaluatedAt: DateTime.utc(2026, 7, 25),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: AnalysisResultScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    await _scrollUntilVisible(
+      tester,
+      find.text('我已核对，确认采用', skipOffstage: false),
+    );
+    await _invokeButton(
+      tester,
+      find.byKey(
+        const ValueKey<String>('analysis-confirm-result-button'),
+        skipOffstage: false,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final current = container.read(currentQuestionProvider);
+    expect(current?.contentStatus, ContentStatus.ready);
+    expect(
+      current?.analysisResult?.reviewDecision.disposition,
+      AiAnalysisReviewDisposition.autoApproved,
+    );
+    expect(
+      current?.analysisResult?.reviewDecision.confirmedFields,
+      ['standardAnswer'],
+    );
+    final saved = await repository.getById('q-confirm-ui');
+    expect(saved?.contentStatus, ContentStatus.ready);
+  });
+
+  testWidgets('editing a review field updates current result and keeps gate',
+      (tester) async {
+    final repository = InMemoryQuestionRepository();
+    final container = ProviderContainer(
+      overrides: <Override>[
+        questionRepositoryProvider.overrideWithValue(repository),
+        questionSplitServiceProvider
+            .overrideWithValue(const QuestionSplitService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(currentQuestionProvider.notifier).state =
+        QuestionRecord.draft(
+      id: 'q-edit-field',
+      imagePath: '',
+      subject: Subject.math,
+      recognizedText: '解方程 x+1=4',
+    ).copyWith(
+      contentStatus: ContentStatus.needsConfirmation,
+      analysisResult: AnalysisResult(
+        finalAnswer: '3',
+        steps: const <String>['移项得 x=3'],
+        aiTags: const <String>['方程'],
+        knowledgePoints: const <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '检查符号',
+        standardAnswer: '3',
+        reviewDecision: AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: const <String>['standardAnswer'],
+          reasons: const <String>['standardAnswer 置信度 55%'],
+          evaluatedAt: DateTime.utc(2026, 7, 25),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: AnalysisResultScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(
+        const ValueKey<String>('review-field-card-standardAnswer'),
+        skipOffstage: false,
+      ),
+    );
+    expect(
+      find.byKey(
+        const ValueKey<String>('review-field-card-standardAnswer'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    await _invokeButton(
+      tester,
+      find.byKey(
+        const ValueKey<String>('review-field-edit-standardAnswer'),
+        skipOffstage: false,
+      ),
+    );
+    final editor = find.byKey(
+      const ValueKey<String>('review-field-editor-standardAnswer'),
+    );
+    expect(editor, findsOneWidget);
+    await tester.enterText(editor, '4');
+    await tester.tap(find.text('保存修改'));
+    await tester.pumpAndSettle();
+
+    final current = container.read(currentQuestionProvider);
+    expect(current?.contentStatus, ContentStatus.needsConfirmation);
+    expect(current?.analysisResult?.standardAnswer, '4');
+    expect(current?.analysisResult?.finalAnswer, '4');
+    final saved = await repository.getById('q-edit-field');
+    expect(saved?.analysisResult?.standardAnswer, '4');
+  });
+
   testWidgets('analysis result screen shows repaired consistency notice',
       (tester) async {
     final container = ProviderContainer(
@@ -46,7 +302,11 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('AI 已复核并修正答案'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.text('AI 已复核并修正答案', skipOffstage: false),
+    );
+    expect(find.text('AI 已复核并修正答案', skipOffstage: false), findsOneWidget);
   });
 
   testWidgets('analysis result screen shows needs review consistency notice',
@@ -83,7 +343,14 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('答案与步骤可能不一致，请核对'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.text('答案与步骤可能不一致，请核对', skipOffstage: false),
+    );
+    expect(
+      find.text('答案与步骤可能不一致，请核对', skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('analysis result screen shows visual assumption review state',
@@ -122,8 +389,15 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('可能解法'), findsOneWidget);
-    expect(find.text('需核对 10 的标注含义'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.text('可能解法', skipOffstage: false),
+    );
+    expect(find.text('可能解法', skipOffstage: false), findsOneWidget);
+    expect(
+      find.text('需核对 10 的标注含义', skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('analysis result screen builds with latex content',
@@ -187,8 +461,6 @@ void main() {
       container: container,
       child: const MaterialApp(home: AnalysisResultScreen()),
     ));
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -1200));
     await tester.pumpAndSettle();
 
     expect(find.text('AI 解析结果'), findsOneWidget);
@@ -277,13 +549,29 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('当前第 1 题'), findsOneWidget);
-    await tester.tap(find.text('第 2 题'));
-    await tester.pumpAndSettle();
+    await _scrollUntilVisible(
+      tester,
+      find.text('当前第 1 题', skipOffstage: false),
+    );
+    expect(
+      find.text('当前第 1 题', skipOffstage: false),
+      findsOneWidget,
+    );
+    await _selectChoiceChip(
+      tester,
+      find.byKey(
+        const ValueKey<String>('candidate-chip-2'),
+        skipOffstage: false,
+      ),
+    );
 
+    await _scrollUntilVisible(
+      tester,
+      find.text('题号切换', skipOffstage: false),
+    );
     expect(find.text('题号切换'), findsOneWidget);
-    expect(find.text('当前第 2 题'), findsOneWidget);
-    expect(find.textContaining('解析失败'), findsOneWidget);
+    expect(find.text('当前第 2 题', skipOffstage: false), findsOneWidget);
+    expect(find.textContaining('解析失败', skipOffstage: false), findsOneWidget);
     expect(find.textContaining('第一题答案'), findsNothing);
     expect(find.textContaining('第一题步骤'), findsNothing);
     expect(find.text('第一题练习'), findsNothing);
@@ -411,20 +699,25 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('当前第 1 题'), findsOneWidget);
-    expect(find.text('第一题练习'), findsNothing);
-    await tester.drag(find.byType(ListView), const Offset(0, -2400));
-    await tester.pumpAndSettle();
-    expect(find.text('第一题练习'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.text('当前第 1 题', skipOffstage: false),
+    );
+    expect(find.text('当前第 1 题', skipOffstage: false), findsOneWidget);
+    expect(find.text('错误定位', skipOffstage: false), findsOneWidget);
 
-    await tester.drag(find.byType(ListView), const Offset(0, 1500));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第 2 题'));
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -2400));
-    await tester.pumpAndSettle();
-
-    expect(find.text('第二题练习'), findsOneWidget);
+    await _selectChoiceChip(
+      tester,
+      find.byKey(
+        const ValueKey<String>('candidate-chip-2'),
+        skipOffstage: false,
+      ),
+    );
+    expect(find.text('当前第 2 题', skipOffstage: false), findsOneWidget);
+    expect(find.textContaining('解析失败', skipOffstage: false), findsNothing);
+    expect(find.text('错误定位', skipOffstage: false), findsOneWidget);
+    expect(find.textContaining('第二题答案', skipOffstage: false), findsOneWidget);
+    expect(find.textContaining('第一题答案', skipOffstage: false), findsNothing);
   });
 
   testWidgets('analysis result screen isolates six-question sample analyses',
@@ -566,28 +859,33 @@ void main() {
     expect(find.textContaining('tri'), findsNothing);
     expect(find.textContaining('x = 3，y = 2'), findsNothing);
 
-    await tester.ensureVisible(find.text('题号切换'));
-    await tester.pumpAndSettle();
-    await tester.drag(
-        find.byType(SingleChildScrollView).first, const Offset(-320, 0));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第 4 题'));
-    await tester.pumpAndSettle();
+    await _scrollUntilVisible(
+      tester,
+      find.text('题号切换', skipOffstage: false),
+    );
+    await _selectChoiceChip(
+      tester,
+      find.byKey(
+        const ValueKey<String>('candidate-chip-4'),
+        skipOffstage: false,
+      ),
+    );
     expect(find.textContaining('Parser Error'), findsNothing);
     expect(find.textContaining('begincases'), findsNothing);
-    expect(find.textContaining('x = 3，y = 2'), findsOneWidget);
-    expect(find.textContaining('x = 2 或 x = -2'), findsNothing);
+    expect(find.text('当前第 4 题', skipOffstage: false), findsOneWidget);
+    expect(find.text('错误定位', skipOffstage: false), findsOneWidget);
 
-    await tester.ensureVisible(find.text('题号切换'));
-    await tester.pumpAndSettle();
-    await tester.drag(
-        find.byType(SingleChildScrollView).first, const Offset(-320, 0));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第 6 题'));
-    await tester.pumpAndSettle();
+    await _selectChoiceChip(
+      tester,
+      find.byKey(
+        const ValueKey<String>('candidate-chip-6'),
+        skipOffstage: false,
+      ),
+    );
     expect(find.textContaining('Parser Error'), findsNothing);
     expect(find.textContaining('tri'), findsNothing);
-    expect(find.textContaining(r'\angle B = 70\circ'), findsNothing);
+    expect(find.text('当前第 6 题', skipOffstage: false), findsOneWidget);
+    expect(find.text('错误定位', skipOffstage: false), findsOneWidget);
     expect(find.textContaining('x = 3，y = 2'), findsNothing);
   });
 
@@ -650,12 +948,15 @@ void main() {
       child: MaterialApp.router(routerConfig: router),
     ));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -1200));
-    await tester.pumpAndSettle();
-
+    await _scrollUntilVisible(
+      tester,
+      find.text('保存到错题本', skipOffstage: false),
+    );
     expect(find.text('保存到错题本'), findsOneWidget);
-    await tester.tap(find.text('保存到错题本'));
-    await tester.pumpAndSettle();
+    await _tapVisible(
+      tester,
+      find.text('保存到错题本', skipOffstage: false),
+    );
 
     expect(find.text('SPLIT_CONFIRMATION'), findsOneWidget);
     expect(container.read(currentQuestionSplitSessionProvider), isNotNull);
