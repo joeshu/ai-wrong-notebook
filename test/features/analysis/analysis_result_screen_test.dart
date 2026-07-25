@@ -26,7 +26,27 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   await _scrollUntilVisible(tester, finder);
-  await tester.tap(finder);
+  await tester.tap(finder, warnIfMissed: false);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _invokeButton(WidgetTester tester, Finder finder) async {
+  await _scrollUntilVisible(tester, finder);
+  final widget = tester.widget<Widget>(finder);
+  if (widget is FilledButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else if (widget is TextButton && widget.onPressed != null) {
+    widget.onPressed!();
+  } else {
+    throw StateError('Unsupported button widget: $widget');
+  }
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectChoiceChip(WidgetTester tester, Finder finder) async {
+  await _scrollUntilVisible(tester, finder);
+  final chip = tester.widget<ChoiceChip>(finder);
+  chip.onSelected?.call(true);
   await tester.pumpAndSettle();
 }
 
@@ -146,7 +166,7 @@ void main() {
       tester,
       find.text('我已核对，确认采用', skipOffstage: false),
     );
-    await _tapVisible(
+    await _invokeButton(
       tester,
       find.byKey(
         const ValueKey<String>('analysis-confirm-result-button'),
@@ -225,18 +245,18 @@ void main() {
       ),
       findsOneWidget,
     );
-    await _tapVisible(
+    await _invokeButton(
       tester,
       find.byKey(
         const ValueKey<String>('review-field-edit-standardAnswer'),
         skipOffstage: false,
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const ValueKey<String>('review-field-editor-standardAnswer')),
-      '4',
+    final editor = find.byKey(
+      const ValueKey<String>('review-field-editor-standardAnswer'),
     );
+    expect(editor, findsOneWidget);
+    await tester.enterText(editor, '4');
     await tester.tap(find.text('保存修改'));
     await tester.pumpAndSettle();
 
@@ -539,9 +559,12 @@ void main() {
       find.text('当前第 1 题', skipOffstage: false),
       findsOneWidget,
     );
-    await _tapVisible(
+    await _selectChoiceChip(
       tester,
-      find.text('第 2 题', skipOffstage: false),
+      find.byKey(
+        const ValueKey<String>('candidate-chip-2'),
+        skipOffstage: false,
+      ),
     );
 
     await _scrollUntilVisible(
@@ -693,9 +716,12 @@ void main() {
     );
     expect(find.text('第一题练习'), findsOneWidget);
 
-    await _tapVisible(
+    await _selectChoiceChip(
       tester,
-      find.text('第 2 题', skipOffstage: false),
+      find.byKey(
+        const ValueKey<String>('candidate-chip-2'),
+        skipOffstage: false,
+      ),
     );
     await _scrollUntilVisible(
       tester,

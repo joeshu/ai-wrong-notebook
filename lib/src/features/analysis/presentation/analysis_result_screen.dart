@@ -1289,6 +1289,7 @@ class _CandidateSwitcherCard extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(right: AppSpace.sm),
                   child: ChoiceChip(
+                    key: ValueKey<String>('candidate-chip-${candidate.order}'),
                     label: Text('第 ${candidate.order} 题'),
                     selected: isActive,
                     onSelected: (_) => onSelected(entry.key),
