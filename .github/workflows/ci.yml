@@ -35,4 +35,28 @@ jobs:
           exit "$status"
 
       - name: Run tests
-        run: flutter test
+        shell: bash
+        run: |
+          set +e
+          flutter test --machine > test-results.jsonl 2>&1
+          status=$?
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          for raw in Path('test-results.jsonl').read_text(errors='replace').splitlines():
+              try:
+                  event = json.loads(raw)
+              except json.JSONDecodeError:
+                  continue
+              if event.get('type') == 'error':
+                  message = str(event.get('error', 'Test error'))
+                  stack = str(event.get('stackTrace', '')).splitlines()[:6]
+                  body = '\n'.join([message, *stack])
+              elif event.get('type') == 'testDone' and event.get('result') not in ('success', 'skipped'):
+                  body = f"Test failed: {event.get('testID')} ({event.get('result')})"
+              else:
+                  continue
+              body = body.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=Flutter Test::{body}')
+          PY
+          exit "$status"
