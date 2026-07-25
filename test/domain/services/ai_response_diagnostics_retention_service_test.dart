@@ -18,11 +18,10 @@ void main() {
   });
 
   test('stripRawResponses leaves record unchanged when no raw response exists', () {
-    final record = _record(raw: 'raw').copyWith(
-      analysisResult: _record(raw: 'raw')
-          .analysisResult!
-          .copyWith(responseDiagnostics: _record(raw: 'raw')
-              .analysisResult!
+    final base = _record(raw: 'raw');
+    final record = base.copyWith(
+      analysisResult:
+          base.analysisResult!.copyWith(responseDiagnostics: base.analysisResult!
               .responseDiagnostics!
               .withoutRawResponse()),
     );
@@ -32,6 +31,7 @@ void main() {
     expect(identical(stripped, record), isTrue);
   });
 
+  test('expireRawResponses keeps unexpired raw response', () {
     final kept = service.expireRawResponses(
       _record(raw: 'raw', capturedAt: DateTime.utc(2026, 7, 25)),
       now: DateTime.utc(2026, 7, 26),
