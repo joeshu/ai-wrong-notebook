@@ -426,7 +426,7 @@ class _HomeStatStrip extends StatelessWidget {
           (icon: CupertinoIcons.square_stack_3d_up, label: '训练样本', helper: '分析总量', tone: AppTagTone.secondary),
         ],
       AppVisualStyle.forest => <({IconData icon, String label, String helper, AppTagTone tone})>[
-          (icon: CupertinoIcons.leaf, label: '稳定坚持', helper: '今天也前进', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.tree, label: '稳定坚持', helper: '今天也前进', tone: AppTagTone.warning),
           (icon: CupertinoIcons.time, label: '待温习', helper: '先看最重要', tone: AppTagTone.primary),
           (icon: CupertinoIcons.layers_alt, label: '积累题量', helper: '慢慢长成', tone: AppTagTone.secondary),
         ],
