@@ -141,22 +141,35 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         future: _loadExportFiles(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Padding(padding: EdgeInsets.all(16), child: LinearProgressIndicator());
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: LinearProgressIndicator(),
+            );
           }
           final files = snapshot.data ?? const <File>[];
           if (files.isEmpty) {
             return const Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: _SummaryBox(icon: CupertinoIcons.clock, text: '暂无导出文件。完成一次导出后，记录会显示在这里。'),
+              child: _SummaryBox(
+                icon: CupertinoIcons.clock,
+                text: '暂无导出文件。完成一次导出后，记录会显示在这里。',
+              ),
             );
           }
           return Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(children: files.take(5).map((file) => _ExportHistoryListTile(
-              file: file,
-              onDelete: () => _deleteExportHistoryFile(context, file),
-              onShare: () => _shareExportHistoryFile(context, file),
-            )).toList()),
+            child: Column(
+              children: files
+                  .take(5)
+                  .map(
+                    (file) => _ExportHistoryListTile(
+                      file: file,
+                      onDelete: () => _deleteExportHistoryFile(context, file),
+                      onShare: () => _shareExportHistoryFile(context, file),
+                    ),
+                  )
+                  .toList(),
+            ),
           );
         },
       ),
@@ -1174,7 +1187,11 @@ class _SummaryBox extends StatelessWidget {
 
 
 class _ExportHistoryListTile extends StatelessWidget {
-  const _ExportHistoryListTile({required this.file, required this.onDelete, required this.onShare});
+  const _ExportHistoryListTile({
+    required this.file,
+    required this.onDelete,
+    required this.onShare,
+  });
   final File file;
   final VoidCallback onDelete;
   final VoidCallback onShare;
@@ -1182,23 +1199,101 @@ class _ExportHistoryListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = file.uri.pathSegments.last;
-    final isPdf = name.toLowerCase().endsWith('.pdf');
+    FileStat? stat;
+    try {
+      stat = file.statSync();
+    } catch (_) {
+      // 文件可能刚好被系统清理，列表仍可安全渲染。
+    }
+    final extension = _extension(name);
+    final colorScheme = Theme.of(context).colorScheme;
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
-      leading: Icon(isPdf ? CupertinoIcons.doc_richtext : CupertinoIcons.doc_text),
-      title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(_formatBytes(file.statSync().size)),
-      trailing: Wrap(spacing: 0, children: <Widget>[
-        IconButton(onPressed: onShare, icon: const Icon(CupertinoIcons.share), tooltip: '分享'),
-        IconButton(onPressed: onDelete, icon: const Icon(CupertinoIcons.delete, color: AppColors.danger), tooltip: '删除'),
-      ]),
+      leading: Icon(_formatIcon(extension), color: colorScheme.primary),
+      title: Row(
+        children: <Widget>[
+          _FormatBadge(label: extension.toUpperCase()),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      ),
+      subtitle: Text(
+        stat == null
+            ? '文件状态不可用'
+            : '${_formatDateTime(stat.modified)} · ${_formatBytes(stat.size)}',
+      ),
+      trailing: Wrap(
+        spacing: 0,
+        children: <Widget>[
+          IconButton(
+            onPressed: onShare,
+            icon: const Icon(CupertinoIcons.share),
+            tooltip: '分享',
+          ),
+          IconButton(
+            onPressed: onDelete,
+            icon: const Icon(CupertinoIcons.delete, color: AppColors.danger),
+            tooltip: '删除',
+          ),
+        ],
+      ),
     );
+  }
+
+  static String _extension(String name) {
+    final dot = name.lastIndexOf('.');
+    if (dot < 0 || dot == name.length - 1) return 'FILE';
+    return name.substring(dot + 1);
+  }
+
+  static IconData _formatIcon(String extension) => switch (extension.toLowerCase()) {
+        'pdf' => CupertinoIcons.doc_richtext,
+        'csv' => CupertinoIcons.table,
+        'json' => CupertinoIcons.square_stack_3d_up,
+        'md' || 'markdown' => CupertinoIcons.text_badge_plus,
+        'txt' || 'anki' => CupertinoIcons.rectangle_stack,
+        _ => CupertinoIcons.doc_text,
+      };
+
+  static String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} '
+        '${two(local.hour)}:${two(local.minute)}';
   }
 
   static String _formatBytes(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
+class _FormatBadge extends StatelessWidget {
+  const _FormatBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: scheme.onSecondaryContainer,
+        ),
+      ),
+    );
   }
 }
