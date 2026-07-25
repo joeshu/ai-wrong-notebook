@@ -112,6 +112,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
         maxWidth: AppContentWidth.wide,
         padding: EdgeInsets.zero,
         child: ListView(
+        cacheExtent: 4000,
         padding: const EdgeInsets.all(AppSpace.lg),
         children: <Widget>[
           const AppTaskFlow(
