@@ -56,6 +56,10 @@ void main() {
     await pumpWorkbench(tester, size: const Size(320, 700), themeMode: ThemeMode.light);
     expect(find.text('原图附件缺失，请手动录入或放弃此草稿'), findsOneWidget);
     await selectCompactSegment(tester, false);
+    expect(find.text('识别来源对照'), findsOneWidget);
+    expect(find.text('OCR 原文'), findsNothing);
+    await tester.tap(find.text('识别来源对照'));
+    await tester.pumpAndSettle();
     expect(find.text('OCR 原文'), findsOneWidget);
     expect(find.text('AI 规范化文本'), findsOneWidget);
     final fields = tester.widgetList<TextField>(find.byType(TextField)).toList();
@@ -68,6 +72,10 @@ void main() {
   testWidgets('tablet dark layout shows image and layered text side by side', (tester) async {
     await pumpWorkbench(tester, size: const Size(1024, 900), themeMode: ThemeMode.dark);
     expect(find.text('原图附件缺失，请手动录入或放弃此草稿'), findsOneWidget);
+    expect(find.text('识别来源对照'), findsOneWidget);
+    expect(find.text('OCR 原文'), findsNothing);
+    await tester.tap(find.text('识别来源对照'));
+    await tester.pumpAndSettle();
     expect(find.text('OCR 原文'), findsOneWidget);
     expect(find.text('AI 规范化文本'), findsOneWidget);
     expect(find.textContaining('确认低置信度'), findsOneWidget);
