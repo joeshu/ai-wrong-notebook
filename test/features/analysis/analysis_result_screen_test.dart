@@ -78,9 +78,12 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.textContaining('整体可信度 65%'), findsOneWidget);
     expect(
-      find.widgetWithText(FilledButton, '保存为待确认'),
+      find.textContaining('整体可信度 65%', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(FilledButton, '我已核对，确认采用'),
       findsOneWidget,
     );
     expect(find.text('开始练习'), findsNothing);
@@ -131,7 +134,9 @@ void main() {
       tester,
       find.text('我已核对，确认采用', skipOffstage: false),
     );
-    await tester.tap(find.text('我已核对，确认采用', skipOffstage: false));
+    await tester.tap(
+      find.widgetWithText(FilledButton, '我已核对，确认采用'),
+    );
     await tester.pumpAndSettle();
 
     final current = container.read(currentQuestionProvider);
@@ -204,7 +209,15 @@ void main() {
       ),
       findsOneWidget,
     );
-    await tester.tap(find.widgetWithText(TextButton, '编辑'));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(
+          const ValueKey<String>('review-field-card-standardAnswer'),
+          skipOffstage: false,
+        ),
+        matching: find.widgetWithText(TextButton, '编辑'),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey<String>('review-field-editor-standardAnswer')),
@@ -296,7 +309,14 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('答案与步骤可能不一致，请核对'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.text('答案与步骤可能不一致，请核对', skipOffstage: false),
+    );
+    expect(
+      find.text('答案与步骤可能不一致，请核对', skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('analysis result screen shows visual assumption review state',
