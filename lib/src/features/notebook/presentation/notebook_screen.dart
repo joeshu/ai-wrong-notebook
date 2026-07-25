@@ -17,6 +17,7 @@ import 'package:smart_wrong_notebook/src/features/notebook/application/knowledge
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 
@@ -582,7 +583,10 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
                 ),
               ],
       ),
-      body: Column(
+      body: AppPage(
+        maxWidth: AppContentWidth.wide,
+        padding: EdgeInsets.zero,
+        child: Column(
         children: <Widget>[
           // 搜索栏
           Padding(
@@ -796,6 +800,7 @@ class _NotebookScreenState extends ConsumerState<NotebookScreen> {
               ),
             ),
         ],
+        ),
       ),
     );
   }

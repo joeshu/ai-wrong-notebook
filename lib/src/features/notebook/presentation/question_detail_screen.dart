@@ -23,6 +23,7 @@ import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/models/question_display_status.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
@@ -136,7 +137,10 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
           ],
         ),
       ),
-      body: Column(
+      body: AppPage(
+        maxWidth: AppContentWidth.wide,
+        padding: EdgeInsets.zero,
+        child: Column(
         children: <Widget>[
           if (_editing)
             Padding(
@@ -194,6 +198,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen>
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -2315,6 +2320,24 @@ class _AnalysisTab extends StatelessWidget {
       padding: const EdgeInsets.all(AppSpace.md),
       children: <Widget>[
         AppInfoSection(
+          icon: CupertinoIcons.scope,
+          title: '错误定位',
+          iconColor: AppColors.warning,
+          backgroundColor: AppColors.warningContainerLight,
+          borderColor: AppColors.warning,
+          titleColor: AppColors.warningDark,
+          child: MathContentView(
+            result!.mistakeReason,
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark ? colorScheme.onSurface : AppColors.warningDark,
+              height: 1.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpace.md),
+        AppInfoSection(
           icon: result!.visualAssumptionStatus == VisualAssumptionStatus.needsReview
               ? CupertinoIcons.exclamationmark_triangle
               : CupertinoIcons.checkmark_circle,
@@ -2350,22 +2373,7 @@ class _AnalysisTab extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: AppSpace.md),
-        AppInfoSection(
-          icon: CupertinoIcons.exclamationmark_triangle,
-          title: AppStrings.detailMistakeReason,
-          iconColor: AppColors.warning,
-          backgroundColor: AppColors.warningContainerLight,
-          borderColor: const Color(0xFFFED7AA),
-          titleColor: AppColors.warningDark,
-          child: MathContentView(
-            result!.mistakeReason,
-            style: TextStyle(
-                fontSize: 14,
-                color: isDark ? colorScheme.onSurface : AppColors.warning,
-                height: 1.5),
-          ),
-        ),
+
         const SizedBox(height: AppSpace.md),
         _MistakeCategoryCard(
           selected: current.mistakeCategory,
