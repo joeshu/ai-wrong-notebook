@@ -13,6 +13,11 @@ enum ContentStatus {
   /// 而非"识别中"，并允许展示分析阶段状态。
   analyzing,
 
+  /// 分析完成，但低置信度或不确定字段必须由用户确认。
+  ///
+  /// 该状态不得被列表、批量保存或复习流程视为最终 ready。
+  needsConfirmation,
+
   /// 就绪（OCR 成功，可能已分析或未分析）。
   ///
   /// 是否已分析看 `QuestionRecord.analysisResult` 是否为 null：

@@ -8,10 +8,12 @@ import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
+import 'package:smart_wrong_notebook/src/domain/services/ai_analysis_review_policy.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/stage_indicator.dart';
@@ -314,38 +316,99 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
                   sourceQuestionText: working.correctedText,
                 ));
 
+      const reviewPolicy = AiAnalysisReviewPolicy();
+      final hasStudentAnswer = (working.studentAnswer ?? '').trim().isNotEmpty;
+      var reviewDecision = reviewPolicy.evaluate(
+        analysis,
+        hasStudentAnswer: hasStudentAnswer,
+      );
+
+      final reviewedCandidates = candidateSnapshots.map((payload) {
+        final candidateAnalysis = payload.analysisResult;
+        if (candidateAnalysis == null) {
+          return CandidateAnalysisSnapshot(
+            candidateId: payload.candidateId,
+            order: payload.order,
+            questionText: payload.questionText,
+            analysisResult: null,
+            savedExercises: payload.savedExercises,
+            subject: payload.subject,
+            aiTags: payload.aiTags,
+            aiKnowledgePoints: payload.aiKnowledgePoints,
+            status: payload.status,
+            errorMessage: payload.errorMessage,
+          );
+        }
+        final decision = reviewPolicy.evaluate(
+          candidateAnalysis,
+          hasStudentAnswer: hasStudentAnswer,
+        );
+        final reviewed = candidateAnalysis.copyWith(
+          reviewDecision: decision,
+          pipeline: reviewPolicy.completedPipeline(decision),
+        );
+        return CandidateAnalysisSnapshot(
+          candidateId: payload.candidateId,
+          order: payload.order,
+          questionText: payload.questionText,
+          analysisResult: reviewed,
+          savedExercises: payload.savedExercises,
+          subject: payload.subject,
+          aiTags: payload.aiTags,
+          aiKnowledgePoints: payload.aiKnowledgePoints,
+          status: payload.status,
+          errorMessage: payload.errorMessage,
+        );
+      }).toList(growable: false);
+
+      final candidateReviews = reviewedCandidates
+          .map((candidate) => candidate.analysisResult?.reviewDecision)
+          .whereType<AiAnalysisReviewDecision>()
+          .where((decision) => decision.requiresConfirmation)
+          .toList(growable: false);
+      if (candidateReviews.isNotEmpty) {
+        reviewDecision = AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: <String>{
+            ...reviewDecision.fields,
+            for (final decision in candidateReviews) ...decision.fields,
+          }.toList(growable: false)..sort(),
+          reasons: <String>{
+            ...reviewDecision.reasons,
+            for (final decision in candidateReviews) ...decision.reasons,
+          }.toList(growable: false),
+          evaluatedAt: DateTime.now(),
+        );
+      }
+      final reviewedAnalysis = analysis.copyWith(
+        reviewDecision: reviewDecision,
+        pipeline: reviewPolicy.completedPipeline(reviewDecision),
+      );
+      final contentStatus = reviewDecision.requiresConfirmation
+          ? ContentStatus.needsConfirmation
+          : ContentStatus.ready;
+
       final updated = working
           .copyWith(
-            contentStatus: ContentStatus.ready,
-            analysisResult: analysis,
+            contentStatus: contentStatus,
+            analysisResult: reviewedAnalysis,
             savedExercises: generatedExercises,
-            subject: analysis.subject ?? working.subject,
-            aiTags: analysis.aiTags,
-            aiKnowledgePoints: analysis.knowledgePoints,
+            subject: reviewedAnalysis.subject ?? working.subject,
+            aiTags: reviewedAnalysis.aiTags,
+            aiKnowledgePoints: reviewedAnalysis.knowledgePoints,
             aiReconstructedText: aiReconstructed,
-            candidateAnalyses: candidateSnapshots.map((payload) {
-              return CandidateAnalysisSnapshot(
-                candidateId: payload.candidateId,
-                order: payload.order,
-                questionText: payload.questionText,
-                analysisResult: payload.analysisResult,
-                savedExercises: payload.savedExercises,
-                subject: payload.subject,
-                aiTags: payload.aiTags,
-                aiKnowledgePoints: payload.aiKnowledgePoints,
-                status: payload.status,
-                errorMessage: payload.errorMessage,
-              );
-            }).toList(),
+            candidateAnalyses: reviewedCandidates,
           )
           .withLastAnalysisError(null);
       ref.read(currentQuestionProvider.notifier).state = updated;
       await _replaceWorksheetQueueItem(updated);
       _clearTimeoutTimer();
 
-      // Phase 4-C：AI 分析完成后，把知识点文本映射到受控节点，
-      // 未匹配的进入待确认队列供用户手动映射。后台执行不阻塞 UI。
-      _mapAnalysisKnowledgePoints(updated);
+      // Only trusted analyses enter the controlled knowledge tree automatically.
+      // Low-confidence results stay isolated until the user confirms them.
+      if (!reviewDecision.requiresConfirmation) {
+        _mapAnalysisKnowledgePoints(updated);
+      }
 
       if (mounted) {
         _stepTimer?.cancel();

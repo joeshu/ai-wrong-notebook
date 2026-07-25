@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 
@@ -53,6 +54,20 @@ void main() {
         focus: <String>['移项符号'],
         reason: '需要及时巩固',
       ),
+      reviewDecision: AiAnalysisReviewDecision(
+        disposition: AiAnalysisReviewDisposition.needsConfirmation,
+        fields: <String>['studentAnswer'],
+        reasons: <String>['studentAnswer 置信度低'],
+        evaluatedAt: DateTime.utc(2026, 7, 25),
+      ),
+      pipeline: AiAnalysisPipelineSnapshot(
+        status: AiAnalysisPipelineStatus.waitingForConfirmation,
+        currentStage: AiAnalysisPipelineStage.questionConfirmation,
+        completedStages: <AiAnalysisPipelineStage>[
+          AiAnalysisPipelineStage.solving,
+        ],
+        message: '等待确认',
+      ),
       isLegacyContract: false,
     );
 
@@ -67,6 +82,16 @@ void main() {
     expect(restored.evidence.single.source, AiEvidenceSource.studentAnswer);
     expect(restored.mistakeCategory, MistakeCategory.calculation);
     expect(restored.reviewPlan?.reviewAfterDays, 2);
+    expect(restored.reviewDecision.requiresConfirmation, isTrue);
+    expect(restored.reviewDecision.fields, ['studentAnswer']);
+    expect(
+      restored.pipeline.status,
+      AiAnalysisPipelineStatus.waitingForConfirmation,
+    );
+    expect(
+      restored.pipeline.currentStage,
+      AiAnalysisPipelineStage.questionConfirmation,
+    );
   });
 
   test('legacy analysis remains readable without fabricated confidence', () {

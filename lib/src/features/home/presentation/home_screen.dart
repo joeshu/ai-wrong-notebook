@@ -33,7 +33,10 @@ class HomeScreen extends ConsumerWidget {
     final worksheetSession = ref.watch(currentWorksheetImportProvider);
     final hasPendingBatch = worksheetSession?.pages.any((item) {
           final status = inferQuestionDisplayStatus(item);
-          return status.isInProgress || status.isFailed || status == QuestionDisplayStatus.recognized;
+          return status.isInProgress ||
+              status.isFailed ||
+              status == QuestionDisplayStatus.recognized ||
+              status == QuestionDisplayStatus.needsConfirmation;
         }) ??
         false;
 
@@ -1298,8 +1301,10 @@ int _countPendingRecognition(
   if (worksheetSession != null) {
     for (final page in worksheetSession.pages) {
       final status = inferQuestionDisplayStatus(page);
-      if (status.isInProgress || status.isFailed ||
-          status == QuestionDisplayStatus.recognized) {
+      if (status.isInProgress ||
+          status.isFailed ||
+          status == QuestionDisplayStatus.recognized ||
+          status == QuestionDisplayStatus.needsConfirmation) {
         count++;
       }
     }

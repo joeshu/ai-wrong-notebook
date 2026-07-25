@@ -6,6 +6,8 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
@@ -44,6 +46,40 @@ class _TestSettingsRepository implements SettingsRepository {
     await setString('quick_capture_enabled', enabled ? 'true' : 'false');
   }
 }
+
+AnalysisResult _trustedAnalysis({Subject subject = Subject.math}) => AnalysisResult(
+      subject: subject,
+      finalAnswer: 'x = 3',
+      steps: const <String>['移项得 x=3'],
+      aiTags: const <String>['方程'],
+      knowledgePoints: const <String>['一元一次方程'],
+      mistakeReason: '',
+      studyAdvice: '检查符号',
+      schemaVersion: 2,
+      promptVersion: 'analysis-v2.0.0',
+      modelName: 'test-model',
+      confidence: const AiConfidence(
+        overall: 0.9,
+        fields: <String, double>{
+          'normalizedQuestion': 0.95,
+          'studentAnswer': 0.9,
+          'standardAnswer': 0.94,
+          'solutionSteps': 0.92,
+          'knowledgePoints': 0.85,
+          'generatedExercises': 0.8,
+        },
+      ),
+      normalizedQuestion: '解方程 x+1=4',
+      standardAnswer: 'x = 3',
+      solutionSteps: const <String>['移项得 x=3'],
+      consistencyStatus: AnalysisConsistencyStatus.consistent,
+      reviewPlan: const AiReviewPlan(
+        reviewAfterDays: 2,
+        focus: <String>['移项'],
+        reason: '巩固规则',
+      ),
+      isLegacyContract: false,
+    );
 
 class _FailingCandidateAiAnalysisService extends TestAiAnalysisService {
   _FailingCandidateAiAnalysisService({
@@ -160,7 +196,8 @@ void main() {
     expect(updated.normalizedQuestionText, '整理后的题目文本');
     expect(updated.splitResult, isNotNull);
     expect(updated.splitResult?.strategy, QuestionSplitStrategy.fallback);
-    expect(updated.contentStatus, ContentStatus.ready);
+    expect(updated.contentStatus, ContentStatus.needsConfirmation);
+    expect(updated.analysisResult?.reviewDecision.requiresConfirmation, isTrue);
     expect(updated.analysisResult?.finalAnswer, '答案');
     expect(updated.extractedQuestionText,
         service.extractionResult.extractedQuestionText);
@@ -177,15 +214,7 @@ void main() {
         normalizedQuestionText: '不会被用到',
         subject: Subject.physics,
       ),
-      analysisResultValue: const AnalysisResult(
-        subject: Subject.math,
-        finalAnswer: 'x = 3',
-        steps: <String>['移项'],
-        aiTags: <String>['方程'],
-        knowledgePoints: <String>['一元一次方程'],
-        mistakeReason: '粗心',
-        studyAdvice: '多练习',
-      ),
+      analysisResultValue: _trustedAnalysis(),
     );
 
     final container = ProviderContainer(
@@ -234,6 +263,11 @@ void main() {
     expect(updated, isNotNull);
     expect(updated!.normalizedQuestionText, '已确认文本');
     expect(updated.contentStatus, ContentStatus.ready);
+    expect(updated.analysisResult?.reviewDecision.requiresConfirmation, isFalse);
+    expect(
+      updated.analysisResult?.pipeline.status,
+      AiAnalysisPipelineStatus.completed,
+    );
     expect(updated.analysisResult?.finalAnswer, 'x = 3');
   });
 
@@ -635,7 +669,8 @@ void main() {
     expect(find.textContaining('多题解析未全部完成'), findsNothing);
     expect(service.attempts['2. 第二题'], 2);
     final updated = container.read(currentQuestionProvider);
-    expect(updated?.contentStatus, ContentStatus.ready);
+    expect(updated?.contentStatus, ContentStatus.needsConfirmation);
+    expect(updated?.analysisResult?.reviewDecision.requiresConfirmation, isTrue);
     expect(updated?.candidateAnalyses, hasLength(2));
     expect(updated?.candidateAnalyses.first.isSuccessful, isTrue);
     expect(

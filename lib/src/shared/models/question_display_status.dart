@@ -23,6 +23,9 @@ enum QuestionDisplayStatus {
   /// 已识别待分析（OCR 成功，未交给 AI）。
   recognized,
 
+  /// AI 分析完成，但低置信度字段尚未确认。
+  needsConfirmation,
+
   /// 已分析（AI 分析成功）。
   analyzed,
 
@@ -43,6 +46,8 @@ extension QuestionDisplayStatusX on QuestionDisplayStatus {
         return '分析中';
       case QuestionDisplayStatus.recognized:
         return '待 AI 分析';
+      case QuestionDisplayStatus.needsConfirmation:
+        return '待人工确认';
       case QuestionDisplayStatus.analyzed:
         return 'AI 已分析';
       case QuestionDisplayStatus.recognitionFailed:
@@ -60,6 +65,8 @@ extension QuestionDisplayStatusX on QuestionDisplayStatus {
         return AppColors.info;
       case QuestionDisplayStatus.recognized:
         return AppColors.primary;
+      case QuestionDisplayStatus.needsConfirmation:
+        return AppColors.warning;
       case QuestionDisplayStatus.analyzed:
         return AppColors.success;
       case QuestionDisplayStatus.recognitionFailed:
@@ -80,6 +87,10 @@ extension QuestionDisplayStatusX on QuestionDisplayStatus {
         return brightness == Brightness.dark
             ? AppColors.primary.withValues(alpha: 0.24)
             : AppColors.primaryContainerLight;
+      case QuestionDisplayStatus.needsConfirmation:
+        return brightness == Brightness.dark
+            ? AppColors.warning.withValues(alpha: 0.24)
+            : AppColors.warningContainerLight;
       case QuestionDisplayStatus.analyzed:
         return brightness == Brightness.dark
             ? AppColors.success.withValues(alpha: 0.24)
@@ -122,6 +133,8 @@ QuestionDisplayStatus inferQuestionDisplayStatus(QuestionRecord question) {
       return QuestionDisplayStatus.recognizing;
     case ContentStatus.analyzing:
       return QuestionDisplayStatus.analyzing;
+    case ContentStatus.needsConfirmation:
+      return QuestionDisplayStatus.needsConfirmation;
     case ContentStatus.ready:
       return question.analysisResult == null
           ? QuestionDisplayStatus.recognized

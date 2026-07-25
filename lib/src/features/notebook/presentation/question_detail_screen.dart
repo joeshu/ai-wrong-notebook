@@ -750,6 +750,8 @@ class _RecognitionStatusTags extends StatelessWidget {
     // 统一用 QuestionDisplayStatus 推导识别/AI 文案与配色，
     // 与首页、题卡、批量任务保持一致，避免各页面硬编码口径分裂。
     final displayStatus = inferQuestionDisplayStatus(question);
+    final isAwaitingAiConfirmation =
+        displayStatus == QuestionDisplayStatus.needsConfirmation;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final recognitionLabel = provider ??
         (question.imagePath.isNotEmpty ? '已识别' : '未识别');
@@ -775,27 +777,35 @@ class _RecognitionStatusTags extends StatelessWidget {
                   : AppColors.successContainerLight),
         ),
         AppTag(
-          label: displayStatus == QuestionDisplayStatus.analyzed
-              ? 'AI：已分析'
-              : (displayStatus == QuestionDisplayStatus.analysisFailed
-                  ? 'AI：分析失败'
-                  : 'AI：未分析'),
-          textColor: displayStatus == QuestionDisplayStatus.analyzed
-              ? AppColors.primaryDark
-              : (displayStatus == QuestionDisplayStatus.analysisFailed
-                  ? AppColors.danger
-                  : AppColors.slate),
-          backgroundColor: displayStatus == QuestionDisplayStatus.analyzed
+          label: isAwaitingAiConfirmation
+              ? 'AI：待确认'
+              : displayStatus == QuestionDisplayStatus.analyzed
+                  ? 'AI：已分析'
+                  : (displayStatus == QuestionDisplayStatus.analysisFailed
+                      ? 'AI：分析失败'
+                      : 'AI：未分析'),
+          textColor: isAwaitingAiConfirmation
+              ? AppColors.warningDark
+              : displayStatus == QuestionDisplayStatus.analyzed
+                  ? AppColors.primaryDark
+                  : (displayStatus == QuestionDisplayStatus.analysisFailed
+                      ? AppColors.danger
+                      : AppColors.slate),
+          backgroundColor: isAwaitingAiConfirmation
               ? (isDark
-                  ? AppColors.primary.withValues(alpha: 0.24)
-                  : AppColors.primaryContainerLight)
-              : (displayStatus == QuestionDisplayStatus.analysisFailed
+                  ? AppColors.warning.withValues(alpha: 0.24)
+                  : AppColors.warningContainerLight)
+              : displayStatus == QuestionDisplayStatus.analyzed
                   ? (isDark
-                      ? AppColors.danger.withValues(alpha: 0.24)
-                      : AppColors.dangerContainerLight)
-                  : (isDark
-                      ? AppColors.slate.withValues(alpha: 0.24)
-                      : AppColors.slateContainerLight)),
+                      ? AppColors.primary.withValues(alpha: 0.24)
+                      : AppColors.primaryContainerLight)
+                  : (displayStatus == QuestionDisplayStatus.analysisFailed
+                      ? (isDark
+                          ? AppColors.danger.withValues(alpha: 0.24)
+                          : AppColors.dangerContainerLight)
+                      : (isDark
+                          ? AppColors.slate.withValues(alpha: 0.24)
+                          : AppColors.slateContainerLight)),
         ),
         AppTag(
           label: learningLabel,
@@ -1110,6 +1120,18 @@ class _QuestionTab extends StatelessWidget {
             : 'AI 分析失败：已保留原图与校对题干，可在「分析」页重试',
         color: AppColors.danger,
         backgroundColor: isDark ? const Color(0xFF3B1414) : const Color(0xFFFEF2F2),
+      ));
+    } else if (displayStatus == QuestionDisplayStatus.needsConfirmation) {
+      final fields = question.analysisResult?.reviewDecision.fields ?? const <String>[];
+      alerts.add(_BannerItem(
+        icon: CupertinoIcons.exclamationmark_shield,
+        text: fields.isEmpty
+            ? 'AI 结果待人工确认，确认前不会进入复习计划'
+            : 'AI 结果待确认：${fields.join('、')}。确认前不会进入复习计划',
+        color: AppColors.warningDark,
+        backgroundColor: isDark
+            ? AppColors.warning.withValues(alpha: 0.18)
+            : AppColors.warningContainerLight,
       ));
     } else if (displayStatus == QuestionDisplayStatus.recognizing ||
         displayStatus == QuestionDisplayStatus.analyzing) {

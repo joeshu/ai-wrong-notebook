@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
@@ -77,6 +78,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             hasIndependentAnalysis: activeCandidateAnalysis != null,
           )
         : null;
+    final requiresConfirmation =
+        displayResult?.reviewDecision.requiresConfirmation ?? false;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final layoutProvider = record.tags
@@ -101,6 +104,13 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
       body: ListView(
         padding: const EdgeInsets.all(AppSpace.lg),
         children: <Widget>[
+          if (displayResult?.reviewDecision.requiresConfirmation ?? false) ...<Widget>[
+            _ReviewRequiredBanner(
+              decision: displayResult!.reviewDecision,
+              confidence: displayResult.confidence?.overall,
+            ),
+            const SizedBox(height: AppSpace.md),
+          ],
           // 统一标签分类框：科目 | AI识别 | 状态 | 知识点
           Container(
             padding: const EdgeInsets.symmetric(
@@ -668,8 +678,12 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                   children: <Widget>[
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () =>
-                            _startPractice(record, activeCandidateAnalysis),
+                        onPressed: requiresConfirmation
+                            ? null
+                            : () => _startPractice(
+                                  record,
+                                  activeCandidateAnalysis,
+                                ),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                         ),
@@ -693,7 +707,9 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                         style: FilledButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                         ),
-                        child: const Text('保存到错题本'),
+                        child: Text(
+                          requiresConfirmation ? '保存为待确认' : '保存到错题本',
+                        ),
                       ),
                     ),
                   ],
@@ -944,6 +960,97 @@ class _CandidateSwitcherCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ReviewRequiredBanner extends StatelessWidget {
+  const _ReviewRequiredBanner({
+    required this.decision,
+    required this.confidence,
+  });
+
+  final AiAnalysisReviewDecision decision;
+  final double? confidence;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final score = confidence == null
+        ? '可信度未知'
+        : '整体可信度 ${(confidence! * 100).round()}%';
+    return Semantics(
+      container: true,
+      label: 'AI 结果待人工确认，$score',
+      child: Container(
+        key: const ValueKey<String>('analysis-review-required-banner'),
+        padding: const EdgeInsets.all(AppSpace.md),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? AppColors.warning.withValues(alpha: 0.16)
+              : AppColors.warningContainerLight,
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+          border: Border.all(
+            color: AppColors.warning.withValues(alpha: 0.45),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Icon(
+              CupertinoIcons.exclamationmark_shield,
+              color: AppColors.warningDark,
+              size: 22,
+            ),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    'AI 结果待人工确认 · $score',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.xs),
+                  Text(
+                    decision.fields.isEmpty
+                        ? '存在低置信度或无法自动核验的内容。'
+                        : '需核对：${decision.fields.join('、')}。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (decision.reasons.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      decision.reasons.take(2).join('；'),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpace.xs),
+                  const Text(
+                    '确认前不会进入复习计划，也不能直接开始练习。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.warningDark,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

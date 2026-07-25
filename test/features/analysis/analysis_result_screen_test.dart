@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
@@ -12,6 +14,60 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_result_screen.dart';
 
 void main() {
+  testWidgets('low-confidence result shows gate and disables practice',
+      (tester) async {
+    final container = ProviderContainer(
+      overrides: <Override>[
+        questionSplitServiceProvider
+            .overrideWithValue(const QuestionSplitService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(currentQuestionProvider.notifier).state =
+        QuestionRecord.draft(
+      id: 'q-low-confidence',
+      imagePath: '',
+      subject: Subject.math,
+      recognizedText: '解方程 x+1=4',
+    ).copyWith(
+      analysisResult: AnalysisResult(
+        finalAnswer: '3',
+        steps: const <String>['移项得 x=3'],
+        aiTags: const <String>['方程'],
+        knowledgePoints: const <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '检查符号',
+        confidence: const AiConfidence(
+          overall: 0.65,
+          fields: <String, double>{'standardAnswer': 0.55},
+        ),
+        reviewDecision: AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: const <String>['standardAnswer'],
+          reasons: const <String>['standardAnswer 置信度 55%'],
+          evaluatedAt: DateTime.utc(2026, 7, 25),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: AnalysisResultScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey<String>('analysis-review-required-banner')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('整体可信度 65%'), findsOneWidget);
+    expect(find.text('保存为待确认'), findsOneWidget);
+    final practice = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, '开始练习'),
+    );
+    expect(practice.onPressed, isNull);
+  });
+
   testWidgets('analysis result screen shows repaired consistency notice',
       (tester) async {
     final container = ProviderContainer(

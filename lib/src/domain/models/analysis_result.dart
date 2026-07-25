@@ -1,4 +1,5 @@
 import 'ai_analysis_contract.dart';
+import 'ai_analysis_review.dart';
 import 'mistake_category.dart';
 import 'subject.dart';
 
@@ -142,6 +143,8 @@ class AnalysisResult {
     this.solutionSteps = const <String>[],
     this.reviewPlan,
     this.isLegacyContract = true,
+    this.reviewDecision = const AiAnalysisReviewDecision.unknown(),
+    this.pipeline = const AiAnalysisPipelineSnapshot.notStarted(),
   });
 
   factory AnalysisResult.fromJson(Map<String, dynamic> json) {
@@ -155,6 +158,8 @@ class AnalysisResult {
     final uncertaintiesJson = json['uncertainties'] as List? ?? const <Object>[];
     final evidenceJson = json['evidence'] as List? ?? const <Object>[];
     final reviewPlanJson = json['reviewPlan'];
+    final reviewDecisionJson = json['reviewDecision'];
+    final pipelineJson = json['pipeline'];
     final standardAnswer = json['standardAnswer'] as String? ??
         json['finalAnswer'] as String? ??
         '';
@@ -212,6 +217,16 @@ class AnalysisResult {
           : null,
       isLegacyContract: json['isLegacyContract'] as bool? ??
           (json['schemaVersion'] as int? ?? 1) < AiAnalysisSchema.currentVersion,
+      reviewDecision: reviewDecisionJson is Map
+          ? AiAnalysisReviewDecision.fromJson(
+              Map<String, dynamic>.from(reviewDecisionJson),
+            )
+          : const AiAnalysisReviewDecision.unknown(),
+      pipeline: pipelineJson is Map
+          ? AiAnalysisPipelineSnapshot.fromJson(
+              Map<String, dynamic>.from(pipelineJson),
+            )
+          : const AiAnalysisPipelineSnapshot.notStarted(),
     );
   }
 
@@ -316,6 +331,8 @@ class AnalysisResult {
       'solutionSteps': solutionSteps,
       'reviewPlan': reviewPlan?.toJson(),
       'isLegacyContract': isLegacyContract,
+      'reviewDecision': reviewDecision.toJson(),
+      'pipeline': pipeline.toJson(),
     };
   }
 
@@ -350,6 +367,8 @@ class AnalysisResult {
   final List<String> solutionSteps;
   final AiReviewPlan? reviewPlan;
   final bool isLegacyContract;
+  final AiAnalysisReviewDecision reviewDecision;
+  final AiAnalysisPipelineSnapshot pipeline;
 
   bool get hasContractV2 =>
       schemaVersion >= AiAnalysisSchema.currentVersion && !isLegacyContract;
@@ -386,6 +405,8 @@ class AnalysisResult {
     List<String>? solutionSteps,
     AiReviewPlan? reviewPlan,
     bool? isLegacyContract,
+    AiAnalysisReviewDecision? reviewDecision,
+    AiAnalysisPipelineSnapshot? pipeline,
   }) {
     return AnalysisResult(
       subject: subject ?? this.subject,
@@ -419,6 +440,8 @@ class AnalysisResult {
       solutionSteps: solutionSteps ?? this.solutionSteps,
       reviewPlan: reviewPlan ?? this.reviewPlan,
       isLegacyContract: isLegacyContract ?? this.isLegacyContract,
+      reviewDecision: reviewDecision ?? this.reviewDecision,
+      pipeline: pipeline ?? this.pipeline,
     );
   }
 }
