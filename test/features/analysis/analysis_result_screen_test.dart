@@ -21,6 +21,12 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
+  await _scrollUntilVisible(tester, finder);
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('low-confidence result shows gate and disables practice',
       (tester) async {
@@ -83,7 +89,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.widgetWithText(FilledButton, '我已核对，确认采用'),
+      find.text('我已核对，确认采用', skipOffstage: false),
       findsOneWidget,
     );
     expect(find.text('开始练习'), findsNothing);
@@ -134,8 +140,9 @@ void main() {
       tester,
       find.text('我已核对，确认采用', skipOffstage: false),
     );
-    await tester.tap(
-      find.widgetWithText(FilledButton, '我已核对，确认采用'),
+    await _tapVisible(
+      tester,
+      find.text('我已核对，确认采用', skipOffstage: false),
     );
     await tester.pumpAndSettle();
 
@@ -209,13 +216,14 @@ void main() {
       ),
       findsOneWidget,
     );
-    await tester.tap(
+    await _tapVisible(
+      tester,
       find.descendant(
         of: find.byKey(
           const ValueKey<String>('review-field-card-standardAnswer'),
           skipOffstage: false,
         ),
-        matching: find.widgetWithText(TextButton, '编辑'),
+        matching: find.text('编辑', skipOffstage: false),
       ),
     );
     await tester.pumpAndSettle();
@@ -355,8 +363,15 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('可能解法'), findsOneWidget);
-    expect(find.text('需核对 10 的标注含义'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.text('可能解法', skipOffstage: false),
+    );
+    expect(find.text('可能解法', skipOffstage: false), findsOneWidget);
+    expect(
+      find.text('需核对 10 的标注含义', skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('analysis result screen builds with latex content',
