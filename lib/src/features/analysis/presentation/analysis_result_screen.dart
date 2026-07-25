@@ -818,7 +818,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
         ],
       ),
     );
-    controller.dispose();
+    // Do not dispose immediately after showDialog returns: the closing overlay
+    // animation can still rebuild the TextField for one frame in widget tests.
     if (!mounted || edited == null) return;
     final trimmed = edited.trim();
     if (trimmed.isEmpty) {
