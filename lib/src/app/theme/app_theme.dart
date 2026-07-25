@@ -1,6 +1,5 @@
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -252,10 +251,11 @@ TextTheme _buildTextTheme(
     labelMedium: base.labelMedium?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
     labelSmall: base.labelSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
   );
-  // 纸墨书房使用衬线字形成阅读气质，其余风格保持清晰的无衬线字。
+  // 全局主题禁止依赖运行时字体下载，确保离线启动与测试稳定。
+  // 纸墨书房优先使用系统宋体；设备缺少该字体时由 Flutter 自动回退。
   return style == AppVisualStyle.paper
-      ? GoogleFonts.notoSerifScTextTheme(themed)
-      : GoogleFonts.notoSansScTextTheme(themed);
+      ? themed.apply(fontFamily: 'Songti SC')
+      : themed;
 }
 
 ElevatedButtonThemeData _elevatedButtonTheme(
