@@ -16,12 +16,6 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_result_screen.dart';
 
 Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
-  final listView = find.byType(ListView);
-  expect(listView, findsOneWidget);
-  for (var attempt = 0; attempt < 30 && finder.evaluate().isEmpty; attempt++) {
-    await tester.drag(listView, const Offset(0, -300));
-    await tester.pump();
-  }
   expect(finder, findsOneWidget);
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
@@ -72,10 +66,16 @@ void main() {
 
     await _scrollUntilVisible(
       tester,
-      find.byKey(const ValueKey<String>('analysis-review-required-banner')),
+      find.byKey(
+        const ValueKey<String>('analysis-review-required-banner'),
+        skipOffstage: false,
+      ),
     );
     expect(
-      find.byKey(const ValueKey<String>('analysis-review-required-banner')),
+      find.byKey(
+        const ValueKey<String>('analysis-review-required-banner'),
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
     expect(find.textContaining('整体可信度 65%'), findsOneWidget);
@@ -127,8 +127,11 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await _scrollUntilVisible(tester, find.text('我已核对，确认采用'));
-    await tester.tap(find.text('我已核对，确认采用'));
+    await _scrollUntilVisible(
+      tester,
+      find.text('我已核对，确认采用', skipOffstage: false),
+    );
+    await tester.tap(find.text('我已核对，确认采用', skipOffstage: false));
     await tester.pumpAndSettle();
 
     final current = container.read(currentQuestionProvider);
@@ -189,10 +192,16 @@ void main() {
 
     await _scrollUntilVisible(
       tester,
-      find.byKey(const ValueKey<String>('review-field-card-standardAnswer')),
+      find.byKey(
+        const ValueKey<String>('review-field-card-standardAnswer'),
+        skipOffstage: false,
+      ),
     );
     expect(
-      find.byKey(const ValueKey<String>('review-field-card-standardAnswer')),
+      find.byKey(
+        const ValueKey<String>('review-field-card-standardAnswer'),
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
     await tester.tap(find.widgetWithText(TextButton, '编辑'));
@@ -246,8 +255,11 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await _scrollUntilVisible(tester, find.text('AI 已复核并修正答案'));
-    expect(find.text('AI 已复核并修正答案'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.text('AI 已复核并修正答案', skipOffstage: false),
+    );
+    expect(find.text('AI 已复核并修正答案', skipOffstage: false), findsOneWidget);
   });
 
   testWidgets('analysis result screen shows needs review consistency notice',
