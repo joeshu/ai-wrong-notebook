@@ -6,6 +6,8 @@ import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('all visual styles expose distinct theme tokens', () {
     final primaryColors = <Color>{};
     final backgrounds = <Color>{};
