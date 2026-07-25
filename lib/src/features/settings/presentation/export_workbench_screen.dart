@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -664,15 +663,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           ),
         ),
         child: FilledButton.icon(
-          onPressed: canExport
-              ? () {
-                  setState(() {
-                    _isExporting = true;
-                    _exportProgress = 0;
-                  });
-                  unawaited(_startExport(context));
-                }
-              : null,
+          onPressed: canExport ? () => _startExport(context) : null,
           icon: _isExporting
               ? const SizedBox(
                   width: 16,
@@ -705,124 +696,64 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       return;
     }
 
-    await Future<void>.delayed(Duration.zero);
-    if (!mounted) return;
+    setState(() {
+      _isExporting = true;
+      _exportProgress = 0;
+    });
 
-    final progress = ValueNotifier<double>(0);
-    if (!mounted) return;
-    // 在 async gap 之前捕获 messenger / navigator，避免
-    // use_build_context_synchronously 警告。
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
     final formats = _selectedFormats.toList();
-    var progressDialogOpen = true;
-    void closeProgressDialog() {
-      if (!progressDialogOpen || !mounted) return;
-      progressDialogOpen = false;
-      navigator.pop();
-    }
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const CircularProgressIndicator(),
-              const SizedBox(height: 12),
-              ValueListenableBuilder<double>(
-                valueListenable: progress,
-                builder: (_, v, __) {
-                  if (v <= 0) return const Text('正在准备导出…');
-                  if (v >= 1) return const Text('导出完成');
-                  if (formats.isEmpty) return const Text('正在导出…');
-                  // v 为整体进度（0..1），换算到当前格式索引。
-                  final idx =
-                      (v * formats.length).floor().clamp(0, formats.length - 1);
-                  final label = _formatLabel(formats[idx]);
-                  // Phase 11-7：副文案显示已完成格式数 / 总数。
-                  final done = idx; // idx 为当前正在导出的格式索引，已完成 idx 个
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text('正在导出 $label（${(v * 100).round()}%）'),
-                      const SizedBox(height: 4),
-                      Text(
-                        '已完成 $done / ${formats.length} 种',
-                        style: const TextStyle(fontSize: 12, color: AppColors.slate),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    final succeeded = <ExportFormat>[];
+    final failed = <MapEntry<ExportFormat, Object>>[];
 
-    final exportedFiles = <ExportFormat, String>{};
     try {
-      final succeeded = <ExportFormat>[];
-      final failed = <MapEntry<ExportFormat, Object>>[];
       for (var i = 0; i < formats.length; i++) {
-        // 每个格式开始：把整体进度推进到 i/N（外层文案显示"正在导出 X"）。
-        progress.value = i / formats.length;
-        if (mounted) setState(() => _exportProgress = progress.value);
-        // 内部进度通过 base + sub * (1/N) 反映到整体。
-        final base = i / formats.length;
-        final span = 1.0 / formats.length;
-        final sub = ValueNotifier<double>(0);
-        sub.addListener(() {
-          progress.value = (base + sub.value * span).clamp(0.0, 0.9999);
-          if (mounted) setState(() => _exportProgress = progress.value);
-        });
+        final format = formats[i];
+        if (mounted) {
+          setState(() {
+            _exportProgress = (i + 1) / formats.length;
+          });
+        }
         try {
-          final filePath = await _exportFormat(formats[i], options, sub);
-          exportedFiles[formats[i]] = filePath;
-          succeeded.add(formats[i]);
-          // Phase 11-7：写入导出历史记录（最近 10 次）。
+          await _exportFormat(format, options);
+          succeeded.add(format);
           await ExportHistoryService.add(ExportHistoryEntry(
             timestamp: DateTime.now().millisecondsSinceEpoch,
-            format: _formatLabel(formats[i]),
+            format: _formatLabel(format),
             template: options.templateType.label,
             questionCount: questions.length,
             title: '错题本整理报告',
           ));
           invalidateExportHistory(ref);
         } catch (e) {
-          failed.add(MapEntry(formats[i], e));
+          failed.add(MapEntry(format, e));
         }
-        sub.dispose();
       }
-      progress.value = 1;
-      if (mounted) setState(() => _exportProgress = 1);
-      // Phase 11-7：汇总反馈——全部成功 / 部分成功 / 全部失败
-      if (mounted) {
-        if (failed.isEmpty) {
-          // 全部成功：保持原有"导出完成"行为，不再额外弹 SnackBar
-          // （单格式的 failureHint 已由 _exportFormat 内部提示）
-        } else if (succeeded.isNotEmpty) {
-          final failedLabels =
-              failed.map((e) => _formatLabel(e.key)).join('、');
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('部分导出成功（${succeeded.length} 种），失败：$failedLabels'),
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        } else {
-          final failedLabels =
-              failed.map((e) => '${_formatLabel(e.key)}: ${e.value}').join('\n');
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('导出失败：\n$failedLabels'),
-              duration: const Duration(seconds: 8),
-            ),
-          );
-        }
+
+      if (!mounted) return;
+      if (failed.isEmpty) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('已导出 ${succeeded.length} 种格式，并保存到导出历史'),
+          ),
+        );
+      } else if (succeeded.isNotEmpty) {
+        final failedLabels = failed.map((e) => _formatLabel(e.key)).join('、');
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('部分导出成功，失败：$failedLabels。成功文件已保存到导出历史'),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      } else {
+        final failedLabels =
+            failed.map((e) => '${_formatLabel(e.key)}: ${e.value}').join('\n');
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('导出失败：\n$failedLabels'),
+            duration: const Duration(seconds: 8),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -832,21 +763,14 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       }
     } finally {
       if (mounted) {
-        closeProgressDialog();
         setState(() => _isExporting = false);
       }
-    }
-    if (mounted && exportedFiles.isNotEmpty) {
-      // 等待进度对话框退场后再呈现应用内结果，禁止与 iOS 分享面板嵌套。
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      if (mounted) await _showExportCompleteSheet(exportedFiles);
     }
   }
 
   Future<String> _exportFormat(
     ExportFormat format,
     ExportOptions options,
-    ValueNotifier<double> progress,
   ) async {
     final questions = options.filtered;
     final mode = options.mode;
@@ -896,9 +820,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           layoutOptions: options.layoutOptions,
           templateType: options.templateType,
           reviewLogs: reviewLogs,
-          onProgress: (done, total) {
-            progress.value = total == 0 ? 1 : done / total;
-          },
+
         );
         return result.filePath;
       case ExportFormat.pdf:
@@ -908,9 +830,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           studentInfo: studentInfo,
           watermark: watermark,
           layoutOptions: options.layoutOptions,
-          onProgress: (done, total) {
-            progress.value = total == 0 ? 1 : done / total;
-          },
+
         );
         return file.path;
       case ExportFormat.markdown:
@@ -1005,72 +925,6 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     return result;
   }
 
-  Future<void> _showExportCompleteSheet(
-    Map<ExportFormat, String> files,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              const Row(
-                children: <Widget>[
-                  Icon(CupertinoIcons.checkmark_seal_fill,
-                      color: AppColors.success),
-                  SizedBox(width: 10),
-                  Text(
-                    '导出完成',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '已生成 ${files.length} 个文件并保存到导出历史。现在分享不会再与导出进度框重叠。',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 12),
-              for (final entry in files.entries)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(_formatIcon(entry.key)),
-                  title: Text('${_formatLabel(entry.key)} 文件'),
-                  subtitle: Text(
-                    File(entry.value).uri.pathSegments.last,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: FilledButton.tonalIcon(
-                    onPressed: () async {
-                      Navigator.of(sheetContext).pop();
-                      await Future<void>.delayed(
-                        const Duration(milliseconds: 250),
-                      );
-                      if (!mounted) return;
-                      await AppShareService.shareFile(context, entry.value);
-                    },
-                    icon: const Icon(CupertinoIcons.share, size: 16),
-                    label: const Text('分享'),
-                  ),
-                ),
-              const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: () => Navigator.of(sheetContext).pop(),
-                child: const Text('完成，稍后从导出历史分享'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   String _buildFileName(String extension, {required ExportOptions options}) {
     final templatePart = _sanitizeFileNamePart(options.templateType.label);
