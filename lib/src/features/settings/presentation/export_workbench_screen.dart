@@ -779,6 +779,19 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         setState(() => _isExporting = false);
       }
     }
+    if (mounted && succeeded.isNotEmpty) {
+      final failedLabels = failed.map((e) => _formatLabel(e.key)).toList();
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => _ExportCompletePage(
+            formats: succeeded.map(_formatLabel).toList(growable: false),
+            questionCount: questions.length,
+            completedAt: DateTime.now(),
+            failedFormats: failedLabels,
+          ),
+        ),
+      );
+    }
   }
 
   Future<String> _exportFormat(
@@ -969,6 +982,86 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
 // ─────────────────────────────────────────────────────────────────────────
 // 私有 UI 组件
 // ─────────────────────────────────────────────────────────────────────────
+
+class _ExportCompletePage extends StatelessWidget {
+  const _ExportCompletePage({
+    required this.formats,
+    required this.questionCount,
+    required this.completedAt,
+    required this.failedFormats,
+  });
+
+  final List<String> formats;
+  final int questionCount;
+  final DateTime completedAt;
+  final List<String> failedFormats;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final time = '${completedAt.hour.toString().padLeft(2, '0')}:${completedAt.minute.toString().padLeft(2, '0')}';
+    return Scaffold(
+      appBar: AppBar(title: const Text('导出完成')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpace.xl),
+          children: <Widget>[
+            Icon(CupertinoIcons.checkmark_seal_fill,
+                size: 56, color: scheme.primary),
+            const SizedBox(height: AppSpace.md),
+            const Text(
+              '文件已保存',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: AppSpace.xs),
+            Text(
+              '导出时间 $time · 共 $questionCount 题',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpace.xl),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const Text('已生成格式',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: AppSpace.sm),
+                  Wrap(
+                    spacing: AppSpace.xs,
+                    runSpacing: AppSpace.xs,
+                    children: formats
+                        .map((format) => Chip(label: Text(format)))
+                        .toList(growable: false),
+                  ),
+                  if (failedFormats.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: AppSpace.md),
+                    Text(
+                      '失败格式：${failedFormats.join('、')}',
+                      style: TextStyle(color: scheme.error),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpace.md),
+            Text(
+              '文件已经进入导出历史。返回后可在对应记录中分享或删除。',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: AppSpace.xl),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('返回导出工作台'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _Section extends StatelessWidget {
   const _Section({
