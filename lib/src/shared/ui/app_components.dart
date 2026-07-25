@@ -193,12 +193,16 @@ class AppHeroCard extends StatelessWidget {
     this.subtitle,
     this.action,
     this.secondaryAction,
+    this.header,
+    this.footer,
   });
 
   final String title;
   final String? subtitle;
   final Widget? action;
   final Widget? secondaryAction;
+  final Widget? header;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +220,10 @@ class AppHeroCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
+          if (header != null) ...<Widget>[
+            header!,
+            const SizedBox(height: AppSpace.sm),
+          ],
           Text(
             title,
             style: const TextStyle(
@@ -243,6 +251,10 @@ class AppHeroCard extends StatelessWidget {
           if (secondaryAction != null) ...<Widget>[
             const SizedBox(height: AppSpace.sm),
             secondaryAction!,
+          ],
+          if (footer != null) ...<Widget>[
+            const SizedBox(height: AppSpace.md),
+            footer!,
           ],
         ],
       ),

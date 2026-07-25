@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_patch.dart';
@@ -90,6 +91,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
         displayResult?.reviewDecision.requiresConfirmation ?? false;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final analysisStyle = AppVisualTokens.of(context).style;
     final layoutProvider = record.tags
         .where((tag) => tag.startsWith('layout_provider:'))
         .map((tag) => tag.substring('layout_provider:'.length))
@@ -300,11 +302,17 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
           ],
           if (displayResult != null) ...<Widget>[
             const SizedBox(height: AppSpace.lg),
-            AppInfoSection(
-              icon: CupertinoIcons.scope,
+            _StyledInsightSection(
+              style: analysisStyle,
               title: '错误定位',
-              useThemeTone: true,
-              themeTone: AppTagTone.warning,
+              subtitle: switch (analysisStyle) {
+                AppVisualStyle.academic => '先明确错在哪里，再决定是补概念、补步骤还是补审题。',
+                AppVisualStyle.paper => '像批改作业一样，把真正失分点圈出来。',
+                AppVisualStyle.aurora => '优先锁定最核心的错误信号，减少无效信息。',
+                AppVisualStyle.forest => '先看这一题最需要修正的一点，不必一次背太多。',
+              },
+              icon: CupertinoIcons.scope,
+              tone: AppTagTone.warning,
               child: MathContentView(
                 displayResult.mistakeReason,
                 style: TextStyle(
@@ -323,11 +331,17 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             ],
             const SizedBox(height: AppSpace.sm),
             // 原题（包含图片和文本）
-            AppInfoSection(
-              icon: CupertinoIcons.doc_text,
+            _StyledInsightSection(
+              style: analysisStyle,
               title: '原题',
-              useThemeTone: true,
-              themeTone: AppTagTone.primary,
+              subtitle: switch (analysisStyle) {
+                AppVisualStyle.academic => '核对题干、条件和作答对象，避免后续分析建立在错误前提上。',
+                AppVisualStyle.paper => '先把原题完整读清，再看后面的批注与结论。',
+                AppVisualStyle.aurora => '把输入源对齐，确保后续解析都基于同一道题。',
+                AppVisualStyle.forest => '先安静地把题目看一遍，别急着跳到结论。',
+              },
+              icon: CupertinoIcons.doc_text,
+              tone: AppTagTone.primary,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -414,17 +428,23 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             ),
             const SizedBox(height: AppSpace.sm + 2),
             // Answer
-            AppInfoSection(
-              icon: displayResult.visualAssumptionStatus ==
-                      VisualAssumptionStatus.needsReview
-                  ? CupertinoIcons.exclamationmark_triangle
-                  : CupertinoIcons.checkmark_circle,
+            _StyledInsightSection(
+              style: analysisStyle,
               title: displayResult.visualAssumptionStatus ==
                       VisualAssumptionStatus.needsReview
                   ? '可能解法'
                   : '正确解答',
-              useThemeTone: true,
-              themeTone: displayResult.visualAssumptionStatus ==
+              subtitle: switch (analysisStyle) {
+                AppVisualStyle.academic => '先给结论，再核对依据和一致性。',
+                AppVisualStyle.paper => '把最后可采用的答案整理成可回看的结论。',
+                AppVisualStyle.aurora => '优先看 AI 最终输出与一致性信号。',
+                AppVisualStyle.forest => '只先关注这题最需要记住的结果。',
+              },
+              icon: displayResult.visualAssumptionStatus ==
+                      VisualAssumptionStatus.needsReview
+                  ? CupertinoIcons.exclamationmark_triangle
+                  : CupertinoIcons.checkmark_circle,
+              tone: displayResult.visualAssumptionStatus ==
                       VisualAssumptionStatus.needsReview
                   ? AppTagTone.warning
                   : AppTagTone.success,
@@ -450,11 +470,17 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
 
             const SizedBox(height: AppSpace.sm + 2),
             // Study advice
-            AppInfoSection(
-              icon: CupertinoIcons.lightbulb,
+            _StyledInsightSection(
+              style: analysisStyle,
               title: '学习建议',
-              useThemeTone: true,
-              themeTone: AppTagTone.tertiary,
+              subtitle: switch (analysisStyle) {
+                AppVisualStyle.academic => '把下一步练习动作压缩成可执行建议。',
+                AppVisualStyle.paper => '更像老师批注，告诉你这题之后该怎么练。',
+                AppVisualStyle.aurora => '把注意力收拢到最值得修正的一点。',
+                AppVisualStyle.forest => '减少负担，只看眼下最需要记住的提醒。',
+              },
+              icon: CupertinoIcons.lightbulb,
+              tone: AppTagTone.tertiary,
               child: MathContentView(
                 displayResult.studyAdvice,
                 style: TextStyle(
@@ -465,11 +491,17 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             ),
             if (candidateInsight != null) ...<Widget>[
               const SizedBox(height: AppSpace.sm + 2),
-              AppInfoSection(
-                icon: CupertinoIcons.layers,
+              _StyledInsightSection(
+                style: analysisStyle,
                 title: '当前子题状态',
-                useThemeTone: true,
-                themeTone: AppTagTone.secondary,
+                subtitle: switch (analysisStyle) {
+                  AppVisualStyle.academic => '当前查看的是切题后的独立分析结果。',
+                  AppVisualStyle.paper => '把这道子题单独拎出来，避免上下题信息混杂。',
+                  AppVisualStyle.aurora => '聚焦当前子题，不让多题内容干扰判断。',
+                  AppVisualStyle.forest => '先只看这一题，减少一次处理的信息量。',
+                },
+                icon: CupertinoIcons.layers,
+                tone: AppTagTone.secondary,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -1749,6 +1781,81 @@ String _reviewFieldEvidence(AnalysisResult result, String fieldName) {
       .where((item) => item.isNotEmpty)
       .toList(growable: false);
   return evidence.take(2).join('；');
+}
+
+class _StyledInsightSection extends StatelessWidget {
+  const _StyledInsightSection({
+    required this.style,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.tone,
+    required this.child,
+  });
+
+  final AppVisualStyle style;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final AppTagTone tone;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final visual = AppVisualTokens.of(context);
+    final badgeText = switch (style) {
+      AppVisualStyle.academic => '结论卡',
+      AppVisualStyle.paper => '批注区',
+      AppVisualStyle.aurora => '聚焦输出',
+      AppVisualStyle.forest => '先看这一块',
+    };
+
+    return AppInfoSection(
+      icon: icon,
+      title: title,
+      useThemeTone: true,
+      themeTone: tone,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: visual.heroGradient,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badgeText,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          child,
+        ],
+      ),
+    );
+  }
 }
 
 class _ConsistencyNoticeData {

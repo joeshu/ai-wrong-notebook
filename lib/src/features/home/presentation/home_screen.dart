@@ -24,6 +24,20 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
 
+String _heroTitle(AppVisualStyle style) => switch (style) {
+      AppVisualStyle.academic => '今天先推进最值钱的一步',
+      AppVisualStyle.paper => '把今天的错题写成清楚的一页',
+      AppVisualStyle.aurora => '让 AI 帮你把薄弱点打亮',
+      AppVisualStyle.forest => '按自己的节奏，稳稳前进一点',
+    };
+
+String _heroSubtitle(AppVisualStyle style) => switch (style) {
+      AppVisualStyle.academic => '复习、识别、分析与练习，按优先级逐项推进。',
+      AppVisualStyle.paper => '像整理讲义一样，把题目、错因和结论归纳成可回看的笔记。',
+      AppVisualStyle.aurora => '从识别到解析，把关键错误、步骤和建议集中到同一块工作台。',
+      AppVisualStyle.forest => '不过载、不催促，把今天最重要的一两件事先做完。',
+    };
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -42,6 +56,8 @@ class HomeScreen extends ConsumerWidget {
         }) ??
         false;
 
+    final visual = AppVisualTokens.of(context);
+
     return AppPage(
       maxWidth: AppContentWidth.wide,
       padding: EdgeInsets.zero,
@@ -49,8 +65,10 @@ class HomeScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.xl),
         children: <Widget>[
           AppHeroCard(
-            title: AppStrings.homeGreeting,
-            subtitle: AppStrings.homeSubtitle,
+            title: _heroTitle(visual.style),
+            subtitle: _heroSubtitle(visual.style),
+            header: _HomeHeroHeader(style: visual.style),
+            footer: _HomeHeroFooter(style: visual.style),
             action: AppGradientButton(
               label: AppStrings.homeCapture,
               icon: CupertinoIcons.camera_fill,
@@ -390,34 +408,60 @@ class _HomeStatStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final style = AppVisualTokens.of(context).style;
+    final items = switch (style) {
+      AppVisualStyle.academic => const <({IconData icon, String label, String helper, AppTagTone tone})>[
+          (icon: CupertinoIcons.flame, label: '连续学习', helper: '维持节奏', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.calendar, label: '今日待复习', helper: '按清单推进', tone: AppTagTone.primary),
+          (icon: CupertinoIcons.doc_text, label: '累计错题', helper: '长期样本', tone: AppTagTone.secondary),
+        ],
+      AppVisualStyle.paper => const <({IconData icon, String label, String helper, AppTagTone tone})>[
+          (icon: CupertinoIcons.book, label: '学习页数', helper: '今天已续写', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.tray, label: '待整理', helper: '先读后批注', tone: AppTagTone.primary),
+          (icon: CupertinoIcons.archivebox, label: '已归档', helper: '错题库存', tone: AppTagTone.secondary),
+        ],
+      AppVisualStyle.aurora => const <({IconData icon, String label, String helper, AppTagTone tone})>[
+          (icon: CupertinoIcons.bolt, label: '连续激活', helper: '学习能量', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.scope, label: '待聚焦', helper: '优先处理', tone: AppTagTone.primary),
+          (icon: CupertinoIcons.square_stack_3d_up, label: '训练样本', helper: '分析总量', tone: AppTagTone.secondary),
+        ],
+      AppVisualStyle.forest => const <({IconData icon, String label, String helper, AppTagTone tone})>[
+          (icon: CupertinoIcons.leaf, label: '稳定坚持', helper: '今天也前进', tone: AppTagTone.warning),
+          (icon: CupertinoIcons.time, label: '待温习', helper: '先看最重要', tone: AppTagTone.primary),
+          (icon: CupertinoIcons.layers_alt, label: '积累题量', helper: '慢慢长成', tone: AppTagTone.secondary),
+        ],
+    };
     return AppCard(
       padding: const EdgeInsets.symmetric(vertical: AppSpace.md, horizontal: AppSpace.sm),
       child: Row(
         children: <Widget>[
           _StatMetric(
-            icon: CupertinoIcons.flame,
+            icon: items[0].icon,
             value: '$streakDays',
             unit: '天',
-            label: '连续学习',
-            color: AppColors.accentAmber,
+            label: items[0].label,
+            helper: items[0].helper,
+            tone: items[0].tone,
             delay: AppMotion.staggerStep,
           ),
           _vDivider(context),
           _StatMetric(
-            icon: CupertinoIcons.calendar,
+            icon: items[1].icon,
             value: '$dueCount',
             unit: '题',
-            label: '今日待复习',
-            color: AppColors.primary,
+            label: items[1].label,
+            helper: items[1].helper,
+            tone: items[1].tone,
             delay: AppMotion.staggerStep * 2,
           ),
           _vDivider(context),
           _StatMetric(
-            icon: CupertinoIcons.doc_text,
+            icon: items[2].icon,
             value: '$totalCount',
             unit: '题',
-            label: '累计错题',
-            color: AppColors.accentTeal,
+            label: items[2].label,
+            helper: items[2].helper,
+            tone: items[2].tone,
             delay: AppMotion.staggerStep * 3,
           ),
         ],
@@ -438,7 +482,8 @@ class _StatMetric extends StatelessWidget {
     required this.value,
     required this.unit,
     required this.label,
-    required this.color,
+    required this.helper,
+    required this.tone,
     this.delay = Duration.zero,
   });
 
@@ -446,16 +491,57 @@ class _StatMetric extends StatelessWidget {
   final String value;
   final String unit;
   final String label;
-  final Color color;
+  final String helper;
+  final AppTagTone tone;
   final Duration delay;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+    final resolvedTone = switch (tone) {
+      AppTagTone.primary => (
+          foreground: scheme.primary,
+          background: scheme.primaryContainer,
+        ),
+      AppTagTone.secondary => (
+          foreground: scheme.secondary,
+          background: scheme.secondaryContainer,
+        ),
+      AppTagTone.tertiary => (
+          foreground: scheme.tertiary,
+          background: scheme.tertiaryContainer,
+        ),
+      AppTagTone.warning => (
+          foreground: const Color(0xFFB45309),
+          background: const Color(0xFFFFEDD5),
+        ),
+      AppTagTone.success => (
+          foreground: const Color(0xFF15803D),
+          background: const Color(0xFFDCFCE7),
+        ),
+      AppTagTone.danger => (
+          foreground: scheme.error,
+          background: scheme.errorContainer,
+        ),
+      AppTagTone.neutral => (
+          foreground: scheme.onSurfaceVariant,
+          background: scheme.surfaceContainerHighest,
+        ),
+    };
+    final color = resolvedTone.foreground;
     return Expanded(
       child: Column(
         children: <Widget>[
-          Icon(icon, size: 20, color: color),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: resolvedTone.background,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
           const SizedBox(height: 6),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -484,6 +570,15 @@ class _StatMetric extends StatelessWidget {
             label,
             style: AppTextStyle.apply(AppTextStyle.caption).copyWith(
               color: isDark ? AppColors.slateLight : AppColors.slate,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            helper,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 10,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],
@@ -1452,6 +1547,90 @@ class _UnifiedActionPanel extends StatelessWidget {
           ),
         ...cards,
       ],
+    );
+  }
+}
+
+class _HomeHeroHeader extends StatelessWidget {
+  const _HomeHeroHeader({required this.style});
+
+  final AppVisualStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .16),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: .22)),
+          ),
+          child: Text(
+            switch (style) {
+              AppVisualStyle.academic => '学习指挥台',
+              AppVisualStyle.paper => '纸页摘要',
+              AppVisualStyle.aurora => '能量面板',
+              AppVisualStyle.forest => '陪伴式复习卡',
+            },
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        const Spacer(),
+        Icon(
+          switch (style) {
+            AppVisualStyle.academic => CupertinoIcons.chart_bar_square,
+            AppVisualStyle.paper => CupertinoIcons.book,
+            AppVisualStyle.aurora => CupertinoIcons.sparkles,
+            AppVisualStyle.forest => CupertinoIcons.leaf_arrow_circlepath,
+          },
+          size: 18,
+          color: Colors.white.withValues(alpha: .92),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeHeroFooter extends StatelessWidget {
+  const _HomeHeroFooter({required this.style});
+
+  final AppVisualStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = switch (style) {
+      AppVisualStyle.academic => const <String>['优先级清晰', '先复习后新增', '看板式推进'],
+      AppVisualStyle.paper => const <String>['题干归档', '错因批注', '结论沉淀'],
+      AppVisualStyle.aurora => const <String>['识别工作台', '错误高亮', '建议聚焦'],
+      AppVisualStyle.forest => const <String>['节奏温和', '负担更低', '长期复习友好'],
+    };
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: items
+          .map((item) => Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  item,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ))
+          .toList(),
     );
   }
 }
