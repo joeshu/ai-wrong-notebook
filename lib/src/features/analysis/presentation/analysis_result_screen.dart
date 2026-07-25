@@ -164,14 +164,14 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     AppTag(
                       label:
                           displayResult?.subject?.label ?? record.subject.label,
-                      textColor: AppColors.primaryDark,
-                      backgroundColor: AppColors.primaryContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.primary,
                     ),
                     if (displayResult?.subject != null)
                       const AppTag(
                         label: 'AI识别',
-                        textColor: AppColors.success,
-                        backgroundColor: AppColors.successContainerLight,
+                        useThemeTone: true,
+                        themeTone: AppTagTone.success,
                       ),
                     AppTag(
                       label: _masteryLabel(record.masteryLevel),
@@ -182,8 +182,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     if (layoutProvider.isNotEmpty)
                       AppTag(
                         label: '切题：$layoutProvider',
-                        textColor: AppColors.infoDark,
-                        backgroundColor: AppColors.infoContainerLight,
+                        useThemeTone: true,
+                        themeTone: AppTagTone.secondary,
                       ),
                   ],
                 ),
@@ -195,20 +195,20 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     children: <Widget>[
                       AppTag(
                         label: '候选 ${record.splitResult!.candidates.length} 题',
-                        textColor: AppColors.accentPurple,
-                        backgroundColor: AppColors.accentPurpleContainerLight,
+                        useThemeTone: true,
+                        themeTone: AppTagTone.tertiary,
                       ),
                       AppTag(
                         label:
                             _splitStrategyLabel(record.splitResult!.strategy),
-                        textColor: AppColors.slate,
-                        backgroundColor: AppColors.slateContainerLight,
+                        useThemeTone: true,
+                        themeTone: AppTagTone.neutral,
                       ),
                       if (activeCandidate != null)
                         AppTag(
                           label: '当前第 ${activeCandidate.order} 题',
-                          textColor: AppColors.accentAmber,
-                          backgroundColor: AppColors.accentAmberContainerLight,
+                          useThemeTone: true,
+                          themeTone: AppTagTone.warning,
                         ),
                     ],
                   ),
@@ -238,8 +238,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     children: displayAiTags
                         .map((tag) => AppTag(
                               label: tag,
-                              textColor: AppColors.accentAmber,
-                              backgroundColor: AppColors.accentAmberContainerLight,
+                              useThemeTone: true,
+                              themeTone: AppTagTone.warning,
                             ))
                         .toList(),
                   ),
@@ -259,8 +259,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     children: record.customTags
                         .map((t) => AppTag(
                               label: t,
-                              textColor: AppColors.primaryDark,
-                              backgroundColor: AppColors.primaryContainerLight,
+                              useThemeTone: true,
+                              themeTone: AppTagTone.primary,
                             ))
                         .toList(),
                   ),
@@ -302,11 +302,9 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             const SizedBox(height: AppSpace.lg),
             AppInfoSection(
               icon: CupertinoIcons.scope,
-              iconColor: AppColors.warning,
-              backgroundColor: AppColors.warningContainerLight,
-              borderColor: AppColors.warning,
               title: '错误定位',
-              titleColor: AppColors.warningDark,
+              useThemeTone: true,
+              themeTone: AppTagTone.warning,
               child: MathContentView(
                 displayResult.mistakeReason,
                 style: TextStyle(
@@ -327,11 +325,9 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             // 原题（包含图片和文本）
             AppInfoSection(
               icon: CupertinoIcons.doc_text,
-              iconColor: AppColors.primary,
-              backgroundColor: AppColors.primaryContainerLight,
-              borderColor: const Color(0xFFC7D2FE),
               title: '原题',
-              titleColor: AppColors.primaryDark,
+              useThemeTone: true,
+              themeTone: AppTagTone.primary,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -423,26 +419,15 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                       VisualAssumptionStatus.needsReview
                   ? CupertinoIcons.exclamationmark_triangle
                   : CupertinoIcons.checkmark_circle,
-              iconColor: displayResult.visualAssumptionStatus ==
-                      VisualAssumptionStatus.needsReview
-                  ? AppColors.warning
-                  : AppColors.success,
-              backgroundColor: displayResult.visualAssumptionStatus ==
-                      VisualAssumptionStatus.needsReview
-                  ? AppColors.warningContainerLight
-                  : AppColors.successContainerLight,
-              borderColor: displayResult.visualAssumptionStatus ==
-                      VisualAssumptionStatus.needsReview
-                  ? const Color(0xFFFED7AA)
-                  : const Color(0xFFBBF7D0),
               title: displayResult.visualAssumptionStatus ==
                       VisualAssumptionStatus.needsReview
                   ? '可能解法'
                   : '正确解答',
-              titleColor: displayResult.visualAssumptionStatus ==
+              useThemeTone: true,
+              themeTone: displayResult.visualAssumptionStatus ==
                       VisualAssumptionStatus.needsReview
-                  ? AppColors.warningDark
-                  : AppColors.successDark,
+                  ? AppTagTone.warning
+                  : AppTagTone.success,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -467,11 +452,9 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             // Study advice
             AppInfoSection(
               icon: CupertinoIcons.lightbulb,
-              iconColor: AppColors.accentAmber,
-              backgroundColor: AppColors.accentAmberContainerLight,
-              borderColor: const Color(0xFFFDE68A),
               title: '学习建议',
-              titleColor: isDark ? AppColors.accentAmber : const Color(0xFF92400E),
+              useThemeTone: true,
+              themeTone: AppTagTone.tertiary,
               child: MathContentView(
                 displayResult.studyAdvice,
                 style: TextStyle(
@@ -484,11 +467,9 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
               const SizedBox(height: AppSpace.sm + 2),
               AppInfoSection(
                 icon: CupertinoIcons.layers,
-                iconColor: AppColors.accentTeal,
-                backgroundColor: AppColors.accentTealContainerLight,
-                borderColor: const Color(0xFF99F6E4),
                 title: '当前子题状态',
-                titleColor: isDark ? AppColors.accentTealLight : const Color(0xFF115E59),
+                useThemeTone: true,
+                themeTone: AppTagTone.secondary,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[

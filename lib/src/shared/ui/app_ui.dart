@@ -218,31 +218,48 @@ class AppCard extends StatelessWidget {
 }
 
 /// 统一标签 Chip。
+enum AppTagTone { primary, secondary, tertiary, success, warning, danger, neutral }
+
 class AppTag extends StatelessWidget {
   const AppTag({
     super.key,
     required this.label,
-    this.textColor = AppColors.primary,
-    this.backgroundColor = AppColors.primaryContainerLight,
+    this.textColor,
+    this.backgroundColor,
     this.onTap,
     this.fontSize = 12,
+    this.useThemeTone = false,
+    this.themeTone,
   });
 
   final String label;
-  final Color textColor;
-  final Color backgroundColor;
+  final Color? textColor;
+  final Color? backgroundColor;
   final VoidCallback? onTap;
   final double fontSize;
+  final bool useThemeTone;
+  final AppTagTone? themeTone;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final bg = isDark ? textColor.withValues(alpha: 0.14) : backgroundColor;
-    final borderColor = isDark
-        ? textColor.withValues(alpha: 0.24)
-        : colorScheme.outlineVariant.withValues(alpha: 0.5);
+    final tone = themeTone ?? AppTagTone.primary;
+    final resolved = _resolveTagTone(colorScheme, tone);
+    final effectiveText = textColor ?? resolved.foreground;
+    final effectiveBackground = backgroundColor ?? resolved.background;
+
+    final bg = useThemeTone
+        ? resolved.background
+        : (isDark
+            ? effectiveText.withValues(alpha: 0.14)
+            : effectiveBackground);
+    final borderColor = useThemeTone
+        ? resolved.border
+        : (isDark
+            ? effectiveText.withValues(alpha: 0.24)
+            : colorScheme.outlineVariant.withValues(alpha: 0.5));
 
     final child = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -255,7 +272,9 @@ class AppTag extends StatelessWidget {
         label,
         style: TextStyle(
           fontSize: fontSize,
-          color: isDark ? colorScheme.onSurface : textColor,
+          color: useThemeTone
+              ? resolved.foreground
+              : (isDark ? colorScheme.onSurface : effectiveText),
           fontWeight: FontWeight.w500,
         ),
       ),
@@ -266,6 +285,49 @@ class AppTag extends StatelessWidget {
   }
 }
 
+({Color foreground, Color background, Color border}) _resolveTagTone(
+  ColorScheme scheme,
+  AppTagTone tone,
+) {
+  return switch (tone) {
+    AppTagTone.primary => (
+        foreground: scheme.primary,
+        background: scheme.primaryContainer,
+        border: scheme.primary.withValues(alpha: 0.24),
+      ),
+    AppTagTone.secondary => (
+        foreground: scheme.secondary,
+        background: scheme.secondaryContainer,
+        border: scheme.secondary.withValues(alpha: 0.24),
+      ),
+    AppTagTone.tertiary => (
+        foreground: scheme.tertiary,
+        background: scheme.tertiaryContainer,
+        border: scheme.tertiary.withValues(alpha: 0.24),
+      ),
+    AppTagTone.warning => (
+        foreground: const Color(0xFFB45309),
+        background: const Color(0xFFFFEDD5),
+        border: const Color(0xFFF59E0B).withValues(alpha: 0.24),
+      ),
+    AppTagTone.danger => (
+        foreground: scheme.error,
+        background: scheme.errorContainer,
+        border: scheme.error.withValues(alpha: 0.24),
+      ),
+    AppTagTone.success => (
+        foreground: const Color(0xFF15803D),
+        background: const Color(0xFFDCFCE7),
+        border: const Color(0xFF22C55E).withValues(alpha: 0.24),
+      ),
+    AppTagTone.neutral => (
+        foreground: scheme.onSurfaceVariant,
+        background: scheme.surfaceContainerHighest,
+        border: scheme.outlineVariant.withValues(alpha: 0.5),
+      ),
+  };
+}
+
 /// 带图标标题的信息卡片，用于解析、答案、错因、建议等区块。
 class AppInfoSection extends StatefulWidget {
   const AppInfoSection({
@@ -274,9 +336,11 @@ class AppInfoSection extends StatefulWidget {
     required this.title,
     required this.child,
     this.iconColor = AppColors.primary,
-    this.backgroundColor = AppColors.primaryContainerLight,
+    this.backgroundColor,
     this.borderColor,
-    this.titleColor = AppColors.primaryDark,
+    this.titleColor,
+    this.useThemeTone = false,
+    this.themeTone = AppTagTone.primary,
     this.collapsible = false,
     this.initiallyExpanded = true,
   });
@@ -285,9 +349,11 @@ class AppInfoSection extends StatefulWidget {
   final String title;
   final Widget child;
   final Color iconColor;
-  final Color backgroundColor;
+  final Color? backgroundColor;
   final Color? borderColor;
-  final Color titleColor;
+  final Color? titleColor;
+  final bool useThemeTone;
+  final AppTagTone themeTone;
 
   /// 是否可折叠。为 `false`（默认）时内容始终展开，行为与改造前一致。
   final bool collapsible;
@@ -307,16 +373,27 @@ class _AppInfoSectionState extends State<AppInfoSection> {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final resolvedTone = _resolveTagTone(colorScheme, widget.themeTone);
+    final resolvedTitleColor = widget.useThemeTone
+        ? resolvedTone.foreground
+        : (widget.titleColor ?? AppColors.primaryDark);
+    final resolvedBackground = widget.useThemeTone
+        ? resolvedTone.background
+        : (widget.backgroundColor ?? AppColors.primaryContainerLight);
+    final resolvedIconColor = widget.useThemeTone
+        ? resolvedTone.foreground
+        : widget.iconColor;
+
     final header = Row(
       children: <Widget>[
         Container(
           width: 24,
           height: 24,
           decoration: BoxDecoration(
-            color: isDark ? widget.iconColor.withValues(alpha: 0.16) : Colors.white,
+            color: isDark ? resolvedIconColor.withValues(alpha: 0.16) : Colors.white,
             borderRadius: BorderRadius.circular(AppRadius.small),
           ),
-          child: Icon(widget.icon, size: 15, color: widget.iconColor),
+          child: Icon(widget.icon, size: 15, color: resolvedIconColor),
         ),
         const SizedBox(width: AppSpace.sm),
         Expanded(
@@ -325,7 +402,7 @@ class _AppInfoSectionState extends State<AppInfoSection> {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: isDark ? colorScheme.onSurface : widget.titleColor,
+              color: isDark ? colorScheme.onSurface : resolvedTitleColor,
             ),
           ),
         ),
@@ -335,19 +412,23 @@ class _AppInfoSectionState extends State<AppInfoSection> {
                 ? CupertinoIcons.chevron_down
                 : CupertinoIcons.chevron_right,
             size: 16,
-            color: isDark ? colorScheme.onSurfaceVariant : widget.titleColor,
+            color: isDark ? colorScheme.onSurfaceVariant : resolvedTitleColor,
           ),
       ],
     );
 
     // 深色模式下忽略调用方传入的浅色边框，改用图标主色低透明描边，
     // 避免浅蓝/浅橙/浅绿边框在深色背景上突兀；浅色保持原色以区分区块色调。
-    final resolvedBorder = isDark
-        ? widget.iconColor.withValues(alpha: 0.28)
-        : (widget.borderColor ?? const Color(0xFFC7D2FE));
+    final resolvedBorder = widget.useThemeTone
+        ? resolvedTone.border
+        : (isDark
+            ? resolvedIconColor.withValues(alpha: 0.28)
+            : (widget.borderColor ?? const Color(0xFFC7D2FE)));
     return AppCard(
       borderRadius: AppRadius.large,
-      backgroundColor: isDark ? colorScheme.surface : widget.backgroundColor,
+      backgroundColor: isDark && !widget.useThemeTone
+          ? colorScheme.surface
+          : resolvedBackground,
       borderColor: resolvedBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

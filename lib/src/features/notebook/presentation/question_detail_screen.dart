@@ -880,36 +880,36 @@ class _QuestionTab extends StatelessWidget {
                 spacing: AppSpace.sm,
                 runSpacing: AppSpace.sm,
                 children: <Widget>[
-                  AppTag(
+                  const AppTag(
                     label: current.subject.label,
-                    textColor: AppColors.primary,
-                    backgroundColor: AppColors.primaryContainerLight,
+                    useThemeTone: true,
+                    themeTone: AppTagTone.primary,
                   ),
                   if (current.questionType != null)
                     AppTag(
                       label: current.questionType!.label,
-                      textColor: AppColors.info,
-                      backgroundColor: AppColors.infoContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.secondary,
                     ),
                   if (result?.subject != null)
                     const AppTag(
                       label: 'AI识别',
-                      textColor: AppColors.success,
-                      backgroundColor: AppColors.successContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.success,
                     ),
                   _MasteryTag(current: current),
                   _RecognitionStatusTags(question: current),
                   if (_batchLabel(current) != null)
                     AppTag(
                       label: _batchLabel(current)!,
-                      textColor: AppColors.slate,
-                      backgroundColor: AppColors.slateContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.neutral,
                     ),
                   if (current.source != null)
                     AppTag(
                       label: current.source!,
-                      textColor: AppColors.successDark,
-                      backgroundColor: AppColors.successContainerLight,
+                      useThemeTone: true,
+                      themeTone: AppTagTone.success,
                     ),
                 ],
               ),
@@ -925,8 +925,8 @@ class _QuestionTab extends StatelessWidget {
                   children: current.aiTags
                       .map((tag) => AppTag(
                             label: tag,
-                            textColor: AppColors.accentAmber,
-                            backgroundColor: AppColors.accentAmberContainerLight,
+                            useThemeTone: true,
+                            themeTone: AppTagTone.tertiary,
                           ))
                       .toList(),
                 ),
@@ -943,8 +943,8 @@ class _QuestionTab extends StatelessWidget {
                   children: current.customTags
                       .map((t) => AppTag(
                             label: t,
-                            textColor: AppColors.primaryDark,
-                            backgroundColor: AppColors.primaryContainerLight,
+                            useThemeTone: true,
+                            themeTone: AppTagTone.primary,
                           ))
                       .toList(),
                 ),
@@ -1016,10 +1016,8 @@ class _QuestionTab extends StatelessWidget {
     return AppInfoSection(
       icon: CupertinoIcons.doc_text,
       title: AppStrings.detailOriginalQuestion,
-      iconColor: AppColors.primary,
-      backgroundColor: AppColors.primaryContainerLight,
-      borderColor: const Color(0xFFC7D2FE),
-      titleColor: AppColors.primaryDark,
+      useThemeTone: true,
+      themeTone: AppTagTone.primary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1564,10 +1562,8 @@ class _ReflectionNoteCard extends StatelessWidget {
     return AppInfoSection(
       icon: CupertinoIcons.pencil_ellipsis_rectangle,
       title: '学习反思',
-      iconColor: AppColors.primary,
-      backgroundColor: AppColors.primaryContainerLight,
-      borderColor: const Color(0xFFC7D2FE),
-      titleColor: AppColors.primaryDark,
+      useThemeTone: true,
+      themeTone: AppTagTone.primary,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
@@ -1625,10 +1621,8 @@ class _StudentAnswerCard extends StatelessWidget {
     return AppInfoSection(
       icon: CupertinoIcons.doc_richtext,
       title: '我的答案',
-      iconColor: AppColors.accentTeal,
-      backgroundColor: AppColors.accentTealContainerLight,
-      borderColor: const Color(0xFF99F6E4),
-      titleColor: AppColors.accentTeal,
+      useThemeTone: true,
+      themeTone: AppTagTone.secondary,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
