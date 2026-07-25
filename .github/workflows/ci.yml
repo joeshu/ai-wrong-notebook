@@ -45,7 +45,6 @@ jobs:
           from pathlib import Path
           lines = Path('test-results.jsonl').read_text(errors='replace').splitlines()
           tests = {}
-          events = []
           for raw in lines:
               try:
                   event = json.loads(raw)
@@ -54,24 +53,21 @@ jobs:
               if event.get('type') == 'testStart':
                   test = event.get('test') or {}
                   tests[test.get('id')] = test.get('name', test.get('url', 'unknown test'))
-              events.append(event)
-          emitted = 0
-          for event in events:
-              if event.get('type') == 'error':
-                  message = str(event.get('error', 'Test error'))
-                  stack = str(event.get('stackTrace', '')).splitlines()[:8]
-                  body = '\n'.join([message, *stack])
+              elif event.get('type') == 'error':
+                  message = str(event.get('error', 'Test error'))[:1200]
+                  message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title=Flutter Test error::{message}')
               elif event.get('type') == 'testDone' and event.get('result') not in ('success', 'skipped'):
                   test_id = event.get('testID')
-                  body = f"Test failed: {tests.get(test_id, test_id)} ({event.get('result')})"
-              else:
-                  continue
-              body = body.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-              print(f'::error title=Flutter Test::{body}')
-              emitted += 1
-          if emitted == 0:
-              tail = '\n'.join(lines[-50:])[-7000:]
-              tail = tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-              print(f'::error title=Flutter Test raw output::{tail}')
+                  message = f"{tests.get(test_id, test_id)} ({event.get('result')})"
+                  print(f'::error title=Flutter Test failed::{message}')
+          PY
+          tail -n 10 test-results.jsonl | while IFS= read -r message; do
+            message=${message:0:1200}
+            message=${message//'%'/'%25'}
+            message=${message//$'\r'/'%0D'}
+            message=${message//$'\n'/'%0A'}
+            echo "::error title=Flutter Test output::$message"
+          done
           PY
           exit "$status"
