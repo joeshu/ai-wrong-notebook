@@ -21,6 +21,7 @@ abstract final class AppMotion {
   static const Duration slow = Duration(milliseconds: 520);
 
   static const Duration shimmer = Duration(milliseconds: 1200);
+  static const Duration progressLoop = Duration(seconds: 3);
   static const Curve standard = Cubic(0.2, 0.0, 0.0, 1.0);
   static const Curve emphasized = Cubic(0.2, 0.0, 0.0, 1.0);
   static const Duration staggerStep = Duration(milliseconds: 60);

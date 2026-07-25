@@ -66,6 +66,30 @@ void main() {
     );
   });
 
+  testWidgets('core task flow does not overflow at 320px', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: AppSpace.page,
+            child: AppTaskFlow(
+              steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+              currentStep: 2,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('查看错误定位'), findsOneWidget);
+  });
+
   testWidgets('reduced motion follows MediaQuery accessibility settings',
       (tester) async {
     bool? reduced;

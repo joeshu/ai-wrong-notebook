@@ -59,6 +59,86 @@ abstract final class AppStatusColor {
   static const Color danger = AppColors.danger;
 }
 
+/// A compact, accessible task path shared by capture and analysis pages.
+class AppTaskFlow extends StatelessWidget {
+  const AppTaskFlow({
+    super.key,
+    required this.steps,
+    required this.currentStep,
+  });
+
+  final List<String> steps;
+  final int currentStep;
+
+  @override
+  Widget build(BuildContext context) {
+    assert(steps.isNotEmpty);
+    final scheme = Theme.of(context).colorScheme;
+    final activeIndex = currentStep < 0
+        ? 0
+        : currentStep >= steps.length
+            ? steps.length - 1
+            : currentStep;
+    return Semantics(
+      label: '当前流程：${steps[activeIndex]}',
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List<Widget>.generate(steps.length, (index) {
+          final completed = index < currentStep;
+          final current = index == currentStep;
+          final foreground = current
+              ? scheme.onPrimary
+              : completed
+                  ? scheme.onPrimaryContainer
+                  : scheme.onSurfaceVariant;
+          final background = current
+              ? scheme.primary
+              : completed
+                  ? scheme.primaryContainer
+                  : scheme.surfaceContainerHighest;
+          return Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                AnimatedContainer(
+                  duration: AppMotion.resolve(context, AppMotion.micro),
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: background,
+                    shape: BoxShape.circle,
+                  ),
+                  child: completed
+                      ? Icon(CupertinoIcons.checkmark, size: 14, color: foreground)
+                      : Text(
+                          '${index + 1}',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                color: foreground,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                ),
+                const SizedBox(height: AppSpace.xs),
+                Text(
+                  steps[index],
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: current ? scheme.primary : scheme.onSurfaceVariant,
+                        fontWeight: current ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
 /// 统一卡片容器。
 class AppCard extends StatelessWidget {
   const AppCard({

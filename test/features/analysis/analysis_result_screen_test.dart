@@ -63,11 +63,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('整体可信度 65%'), findsOneWidget);
-    expect(find.text('保存为待确认'), findsOneWidget);
-    final practice = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, '开始练习'),
+    expect(
+      find.widgetWithText(FilledButton, '保存为待确认'),
+      findsOneWidget,
     );
-    expect(practice.onPressed, isNull);
+    expect(find.text('开始练习'), findsNothing);
   });
 
   testWidgets('confirming gated result promotes it to ready and persists it',

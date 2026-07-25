@@ -17,6 +17,7 @@ import 'package:smart_wrong_notebook/src/shared/widgets/math_content_view.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/confidence_badge.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class AnalysisResultScreen extends ConsumerStatefulWidget {
@@ -107,9 +108,17 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
           ),
         ],
       ),
-      body: ListView(
+      body: AppPage(
+        maxWidth: AppContentWidth.wide,
+        padding: EdgeInsets.zero,
+        child: ListView(
         padding: const EdgeInsets.all(AppSpace.lg),
         children: <Widget>[
+          const AppTaskFlow(
+            steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+            currentStep: 2,
+          ),
+          const SizedBox(height: AppSpace.lg),
           if (displayResult?.reviewDecision.requiresConfirmation ?? false) ...<Widget>[
             _ReviewRequiredBanner(
               decision: displayResult!.reviewDecision,
@@ -288,7 +297,25 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             ),
           ],
           if (displayResult != null) ...<Widget>[
-            const SizedBox(height: AppSpace.lg + 4),
+            const SizedBox(height: AppSpace.lg),
+            AppInfoSection(
+              icon: CupertinoIcons.scope,
+              iconColor: AppColors.warning,
+              backgroundColor: AppColors.warningContainerLight,
+              borderColor: AppColors.warning,
+              title: '错误定位',
+              titleColor: AppColors.warningDark,
+              child: MathContentView(
+                displayResult.mistakeReason,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? AppColors.warningLight : AppColors.warningDark,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpace.sm),
             // 原题（包含图片和文本）
             AppInfoSection(
               icon: CupertinoIcons.doc_text,
@@ -427,23 +454,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: AppSpace.sm + 2),
-            // Mistake reason
-            AppInfoSection(
-              icon: CupertinoIcons.exclamationmark_triangle,
-              iconColor: AppColors.warning,
-              backgroundColor: AppColors.warningContainerLight,
-              borderColor: const Color(0xFFFED7AA),
-              title: '错因分析',
-              titleColor: AppColors.warningDark,
-              child: MathContentView(
-                displayResult.mistakeReason,
-                style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? AppColors.dangerLight : const Color(0xFFC2410C),
-                    height: 1.5),
-              ),
-            ),
+
             const SizedBox(height: AppSpace.sm + 2),
             // Study advice
             AppInfoSection(
@@ -524,46 +535,54 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     .toList(),
               ),
             ],
-            // Steps
+            // Detailed reasoning stays available without competing with the conclusion.
             if (displayResult.steps.isNotEmpty) ...<Widget>[
               const SizedBox(height: AppSpace.lg),
-              Text('解题步骤',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: AppSpace.sm + 2),
-              ...displayResult.steps.asMap().entries.map((e) => AppCard(
-                    margin: const EdgeInsets.only(bottom: AppSpace.sm + 2),
-                    padding: const EdgeInsets.all(AppSpace.md),
-                    borderRadius: AppRadius.medium,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            gradient: AppGradients.primaryHorizontal,
-                            borderRadius: BorderRadius.circular(12),
+              AppInfoSection(
+                icon: CupertinoIcons.list_number,
+                title: '详细解题步骤',
+                collapsible: true,
+                initiallyExpanded: false,
+                child: Column(
+                  children: displayResult.steps.asMap().entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpace.md),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Container(
+                            width: 24,
+                            height: 24,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(AppRadius.pill),
+                            ),
+                            child: Text(
+                              '${entry.key + 1}',
+                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                    color: colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
                           ),
-                          child: Center(
-                              child: Text('${e.key + 1}',
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white))),
-                        ),
-                        const SizedBox(width: AppSpace.sm + 2),
-                        Expanded(
-                            child: MathContentView(e.value,
-                                style: TextStyle(
-                                    fontSize: 14,
-                                    color: colorScheme.onSurface,
-                                    height: 1.5))),
-                      ],
-                    ),
-                  )),
+                          const SizedBox(width: AppSpace.sm),
+                          Expanded(
+                            child: MathContentView(
+                              entry.value,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: colorScheme.onSurface,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(growable: false),
+                ),
+              ),
             ],
             // Exercises
             if (displayExercises.isNotEmpty) ...<Widget>[
@@ -679,14 +698,19 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             const SizedBox(height: AppSpace.xl),
           ],
         ],
+        ),
       ),
       bottomNavigationBar: displayResult == null
           ? null
           : SafeArea(
-              top: true,
+              top: false,
               child: Container(
                 padding: const EdgeInsets.fromLTRB(
-                    AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.sm),
+                  AppSpace.xl,
+                  AppSpace.sm,
+                  AppSpace.xl,
+                  AppSpace.sm,
+                ),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   border: Border(
@@ -696,49 +720,64 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                     ),
                   ),
                 ),
-                child: Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: requiresConfirmation
-                            ? null
-                            : () => _startPractice(
-                                  record,
-                                  activeCandidateAnalysis,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: AppContentWidth.standard,
+                    ),
+                    child: requiresConfirmation
+                        ? FilledButton(
+                            onPressed: () => _openSaveFlow(record),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(
+                                AppControlSize.standard,
+                              ),
+                            ),
+                            child: const Text('保存为待确认'),
+                          )
+                        : Row(
+                            children: <Widget>[
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => _openSaveFlow(record),
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(
+                                      AppControlSize.standard,
+                                    ),
+                                  ),
+                                  child: const Text('保存到错题本'),
                                 ),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        child: const Text('开始练习'),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpace.md),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () async {
-                          final splitter = ref.read(questionSplitServiceProvider);
-                          ref
-                              .read(currentQuestionSplitSessionProvider.notifier)
-                              .state = await buildQuestionSplitSession(
-                            record,
-                            splitter: splitter,
-                          );
-                          if (!context.mounted) return;
-                          context.go('/capture/split-confirmation');
-                        },
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        child: Text(
-                          requiresConfirmation ? '保存为待确认' : '保存到错题本',
-                        ),
-                      ),
-                    ),
-                  ],
+                              ),
+                              const SizedBox(width: AppSpace.md),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => _startPractice(
+                                    record,
+                                    activeCandidateAnalysis,
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(
+                                      AppControlSize.standard,
+                                    ),
+                                  ),
+                                  child: const Text('开始练习'),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
               ),
             ),
     );
+  }
+
+  Future<void> _openSaveFlow(QuestionRecord record) async {
+    final splitter = ref.read(questionSplitServiceProvider);
+    ref.read(currentQuestionSplitSessionProvider.notifier).state =
+        await buildQuestionSplitSession(record, splitter: splitter);
+    if (!mounted) return;
+    context.go('/capture/split-confirmation');
   }
 
   Future<void> _confirmDiscard(QuestionRecord record) async {

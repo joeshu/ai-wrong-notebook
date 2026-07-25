@@ -13,9 +13,7 @@ class AddScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.addTab)),
-      body: const SafeArea(
-        child: CaptureEntrySheet(showCloseButton: false),
-      ),
+      body: const CaptureEntrySheet(showCloseButton: false),
     );
   }
 }

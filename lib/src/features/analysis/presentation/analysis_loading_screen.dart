@@ -19,6 +19,9 @@ import 'package:smart_wrong_notebook/src/domain/services/ai_analysis_review_poli
 import 'package:smart_wrong_notebook/src/domain/services/recognition_confirmation_policy.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/stage_indicator.dart';
 
 class AnalysisLoadingScreen extends ConsumerStatefulWidget {
@@ -599,23 +602,32 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
           onPressed: () => context.go(_isQuickCapture ? '/' : '/capture/correction'),
         ),
       ),
-      body: _errorMessage != null
-          ? _buildRecoveryView()
-          : _AnalysisPipelineView(
-              step: _step,
-              steps: _steps,
-              progressText: _progressText,
-            ),
+      body: AppPage(
+        maxWidth: AppContentWidth.narrow,
+        padding: EdgeInsets.zero,
+        child: _errorMessage != null
+            ? _buildRecoveryView()
+            : _AnalysisPipelineView(
+                step: _step,
+                steps: _steps,
+                progressText: _progressText,
+              ),
+      ),
     );
   }
 
   Widget _buildRecoveryView() {
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppSpace.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            const AppTaskFlow(
+              steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+              currentStep: 2,
+            ),
+            const SizedBox(height: AppSpace.xl),
             Container(
               width: 64,
               height: 64,
@@ -903,15 +915,31 @@ class _AnalysisPipelineView extends StatefulWidget {
 
 class _AnalysisPipelineViewState extends State<_AnalysisPipelineView>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  late final AnimationController _controller;
+  bool _reduced = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 3),
+      duration: AppMotion.progressLoop,
       vsync: this,
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduced = AppMotion.isReduced(context);
+    if (_reduced == reduced && (_controller.isAnimating || reduced)) return;
+    _reduced = reduced;
+    if (reduced) {
+      _controller
+        ..stop()
+        ..value = 0;
+    } else {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -928,18 +956,26 @@ class _AnalysisPipelineViewState extends State<_AnalysisPipelineView>
     final hasProgress = widget.progressText != null;
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(AppSpace.xxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            const AppTaskFlow(
+              steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+              currentStep: 2,
+            ),
+            const SizedBox(height: AppSpace.xxl),
             Container(
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: isDark
-                    ? accent.withValues(alpha: 0.18)
-                    : const Color(0xFFEEF2FF),
-                borderRadius: BorderRadius.circular(44),
+                color: AppColors.semanticContainer(
+                  accent,
+                  isDark: isDark,
+                  lightAlpha: 0.08,
+                  darkAlpha: 0.18,
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: AnimatedBuilder(
                 animation: _controller,
@@ -953,7 +989,7 @@ class _AnalysisPipelineViewState extends State<_AnalysisPipelineView>
             const SizedBox(height: 28),
             const CircularProgressIndicator(
               strokeWidth: 3,
-              color: Color(0xFF6366F1),
+              color: AppColors.primary,
             ),
             const SizedBox(height: 28),
             // 阶段进度条：4 个圆点 + 当前阶段高亮

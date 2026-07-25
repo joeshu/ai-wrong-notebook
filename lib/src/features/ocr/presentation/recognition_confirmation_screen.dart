@@ -9,6 +9,9 @@ import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/services/recognition_confirmation_policy.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 
 class RecognitionConfirmationScreen extends ConsumerStatefulWidget {
@@ -118,9 +121,21 @@ class _RecognitionConfirmationScreenState
           icon: const Icon(CupertinoIcons.chevron_left),
         ),
       ),
-      body: SafeArea(
-        child: LayoutBuilder(builder: (context, constraints) {
-          final wide = constraints.maxWidth >= 700;
+      body: AppPage(
+        maxWidth: AppContentWidth.wide,
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: <Widget>[
+            const Padding(
+              padding: EdgeInsets.all(AppSpace.lg),
+              child: AppTaskFlow(
+                steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+                currentStep: 1,
+              ),
+            ),
+            Expanded(
+              child: LayoutBuilder(builder: (context, constraints) {
+          final wide = constraints.maxWidth >= AppBreakpoints.expanded;
           final image = _imagePane(record);
           final review = _reviewPane(record, required);
           if (wide) {
@@ -144,11 +159,25 @@ class _RecognitionConfirmationScreenState
             ),
             Expanded(child: _showImageOnCompact ? image : review),
           ]);
-        }),
+              }),
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        child: Center(
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppContentWidth.standard,
+            ),
+            child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpace.md,
+            AppSpace.sm,
+            AppSpace.md,
+            AppSpace.sm,
+          ),
           child: Row(children: <Widget>[
             Expanded(
               child: OutlinedButton.icon(
@@ -169,6 +198,8 @@ class _RecognitionConfirmationScreenState
               ),
             ),
           ]),
+            ),
+          ),
         ),
       ),
     );
@@ -189,9 +220,13 @@ class _RecognitionConfirmationScreenState
   Widget _reviewPane(QuestionRecord record, Set<String> required) => ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
-          _layerCard('OCR 原文', record.extractedQuestionText, const Color(0xFF64748B)),
+          _layerCard('OCR 原文', record.extractedQuestionText, AppColors.slate),
           const SizedBox(height: 8),
-          _layerCard('AI 规范化文本', record.normalizedQuestionText, const Color(0xFF7C3AED)),
+          _layerCard(
+            'AI 规范化文本',
+            record.normalizedQuestionText,
+            AppColors.accentPurple,
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _stemController,

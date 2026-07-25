@@ -20,6 +20,7 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -40,7 +41,9 @@ class HomeScreen extends ConsumerWidget {
         }) ??
         false;
 
-    return SafeArea(
+    return AppPage(
+      maxWidth: AppContentWidth.wide,
+      padding: EdgeInsets.zero,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.xl),
         children: <Widget>[
@@ -51,6 +54,14 @@ class HomeScreen extends ConsumerWidget {
               label: AppStrings.homeCapture,
               icon: CupertinoIcons.camera_fill,
               onTap: () => context.go('/add'),
+            ),
+          ),
+          const SizedBox(height: AppSpace.md),
+          const AppCard(
+            entrance: false,
+            child: AppTaskFlow(
+              steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
+              currentStep: 0,
             ),
           ),
           const SizedBox(height: AppSpace.md),
