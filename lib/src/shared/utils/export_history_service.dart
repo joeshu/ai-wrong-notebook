@@ -116,8 +116,8 @@ class ExportHistoryService {
     );
   }
 
-  /// 删除全部记录中已不再存在的文件名记录由调用方决定；此方法只清空记录。
-
+  /// 删除全部历史记录。
+  static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
   }
