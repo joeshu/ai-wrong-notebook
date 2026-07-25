@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/services/question_split_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/generated_exercise.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
@@ -66,6 +68,64 @@ void main() {
       find.widgetWithText(OutlinedButton, '开始练习'),
     );
     expect(practice.onPressed, isNull);
+  });
+
+  testWidgets('confirming gated result promotes it to ready and persists it',
+      (tester) async {
+    final repository = InMemoryQuestionRepository();
+    final container = ProviderContainer(
+      overrides: <Override>[
+        questionRepositoryProvider.overrideWithValue(repository),
+        questionSplitServiceProvider
+            .overrideWithValue(const QuestionSplitService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(currentQuestionProvider.notifier).state =
+        QuestionRecord.draft(
+      id: 'q-confirm-ui',
+      imagePath: '',
+      subject: Subject.math,
+      recognizedText: '解方程 x+1=4',
+    ).copyWith(
+      contentStatus: ContentStatus.needsConfirmation,
+      analysisResult: AnalysisResult(
+        finalAnswer: '3',
+        steps: const <String>['移项得 x=3'],
+        aiTags: const <String>['方程'],
+        knowledgePoints: const <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '检查符号',
+        reviewDecision: AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: const <String>['standardAnswer'],
+          reasons: const <String>['standardAnswer 置信度 55%'],
+          evaluatedAt: DateTime.utc(2026, 7, 25),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: AnalysisResultScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('我已核对，确认采用'));
+    await tester.pumpAndSettle();
+
+    final current = container.read(currentQuestionProvider);
+    expect(current?.contentStatus, ContentStatus.ready);
+    expect(
+      current?.analysisResult?.reviewDecision.disposition,
+      AiAnalysisReviewDisposition.autoApproved,
+    );
+    expect(
+      current?.analysisResult?.reviewDecision.confirmedFields,
+      ['standardAnswer'],
+    );
+    final saved = await repository.getById('q-confirm-ui');
+    expect(saved?.contentStatus, ContentStatus.ready);
   });
 
   testWidgets('analysis result screen shows repaired consistency notice',

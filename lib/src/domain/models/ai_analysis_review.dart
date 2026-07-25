@@ -10,18 +10,27 @@ class AiAnalysisReviewDecision {
     this.fields = const <String>[],
     this.reasons = const <String>[],
     this.evaluatedAt,
+    this.confirmedAt,
+    this.confirmedFields = const <String>[],
+    this.confirmationSource,
   });
 
   const AiAnalysisReviewDecision.unknown()
       : disposition = AiAnalysisReviewDisposition.unknown,
         fields = const <String>[],
         reasons = const <String>[],
-        evaluatedAt = null;
+        evaluatedAt = null,
+        confirmedAt = null,
+        confirmedFields = const <String>[],
+        confirmationSource = null;
 
   final AiAnalysisReviewDisposition disposition;
   final List<String> fields;
   final List<String> reasons;
   final DateTime? evaluatedAt;
+  final DateTime? confirmedAt;
+  final List<String> confirmedFields;
+  final String? confirmationSource;
 
   bool get requiresConfirmation =>
       disposition == AiAnalysisReviewDisposition.needsConfirmation;
@@ -31,6 +40,9 @@ class AiAnalysisReviewDecision {
         'fields': fields,
         'reasons': reasons,
         'evaluatedAt': evaluatedAt?.toIso8601String(),
+        'confirmedAt': confirmedAt?.toIso8601String(),
+        'confirmedFields': confirmedFields,
+        'confirmationSource': confirmationSource,
       };
 
   factory AiAnalysisReviewDecision.fromJson(Map<String, dynamic> json) {
@@ -44,6 +56,11 @@ class AiAnalysisReviewDecision {
       fields: List<String>.from(json['fields'] as List? ?? const <String>[]),
       reasons: List<String>.from(json['reasons'] as List? ?? const <String>[]),
       evaluatedAt: DateTime.tryParse(json['evaluatedAt'] as String? ?? ''),
+      confirmedAt: DateTime.tryParse(json['confirmedAt'] as String? ?? ''),
+      confirmedFields: List<String>.from(
+        json['confirmedFields'] as List? ?? const <String>[],
+      ),
+      confirmationSource: json['confirmationSource'] as String?,
     );
   }
 }

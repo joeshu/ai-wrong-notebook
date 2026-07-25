@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
+import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
+import 'package:smart_wrong_notebook/src/domain/services/ai_analysis_confirmation_service.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
@@ -25,6 +27,7 @@ class AnalysisResultScreen extends ConsumerStatefulWidget {
 
 class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
   int _activeCandidateIndex = 0;
+  bool _isConfirming = false;
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +111,12 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             _ReviewRequiredBanner(
               decision: displayResult!.reviewDecision,
               confidence: displayResult.confidence?.overall,
+              onConfirm: _isConfirming ||
+                      hasMultipleCandidates ||
+                      record.contentStatus != ContentStatus.needsConfirmation
+                  ? null
+                  : () => _confirmCurrentResult(record),
+              isConfirming: _isConfirming,
             ),
             const SizedBox(height: AppSpace.md),
           ],
@@ -751,6 +760,58 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
     context.go(worksheet == null ? '/' : '/worksheet/import');
   }
 
+  Future<void> _confirmCurrentResult(QuestionRecord record) async {
+    if (_isConfirming || record.contentStatus != ContentStatus.needsConfirmation) {
+      return;
+    }
+    setState(() => _isConfirming = true);
+    try {
+      final confirmed = const AiAnalysisConfirmationService().confirm(
+        record,
+        source: AiConfirmationSource.currentResult,
+      );
+      await ref.read(questionRepositoryProvider).saveDraft(confirmed);
+      final worksheet = ref.read(currentWorksheetImportProvider);
+      if (worksheet != null && !worksheet.sourcePageIds.contains(confirmed.id)) {
+        await persistWorksheetImport(
+          ref,
+          worksheet.copyWith(
+            pages: worksheet.pages
+                .map((page) => page.id == confirmed.id ? confirmed : page)
+                .toList(),
+          ),
+        );
+      }
+      ref.read(currentQuestionProvider.notifier).state = confirmed;
+      invalidateQuestionList(ref);
+      // Knowledge links are created only after explicit confirmation.
+      if (confirmed.aiKnowledgePoints.isNotEmpty) {
+        try {
+          await ref.read(knowledgePointMappingServiceProvider).createLinksForQuestion(
+                questionId: confirmed.id,
+                knowledgePointTexts: confirmed.aiKnowledgePoints,
+              );
+          invalidatePendingKnowledgePoints(ref);
+        } catch (_) {
+          // A mapping failure must not undo the user's explicit confirmation.
+        }
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已确认，题目现在可以进入练习和复习计划')),
+      );
+      setState(() {});
+    } on AiAnalysisConfirmationException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('确认失败：${error.message}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isConfirming = false);
+    }
+  }
+
   void _startPractice(
     QuestionRecord record,
     CandidateAnalysisSnapshot? activeCandidateAnalysis,
@@ -969,10 +1030,14 @@ class _ReviewRequiredBanner extends StatelessWidget {
   const _ReviewRequiredBanner({
     required this.decision,
     required this.confidence,
+    this.onConfirm,
+    this.isConfirming = false,
   });
 
   final AiAnalysisReviewDecision decision;
   final double? confidence;
+  final VoidCallback? onConfirm;
+  final bool isConfirming;
 
   @override
   Widget build(BuildContext context) {
@@ -1044,6 +1109,21 @@ class _ReviewRequiredBanner extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppColors.warningDark,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.tonalIcon(
+                      onPressed: onConfirm,
+                      icon: isConfirming
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(CupertinoIcons.checkmark_shield),
+                      label: Text(isConfirming ? '正在确认...' : '我已核对，确认采用'),
                     ),
                   ),
                 ],
