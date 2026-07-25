@@ -659,7 +659,7 @@ class _WorksheetRegionEditorScreenState
       final extraction = await ref.read(aiAnalysisServiceProvider).extractQuestionStructure(
         subjectName: (region.subject ?? source.subject).label,
         imagePath: croppedPath,
-        textHint: region.recognizedText,
+        textHint: region.recognizedText ?? '',
       );
       final normalized = extraction.normalizedQuestionText.isNotEmpty
           ? extraction.normalizedQuestionText
