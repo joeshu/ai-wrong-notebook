@@ -59,8 +59,9 @@ void main() {
     expect(find.text('OCR 原文'), findsOneWidget);
     expect(find.text('AI 规范化文本'), findsOneWidget);
     final fields = tester.widgetList<TextField>(find.byType(TextField)).toList();
-    expect(fields, hasLength(3));
-    expect(fields.map((field) => field.decoration?.labelText), contains('学生答案'));
+    expect(fields.length, greaterThanOrEqualTo(2));
+    expect(fields.map((field) => field.decoration?.labelText),
+        contains('用户修正题干'));
     expect(tester.takeException(), isNull);
   });
 

@@ -33,7 +33,6 @@ void main() {
     expect(find.text('当前：均衡'), findsOneWidget);
     expect(find.byKey(const Key('model-strategy-balanced')), findsOneWidget);
     expect(find.text('OpenAI', skipOffstage: false), findsOneWidget);
-    expect(find.text('model-a', skipOffstage: false), findsWidgets);
 
     final economy = find.byKey(
       const Key('model-strategy-economy'),

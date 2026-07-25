@@ -21,6 +21,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
+import 'package:smart_wrong_notebook/src/domain/services/question_region_map_editor.dart';
 import 'package:smart_wrong_notebook/src/domain/services/recognition_confirmation_policy.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
@@ -245,10 +246,21 @@ class _WorksheetRegionEditorScreenState
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
             child: Text(
-              '在图上拖动框选题目区域，松开生成题框；轻点放默认题框。拖动蓝框调整，× 删除。',
+              '在图上拖动框选题目区域，松开生成题框；轻点放默认题框。拖动彩色框调整，点框后可合并或拆分。',
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
           ),
+          if (_selectedRegionIndex >= 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+              child: _RegionMapActionBar(
+                regionNumber: _selectedRegionIndex + 1,
+                canMerge: _regions.length > 1,
+                onMerge: () => _mergeSelectedRegion(page.id),
+                onSplit: () => _splitSelectedRegion(page.id),
+                onReview: () => setState(() => _workbenchExpanded = true),
+              ),
+            ),
           if (_regions.isNotEmpty)
             Flexible(
               flex: _workbenchExpanded ? 1 : 0,
@@ -508,11 +520,75 @@ class _WorksheetRegionEditorScreenState
   void _clearForManual() {
     setState(() {
       _regions.clear();
+      _selectedRegionId = null;
       _detectionProvider = null;
       _detectionWarning = null;
       _detectionDuration = null;
       _detectionMessage = '已切换为手动框选：点击试卷空白处可新增题框。';
     });
+  }
+
+  int get _selectedRegionIndex =>
+      _regions.indexWhere((region) => region.id == _selectedRegionId);
+
+  void _mergeSelectedRegion(String pageId) {
+    final selectedIndex = _selectedRegionIndex;
+    if (selectedIndex < 0 || _regions.length < 2) return;
+    final selected = _regions[selectedIndex];
+    var nearestIndex = -1;
+    var nearestDistance = double.infinity;
+    for (var index = 0; index < _regions.length; index++) {
+      if (index == selectedIndex) continue;
+      final candidate = _regions[index];
+      final dx = selected.normalizedRect.center.dx -
+          candidate.normalizedRect.center.dx;
+      final dy = selected.normalizedRect.center.dy -
+          candidate.normalizedRect.center.dy;
+      final distance = dx * dx + dy * dy;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    }
+    if (nearestIndex < 0) return;
+    final other = _regions[nearestIndex];
+    final merged = const QuestionRegionMapEditor().merge(selected, other);
+    setState(() {
+      _regions[selectedIndex] = merged;
+      _regions.removeAt(nearestIndex);
+      _selectedRegionId = merged.id;
+      _detectionWarning = '已合并相邻题框，请核对题干、选项和图形是否属于同一道题。';
+    });
+    _scheduleDraftSave(pageId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已合并相邻题框；字段确认已重置，请重新核对')),
+    );
+  }
+
+  void _splitSelectedRegion(String pageId) {
+    final index = _selectedRegionIndex;
+    if (index < 0) return;
+    final selected = _regions[index];
+    try {
+      final split = const QuestionRegionMapEditor().splitVertically(
+        selected,
+        secondId: const Uuid().v4(),
+      );
+      setState(() {
+        _regions[index] = split.first;
+        _regions.insert(index + 1, split.second);
+        _selectedRegionId = split.second.id;
+        _detectionWarning = '已从中线拆分题框；请拖动边界并分别重新识别上下区域。';
+      });
+      _scheduleDraftSave(pageId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已上下拆分；请拖动边界并重新识别两个题框')),
+      );
+    } on FormatException catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${error.message}')),
+      );
+    }
   }
 
   Future<void> _detectRegions(QuestionRecord page, {LayoutProviderType? override}) async {
@@ -930,6 +1006,84 @@ class _WorksheetRegionEditorScreenState
     } finally {
       if (mounted) setState(() => _isCropping = false);
     }
+  }
+}
+
+class _RegionMapActionBar extends StatelessWidget {
+  const _RegionMapActionBar({
+    required this.regionNumber,
+    required this.canMerge,
+    required this.onMerge,
+    required this.onSplit,
+    required this.onReview,
+  });
+
+  final int regionNumber;
+  final bool canMerge;
+  final VoidCallback onMerge;
+  final VoidCallback onSplit;
+  final VoidCallback onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const Key('worksheet-region-map-action-bar'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer.withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '题框 $regionNumber',
+              style: TextStyle(
+                color: scheme.onPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: <Widget>[
+                  TextButton.icon(
+                    key: const Key('merge-selected-region-button'),
+                    onPressed: canMerge ? onMerge : null,
+                    icon: const Icon(CupertinoIcons.rectangle_on_rectangle,
+                        size: 16),
+                    label: const Text('合并相邻'),
+                  ),
+                  TextButton.icon(
+                    key: const Key('split-selected-region-button'),
+                    onPressed: onSplit,
+                    icon: const Icon(CupertinoIcons.scissors, size: 16),
+                    label: const Text('上下拆分'),
+                  ),
+                  TextButton.icon(
+                    onPressed: onReview,
+                    icon: const Icon(CupertinoIcons.text_badge_checkmark,
+                        size: 16),
+                    label: const Text('校对内容'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
