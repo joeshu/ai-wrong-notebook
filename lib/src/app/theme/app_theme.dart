@@ -226,8 +226,8 @@ ThemeData buildDarkTheme({AppVisualStyle style = AppVisualStyle.academic}) {
   );
 }
 
-AppBarTheme _appBarTheme(
-  AppBarTheme base,
+AppBarThemeData _appBarTheme(
+  AppBarThemeData base,
   TextTheme textTheme,
   ColorScheme scheme,
   AppVisualStyle style,
