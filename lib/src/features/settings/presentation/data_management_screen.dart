@@ -251,10 +251,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   Future<void> _shareExportFile(BuildContext context, File file) async {
     try {
       final box = context.findRenderObject() as RenderBox?;
+      final origin = box == null || !box.hasSize
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size;
       await Share.shareXFiles(
         [XFile(file.path)],
-        sharePositionOrigin:
-            box == null ? null : box.localToGlobal(Offset.zero) & box.size,
+        sharePositionOrigin: origin,
       );
     } catch (e) {
       if (context.mounted) {
