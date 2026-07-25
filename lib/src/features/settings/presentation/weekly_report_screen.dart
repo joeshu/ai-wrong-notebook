@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 
 import 'package:flutter/cupertino.dart';
@@ -56,6 +57,7 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
         data,
         studentName: widget.studentName,
         watermark: widget.watermark,
+        visualStyle: ref.read(appVisualStyleProvider),
       );
       // 写入临时文件，用 loadFile 加载（与 HtmlPreviewScreen 保持一致）。
       final dir = await getTemporaryDirectory();
