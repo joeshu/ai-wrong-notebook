@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,12 +16,14 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_result_screen.dart';
 
 Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
-  final scrollable = find.byType(Scrollable).first;
-  await tester.scrollUntilVisible(
-    finder,
-    300,
-    scrollable: scrollable,
-  );
+  final listView = find.byType(ListView);
+  expect(listView, findsOneWidget);
+  for (var attempt = 0; attempt < 30 && finder.evaluate().isEmpty; attempt++) {
+    await tester.drag(listView, const Offset(0, -300));
+    await tester.pump();
+  }
+  expect(finder, findsOneWidget);
+  await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
 }
 
