@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +15,16 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_result_screen.dart';
+
+Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
+  final scrollable = find.byType(Scrollable).first;
+  await tester.scrollUntilVisible(
+    finder,
+    300,
+    scrollable: scrollable,
+  );
+  await tester.pumpAndSettle();
+}
 
 void main() {
   testWidgets('low-confidence result shows gate and disables practice',
@@ -58,6 +69,10 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const ValueKey<String>('analysis-review-required-banner')),
+    );
     expect(
       find.byKey(const ValueKey<String>('analysis-review-required-banner')),
       findsOneWidget,
@@ -111,6 +126,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    await _scrollUntilVisible(tester, find.text('我已核对，确认采用'));
     await tester.tap(find.text('我已核对，确认采用'));
     await tester.pumpAndSettle();
 
@@ -170,8 +186,14 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey<String>('review-field-card-standardAnswer')),
-        findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.byKey(const ValueKey<String>('review-field-card-standardAnswer')),
+    );
+    expect(
+      find.byKey(const ValueKey<String>('review-field-card-standardAnswer')),
+      findsOneWidget,
+    );
     await tester.tap(find.widgetWithText(TextButton, '编辑'));
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -223,6 +245,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    await _scrollUntilVisible(tester, find.text('AI 已复核并修正答案'));
     expect(find.text('AI 已复核并修正答案'), findsOneWidget);
   });
 
