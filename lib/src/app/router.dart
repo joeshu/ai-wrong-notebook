@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/app/onboarding_notifier.dart';
 import 'package:smart_wrong_notebook/src/core/constants/app_strings.dart';
 import 'package:smart_wrong_notebook/src/features/home/presentation/home_screen.dart';
@@ -256,28 +257,90 @@ class ScaffoldWithNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visual = AppVisualTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final decoration = switch (visual.style) {
+      AppVisualStyle.academic => BoxDecoration(
+          color: scheme.surface,
+          border: Border(top: BorderSide(color: scheme.outlineVariant)),
+        ),
+      AppVisualStyle.paper => BoxDecoration(
+          color: scheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: scheme.primary.withValues(alpha: isDark ? .34 : .20),
+            ),
+          ),
+        ),
+      AppVisualStyle.aurora => BoxDecoration(
+          gradient: LinearGradient(
+            colors: <Color>[
+              scheme.surface,
+              scheme.primaryContainer.withValues(alpha: isDark ? .24 : .36),
+            ],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: scheme.primary.withValues(alpha: isDark ? .12 : .10),
+              blurRadius: 18,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+      AppVisualStyle.forest => BoxDecoration(
+          color: scheme.surface,
+          border: Border(
+            top: BorderSide(
+              color: scheme.secondary.withValues(alpha: isDark ? .28 : .18),
+            ),
+          ),
+        ),
+    };
+
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: (int index) => navigationShell.goBranch(index),
-        destinations: const <NavigationDestination>[
-          NavigationDestination(
-              icon: Icon(CupertinoIcons.house), label: AppStrings.homeTab),
-          NavigationDestination(
+      bottomNavigationBar: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        decoration: decoration,
+        child: NavigationBar(
+          backgroundColor: Colors.transparent,
+          selectedIndex: navigationShell.currentIndex,
+          onDestinationSelected: (int index) => navigationShell.goBranch(index),
+          destinations: const <NavigationDestination>[
+            NavigationDestination(
+              icon: Icon(CupertinoIcons.house),
+              selectedIcon: Icon(CupertinoIcons.house_fill),
+              label: AppStrings.homeTab,
+            ),
+            NavigationDestination(
               icon: Icon(CupertinoIcons.plus_circle),
-              label: AppStrings.addTab),
-          NavigationDestination(
-              icon: Icon(CupertinoIcons.book), label: AppStrings.notebookTab),
-          NavigationDestination(
+              selectedIcon: Icon(CupertinoIcons.plus_circle_fill),
+              label: AppStrings.addTab,
+            ),
+            NavigationDestination(
+              icon: Icon(CupertinoIcons.book),
+              selectedIcon: Icon(CupertinoIcons.book_fill),
+              label: AppStrings.notebookTab,
+            ),
+            NavigationDestination(
               icon: Icon(CupertinoIcons.arrow_2_circlepath),
-              label: AppStrings.reviewTab),
-          NavigationDestination(
+              label: AppStrings.reviewTab,
+            ),
+            NavigationDestination(
               icon: Icon(CupertinoIcons.square_arrow_up),
-              label: AppStrings.settingsExportShare),
-          NavigationDestination(
-              icon: Icon(CupertinoIcons.gear), label: AppStrings.settingsTab),
-        ],
+              selectedIcon: Icon(CupertinoIcons.square_arrow_up_fill),
+              label: AppStrings.settingsExportShare,
+            ),
+            NavigationDestination(
+              icon: Icon(CupertinoIcons.gear),
+              selectedIcon: Icon(CupertinoIcons.gear_solid),
+              label: AppStrings.settingsTab,
+            ),
+          ],
+        ),
       ),
     );
   }

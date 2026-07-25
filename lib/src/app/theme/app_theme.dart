@@ -108,13 +108,11 @@ ThemeData buildLightTheme({AppVisualStyle style = AppVisualStyle.academic}) {
       }),
     ),
     textTheme: textTheme,
-    appBarTheme: base.appBarTheme.copyWith(
-      centerTitle: true,
-      titleTextStyle: textTheme.titleLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: scheme.onSurface,
-      ),
-      iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+    appBarTheme: _appBarTheme(
+      base.appBarTheme,
+      textTheme,
+      scheme,
+      style,
     ),
   );
 }
@@ -219,14 +217,56 @@ ThemeData buildDarkTheme({AppVisualStyle style = AppVisualStyle.academic}) {
       }),
     ),
     textTheme: textTheme,
-    appBarTheme: base.appBarTheme.copyWith(
-      centerTitle: true,
-      titleTextStyle: textTheme.titleLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        color: scheme.onSurface,
-      ),
-      iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
+    appBarTheme: _appBarTheme(
+      base.appBarTheme,
+      textTheme,
+      scheme,
+      style,
     ),
+  );
+}
+
+AppBarTheme _appBarTheme(
+  AppBarTheme base,
+  TextTheme textTheme,
+  ColorScheme scheme,
+  AppVisualStyle style,
+) {
+  final dividerAlpha = scheme.brightness == Brightness.dark ? .28 : .16;
+  return base.copyWith(
+    centerTitle: style != AppVisualStyle.paper,
+    toolbarHeight: switch (style) {
+      AppVisualStyle.academic => 56,
+      AppVisualStyle.paper => 60,
+      AppVisualStyle.aurora => 58,
+      AppVisualStyle.forest => 58,
+    },
+    elevation: 0,
+    scrolledUnderElevation: style == AppVisualStyle.aurora ? 2 : 0,
+    surfaceTintColor: style == AppVisualStyle.aurora
+        ? scheme.primary.withValues(alpha: .08)
+        : Colors.transparent,
+    backgroundColor: scheme.surface.withValues(
+      alpha: style == AppVisualStyle.aurora ? .96 : 1,
+    ),
+    shape: style == AppVisualStyle.paper
+        ? Border(
+            bottom: BorderSide(
+              color: scheme.primary.withValues(alpha: dividerAlpha),
+            ),
+          )
+        : null,
+    titleTextStyle: textTheme.titleLarge?.copyWith(
+      fontWeight: switch (style) {
+        AppVisualStyle.academic => FontWeight.w800,
+        AppVisualStyle.paper => FontWeight.w600,
+        AppVisualStyle.aurora => FontWeight.w800,
+        AppVisualStyle.forest => FontWeight.w700,
+      },
+      letterSpacing: style == AppVisualStyle.paper ? .4 : -.2,
+      color: scheme.onSurface,
+    ),
+    iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
   );
 }
 
