@@ -26,7 +26,11 @@ class ReviewHistoryScreen extends ConsumerWidget {
       ),
       body: logsAsync.when(
         data: (entries) => entries.isEmpty
-            ? _EmptyHistoryCard()
+            ? const AppEmptyState(
+                icon: CupertinoIcons.clock,
+                title: '暂无复习记录',
+                description: '开始复习后在首页查看历史',
+              )
             : ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: entries.length,
@@ -143,36 +147,6 @@ class ReviewHistoryScreen extends ConsumerWidget {
     }
     if (diff.inDays == 1) return '昨天';
     return '${dt.month}/${dt.day}';
-  }
-}
-
-class _EmptyHistoryCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(CupertinoIcons.clock,
-                size: 64,
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.45)),
-            const SizedBox(height: 16),
-            const Text('暂无复习记录',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            Text(
-              '开始复习后在首页查看历史',
-              style:
-                  TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

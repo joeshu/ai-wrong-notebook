@@ -9,18 +9,46 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
 
 abstract final class AppSpace {
+  static const double none = 0;
+  static const double xxs = 2;
   static const double xs = 4;
   static const double sm = 8;
   static const double md = 12;
   static const double lg = 16;
   static const double xl = 24;
   static const double xxl = 32;
+  static const double xxxl = 48;
+  static const double section = 40;
+
+  static const EdgeInsets page = EdgeInsets.all(lg);
+  static const EdgeInsets pageWide = EdgeInsets.symmetric(
+    horizontal: xxl,
+    vertical: xl,
+  );
 }
 
 abstract final class AppRadius {
+  static const double none = 0;
+  static const double xsmall = 4;
   static const double small = 8;
   static const double medium = 12;
   static const double large = 16;
+  static const double xlarge = 20;
+  static const double pill = 999;
+}
+
+/// Material elevation levels. Prefer these values or [AppShadows] over literals.
+abstract final class AppElevation {
+  static const double flat = 0;
+  static const double raised = 1;
+  static const double overlay = 3;
+  static const double modal = 6;
+}
+
+abstract final class AppControlSize {
+  static const double compact = 40;
+  static const double standard = 48;
+  static const double icon = 24;
 }
 
 @Deprecated('Use AppColors instead')
@@ -77,10 +105,14 @@ class AppCard extends StatelessWidget {
       child: child,
     );
     // 统一的入场动效：淡入 + 轻微上移，符合 AppMotion 规范。
-    if (!entrance) return card;
+    if (!entrance || AppMotion.isReduced(context)) return card;
     return card
         .animate()
-        .fadeIn(duration: AppMotion.fast, curve: AppMotion.standard, delay: delay)
+        .fadeIn(
+          duration: AppMotion.resolve(context, AppMotion.fast),
+          curve: AppMotion.standard,
+          delay: delay,
+        )
         .slideY(
           begin: 0.06,
           end: 0,
@@ -346,28 +378,23 @@ class AppEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Center(
+    final state = Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSpace.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            // 渐变圆形托底，给裸图标增加“插画感”的视觉重量。
             Container(
-              width: 88,
-              height: 88,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                gradient: AppGradients.primary,
+                color: Theme.of(context).colorScheme.primaryContainer,
                 shape: BoxShape.circle,
-                boxShadow: isDark ? null : AppShadows.sm,
               ),
-              child: Container(
-                margin: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 40, color: Colors.white),
+              child: Icon(
+                icon,
+                size: 32,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
               ),
             ),
             const SizedBox(height: AppSpace.lg),
@@ -395,7 +422,12 @@ class AppEmptyState extends StatelessWidget {
           ],
         ),
       ),
-    ).animate().fadeIn(duration: AppMotion.medium, curve: AppMotion.standard);
+    );
+    if (AppMotion.isReduced(context)) return state;
+    return state.animate().fadeIn(
+          duration: AppMotion.resolve(context, AppMotion.medium),
+          curve: AppMotion.standard,
+        );
   }
 }
 
@@ -504,14 +536,30 @@ class _AppShimmerState extends State<AppShimmer>
   static const Color _highlight = Color(0xFFF3F4F6);
 
   late final AnimationController _controller;
+  bool _reduced = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: AppMotion.shimmer,
       vsync: this,
-    )..repeat(reverse: true);
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduced = AppMotion.isReduced(context);
+    if (_reduced == reduced && (_controller.isAnimating || reduced)) return;
+    _reduced = reduced;
+    if (reduced) {
+      _controller
+        ..stop()
+        ..value = 0.5;
+    } else {
+      _controller.repeat(reverse: true);
+    }
   }
 
   @override

@@ -2,6 +2,8 @@ import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 /// 构建浅色主题。
 ///
@@ -13,26 +15,26 @@ ThemeData buildLightTheme() {
     useMaterial3: true,
     surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
     scaffoldBackground: AppColors.surfaceLight,
-    appBarBackground: Colors.white,
-    appBarElevation: 0,
+    appBarBackground: AppColors.surfaceLight,
+    appBarElevation: AppElevation.flat,
     subThemesData: const FlexSubThemesData(
       blendOnLevel: 10,
       blendOnColors: false,
       useM2StyleDividerInM3: true,
       inputDecoratorBorderType: FlexInputBorderType.outline,
-      inputDecoratorRadius: 12,
-      chipRadius: 20,
-      navigationBarIndicatorRadius: 12,
+      inputDecoratorRadius: AppRadius.medium,
+      chipRadius: AppRadius.xlarge,
+      navigationBarIndicatorRadius: AppRadius.medium,
       navigationBarSelectedLabelSchemeColor: SchemeColor.primary,
       navigationBarIndicatorSchemeColor: SchemeColor.primary,
-      cardRadius: 16,
-      elevatedButtonRadius: 24,
-      filledButtonRadius: 24,
-      outlinedButtonRadius: 24,
-      textButtonRadius: 24,
-      popupMenuRadius: 12,
-      dialogRadius: 16,
-      bottomSheetRadius: 20,
+      cardRadius: AppRadius.large,
+      elevatedButtonRadius: AppRadius.pill,
+      filledButtonRadius: AppRadius.pill,
+      outlinedButtonRadius: AppRadius.pill,
+      textButtonRadius: AppRadius.pill,
+      popupMenuRadius: AppRadius.medium,
+      dialogRadius: AppRadius.large,
+      bottomSheetRadius: AppRadius.xlarge,
     ),
   );
 
@@ -41,9 +43,9 @@ ThemeData buildLightTheme() {
   return base.copyWith(
     scaffoldBackgroundColor: AppColors.surfaceLight,
     cardTheme: base.cardTheme.copyWith(
-      elevation: 0,
+      elevation: AppElevation.flat,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.large),
       ),
     ),
     elevatedButtonTheme: _elevatedButtonTheme(base.colorScheme),
@@ -53,39 +55,42 @@ ThemeData buildLightTheme() {
     inputDecorationTheme: base.inputDecorationTheme.copyWith(
       filled: true,
       fillColor: base.colorScheme.surfaceContainerLowest,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.lg,
+        vertical: AppSpace.md,
+      ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         borderSide: BorderSide(color: base.colorScheme.outlineVariant),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         borderSide: BorderSide(color: base.colorScheme.outlineVariant),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         borderSide: BorderSide(color: base.colorScheme.primary, width: 1.5),
       ),
     ),
     chipTheme: base.chipTheme.copyWith(
       side: BorderSide(color: base.colorScheme.outlineVariant.withValues(alpha: 0.6)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xlarge)),
     ),
     iconTheme: IconThemeData(
       color: base.colorScheme.onSurfaceVariant,
-      size: 24,
+      size: AppControlSize.icon,
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: base.colorScheme.surface,
-      elevation: 0,
+      elevation: AppElevation.flat,
       indicatorColor: base.colorScheme.primaryContainer,
-      indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.medium)),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return IconThemeData(color: base.colorScheme.primary, size: 24);
+          return IconThemeData(color: base.colorScheme.primary, size: AppControlSize.icon);
         }
-        return IconThemeData(color: base.colorScheme.onSurfaceVariant, size: 24);
+        return IconThemeData(color: base.colorScheme.onSurfaceVariant, size: AppControlSize.icon);
       }),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
@@ -115,25 +120,25 @@ ThemeData buildDarkTheme() {
     useMaterial3: true,
     surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
     scaffoldBackground: AppColors.surfaceDark,
-    appBarBackground: const Color(0xFF1E293B),
-    appBarElevation: 0,
+    appBarBackground: AppColors.slateContainerDark,
+    appBarElevation: AppElevation.flat,
     subThemesData: const FlexSubThemesData(
       blendOnLevel: 20,
       useM2StyleDividerInM3: true,
       inputDecoratorBorderType: FlexInputBorderType.outline,
-      inputDecoratorRadius: 12,
-      chipRadius: 20,
-      navigationBarIndicatorRadius: 12,
+      inputDecoratorRadius: AppRadius.medium,
+      chipRadius: AppRadius.xlarge,
+      navigationBarIndicatorRadius: AppRadius.medium,
       navigationBarSelectedLabelSchemeColor: SchemeColor.primary,
       navigationBarIndicatorSchemeColor: SchemeColor.primary,
-      cardRadius: 16,
-      elevatedButtonRadius: 24,
-      filledButtonRadius: 24,
-      outlinedButtonRadius: 24,
-      textButtonRadius: 24,
-      popupMenuRadius: 12,
-      dialogRadius: 16,
-      bottomSheetRadius: 20,
+      cardRadius: AppRadius.large,
+      elevatedButtonRadius: AppRadius.pill,
+      filledButtonRadius: AppRadius.pill,
+      outlinedButtonRadius: AppRadius.pill,
+      textButtonRadius: AppRadius.pill,
+      popupMenuRadius: AppRadius.medium,
+      dialogRadius: AppRadius.large,
+      bottomSheetRadius: AppRadius.xlarge,
     ),
   );
 
@@ -142,9 +147,9 @@ ThemeData buildDarkTheme() {
   return base.copyWith(
     scaffoldBackgroundColor: AppColors.surfaceDark,
     cardTheme: base.cardTheme.copyWith(
-      elevation: 0,
+      elevation: AppElevation.flat,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.large),
       ),
     ),
     elevatedButtonTheme: _elevatedButtonTheme(base.colorScheme),
@@ -154,39 +159,42 @@ ThemeData buildDarkTheme() {
     inputDecorationTheme: base.inputDecorationTheme.copyWith(
       filled: true,
       fillColor: base.colorScheme.surfaceContainerHighest,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.lg,
+        vertical: AppSpace.md,
+      ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         borderSide: BorderSide(color: base.colorScheme.outlineVariant),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         borderSide: BorderSide(color: base.colorScheme.outlineVariant),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         borderSide: BorderSide(color: base.colorScheme.primary, width: 1.5),
       ),
     ),
     chipTheme: base.chipTheme.copyWith(
       side: BorderSide(color: base.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xlarge)),
     ),
-    iconTheme: const IconThemeData(
-      color: Colors.white70,
-      size: 24,
+    iconTheme: IconThemeData(
+      color: base.colorScheme.onSurfaceVariant,
+      size: AppControlSize.icon,
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: base.colorScheme.surface,
-      elevation: 0,
+      elevation: AppElevation.flat,
       indicatorColor: base.colorScheme.primaryContainer.withValues(alpha: 0.5),
-      indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.medium)),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return IconThemeData(color: base.colorScheme.primary, size: 24);
+          return IconThemeData(color: base.colorScheme.primary, size: AppControlSize.icon);
         }
-        return IconThemeData(color: base.colorScheme.onSurfaceVariant, size: 24);
+        return IconThemeData(color: base.colorScheme.onSurfaceVariant, size: AppControlSize.icon);
       }),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
@@ -234,10 +242,13 @@ TextTheme _buildTextTheme(TextTheme base, ColorScheme scheme) {
 ElevatedButtonThemeData _elevatedButtonTheme(ColorScheme scheme) {
   return ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      elevation: 0,
+      minimumSize: const Size(0, AppControlSize.standard),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.xl,
+        vertical: AppSpace.md,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
+      elevation: AppElevation.flat,
       backgroundColor: scheme.primary,
       foregroundColor: scheme.onPrimary,
       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
@@ -248,9 +259,12 @@ ElevatedButtonThemeData _elevatedButtonTheme(ColorScheme scheme) {
 FilledButtonThemeData _filledButtonTheme(ColorScheme scheme) {
   return FilledButtonThemeData(
     style: FilledButton.styleFrom(
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      minimumSize: const Size(0, AppControlSize.standard),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.xl,
+        vertical: AppSpace.md,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
     ),
   );
@@ -259,9 +273,12 @@ FilledButtonThemeData _filledButtonTheme(ColorScheme scheme) {
 OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme scheme) {
   return OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
-      minimumSize: const Size(0, 48),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      minimumSize: const Size(0, AppControlSize.standard),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.xl,
+        vertical: AppSpace.md,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
       side: BorderSide(color: scheme.outlineVariant),
       foregroundColor: scheme.primary,
       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
@@ -272,9 +289,12 @@ OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme scheme) {
 TextButtonThemeData _textButtonTheme(ColorScheme scheme) {
   return TextButtonThemeData(
     style: TextButton.styleFrom(
-      minimumSize: const Size(0, 40),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      minimumSize: const Size(0, AppControlSize.compact),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.md,
+        vertical: AppSpace.sm,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.medium)),
       foregroundColor: scheme.primary,
       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
     ),

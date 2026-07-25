@@ -1386,7 +1386,16 @@ class _UnifiedActionPanel extends StatelessWidget {
     if (plan.dueCount == 0 &&
         pendingRecognition == 0 &&
         plan.streakDays == 0) {
-      return _EmptyActionGuide(onCapture: onCapture);
+      return AppEmptyState(
+        icon: CupertinoIcons.checkmark_seal,
+        title: '今日清单已清空',
+        description: '没有待复习或待处理的错题，继续保持节奏！\n也可以随时录入新的错题。',
+        action: FilledButton.icon(
+          onPressed: onCapture,
+          icon: const Icon(CupertinoIcons.add),
+          label: const Text(AppStrings.homeCapture),
+        ),
+      );
     }
 
     return Column(
@@ -1473,42 +1482,6 @@ class _ActionTile extends StatelessWidget {
           ),
           const SizedBox(width: 2),
           Icon(CupertinoIcons.chevron_right, size: 14, color: color),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyActionGuide extends StatelessWidget {
-  const _EmptyActionGuide({required this.onCapture});
-
-  final VoidCallback onCapture;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return AppCard(
-      padding: const EdgeInsets.all(AppSpace.lg),
-      child: Column(
-        children: <Widget>[
-          Icon(CupertinoIcons.checkmark_seal_fill,
-              size: 36, color: AppColors.success.withValues(alpha: 0.7)),
-          const SizedBox(height: AppSpace.sm),
-          const Text('今日清单已清空',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-          const SizedBox(height: 4),
-          Text(
-            '没有待复习或待处理的错题，继续保持节奏！\n也可以随时录入新的错题。',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: 12, color: colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpace.md),
-          FilledButton.icon(
-            onPressed: onCapture,
-            icon: const Icon(CupertinoIcons.add, size: 16),
-            label: const Text(AppStrings.homeCapture),
-          ),
         ],
       ),
     );

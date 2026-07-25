@@ -600,8 +600,8 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         ),
       ),
       body: _errorMessage != null
-          ? _buildErrorView()
-          : _LoadingView(
+          ? _buildRecoveryView()
+          : _AnalysisPipelineView(
               step: _step,
               steps: _steps,
               progressText: _progressText,
@@ -609,7 +609,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     );
   }
 
-  Widget _buildErrorView() {
+  Widget _buildRecoveryView() {
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -886,8 +886,8 @@ enum _EngineChoice {
       };
 }
 
-class _LoadingView extends StatefulWidget {
-  const _LoadingView({
+class _AnalysisPipelineView extends StatefulWidget {
+  const _AnalysisPipelineView({
     required this.step,
     required this.steps,
     this.progressText,
@@ -898,10 +898,10 @@ class _LoadingView extends StatefulWidget {
   final String? progressText;
 
   @override
-  State<_LoadingView> createState() => _LoadingViewState();
+  State<_AnalysisPipelineView> createState() => _AnalysisPipelineViewState();
 }
 
-class _LoadingViewState extends State<_LoadingView>
+class _AnalysisPipelineViewState extends State<_AnalysisPipelineView>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
