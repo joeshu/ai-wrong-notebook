@@ -8,6 +8,7 @@ import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_components.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -40,7 +41,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.settingsTitle)),
-      body: SingleChildScrollView(
+      body: AppPage(
+        maxWidth: AppContentWidth.standard,
+        padding: EdgeInsets.zero,
+        child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.lg, AppSpace.xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,6 +289,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

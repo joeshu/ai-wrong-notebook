@@ -13,6 +13,7 @@ import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_controller.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
@@ -333,10 +334,13 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                 ],
               ),
             ),
-            body: Column(
+            body: AppPage(
+              maxWidth: AppContentWidth.wide,
+              padding: EdgeInsets.zero,
+              child: Column(
               children: <Widget>[
                 AnimatedSwitcher(
-                  duration: AppMotion.fast,
+                  duration: AppMotion.resolve(context, AppMotion.fast),
                   switchInCurve: AppMotion.standard,
                   switchOutCurve: AppMotion.standard,
                   transitionBuilder: (child, animation) => SizeTransition(
@@ -401,6 +405,7 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         );
