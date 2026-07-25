@@ -757,8 +757,8 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       ),
     );
 
+    final exportedFiles = <ExportFormat, String>{};
     try {
-      // Phase 11-7：单格式失败不中断整体导出，记录成功/失败分别反馈。
       final succeeded = <ExportFormat>[];
       final failed = <MapEntry<ExportFormat, Object>>[];
       for (var i = 0; i < formats.length; i++) {
@@ -774,19 +774,8 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           if (mounted) setState(() => _exportProgress = progress.value);
         });
         try {
-          await _exportFormat(formats[i], options, sub);
-          if (mounted) {
-            messenger
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '${_formatLabel(formats[i])} 已完成；如未出现分享面板，可从导出历史重新分享',
-                  ),
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-          }
+          final filePath = await _exportFormat(formats[i], options, sub);
+          exportedFiles[formats[i]] = filePath;
           succeeded.add(formats[i]);
           // Phase 11-7：写入导出历史记录（最近 10 次）。
           await ExportHistoryService.add(ExportHistoryEntry(
@@ -841,9 +830,14 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         setState(() => _isExporting = false);
       }
     }
+    if (mounted && exportedFiles.isNotEmpty) {
+      // 等待进度对话框退场后再呈现应用内结果，禁止与 iOS 分享面板嵌套。
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (mounted) await _showExportCompleteSheet(exportedFiles);
+    }
   }
 
-  Future<void> _exportFormat(
+  Future<String> _exportFormat(
     ExportFormat format,
     ExportOptions options,
     ValueNotifier<double> progress,
@@ -853,10 +847,6 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     final studentInfo = options.studentInfo;
     final watermark = studentInfo?.watermark;
     final contentOptions = options.contentOptions;
-    // 在 async gap 之前捕获 messenger / render box，避免
-    // use_build_context_synchronously 警告。
-    final messenger = ScaffoldMessenger.of(context);
-    final renderBox = context.findRenderObject() as RenderBox?;
 
     // Phase 11-4：按需预查扩展数据，避免在不需要时付出查询代价。
     // - reviewLogs：当 includeReviewHistory 打开时，从仓库取全量复习日志。
@@ -901,23 +891,10 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           templateType: options.templateType,
           reviewLogs: reviewLogs,
           onProgress: (done, total) {
-            // 0..1 表示当前格式内部进度，由外层换算到整体进度。
             progress.value = total == 0 ? 1 : done / total;
           },
         );
-        if (result.failureHint.isNotEmpty) {
-          messenger.showSnackBar(
-            SnackBar(content: Text('导出完成（${result.failureHint}）')),
-          );
-        }
-        await _shareFile(
-          result.filePath,
-          studentInfo,
-          questions.length,
-          messenger: messenger,
-          renderBox: renderBox,
-        );
-        break;
+        return result.filePath;
       case ExportFormat.pdf:
         final file = await PdfExportService.generatePdf(
           questions,
@@ -929,16 +906,9 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
             progress.value = total == 0 ? 1 : done / total;
           },
         );
-        await _shareFile(
-          file.path,
-          studentInfo,
-          questions.length,
-          messenger: messenger,
-          renderBox: renderBox,
-        );
-        break;
+        return file.path;
       case ExportFormat.markdown:
-        final md = await MarkdownExportService().generateMarkdown(
+        final content = await MarkdownExportService().generateMarkdown(
           questions: questions,
           mode: mode,
           contentOptions: contentOptions,
@@ -947,37 +917,50 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           reviewLogs: reviewLogs,
           knowledgeTreePaths: knowledgeTreePaths,
         );
-        await MarkdownExportService().shareMarkdown(
-            md, _buildFileName('md', options: options));
-        break;
+        return _saveTextExport(
+          content,
+          _buildFileName('md', options: options),
+        );
       case ExportFormat.anki:
-        final ankiText = await AnkiExportService().generateAnkiImportText(
+        final content = await AnkiExportService().generateAnkiImportText(
           questions: questions,
           contentOptions: contentOptions,
           knowledgeTreePaths: knowledgeTreePaths,
         );
-        await AnkiExportService().shareAnkiExport(
-            ankiText, _buildFileName('txt', options: options));
-        break;
+        return _saveTextExport(
+          content,
+          _buildFileName('txt', options: options),
+        );
       case ExportFormat.csv:
-        final csv = await CsvExportService().generateCsv(
+        final content = await CsvExportService().generateCsv(
           questions: questions,
           contentOptions: contentOptions,
         );
-        await CsvExportService()
-            .shareCsv(csv, _buildFileName('csv', options: options));
-        break;
+        return _saveTextExport(
+          '\uFEFF$content',
+          _buildFileName('csv', options: options),
+        );
       case ExportFormat.json:
-        final json = await JsonExportService().generateJson(
+        final content = await JsonExportService().generateJson(
           questions: questions,
           contentOptions: contentOptions,
           reviewLogs: reviewLogs,
           knowledgeTreePaths: knowledgeTreePaths,
         );
-        await JsonExportService()
-            .shareJson(json, _buildFileName('json', options: options));
-        break;
+        return _saveTextExport(
+          content,
+          _buildFileName('json', options: options),
+        );
     }
+  }
+
+  Future<String> _saveTextExport(String content, String fileName) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final exportDir = Directory('${dir.path}/exports');
+    await exportDir.create(recursive: true);
+    final file = File('${exportDir.path}/$fileName');
+    await file.writeAsString(content, flush: true);
+    return file.path;
   }
 
   /// Phase 11-4：为每道题目拼接知识点树面包屑路径。
@@ -1016,25 +999,70 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     return result;
   }
 
-  /// 调起系统分享单文件，桌面端 share_plus 失败时回退到系统默认打开。
-  Future<void> _shareFile(
-    String filePath,
-    ExportStudentInfo? studentInfo,
-    int questionCount, {
-    required ScaffoldMessengerState messenger,
-    required RenderBox? renderBox,
-  }) async {
-    final file = File(filePath);
-    if (!await file.exists()) return;
-    final studentLabel = studentInfo?.displayName ?? '错题本';
-    final origin = renderBox != null && renderBox.hasSize
-        ? renderBox.localToGlobal(Offset.zero) & renderBox.size
-        : null;
-    await AppShareService.shareFile(
-      context,
-      filePath,
-      text: '$studentLabel 错题本（共 $questionCount 题）',
-      showFeedback: false,
+  Future<void> _showExportCompleteSheet(
+    Map<ExportFormat, String> files,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              const Row(
+                children: <Widget>[
+                  Icon(CupertinoIcons.checkmark_seal_fill,
+                      color: AppColors.success),
+                  SizedBox(width: 10),
+                  Text(
+                    '导出完成',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '已生成 ${files.length} 个文件并保存到导出历史。现在分享不会再与导出进度框重叠。',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              for (final entry in files.entries)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(_formatIcon(entry.key)),
+                  title: Text('${_formatLabel(entry.key)} 文件'),
+                  subtitle: Text(
+                    File(entry.value).uri.pathSegments.last,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: FilledButton.tonalIcon(
+                    onPressed: () async {
+                      Navigator.of(sheetContext).pop();
+                      await Future<void>.delayed(
+                        const Duration(milliseconds: 250),
+                      );
+                      if (!mounted) return;
+                      await AppShareService.shareFile(context, entry.value);
+                    },
+                    icon: const Icon(CupertinoIcons.share, size: 16),
+                    label: const Text('分享'),
+                  ),
+                ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                child: const Text('完成，稍后从导出历史分享'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
