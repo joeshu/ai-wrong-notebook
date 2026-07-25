@@ -1970,7 +1970,7 @@ class _ShareWorkTile extends StatelessWidget {
                   ),
                 ],
               ),
-              const Spacer(),
+              const SizedBox(height: AppSpace.lg),
               Text(
                 title,
                 style: const TextStyle(
