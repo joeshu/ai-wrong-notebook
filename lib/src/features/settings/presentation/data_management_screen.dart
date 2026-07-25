@@ -12,7 +12,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
@@ -24,6 +23,7 @@ import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
 import 'package:smart_wrong_notebook/src/domain/services/ai_response_diagnostics_retention_service.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/app_share_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
@@ -249,22 +249,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   }
 
   Future<void> _shareExportFile(BuildContext context, File file) async {
-    try {
-      final box = context.findRenderObject() as RenderBox?;
-      final origin = box == null || !box.hasSize
-          ? null
-          : box.localToGlobal(Offset.zero) & box.size;
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        sharePositionOrigin: origin,
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('分享失败: $e')),
-        );
-      }
-    }
+    await AppShareService.shareFile(context, file.path);
   }
 
   /// 删除导出历史中的文件（带二次确认）。
@@ -778,12 +763,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       if (!mounted) return;
       setState(() => _lastBackupLabel =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} · ${questions.length} 题${_encryptBackup ? ' · 加密' : ''}');
-      final box = context.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) return;
-      await Share.shareXFiles([XFile(file.path)],
-          subject: '错题本备份',
-          text: '错题本完整备份（${questions.length} 道错题）${_encryptBackup ? '（已加密）' : ''}',
-          sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size);
+      await AppShareService.shareFile(
+        context,
+        file.path,
+        subject: '错题本备份',
+        text: '错题本完整备份（${questions.length} 道错题）${_encryptBackup ? '（已加密）' : ''}',
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

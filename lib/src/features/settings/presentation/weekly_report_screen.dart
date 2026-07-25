@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_native_html_to_pdf/flutter_native_html_to_pdf.dart'
     as html2pdf;
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/app_share_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/weekly_report_aggregator.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/weekly_report_html.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -38,6 +38,7 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
   WebViewController? _controller;
   bool _loading = true;
   String? _error;
+  bool _sharing = false;
   String? _htmlFilePath;
   String _htmlContent = '';
 
@@ -86,12 +87,17 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
       !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
   Future<void> _onExportPdf() async {
-    if (_htmlContent.isEmpty) return;
-    if (_isDesktop) {
-      await _exportPdfDesktop();
-      return;
+    if (_sharing || _htmlContent.isEmpty) return;
+    setState(() => _sharing = true);
+    try {
+      if (_isDesktop) {
+        await _exportPdfDesktop();
+        return;
+      }
+      await _exportPdfMobile();
+    } finally {
+      if (mounted) setState(() => _sharing = false);
     }
-    await _exportPdfMobile();
   }
 
   /// 移动端：用 flutter_native_html_to_pdf 把 HTML 转 PDF，再调起系统分享。
@@ -137,13 +143,10 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
       );
       if (!mounted) return;
       closeProgressDialog();
-      final box = context.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) return;
-      final origin = box.localToGlobal(Offset.zero) & box.size;
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await AppShareService.shareFile(
+        context,
+        file.path,
         text: '本周学情报告 PDF',
-        sharePositionOrigin: origin,
       );
     } catch (e) {
       if (!mounted) return;
@@ -189,22 +192,18 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
   }
 
   Future<void> _onShare() async {
+    if (_sharing) return;
     final path = _htmlFilePath;
     if (path == null) return;
+    setState(() => _sharing = true);
     try {
-      final box = context.findRenderObject() as RenderBox?;
-      final origin =
-          box == null || !box.hasSize ? null : box.localToGlobal(Offset.zero) & box.size;
-      await Share.shareXFiles(
-        [XFile(path)],
+      await AppShareService.shareFile(
+        context,
+        path,
         text: '本周学情报告',
-        sharePositionOrigin: origin,
       );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('分享失败: $e')),
-      );
+    } finally {
+      if (mounted) setState(() => _sharing = false);
     }
   }
 
@@ -221,12 +220,12 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
           IconButton(
             icon: const Icon(CupertinoIcons.share),
             tooltip: '分享',
-            onPressed: _loading || _error != null ? null : _onShare,
+            onPressed: _loading || _error != null || _sharing ? null : _onShare,
           ),
           IconButton(
             icon: const Icon(CupertinoIcons.doc),
             tooltip: '导出 PDF',
-            onPressed: _loading || _error != null ? null : _onExportPdf,
+            onPressed: _loading || _error != null || _sharing ? null : _onExportPdf,
           ),
         ],
       ),

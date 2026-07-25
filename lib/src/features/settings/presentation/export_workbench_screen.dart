@@ -6,13 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_link_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/app_share_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/anki_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/csv_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
@@ -196,11 +196,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
   }
 
   Future<void> _shareExportHistoryFile(BuildContext context, File file) async {
-    try {
-      await Share.shareXFiles([XFile(file.path)]);
-    } catch (e) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('分享失败：$e')));
-    }
+    await AppShareService.shareFile(context, file.path);
   }
 
   Widget _buildTemplateSection(BuildContext context) {
@@ -779,6 +775,18 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         });
         try {
           await _exportFormat(formats[i], options, sub);
+          if (mounted) {
+            messenger
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '${_formatLabel(formats[i])} 已完成；如未出现分享面板，可从导出历史重新分享',
+                  ),
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+          }
           succeeded.add(formats[i]);
           // Phase 11-7：写入导出历史记录（最近 10 次）。
           await ExportHistoryService.add(ExportHistoryEntry(
@@ -1022,15 +1030,12 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     final origin = renderBox != null && renderBox.hasSize
         ? renderBox.localToGlobal(Offset.zero) & renderBox.size
         : null;
-    try {
-      await Share.shareXFiles(
-        [XFile(filePath)],
-        text: '$studentLabel 错题本（共 $questionCount 题）',
-        sharePositionOrigin: origin,
-      );
-    } catch (_) {
-      // 桌面端 share_plus 在无 DBus/分享面板的环境下会抛错，忽略。
-    }
+    await AppShareService.shareFile(
+      context,
+      filePath,
+      text: '$studentLabel 错题本（共 $questionCount 题）',
+      showFeedback: false,
+    );
   }
 
   String _buildFileName(String extension, {required ExportOptions options}) {
