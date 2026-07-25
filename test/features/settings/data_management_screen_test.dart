@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';

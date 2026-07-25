@@ -171,7 +171,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     for (final question in questions) {
       final updated = mapper(question);
       if (identical(updated, question)) continue;
-      await repository.save(updated);
+      await repository.update(updated);
       changedCount++;
     }
     return changedCount;
