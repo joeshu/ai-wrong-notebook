@@ -129,8 +129,8 @@ class _RecognitionConfirmationScreenState
             const Padding(
               padding: EdgeInsets.all(AppSpace.lg),
               child: AppTaskFlow(
-                steps: <String>['拍一道错题', '确认识别', '查看错误定位', '开始练习'],
-                currentStep: 1,
+                steps: <String>['拍摄质量', '题目切分', '文字确认', '开始分析'],
+                currentStep: 2,
               ),
             ),
             Expanded(
@@ -194,13 +194,88 @@ class _RecognitionConfirmationScreenState
                 icon: _busy
                     ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(CupertinoIcons.checkmark_shield),
-                label: Text(canProceed ? '确认并进入 AI 解题' : '请先确认低置信度字段'),
+                label: Text(canProceed ? '确认文字并开始分析' : '请先确认低置信度字段'),
               ),
             ),
           ]),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _reviewOverview(QuestionRecord record, Set<String> required) {
+    final scheme = Theme.of(context).colorScheme;
+    final confidence = record.ocrConfidence;
+    final confirmedCount = required.where(_confirmed.contains).length;
+    final remaining = required.length - confirmedCount;
+    final safe = required.isEmpty && _highConfidenceSafe(record);
+    final tone = safe
+        ? AppTagTone.success
+        : remaining > 0
+            ? AppTagTone.warning
+            : AppTagTone.primary;
+
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpace.md),
+      child: Row(
+        children: <Widget>[
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(AppRadius.small),
+            ),
+            child: Icon(
+              safe
+                  ? CupertinoIcons.checkmark_shield_fill
+                  : CupertinoIcons.text_badge_checkmark,
+              color: scheme.onPrimaryContainer,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: AppSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  safe
+                      ? '识别结果清晰，可快速确认'
+                      : remaining > 0
+                          ? '还有 $remaining 项需要你确认'
+                          : '字段已确认，可以继续',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  confidence == null
+                      ? '识别置信度未标注'
+                      : '整体置信度 ${(confidence * 100).round()}% · '
+                          '${required.isEmpty ? '无强制风险' : '已确认 $confirmedCount/${required.length}'}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AppTag(
+            label: safe
+                ? '高置信'
+                : remaining > 0
+                    ? '待处理'
+                    : '已核对',
+            useThemeTone: true,
+            themeTone: tone,
+          ),
+        ],
       ),
     );
   }
@@ -220,14 +295,47 @@ class _RecognitionConfirmationScreenState
   Widget _reviewPane(QuestionRecord record, Set<String> required) => ListView(
         padding: const EdgeInsets.all(16),
         children: <Widget>[
-          _layerCard('OCR 原文', record.extractedQuestionText, AppColors.slate),
-          const SizedBox(height: 8),
-          _layerCard(
-            'AI 规范化文本',
-            record.normalizedQuestionText,
-            AppColors.accentPurple,
+          _reviewOverview(record, required),
+          const SizedBox(height: AppSpace.md),
+          AppInfoSection(
+            icon: CupertinoIcons.layers,
+            title: '识别来源对照',
+            collapsible: true,
+            initiallyExpanded: false,
+            child: Column(
+              children: <Widget>[
+                _layerCard(
+                  'OCR 原文',
+                  record.extractedQuestionText,
+                  AppColors.slate,
+                ),
+                const SizedBox(height: 8),
+                _layerCard(
+                  'AI 规范化文本',
+                  record.normalizedQuestionText,
+                  AppColors.accentPurple,
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
+          Text(
+            required.isEmpty ? '确认最终文字' : '优先处理低置信字段',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            required.isEmpty
+                ? '内容风险较低，快速核对后即可进入分析。'
+                : '只需处理高亮字段，其余内容已自动收纳。',
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpace.md),
           TextField(
             controller: _stemController,
             minLines: 4,

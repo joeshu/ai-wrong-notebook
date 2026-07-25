@@ -198,6 +198,13 @@ class _WorksheetRegionEditorScreenState
       ),
       body: SafeArea(
         child: Column(children: <Widget>[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: AppTaskFlow(
+              steps: <String>['拍摄质量', '题目切分', '文字确认', '开始分析'],
+              currentStep: 1,
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
             child: _DetectionActionCard(

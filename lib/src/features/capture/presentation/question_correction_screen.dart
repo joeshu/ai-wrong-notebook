@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/shared/ui/app_layout.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/image_quality_detector.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
@@ -66,30 +67,70 @@ class _QuestionCorrectionScreenState
           onPressed: () => context.go('/'),
         ),
       ),
-      body: Column(
-        children: <Widget>[
-          if (showWarning) _buildQualityWarning(_qualityResult!.primaryIssue),
-          Expanded(
-            child: imagePath != null && File(imagePath).existsSync()
-                ? Center(
-                    child: InteractiveViewer(
-                      minScale: 0.5,
-                      maxScale: 4.0,
-                      child: CachedQuestionImage(imagePath,
-                          fit: BoxFit.contain, highRes: true),
-                    ),
-                  )
-                : Center(
-                    child: Text(
-                      '未选择图片',
-                      style: TextStyle(
+      body: AppPage(
+        maxWidth: AppContentWidth.wide,
+        padding: EdgeInsets.zero,
+        child: Column(
+          children: <Widget>[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppSpace.lg,
+                AppSpace.md,
+                AppSpace.lg,
+                AppSpace.sm,
+              ),
+              child: AppTaskFlow(
+                steps: <String>['拍摄质量', '题目切分', '文字确认', '开始分析'],
+                currentStep: 0,
+              ),
+            ),
+            _buildQualityOverview(),
+            if (showWarning) _buildQualityWarning(_qualityResult!.primaryIssue),
+            Expanded(
+              child: imagePath != null && File(imagePath).existsSync()
+                  ? Container(
+                      margin: const EdgeInsets.fromLTRB(
+                        AppSpace.lg,
+                        AppSpace.sm,
+                        AppSpace.lg,
+                        AppSpace.md,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(AppRadius.large),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Center(
+                        child: InteractiveViewer(
+                          minScale: 0.5,
+                          maxScale: 4.0,
+                          child: CachedQuestionImage(
+                            imagePath,
+                            fit: BoxFit.contain,
+                            highRes: true,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        '未选择图片',
+                        style: TextStyle(
                           fontSize: 14,
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                      ),
                     ),
-                  ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -106,11 +147,121 @@ class _QuestionCorrectionScreenState
               Expanded(
                 child: FilledButton(
                   onPressed: () => context.go('/analysis/loading'),
-                  child: const Text('开始分析'),
+                  child: Text(_qualityResult?.isAcceptable == true
+                      ? '进入题目切分'
+                      : '继续使用并切分'),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQualityOverview() {
+    final result = _qualityResult;
+    final scheme = Theme.of(context).colorScheme;
+    final checking = _detecting || result == null;
+    final acceptable = result?.isAcceptable == true;
+    final accent = checking
+        ? scheme.primary
+        : acceptable
+            ? AppColors.success
+            : AppColors.accentAmber;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppSpace.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: .12),
+                    borderRadius: BorderRadius.circular(AppRadius.small),
+                  ),
+                  child: Icon(
+                    checking
+                        ? CupertinoIcons.viewfinder
+                        : acceptable
+                            ? CupertinoIcons.checkmark_shield_fill
+                            : CupertinoIcons.exclamationmark_triangle_fill,
+                    color: accent,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: AppSpace.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        checking
+                            ? '正在检查拍摄质量'
+                            : acceptable
+                                ? '画面适合识别'
+                                : '建议先改善画面',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        checking
+                            ? '正在检查清晰度、光线和分辨率。'
+                            : acceptable
+                                ? '清晰度、光线和分辨率均已通过。'
+                                : _warningText(result?.primaryIssue),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AppTag(
+                  label: checking
+                      ? '检查中'
+                      : acceptable
+                          ? '可继续'
+                          : '需注意',
+                  useThemeTone: true,
+                  themeTone: checking
+                      ? AppTagTone.primary
+                      : acceptable
+                          ? AppTagTone.success
+                          : AppTagTone.warning,
+                ),
+              ],
+            ),
+            if (result != null) ...<Widget>[
+              const SizedBox(height: AppSpace.md),
+              Row(
+                children: <Widget>[
+                  _QualityMetric(
+                    label: '清晰度',
+                    value: '${(result.sharpnessScore * 100).round()}%',
+                  ),
+                  _QualityMetric(
+                    label: '亮度',
+                    value: '${(result.brightnessScore * 100).round()}%',
+                  ),
+                  _QualityMetric(
+                    label: '最短边',
+                    value: '${result.minDimensionPixels}px',
+                  ),
+                ],
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -209,4 +360,34 @@ class _QuestionCorrectionScreenState
         return '';
     }
   }
+}
+
+class _QualityMetric extends StatelessWidget {
+  const _QualityMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Column(
+          children: <Widget>[
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
 }
