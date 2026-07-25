@@ -1592,10 +1592,12 @@ class _BestNextActionCard extends StatelessWidget {
     final visual = AppVisualTokens.of(context);
     return AppCard(
       padding: EdgeInsets.zero,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(visual.cardRadius),
-        child: Padding(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(visual.cardRadius),
+          child: Padding(
           padding: const EdgeInsets.all(AppSpace.lg),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1668,6 +1670,7 @@ class _BestNextActionCard extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }
