@@ -134,63 +134,92 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
   }
 
   Widget _buildHistorySection(BuildContext context) {
+    final formats = <String>{'全部'}..addAll(_historyFormats);
     return _Section(
       title: '导出历史',
       description: '最近导出的资料可从这里查看、分享或删除',
-      child: FutureBuilder<List<File>>(
-        future: _loadExportFiles(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Padding(
-              padding: EdgeInsets.all(16),
-              child: LinearProgressIndicator(),
-            );
-          }
-          final files = snapshot.data ?? const <File>[];
-          if (files.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: _SummaryBox(
-                icon: CupertinoIcons.clock,
-                text: '暂无导出文件。完成一次导出后，记录会显示在这里。',
+      child: Column(
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 6,
+                children: formats.map((format) => ChoiceChip(
+                  label: Text(format),
+                  selected: _historyFormatFilter == format,
+                  onSelected: (_) => setState(() => _historyFormatFilter = format),
+                )).toList(growable: false),
               ),
-            );
-          }
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: files
-                  .take(5)
-                  .map(
-                    (file) => _ExportHistoryListTile(
-                      file: file,
-                      onDelete: () => _deleteExportHistoryFile(context, file),
-                      onShare: () => _shareExportHistoryFile(context, file),
-                    ),
-                  )
-                  .toList(),
             ),
-          );
-        },
+          ),
+          FutureBuilder<List<_ExportHistoryItem>>(
+            future: _loadExportHistoryItems(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: LinearProgressIndicator(),
+                );
+              }
+              final allItems = snapshot.data ?? const <_ExportHistoryItem>[];
+              final items = _historyFormatFilter == '全部'
+                  ? allItems
+                  : allItems.where((item) => item.entry.format == _historyFormatFilter).toList();
+              if (items.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: _SummaryBox(
+                    icon: CupertinoIcons.clock,
+                    text: '暂无符合条件的导出记录。完成一次导出后，记录会显示在这里。',
+                  ),
+                );
+              }
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  children: items.take(10).map((item) => _ExportHistoryListTile(
+                    item: item,
+                    onDelete: () => _deleteExportHistoryItem(context, item),
+                    onShare: () => _shareExportHistoryItem(context, item),
+                  )).toList(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
 
-  Future<List<File>> _loadExportFiles() async {
+  Set<String> get _historyFormats => <String>{
+        'HTML', 'PDF', 'Markdown', 'CSV', 'JSON', 'TXT', 'Anki',
+      };
+
+  String _historyFormatFilter = '全部';
+
+  Future<List<_ExportHistoryItem>> _loadExportHistoryItems() async {
     final dir = await getApplicationDocumentsDirectory();
     final exportDir = Directory('${dir.path}/exports');
-    if (!exportDir.existsSync()) return const <File>[];
-    final files = exportDir.listSync().whereType<File>().toList();
-    files.sort((a, b) => b.statSync().modified.compareTo(a.statSync().modified));
-    return files;
+    final entries = await ExportHistoryService.list();
+    return entries.map((entry) {
+      final file = entry.fileName == null
+          ? null
+          : File('${exportDir.path}/${entry.fileName}');
+      return _ExportHistoryItem(entry: entry, file: file);
+    }).toList(growable: false);
   }
 
-  Future<void> _deleteExportHistoryFile(BuildContext context, File file) async {
+  Future<void> _deleteExportHistoryItem(
+    BuildContext context,
+    _ExportHistoryItem item,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('删除导出文件？'),
-        content: Text('将删除「${file.uri.pathSegments.last}」，此操作不可恢复。'),
+        title: const Text('删除导出记录？'),
+        content: Text('将删除「${item.displayName}」及其历史记录。'),
         actions: <Widget>[
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
           FilledButton.tonal(onPressed: () => Navigator.pop(ctx, true), child: const Text('删除')),
@@ -199,16 +228,24 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     );
     if (confirmed != true) return;
     try {
-      if (await file.exists()) await file.delete();
+      if (item.file != null && await item.file!.exists()) await item.file!.delete();
+      await ExportHistoryService.remove(item.entry);
       if (mounted) setState(() {});
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已删除导出文件')));
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已删除导出记录')));
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('删除失败：$e')));
     }
   }
 
-  Future<void> _shareExportHistoryFile(BuildContext context, File file) async {
-    await AppShareService.shareFile(context, file.path);
+  Future<void> _shareExportHistoryItem(
+    BuildContext context,
+    _ExportHistoryItem item,
+  ) async {
+    if (item.file == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('该历史记录缺少文件信息，请重新导出')));
+      return;
+    }
+    await AppShareService.shareFile(context, item.file!.path);
   }
 
   Widget _buildTemplateSection(BuildContext context) {
@@ -728,7 +765,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           });
         }
         try {
-          await _exportFormat(format, options);
+          final filePath = await _exportFormat(format, options);
           succeeded.add(format);
           await ExportHistoryService.add(ExportHistoryEntry(
             timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -736,6 +773,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
             template: options.templateType.label,
             questionCount: questions.length,
             title: '错题本整理报告',
+            fileName: File(filePath).uri.pathSegments.last,
           ));
           invalidateExportHistory(ref);
         } catch (e) {
@@ -1279,27 +1317,36 @@ class _SummaryBox extends StatelessWidget {
 
 
 
+class _ExportHistoryItem {
+  const _ExportHistoryItem({required this.entry, required this.file});
+
+  final ExportHistoryEntry entry;
+  final File? file;
+
+  String get displayName => entry.fileName ?? '${entry.format} · ${entry.title}';
+}
+
 class _ExportHistoryListTile extends StatelessWidget {
   const _ExportHistoryListTile({
-    required this.file,
+    required this.item,
     required this.onDelete,
     required this.onShare,
   });
-  final File file;
+
+  final _ExportHistoryItem item;
   final VoidCallback onDelete;
   final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
-    final name = file.uri.pathSegments.last;
-    FileStat? stat;
-    try {
-      stat = file.statSync();
-    } catch (_) {
-      // 文件可能刚好被系统清理，列表仍可安全渲染。
-    }
-    final extension = _extension(name);
+    final entry = item.entry;
+    final file = item.file;
+    final name = item.displayName;
+    final extension = entry.format.isNotEmpty
+        ? entry.format
+        : _extension(name);
     final colorScheme = Theme.of(context).colorScheme;
+    final fileInfo = _fileInfo(item);
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
@@ -1308,21 +1355,15 @@ class _ExportHistoryListTile extends StatelessWidget {
         children: <Widget>[
           _FormatBadge(label: extension.toUpperCase()),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-          ),
+          Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis)),
         ],
       ),
-      subtitle: Text(
-        stat == null
-            ? '文件状态不可用'
-            : '${_formatDateTime(stat.modified)} · ${_formatBytes(stat.size)}',
-      ),
+      subtitle: Text(fileInfo),
       trailing: Wrap(
         spacing: 0,
         children: <Widget>[
           IconButton(
-            onPressed: onShare,
+            onPressed: file == null ? null : onShare,
             icon: const Icon(CupertinoIcons.share),
             tooltip: '分享',
           ),
@@ -1334,6 +1375,19 @@ class _ExportHistoryListTile extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _fileInfo(_ExportHistoryItem item) {
+    final timestamp = _formatDateTime(
+      DateTime.fromMillisecondsSinceEpoch(item.entry.timestamp),
+    );
+    final file = item.file;
+    if (file == null) return '文件不可用 · $timestamp';
+    try {
+      return '$timestamp · ${_formatBytes(file.lengthSync())}';
+    } catch (_) {
+      return '文件不可用 · $timestamp';
+    }
   }
 
   static String _extension(String name) {
