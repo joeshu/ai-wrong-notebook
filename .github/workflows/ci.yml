@@ -20,7 +20,17 @@ jobs:
       - run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+        shell: bash
+        run: |
+          set +e
+          flutter analyze --machine --no-fatal-warnings --no-fatal-infos > analyzer.txt
+          status=$?
+          while IFS='|' read -r severity type code file line column length message correction; do
+            if [[ "$severity" == "ERROR" ]]; then
+              echo "::error file=$file,line=$line,col=$column::$message [$code]"
+            fi
+          done < analyzer.txt
+          exit "$status"
 
       - name: Run tests
         run: flutter test
