@@ -6,7 +6,7 @@ import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 
 void main() {
   test('Contract V2 analysis survives JSON round trip', () {
-    const result = AnalysisResult(
+    final result = AnalysisResult(
       finalAnswer: '3',
       steps: <String>['移项得 x=3'],
       aiTags: <String>['方程'],
