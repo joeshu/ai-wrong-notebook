@@ -410,22 +410,22 @@ class _HomeStatStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = AppVisualTokens.of(context).style;
     final items = switch (style) {
-      AppVisualStyle.academic => const <({IconData icon, String label, String helper, AppTagTone tone})>[
+      AppVisualStyle.academic => <({IconData icon, String label, String helper, AppTagTone tone})>[
           (icon: CupertinoIcons.flame, label: '连续学习', helper: '维持节奏', tone: AppTagTone.warning),
           (icon: CupertinoIcons.calendar, label: '今日待复习', helper: '按清单推进', tone: AppTagTone.primary),
           (icon: CupertinoIcons.doc_text, label: '累计错题', helper: '长期样本', tone: AppTagTone.secondary),
         ],
-      AppVisualStyle.paper => const <({IconData icon, String label, String helper, AppTagTone tone})>[
+      AppVisualStyle.paper => <({IconData icon, String label, String helper, AppTagTone tone})>[
           (icon: CupertinoIcons.book, label: '学习页数', helper: '今天已续写', tone: AppTagTone.warning),
           (icon: CupertinoIcons.tray, label: '待整理', helper: '先读后批注', tone: AppTagTone.primary),
           (icon: CupertinoIcons.archivebox, label: '已归档', helper: '错题库存', tone: AppTagTone.secondary),
         ],
-      AppVisualStyle.aurora => const <({IconData icon, String label, String helper, AppTagTone tone})>[
+      AppVisualStyle.aurora => <({IconData icon, String label, String helper, AppTagTone tone})>[
           (icon: CupertinoIcons.bolt, label: '连续激活', helper: '学习能量', tone: AppTagTone.warning),
           (icon: CupertinoIcons.scope, label: '待聚焦', helper: '优先处理', tone: AppTagTone.primary),
           (icon: CupertinoIcons.square_stack_3d_up, label: '训练样本', helper: '分析总量', tone: AppTagTone.secondary),
         ],
-      AppVisualStyle.forest => const <({IconData icon, String label, String helper, AppTagTone tone})>[
+      AppVisualStyle.forest => <({IconData icon, String label, String helper, AppTagTone tone})>[
           (icon: CupertinoIcons.leaf, label: '稳定坚持', helper: '今天也前进', tone: AppTagTone.warning),
           (icon: CupertinoIcons.time, label: '待温习', helper: '先看最重要', tone: AppTagTone.primary),
           (icon: CupertinoIcons.layers_alt, label: '积累题量', helper: '慢慢长成', tone: AppTagTone.secondary),

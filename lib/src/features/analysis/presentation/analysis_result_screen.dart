@@ -170,7 +170,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                       themeTone: AppTagTone.primary,
                     ),
                     if (displayResult?.subject != null)
-                      const AppTag(
+                      AppTag(
                         label: 'AI识别',
                         useThemeTone: true,
                         themeTone: AppTagTone.success,

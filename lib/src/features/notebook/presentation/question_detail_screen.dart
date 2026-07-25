@@ -880,7 +880,7 @@ class _QuestionTab extends StatelessWidget {
                 spacing: AppSpace.sm,
                 runSpacing: AppSpace.sm,
                 children: <Widget>[
-                  const AppTag(
+                  AppTag(
                     label: current.subject.label,
                     useThemeTone: true,
                     themeTone: AppTagTone.primary,
@@ -892,7 +892,7 @@ class _QuestionTab extends StatelessWidget {
                       themeTone: AppTagTone.secondary,
                     ),
                   if (result?.subject != null)
-                    const AppTag(
+                    AppTag(
                       label: 'AI识别',
                       useThemeTone: true,
                       themeTone: AppTagTone.success,
