@@ -15,7 +15,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
-import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/files/backup_attachment_integrity.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
@@ -164,10 +163,10 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   }
 
   Future<int> _rewriteQuestionsWithMapper(
-    QuestionRepository repository,
     List<QuestionRecord> questions,
     QuestionRecord Function(QuestionRecord record) mapper,
   ) async {
+    final repository = ref.read(questionRepositoryProvider);
     var changedCount = 0;
     for (final question in questions) {
       final updated = mapper(question);
@@ -183,7 +182,6 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       final questions = await ref.read(questionRepositoryProvider).listAll();
       final retention = const AiResponseDiagnosticsRetentionService();
       final changedCount = await _rewriteQuestionsWithMapper(
-        ref.read(questionRepositoryProvider),
         questions,
         (record) => retention.expireRawResponses(record),
       );
@@ -222,10 +220,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     if (confirmed != true || !mounted) return;
     setState(() => _aiDiagnosticsBusy = true);
     try {
-      final repository = ref.read(questionRepositoryProvider);
       final retention = const AiResponseDiagnosticsRetentionService();
       final changedCount = await _rewriteQuestionsWithMapper(
-        repository,
         questions,
         retention.stripRawResponses,
       );
