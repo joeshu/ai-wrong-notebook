@@ -1421,7 +1421,7 @@ class _ReviewFieldPanel extends StatelessWidget {
         children: <Widget>[
           Row(
             children: <Widget>[
-              const Icon(CupertinoIcons.list_bullet_rectangle, size: 18),
+              const Icon(CupertinoIcons.list_bullet, size: 18),
               const SizedBox(width: AppSpace.xs),
               Text(
                 '待确认字段',
