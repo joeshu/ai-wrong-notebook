@@ -1,5 +1,6 @@
 import 'ai_analysis_contract.dart';
 import 'ai_analysis_review.dart';
+import 'ai_response_diagnostics.dart';
 import 'analysis_result.dart';
 import 'generated_exercise.dart';
 import 'mistake_category.dart';
@@ -39,6 +40,7 @@ class ParsedAnalysisResult extends AnalysisResult {
     super.isLegacyContract,
     super.reviewDecision,
     super.pipeline,
+    super.responseDiagnostics,
   });
 
   final String rawContent;
@@ -75,6 +77,7 @@ class ParsedAnalysisResult extends AnalysisResult {
     bool? isLegacyContract,
     AiAnalysisReviewDecision? reviewDecision,
     AiAnalysisPipelineSnapshot? pipeline,
+    AiResponseDiagnostics? responseDiagnostics,
   }) {
     return ParsedAnalysisResult(
       rawContent: rawContent,
@@ -111,6 +114,7 @@ class ParsedAnalysisResult extends AnalysisResult {
       isLegacyContract: isLegacyContract ?? this.isLegacyContract,
       reviewDecision: reviewDecision ?? this.reviewDecision,
       pipeline: pipeline ?? this.pipeline,
+      responseDiagnostics: responseDiagnostics ?? this.responseDiagnostics,
     );
   }
 }

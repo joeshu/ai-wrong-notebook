@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_review.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_response_diagnostics.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mistake_category.dart';
 
@@ -68,6 +69,13 @@ void main() {
         ],
         message: '等待确认',
       ),
+      responseDiagnostics: AiResponseDiagnostics(
+        contentLength: 1234,
+        contentFingerprint: 'abc123def456',
+        markdownWrapped: false,
+        repairStrategy: 'none',
+        capturedAt: DateTime.utc(2026, 7, 25),
+      ),
       isLegacyContract: false,
     );
 
@@ -92,6 +100,9 @@ void main() {
       restored.pipeline.currentStage,
       AiAnalysisPipelineStage.questionConfirmation,
     );
+    expect(restored.responseDiagnostics?.contentLength, 1234);
+    expect(restored.responseDiagnostics?.contentFingerprint, 'abc123def456');
+    expect(restored.responseDiagnostics?.hasRawResponse, isFalse);
   });
 
   test('legacy analysis remains readable without fabricated confidence', () {

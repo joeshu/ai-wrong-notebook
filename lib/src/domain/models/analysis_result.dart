@@ -1,5 +1,6 @@
 import 'ai_analysis_contract.dart';
 import 'ai_analysis_review.dart';
+import 'ai_response_diagnostics.dart';
 import 'mistake_category.dart';
 import 'subject.dart';
 
@@ -145,6 +146,7 @@ class AnalysisResult {
     this.isLegacyContract = true,
     this.reviewDecision = const AiAnalysisReviewDecision.unknown(),
     this.pipeline = const AiAnalysisPipelineSnapshot.notStarted(),
+    this.responseDiagnostics,
   });
 
   factory AnalysisResult.fromJson(Map<String, dynamic> json) {
@@ -160,6 +162,7 @@ class AnalysisResult {
     final reviewPlanJson = json['reviewPlan'];
     final reviewDecisionJson = json['reviewDecision'];
     final pipelineJson = json['pipeline'];
+    final diagnosticsJson = json['responseDiagnostics'];
     final standardAnswer = json['standardAnswer'] as String? ??
         json['finalAnswer'] as String? ??
         '';
@@ -227,6 +230,11 @@ class AnalysisResult {
               Map<String, dynamic>.from(pipelineJson),
             )
           : const AiAnalysisPipelineSnapshot.notStarted(),
+      responseDiagnostics: diagnosticsJson is Map
+          ? AiResponseDiagnostics.fromJson(
+              Map<String, dynamic>.from(diagnosticsJson),
+            )
+          : null,
     );
   }
 
@@ -333,6 +341,7 @@ class AnalysisResult {
       'isLegacyContract': isLegacyContract,
       'reviewDecision': reviewDecision.toJson(),
       'pipeline': pipeline.toJson(),
+      'responseDiagnostics': responseDiagnostics?.toJson(),
     };
   }
 
@@ -369,6 +378,7 @@ class AnalysisResult {
   final bool isLegacyContract;
   final AiAnalysisReviewDecision reviewDecision;
   final AiAnalysisPipelineSnapshot pipeline;
+  final AiResponseDiagnostics? responseDiagnostics;
 
   bool get hasContractV2 =>
       schemaVersion >= AiAnalysisSchema.currentVersion && !isLegacyContract;
@@ -407,6 +417,7 @@ class AnalysisResult {
     bool? isLegacyContract,
     AiAnalysisReviewDecision? reviewDecision,
     AiAnalysisPipelineSnapshot? pipeline,
+    AiResponseDiagnostics? responseDiagnostics,
   }) {
     return AnalysisResult(
       subject: subject ?? this.subject,
@@ -442,6 +453,7 @@ class AnalysisResult {
       isLegacyContract: isLegacyContract ?? this.isLegacyContract,
       reviewDecision: reviewDecision ?? this.reviewDecision,
       pipeline: pipeline ?? this.pipeline,
+      responseDiagnostics: responseDiagnostics ?? this.responseDiagnostics,
     );
   }
 }

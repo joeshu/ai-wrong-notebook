@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_patch.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_response_diagnostics.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_payload.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_controller.dart';
@@ -74,6 +77,68 @@ void main() {
       ),
       throwsA(isA<AiAnalysisException>()),
     );
+  });
+
+  test('diagnostics retention strips raw response by default', () async {
+    final settings = InMemorySettingsRepository();
+    final service = AiAnalysisService(settingsRepository: settings);
+    final result = await service.applyResponseDiagnosticsRetentionForTest(
+      ParsedAnalysisResult(
+        rawContent: '{"secret":"student work"}',
+        finalAnswer: '3',
+        steps: const <String>['移项'],
+        aiTags: const <String>['方程'],
+        knowledgePoints: const <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '练习移项',
+        responseDiagnostics: AiResponseDiagnostics(
+          contentLength: 24,
+          contentFingerprint: 'abc123def456',
+          markdownWrapped: false,
+          repairStrategy: 'none',
+          capturedAt: DateTime.utc(2026, 7, 25),
+          rawResponse: '{"secret":"student work"}',
+          retentionDays: 7,
+        ),
+      ),
+    );
+
+    expect(result.responseDiagnostics?.hasRawResponse, isFalse);
+    expect(result.responseDiagnostics?.contentFingerprint, 'abc123def456');
+  });
+
+  test('diagnostics retention stores raw response only when enabled', () async {
+    final settings = InMemorySettingsRepository();
+    await settings.setString(
+      AiAnalysisService.diagnosticsRawResponseEnabledKey,
+      'true',
+    );
+    await settings.setString(
+      AiAnalysisService.diagnosticsRawRetentionDaysKey,
+      '14',
+    );
+    final service = AiAnalysisService(settingsRepository: settings);
+    final result = await service.applyResponseDiagnosticsRetentionForTest(
+      ParsedAnalysisResult(
+        rawContent: '{"raw":"model output"}',
+        finalAnswer: '3',
+        steps: const <String>['移项'],
+        aiTags: const <String>['方程'],
+        knowledgePoints: const <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '练习移项',
+        responseDiagnostics: AiResponseDiagnostics(
+          contentLength: 22,
+          contentFingerprint: 'raw123456789',
+          markdownWrapped: false,
+          repairStrategy: 'none',
+          capturedAt: DateTime.utc(2026, 7, 25),
+        ),
+      ),
+    );
+
+    expect(result.responseDiagnostics?.rawResponse, '{"raw":"model output"}');
+    expect(result.responseDiagnostics?.retentionDays, 14);
   });
 
   test('service parses final answer derivation and consistency metadata', () {
@@ -162,6 +227,10 @@ void main() {
     expect(analysis.finalAnswer, '3');
     expect(analysis.solutionSteps, ['移项得 x=3']);
     expect(analysis.reviewPlan?.reviewAfterDays, 3);
+    expect(analysis.responseDiagnostics?.contentLength, raw.length);
+    expect(analysis.responseDiagnostics?.contentFingerprint, isNotEmpty);
+    expect(analysis.responseDiagnostics?.repairStrategy, 'none');
+    expect(analysis.responseDiagnostics?.hasRawResponse, isFalse);
   });
 
   test('service rejects Markdown-wrapped Contract V2 response', () {

@@ -20,6 +20,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_payload.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_patch.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_response_diagnostics.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
@@ -365,6 +366,12 @@ class AiAnalysisService {
     if (status != null && status >= 500) return 'HTTP $status';
     return e.type.name;
   }
+
+  static const diagnosticsRawResponseEnabledKey =
+      'ai_diagnostics_raw_response_enabled';
+  static const diagnosticsRawRetentionDaysKey =
+      'ai_diagnostics_raw_retention_days';
+  static const defaultDiagnosticsRawRetentionDays = 7;
 
   /// 带重试的 POST 请求（指数退避；429 读 Retry-After 头）
   Future<Response<T>> _retryPost<T>(
@@ -798,6 +805,59 @@ class AiAnalysisService {
         isLegacyContract: false,
       );
 
+  Future<AnalysisResult> _applyResponseDiagnosticsRetentionPolicy(
+    AnalysisResult analysis,
+  ) async {
+    final diagnostics = analysis.responseDiagnostics;
+    if (diagnostics == null) return analysis;
+
+    final rawEnabled =
+        await settingsRepository.getString(diagnosticsRawResponseEnabledKey) ==
+            'true';
+    if (!rawEnabled) {
+      return analysis.copyWith(
+        responseDiagnostics: diagnostics.withoutRawResponse(),
+      );
+    }
+
+    final rawResponse = analysis is ParsedAnalysisResult
+        ? analysis.rawContent
+        : diagnostics.rawResponse;
+    if (rawResponse == null || rawResponse.isEmpty) {
+      return analysis.copyWith(
+        responseDiagnostics: diagnostics.withoutRawResponse(),
+      );
+    }
+    final retentionRaw =
+        await settingsRepository.getString(diagnosticsRawRetentionDaysKey);
+    final retentionDays = int.tryParse(retentionRaw ?? '') ??
+        defaultDiagnosticsRawRetentionDays;
+    return analysis.copyWith(
+      responseDiagnostics: AiResponseDiagnostics(
+        contentLength: diagnostics.contentLength,
+        contentFingerprint: diagnostics.contentFingerprint,
+        markdownWrapped: diagnostics.markdownWrapped,
+        repairStrategy: diagnostics.repairStrategy,
+        capturedAt: diagnostics.capturedAt,
+        rawResponse: rawResponse,
+        retentionDays: retentionDays.clamp(1, 30).toInt(),
+      ),
+    );
+  }
+
+  Future<AnalysisResult> _finalizeAnalysisResult(
+    Future<AnalysisResult> checked,
+  ) async {
+    return _applyResponseDiagnosticsRetentionPolicy(await checked);
+  }
+
+  @visibleForTesting
+  Future<AnalysisResult> applyResponseDiagnosticsRetentionForTest(
+    AnalysisResult analysis,
+  ) {
+    return _applyResponseDiagnosticsRetentionPolicy(analysis);
+  }
+
   Future<AnalysisResult> analyzeExtractedQuestion({
     required String correctedText,
     required String subjectName,
@@ -842,14 +902,14 @@ class AiAnalysisService {
           isCompositeLanguageAnalysis: isCompositeLanguageAnalysis,
           shouldAnalyzeImageFirst: shouldAnalyzeImageFirst,
         );
-        return _ensureAnalysisConsistency(
+        return _finalizeAnalysisResult(_ensureAnalysisConsistency(
           _stampAnalysisAudit(analysis, config.model),
           questionText: correctedText,
           subjectName: subjectName,
           imagePath: imagePath,
           config: config,
           imageBytes: imageBytes,
-        );
+        ));
       }
       final analysis = await _analyzeTextOnly(
         config: config,
@@ -857,13 +917,13 @@ class AiAnalysisService {
         prompt: prompt,
         isCompositeLanguageAnalysis: isCompositeLanguageAnalysis,
       );
-      return _ensureAnalysisConsistency(
+      return _finalizeAnalysisResult(_ensureAnalysisConsistency(
         _stampAnalysisAudit(analysis, config.model),
         questionText: correctedText,
         subjectName: subjectName,
         imagePath: null,
         config: config,
-      );
+      ));
     } on DioException catch (e) {
       debugPrint(
           '[AiAnalysisService] DioException: type=${e.type}, message=${e.message}, status=${e.response?.statusCode}');
@@ -927,12 +987,23 @@ class AiAnalysisService {
 
     AnalysisResult parsePatch(String content) {
       try {
+        final decoded = _decodeResponseJson(content);
         final patch = AiAnalysisPatchContract.parse(
-          _parseResponseJson(content),
+          decoded.value,
           requestedFields: fields,
           studentAnswer: studentAnswer,
         );
-        return _stampAnalysisAudit(patch.applyTo(current), config.model);
+        final diagnostics = AiResponseDiagnostics(
+          contentLength: decoded.contentLength,
+          contentFingerprint: decoded.contentFingerprint,
+          markdownWrapped: decoded.markdownWrapped,
+          repairStrategy: decoded.repairStrategy.name,
+          capturedAt: DateTime.now(),
+        );
+        return _stampAnalysisAudit(
+          patch.applyTo(current).copyWith(responseDiagnostics: diagnostics),
+          config.model,
+        );
       } on _AiJsonParseException {
         rethrow;
       } on FormatException catch (error) {
@@ -941,12 +1012,13 @@ class AiAnalysisService {
     }
 
     final content = await fetch(maxTokens: 1400);
-    return _parseContentWithJsonRetry(
+    final repaired = await _parseContentWithJsonRetry(
       firstContent: content,
       parse: parsePatch,
       retryContentFetcher: () => fetch(maxTokens: 1800),
       stage: 'analysis(field repair)',
     );
+    return _applyResponseDiagnosticsRetentionPolicy(repaired);
   }
 
   /// 图片分支：先按高清图（high/auto）请求，失败时若条件满足回退到紧凑图重试。
@@ -2567,7 +2639,7 @@ class AiAnalysisService {
     }
   }
 
-  Map<String, dynamic> _parseResponseJson(String content) {
+  AiJsonDecodeResult _decodeResponseJson(String content) {
     try {
       final decoded = _jsonDecoder.decode(content);
       final schemaVersion = decoded.value['schemaVersion'];
@@ -2586,7 +2658,7 @@ class AiAnalysisService {
       debugPrint(
         '[AiAnalysisService] AI JSON decoded: ${decoded.diagnosticSummary}',
       );
-      return decoded.value;
+      return decoded;
     } on AiJsonDecodingException catch (error) {
       debugPrint('[AiAnalysisService] AI JSON decode failed: ${error.inner}');
       throw _AiJsonParseException(error.inner);
@@ -2594,6 +2666,10 @@ class AiAnalysisService {
       debugPrint('[AiAnalysisService] AI JSON contract envelope rejected: $error');
       throw _AiJsonParseException(error);
     }
+  }
+
+  Map<String, dynamic> _parseResponseJson(String content) {
+    return _decodeResponseJson(content).value;
   }
 
   AiQuestionExtractionResult _parseExtractionResponse(String content) {
@@ -2678,8 +2754,9 @@ class AiAnalysisService {
     String content, {
     bool allowLegacy = true,
   }) {
+    final decoded = _decodeResponseJson(content);
     final map = AiAnalysisResponseContract.normalize(
-      _parseResponseJson(content),
+      decoded.value,
       allowLegacy: allowLegacy,
     );
 
@@ -2693,6 +2770,13 @@ class AiAnalysisService {
 
     final visualAssumptions = _parseVisualAssumptions(map['visualAssumptions']);
     final contractMetadata = AnalysisResult.fromJson(map);
+    final diagnostics = AiResponseDiagnostics(
+      contentLength: decoded.contentLength,
+      contentFingerprint: decoded.contentFingerprint,
+      markdownWrapped: decoded.markdownWrapped,
+      repairStrategy: decoded.repairStrategy.name,
+      capturedAt: DateTime.now(),
+    );
 
     return ParsedAnalysisResult(
       rawContent: content,
@@ -2736,6 +2820,7 @@ class AiAnalysisService {
       solutionSteps: contractMetadata.solutionSteps,
       reviewPlan: contractMetadata.reviewPlan,
       isLegacyContract: contractMetadata.isLegacyContract,
+      responseDiagnostics: diagnostics,
     );
   }
 
