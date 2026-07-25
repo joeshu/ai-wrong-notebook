@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smart_wrong_notebook/src/app/onboarding_notifier.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question_repository.dart';
@@ -1453,6 +1454,33 @@ final FutureProvider<List<ExportHistoryEntry>> exportHistoryProvider =
 });
 
 // --- Theme mode ---
+
+final StateNotifierProvider<AppVisualStyleNotifier, AppVisualStyle>
+    appVisualStyleProvider =
+    StateNotifierProvider<AppVisualStyleNotifier, AppVisualStyle>((ref) {
+  return AppVisualStyleNotifier(ref.read(settingsRepositoryProvider));
+});
+
+class AppVisualStyleNotifier extends StateNotifier<AppVisualStyle> {
+  AppVisualStyleNotifier(this._settingsRepo) : super(AppVisualStyle.academic) {
+    _load();
+  }
+
+  final SettingsRepository _settingsRepo;
+
+  Future<void> _load() async {
+    final value = await _settingsRepo.getString('app_visual_style');
+    state = AppVisualStyle.values.firstWhere(
+      (style) => style.name == value,
+      orElse: () => AppVisualStyle.academic,
+    );
+  }
+
+  Future<void> setStyle(AppVisualStyle style) async {
+    state = style;
+    await _settingsRepo.setString('app_visual_style', style.name);
+  }
+}
 
 final StateNotifierProvider<ThemeModeNotifier, ThemeMode> themeModeProvider =
     StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {

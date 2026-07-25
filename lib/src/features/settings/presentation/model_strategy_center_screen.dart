@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_model_strategy.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
@@ -183,8 +184,10 @@ class _ModelStrategyCenterScreenState
       key: const Key('model-strategy-hero'),
       padding: const EdgeInsets.all(AppSpace.xl),
       decoration: BoxDecoration(
-        gradient: AppGradients.hero(context),
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        gradient: AppVisualTokens.of(context).heroGradient,
+        borderRadius: BorderRadius.circular(
+          AppVisualTokens.of(context).cardRadius,
+        ),
       ),
       child: Row(
         children: <Widget>[

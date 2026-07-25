@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
@@ -126,7 +127,7 @@ class AppGradientButton extends StatelessWidget {
     this.icon,
     this.onTap,
     this.isExpanded = true,
-    this.gradient = AppGradients.primary,
+    this.gradient,
     this.shadows,
   });
 
@@ -134,7 +135,7 @@ class AppGradientButton extends StatelessWidget {
   final IconData? icon;
   final VoidCallback? onTap;
   final bool isExpanded;
-  final Gradient gradient;
+  final Gradient? gradient;
   final List<BoxShadow>? shadows;
 
   @override
@@ -142,7 +143,7 @@ class AppGradientButton extends StatelessWidget {
     final button = Container(
       height: 46,
       decoration: BoxDecoration(
-        gradient: gradient,
+        gradient: gradient ?? AppVisualTokens.of(context).heroGradient,
         borderRadius: BorderRadius.circular(23),
         boxShadow: shadows ?? AppShadows.float,
       ),
@@ -206,8 +207,10 @@ class AppHeroCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.md),
       decoration: BoxDecoration(
-        gradient: AppGradients.hero(context),
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        gradient: AppVisualTokens.of(context).heroGradient,
+        borderRadius: BorderRadius.circular(
+          AppVisualTokens.of(context).cardRadius,
+        ),
         boxShadow: isDark ? AppShadows.none : AppShadows.md,
       ),
       child: Column(

@@ -1,7 +1,7 @@
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 
@@ -9,13 +9,18 @@ import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 ///
 /// 基于 FlexScheme.indigo 并叠加统一组件默认样式与字体层级，
 /// 确保 Material 3 组件（按钮、卡片、输入框、Chip、导航栏）与自定义组件视觉一致。
-ThemeData buildLightTheme() {
+ThemeData buildLightTheme({AppVisualStyle style = AppVisualStyle.academic}) {
+  final visual = AppVisualTokens.forStyle(style, dark: false);
+  final scheme = ColorScheme.fromSeed(
+    seedColor: style.seedColor,
+    brightness: Brightness.light,
+  ).copyWith(surface: style.scaffold(false));
   final base = FlexThemeData.light(
     scheme: FlexScheme.indigo,
     useMaterial3: true,
     surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
-    scaffoldBackground: AppColors.surfaceLight,
-    appBarBackground: AppColors.surfaceLight,
+    scaffoldBackground: style.scaffold(false),
+    appBarBackground: style.scaffold(false),
     appBarElevation: AppElevation.flat,
     subThemesData: const FlexSubThemesData(
       blendOnLevel: 10,
@@ -38,66 +43,68 @@ ThemeData buildLightTheme() {
     ),
   );
 
-  final textTheme = _buildTextTheme(base.textTheme, base.colorScheme);
+  final textTheme = _buildTextTheme(base.textTheme, style);
 
   return base.copyWith(
-    scaffoldBackgroundColor: AppColors.surfaceLight,
+    colorScheme: scheme,
+    extensions: <ThemeExtension<dynamic>>[visual],
+    scaffoldBackgroundColor: style.scaffold(false),
     cardTheme: base.cardTheme.copyWith(
       elevation: AppElevation.flat,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(visual.cardRadius),
       ),
     ),
-    elevatedButtonTheme: _elevatedButtonTheme(base.colorScheme),
-    filledButtonTheme: _filledButtonTheme(base.colorScheme),
-    outlinedButtonTheme: _outlinedButtonTheme(base.colorScheme),
-    textButtonTheme: _textButtonTheme(base.colorScheme),
+    elevatedButtonTheme: _elevatedButtonTheme(scheme, visual.controlRadius),
+    filledButtonTheme: _filledButtonTheme(scheme, visual.controlRadius),
+    outlinedButtonTheme: _outlinedButtonTheme(scheme, visual.controlRadius),
+    textButtonTheme: _textButtonTheme(scheme, visual.controlRadius),
     inputDecorationTheme: base.inputDecorationTheme.copyWith(
       filled: true,
-      fillColor: base.colorScheme.surfaceContainerLowest,
+      fillColor: scheme.surfaceContainerLowest,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpace.lg,
         vertical: AppSpace.md,
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.medium),
-        borderSide: BorderSide(color: base.colorScheme.outlineVariant),
+        borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.medium),
-        borderSide: BorderSide(color: base.colorScheme.outlineVariant),
+        borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.medium),
-        borderSide: BorderSide(color: base.colorScheme.primary, width: 1.5),
+        borderSide: BorderSide(color: scheme.primary, width: 1.5),
       ),
     ),
     chipTheme: base.chipTheme.copyWith(
-      side: BorderSide(color: base.colorScheme.outlineVariant.withValues(alpha: 0.6)),
+      side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xlarge)),
     ),
     iconTheme: IconThemeData(
-      color: base.colorScheme.onSurfaceVariant,
+      color: scheme.onSurfaceVariant,
       size: AppControlSize.icon,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: base.colorScheme.surface,
+      backgroundColor: scheme.surface,
       elevation: AppElevation.flat,
-      indicatorColor: base.colorScheme.primaryContainer,
+      indicatorColor: scheme.primaryContainer,
       indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.medium)),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return IconThemeData(color: base.colorScheme.primary, size: AppControlSize.icon);
+          return IconThemeData(color: scheme.primary, size: AppControlSize.icon);
         }
-        return IconThemeData(color: base.colorScheme.onSurfaceVariant, size: AppControlSize.icon);
+        return IconThemeData(color: scheme.onSurfaceVariant, size: AppControlSize.icon);
       }),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return TextStyle(
           fontSize: 12,
           fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          color: selected ? base.colorScheme.primary : base.colorScheme.onSurfaceVariant,
+          color: selected ? scheme.primary : scheme.onSurfaceVariant,
         );
       }),
     ),
@@ -106,21 +113,26 @@ ThemeData buildLightTheme() {
       centerTitle: true,
       titleTextStyle: textTheme.titleLarge?.copyWith(
         fontWeight: FontWeight.w700,
-        color: base.colorScheme.onSurface,
+        color: scheme.onSurface,
       ),
-      iconTheme: IconThemeData(color: base.colorScheme.onSurfaceVariant),
+      iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
     ),
   );
 }
 
 /// 构建深色主题。
-ThemeData buildDarkTheme() {
+ThemeData buildDarkTheme({AppVisualStyle style = AppVisualStyle.academic}) {
+  final visual = AppVisualTokens.forStyle(style, dark: true);
+  final scheme = ColorScheme.fromSeed(
+    seedColor: style.seedColor,
+    brightness: Brightness.dark,
+  ).copyWith(surface: style.scaffold(true));
   final base = FlexThemeData.dark(
     scheme: FlexScheme.indigo,
     useMaterial3: true,
     surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
-    scaffoldBackground: AppColors.surfaceDark,
-    appBarBackground: AppColors.slateContainerDark,
+    scaffoldBackground: style.scaffold(true),
+    appBarBackground: style.scaffold(true),
     appBarElevation: AppElevation.flat,
     subThemesData: const FlexSubThemesData(
       blendOnLevel: 20,
@@ -142,66 +154,68 @@ ThemeData buildDarkTheme() {
     ),
   );
 
-  final textTheme = _buildTextTheme(base.textTheme, base.colorScheme);
+  final textTheme = _buildTextTheme(base.textTheme, style);
 
   return base.copyWith(
-    scaffoldBackgroundColor: AppColors.surfaceDark,
+    colorScheme: scheme,
+    extensions: <ThemeExtension<dynamic>>[visual],
+    scaffoldBackgroundColor: style.scaffold(true),
     cardTheme: base.cardTheme.copyWith(
       elevation: AppElevation.flat,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(visual.cardRadius),
       ),
     ),
-    elevatedButtonTheme: _elevatedButtonTheme(base.colorScheme),
-    filledButtonTheme: _filledButtonTheme(base.colorScheme),
-    outlinedButtonTheme: _outlinedButtonTheme(base.colorScheme),
-    textButtonTheme: _textButtonTheme(base.colorScheme),
+    elevatedButtonTheme: _elevatedButtonTheme(scheme, visual.controlRadius),
+    filledButtonTheme: _filledButtonTheme(scheme, visual.controlRadius),
+    outlinedButtonTheme: _outlinedButtonTheme(scheme, visual.controlRadius),
+    textButtonTheme: _textButtonTheme(scheme, visual.controlRadius),
     inputDecorationTheme: base.inputDecorationTheme.copyWith(
       filled: true,
-      fillColor: base.colorScheme.surfaceContainerHighest,
+      fillColor: scheme.surfaceContainerHighest,
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppSpace.lg,
         vertical: AppSpace.md,
       ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.medium),
-        borderSide: BorderSide(color: base.colorScheme.outlineVariant),
+        borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.medium),
-        borderSide: BorderSide(color: base.colorScheme.outlineVariant),
+        borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.medium),
-        borderSide: BorderSide(color: base.colorScheme.primary, width: 1.5),
+        borderSide: BorderSide(color: scheme.primary, width: 1.5),
       ),
     ),
     chipTheme: base.chipTheme.copyWith(
-      side: BorderSide(color: base.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+      side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.5)),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.xlarge)),
     ),
     iconTheme: IconThemeData(
-      color: base.colorScheme.onSurfaceVariant,
+      color: scheme.onSurfaceVariant,
       size: AppControlSize.icon,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: base.colorScheme.surface,
+      backgroundColor: scheme.surface,
       elevation: AppElevation.flat,
-      indicatorColor: base.colorScheme.primaryContainer.withValues(alpha: 0.5),
+      indicatorColor: scheme.primaryContainer.withValues(alpha: 0.5),
       indicatorShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.medium)),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return IconThemeData(color: base.colorScheme.primary, size: AppControlSize.icon);
+          return IconThemeData(color: scheme.primary, size: AppControlSize.icon);
         }
-        return IconThemeData(color: base.colorScheme.onSurfaceVariant, size: AppControlSize.icon);
+        return IconThemeData(color: scheme.onSurfaceVariant, size: AppControlSize.icon);
       }),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return TextStyle(
           fontSize: 12,
           fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          color: selected ? base.colorScheme.primary : base.colorScheme.onSurfaceVariant,
+          color: selected ? scheme.primary : scheme.onSurfaceVariant,
         );
       }),
     ),
@@ -210,14 +224,17 @@ ThemeData buildDarkTheme() {
       centerTitle: true,
       titleTextStyle: textTheme.titleLarge?.copyWith(
         fontWeight: FontWeight.w700,
-        color: base.colorScheme.onSurface,
+        color: scheme.onSurface,
       ),
-      iconTheme: IconThemeData(color: base.colorScheme.onSurfaceVariant),
+      iconTheme: IconThemeData(color: scheme.onSurfaceVariant),
     ),
   );
 }
 
-TextTheme _buildTextTheme(TextTheme base, ColorScheme scheme) {
+TextTheme _buildTextTheme(
+  TextTheme base,
+  AppVisualStyle style,
+) {
   final themed = base.copyWith(
     displayLarge: base.displayLarge?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
     displayMedium: base.displayMedium?.copyWith(fontWeight: FontWeight.w800, letterSpacing: -0.5),
@@ -235,11 +252,16 @@ TextTheme _buildTextTheme(TextTheme base, ColorScheme scheme) {
     labelMedium: base.labelMedium?.copyWith(fontWeight: FontWeight.w600, fontSize: 12),
     labelSmall: base.labelSmall?.copyWith(fontWeight: FontWeight.w600, fontSize: 11),
   );
-  // 统一注入品牌字体家族（思源黑体 Noto Sans SC），保证全站字形一致。
-  return GoogleFonts.notoSansScTextTheme(themed);
+  // 纸墨书房使用衬线字形成阅读气质，其余风格保持清晰的无衬线字。
+  return style == AppVisualStyle.paper
+      ? GoogleFonts.notoSerifScTextTheme(themed)
+      : GoogleFonts.notoSansScTextTheme(themed);
 }
 
-ElevatedButtonThemeData _elevatedButtonTheme(ColorScheme scheme) {
+ElevatedButtonThemeData _elevatedButtonTheme(
+  ColorScheme scheme,
+  double radius,
+) {
   return ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
       minimumSize: const Size(0, AppControlSize.standard),
@@ -247,7 +269,7 @@ ElevatedButtonThemeData _elevatedButtonTheme(ColorScheme scheme) {
         horizontal: AppSpace.xl,
         vertical: AppSpace.md,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
       elevation: AppElevation.flat,
       backgroundColor: scheme.primary,
       foregroundColor: scheme.onPrimary,
@@ -256,7 +278,10 @@ ElevatedButtonThemeData _elevatedButtonTheme(ColorScheme scheme) {
   );
 }
 
-FilledButtonThemeData _filledButtonTheme(ColorScheme scheme) {
+FilledButtonThemeData _filledButtonTheme(
+  ColorScheme scheme,
+  double radius,
+) {
   return FilledButtonThemeData(
     style: FilledButton.styleFrom(
       minimumSize: const Size(0, AppControlSize.standard),
@@ -264,13 +289,16 @@ FilledButtonThemeData _filledButtonTheme(ColorScheme scheme) {
         horizontal: AppSpace.xl,
         vertical: AppSpace.md,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
     ),
   );
 }
 
-OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme scheme) {
+OutlinedButtonThemeData _outlinedButtonTheme(
+  ColorScheme scheme,
+  double radius,
+) {
   return OutlinedButtonThemeData(
     style: OutlinedButton.styleFrom(
       minimumSize: const Size(0, AppControlSize.standard),
@@ -278,7 +306,7 @@ OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme scheme) {
         horizontal: AppSpace.xl,
         vertical: AppSpace.md,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
       side: BorderSide(color: scheme.outlineVariant),
       foregroundColor: scheme.primary,
       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
@@ -286,7 +314,10 @@ OutlinedButtonThemeData _outlinedButtonTheme(ColorScheme scheme) {
   );
 }
 
-TextButtonThemeData _textButtonTheme(ColorScheme scheme) {
+TextButtonThemeData _textButtonTheme(
+  ColorScheme scheme,
+  double radius,
+) {
   return TextButtonThemeData(
     style: TextButton.styleFrom(
       minimumSize: const Size(0, AppControlSize.compact),
@@ -294,7 +325,7 @@ TextButtonThemeData _textButtonTheme(ColorScheme scheme) {
         horizontal: AppSpace.md,
         vertical: AppSpace.sm,
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.medium)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
       foregroundColor: scheme.primary,
       textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
     ),

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_motion.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_typography.dart';
@@ -146,7 +147,7 @@ class AppCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(AppSpace.lg),
     this.margin,
-    this.borderRadius = AppRadius.medium,
+    this.borderRadius,
     this.backgroundColor,
     this.borderColor,
     this.shadow,
@@ -157,7 +158,7 @@ class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
-  final double borderRadius;
+  final double? borderRadius;
   final Color? backgroundColor;
   final Color? borderColor;
   final List<BoxShadow>? shadow;
@@ -168,6 +169,8 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final visual = AppVisualTokens.of(context);
+    final resolvedRadius = borderRadius ?? visual.cardRadius;
 
     final bg = backgroundColor ??
         (isDark ? colorScheme.surfaceContainerLow : colorScheme.surface);
@@ -176,11 +179,22 @@ class AppCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: BorderRadius.circular(resolvedRadius),
         border: Border.all(
-          color: borderColor ?? colorScheme.outlineVariant,
+          color: borderColor ?? colorScheme.outlineVariant.withValues(
+            alpha: visual.cardBorderAlpha,
+          ),
         ),
-        boxShadow: shadow ?? (isDark ? null : AppShadows.sm),
+        boxShadow: shadow ??
+            (visual.shadowAlpha <= 0
+                ? null
+                : <BoxShadow>[
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: visual.shadowAlpha),
+                      blurRadius: visual.style == AppVisualStyle.aurora ? 20 : 12,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]),
       ),
       child: child,
     );
