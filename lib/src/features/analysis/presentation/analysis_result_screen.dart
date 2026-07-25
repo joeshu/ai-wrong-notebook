@@ -302,6 +302,17 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
           ],
           if (displayResult != null) ...<Widget>[
             const SizedBox(height: AppSpace.lg),
+            _TenSecondSummary(
+              style: analysisStyle,
+              result: displayResult,
+            ),
+            const SizedBox(height: AppSpace.md),
+            _AnalysisLayerHeader(
+              title: '展开学习',
+              subtitle: '以下内容默认收起，需要时再查看完整依据。',
+              icon: CupertinoIcons.book,
+            ),
+            const SizedBox(height: AppSpace.sm),
             _StyledInsightSection(
               style: analysisStyle,
               title: '错误定位',
@@ -313,6 +324,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
               },
               icon: CupertinoIcons.scope,
               tone: AppTagTone.warning,
+              collapsible: true,
+              initiallyExpanded: false,
               child: MathContentView(
                 displayResult.mistakeReason,
                 style: TextStyle(
@@ -342,6 +355,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
               },
               icon: CupertinoIcons.doc_text,
               tone: AppTagTone.primary,
+              collapsible: true,
+              initiallyExpanded: false,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -448,6 +463,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
                       VisualAssumptionStatus.needsReview
                   ? AppTagTone.warning
                   : AppTagTone.success,
+              collapsible: true,
+              initiallyExpanded: false,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
@@ -481,6 +498,8 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
               },
               icon: CupertinoIcons.lightbulb,
               tone: AppTagTone.tertiary,
+              collapsible: true,
+              initiallyExpanded: false,
               child: MathContentView(
                 displayResult.studyAdvice,
                 style: TextStyle(
@@ -1783,6 +1802,212 @@ String _reviewFieldEvidence(AnalysisResult result, String fieldName) {
   return evidence.take(2).join('；');
 }
 
+class _TenSecondSummary extends StatelessWidget {
+  const _TenSecondSummary({required this.style, required this.result});
+
+  final AppVisualStyle style;
+  final AnalysisResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final visual = AppVisualTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final confidence = result.confidence?.overall;
+    final needsReview = result.reviewDecision.requiresConfirmation;
+    final confidenceLabel = needsReview
+        ? '采用前需确认'
+        : confidence == null
+            ? '可信度未标注'
+            : '可信度 ${(confidence * 100).round()}%';
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.md,
+              vertical: AppSpace.sm + 2,
+            ),
+            decoration: BoxDecoration(
+              gradient: visual.heroGradient,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(visual.cardRadius - 1),
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(
+                  CupertinoIcons.bolt_fill,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                const SizedBox(width: AppSpace.sm),
+                const Expanded(
+                  child: Text(
+                    '10 秒结论',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    confidenceLabel,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(AppSpace.md),
+            child: Column(
+              children: <Widget>[
+                _SummaryLine(
+                  icon: CupertinoIcons.scope,
+                  label: '错在哪里',
+                  content: result.mistakeReason,
+                  color: scheme.error,
+                ),
+                const SizedBox(height: AppSpace.md),
+                _SummaryLine(
+                  icon: CupertinoIcons.checkmark_circle_fill,
+                  label: result.visualAssumptionStatus ==
+                          VisualAssumptionStatus.needsReview
+                      ? '可能答案'
+                      : '正确答案',
+                  content: result.finalAnswer,
+                  color: scheme.primary,
+                ),
+                const SizedBox(height: AppSpace.md),
+                _SummaryLine(
+                  icon: CupertinoIcons.arrow_right_circle_fill,
+                  label: '下一步',
+                  content: result.studyAdvice,
+                  color: scheme.tertiary,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryLine extends StatelessWidget {
+  const _SummaryLine({
+    required this.icon,
+    required this.label,
+    required this.content,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String content;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 17),
+          ),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                MathContentView(
+                  content,
+                  mode: MathContentViewMode.compact,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+class _AnalysisLayerHeader extends StatelessWidget {
+  const _AnalysisLayerHeader({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: <Widget>[
+          Icon(icon, size: 17, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
 class _StyledInsightSection extends StatelessWidget {
   const _StyledInsightSection({
     required this.style,
@@ -1791,6 +2016,8 @@ class _StyledInsightSection extends StatelessWidget {
     required this.icon,
     required this.tone,
     required this.child,
+    this.collapsible = false,
+    this.initiallyExpanded = true,
   });
 
   final AppVisualStyle style;
@@ -1799,6 +2026,8 @@ class _StyledInsightSection extends StatelessWidget {
   final IconData icon;
   final AppTagTone tone;
   final Widget child;
+  final bool collapsible;
+  final bool initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -1816,6 +2045,8 @@ class _StyledInsightSection extends StatelessWidget {
       title: title,
       useThemeTone: true,
       themeTone: tone,
+      collapsible: collapsible,
+      initiallyExpanded: initiallyExpanded,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
