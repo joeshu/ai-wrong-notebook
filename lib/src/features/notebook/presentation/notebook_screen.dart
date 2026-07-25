@@ -957,6 +957,39 @@ class _CardPrimaryAction {
   final VoidCallback onTap;
 }
 
+class _ArchiveActionButton extends StatelessWidget {
+  const _ArchiveActionButton({required this.action});
+
+  final _CardPrimaryAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(left: AppSpace.xs),
+      child: TextButton.icon(
+        onPressed: action.onTap,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          minimumSize: const Size(0, 30),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          backgroundColor: scheme.primaryContainer.withValues(alpha: .68),
+          foregroundColor: scheme.onPrimaryContainer,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        icon: Icon(action.icon, size: 14),
+        label: Text(action.label),
+      ),
+    );
+  }
+}
+
 class _KnowledgePointPracticeCard extends StatelessWidget {
   const _KnowledgePointPracticeCard({
     required this.knowledgePoint,
@@ -1094,6 +1127,15 @@ class _QuestionCard extends StatelessWidget {
                       Checkbox(value: selected, onChanged: (_) => onSelect()),
                       const SizedBox(width: 4),
                     ],
+                    Container(
+                      width: 4,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: _priorityColor(context, displayStatus),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.sm),
                     _SubjectAvatar(question: question),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1124,19 +1166,7 @@ class _QuestionCard extends StatelessWidget {
                                 ),
                               ),
                               if (primaryAction != null)
-                                IconButton(
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                      minWidth: 28, minHeight: 28),
-                                  visualDensity: VisualDensity.compact,
-                                  iconSize: 18,
-                                  tooltip: primaryAction!.label,
-                                  icon: Icon(
-                                    primaryAction!.icon,
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                  onPressed: primaryAction!.onTap,
-                                )
+                                _ArchiveActionButton(action: primaryAction!)
                               else
                                 Padding(
                                   padding:
@@ -1152,6 +1182,10 @@ class _QuestionCard extends StatelessWidget {
                           ),
                           const SizedBox(height: AppSpace.xs),
                           _buildMetaInfo(context, displayStatus, isArchived),
+                          if (_hasArchiveSignals) ...<Widget>[
+                            const SizedBox(height: AppSpace.xs),
+                            _buildArchiveSignals(context),
+                          ],
                           if (allTags.isNotEmpty) ...<Widget>[
                             const SizedBox(height: AppSpace.xs),
                             SingleChildScrollView(
@@ -1187,6 +1221,53 @@ class _QuestionCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Color _priorityColor(
+    BuildContext context,
+    QuestionDisplayStatus displayStatus,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    final confidence = question.ocrConfidence as double?;
+    final dueNow = question.nextReviewAt != null &&
+        !question.nextReviewAt!.isAfter(DateTime.now());
+    if (displayStatus.isFailed) return scheme.error;
+    if (confidence != null && confidence < .7) return AppColors.accentAmber;
+    if (dueNow) return const Color(0xFFEA580C);
+    if (displayStatus.isInProgress) return scheme.primary;
+    if (question.masteryLevel == MasteryLevel.mastered) {
+      return AppColors.success;
+    }
+    return scheme.outlineVariant;
+  }
+
+  bool get _hasArchiveSignals =>
+      question.mistakeCategory != null || question.ocrConfidence != null;
+
+  Widget _buildArchiveSignals(BuildContext context) {
+    final category = question.mistakeCategory as MistakeCategory?;
+    final confidence = question.ocrConfidence as double?;
+    return Wrap(
+      spacing: AppSpace.xs,
+      runSpacing: AppSpace.xs,
+      children: <Widget>[
+        if (category != null)
+          AppTag(
+            label: '错因 · ${category.label}',
+            useThemeTone: true,
+            themeTone: AppTagTone.tertiary,
+            fontSize: 11,
+          ),
+        if (confidence != null)
+          AppTag(
+            label: '识别 ${(confidence * 100).round()}%',
+            useThemeTone: true,
+            themeTone:
+                confidence < .7 ? AppTagTone.warning : AppTagTone.neutral,
+            fontSize: 11,
+          ),
+      ],
     );
   }
 
