@@ -664,7 +664,15 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           ),
         ),
         child: FilledButton.icon(
-          onPressed: canExport ? () => _startExport(context) : null,
+          onPressed: canExport
+              ? () {
+                  setState(() {
+                    _isExporting = true;
+                    _exportProgress = 0;
+                  });
+                  unawaited(_startExport(context));
+                }
+              : null,
           icon: _isExporting
               ? const SizedBox(
                   width: 16,
@@ -697,10 +705,8 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       return;
     }
 
-    setState(() {
-      _isExporting = true;
-      _exportProgress = 0;
-    });
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
 
     final progress = ValueNotifier<double>(0);
     if (!mounted) return;
