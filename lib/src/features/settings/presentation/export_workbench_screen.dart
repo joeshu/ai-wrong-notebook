@@ -670,7 +670,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
                     _isExporting = true;
                     _exportProgress = 0;
                   });
-                  unawaited(_startExport(context));
+                  Future<void>(() => _startExport(context));
                 }
               : null,
           icon: _isExporting
