@@ -128,6 +128,67 @@ void main() {
     expect(saved?.contentStatus, ContentStatus.ready);
   });
 
+  testWidgets('editing a review field updates current result and keeps gate',
+      (tester) async {
+    final repository = InMemoryQuestionRepository();
+    final container = ProviderContainer(
+      overrides: <Override>[
+        questionRepositoryProvider.overrideWithValue(repository),
+        questionSplitServiceProvider
+            .overrideWithValue(const QuestionSplitService()),
+      ],
+    );
+    addTearDown(container.dispose);
+    container.read(currentQuestionProvider.notifier).state =
+        QuestionRecord.draft(
+      id: 'q-edit-field',
+      imagePath: '',
+      subject: Subject.math,
+      recognizedText: '解方程 x+1=4',
+    ).copyWith(
+      contentStatus: ContentStatus.needsConfirmation,
+      analysisResult: AnalysisResult(
+        finalAnswer: '3',
+        steps: const <String>['移项得 x=3'],
+        aiTags: const <String>['方程'],
+        knowledgePoints: const <String>['一元一次方程'],
+        mistakeReason: '',
+        studyAdvice: '检查符号',
+        standardAnswer: '3',
+        reviewDecision: AiAnalysisReviewDecision(
+          disposition: AiAnalysisReviewDisposition.needsConfirmation,
+          fields: const <String>['standardAnswer'],
+          reasons: const <String>['standardAnswer 置信度 55%'],
+          evaluatedAt: DateTime.utc(2026, 7, 25),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: AnalysisResultScreen()),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey<String>('review-field-card-standardAnswer')),
+        findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, '编辑'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey<String>('review-field-editor-standardAnswer')),
+      '4',
+    );
+    await tester.tap(find.text('保存修改'));
+    await tester.pumpAndSettle();
+
+    final current = container.read(currentQuestionProvider);
+    expect(current?.contentStatus, ContentStatus.needsConfirmation);
+    expect(current?.analysisResult?.standardAnswer, '4');
+    expect(current?.analysisResult?.finalAnswer, '4');
+    final saved = await repository.getById('q-edit-field');
+    expect(saved?.analysisResult?.standardAnswer, '4');
+  });
+
   testWidgets('analysis result screen shows repaired consistency notice',
       (tester) async {
     final container = ProviderContainer(
