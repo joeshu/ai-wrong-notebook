@@ -17,7 +17,10 @@ import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis
 
 Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
   expect(finder, findsOneWidget);
-  await tester.ensureVisible(finder);
+  await Scrollable.ensureVisible(
+    tester.element(finder),
+    alignment: 0.5,
+  );
   await tester.pumpAndSettle();
 }
 
@@ -541,9 +544,13 @@ void main() {
       find.text('第 2 题', skipOffstage: false),
     );
 
+    await _scrollUntilVisible(
+      tester,
+      find.text('题号切换', skipOffstage: false),
+    );
     expect(find.text('题号切换'), findsOneWidget);
-    expect(find.text('当前第 2 题'), findsOneWidget);
-    expect(find.textContaining('解析失败'), findsOneWidget);
+    expect(find.text('当前第 2 题', skipOffstage: false), findsOneWidget);
+    expect(find.textContaining('解析失败', skipOffstage: false), findsOneWidget);
     expect(find.textContaining('第一题答案'), findsNothing);
     expect(find.textContaining('第一题步骤'), findsNothing);
     expect(find.text('第一题练习'), findsNothing);
@@ -680,17 +687,20 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('第一题练习'), findsNothing);
-    await tester.drag(find.byType(ListView), const Offset(0, -2400));
-    await tester.pumpAndSettle();
+    await _scrollUntilVisible(
+      tester,
+      find.text('第一题练习', skipOffstage: false),
+    );
     expect(find.text('第一题练习'), findsOneWidget);
 
-    await tester.drag(find.byType(ListView), const Offset(0, 1500));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第 2 题'));
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -2400));
-    await tester.pumpAndSettle();
-
+    await _tapVisible(
+      tester,
+      find.text('第 2 题', skipOffstage: false),
+    );
+    await _scrollUntilVisible(
+      tester,
+      find.text('第二题练习', skipOffstage: false),
+    );
     expect(find.text('第二题练习'), findsOneWidget);
   });
 
