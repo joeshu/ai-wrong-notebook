@@ -23,12 +23,14 @@ jobs:
         shell: bash
         run: |
           set +e
-          flutter analyze --machine --no-fatal-warnings --no-fatal-infos > analyzer.txt
+          flutter analyze --machine --no-fatal-warnings --no-fatal-infos > analyzer.txt 2>&1
           status=$?
-          while IFS='|' read -r severity type code file line column length message correction; do
-            if [[ "$severity" == "ERROR" ]]; then
-              echo "::error file=$file,line=$line,col=$column::$message [$code]"
-            fi
+          while IFS= read -r message; do
+            [[ -z "$message" ]] && continue
+            message=${message//'%'/'%25'}
+            message=${message//$'\r'/'%0D'}
+            message=${message//$'\n'/'%0A'}
+            echo "::error title=Flutter Analyzer::$message"
           done < analyzer.txt
           exit "$status"
 
