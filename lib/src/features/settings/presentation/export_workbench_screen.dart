@@ -68,6 +68,8 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
   bool _isExporting = false;
   double _exportProgress = 0;
   bool _initialOptionsApplied = false;
+  String? _lastExportSummary;
+  DateTime? _lastExportedAt;
 
   @override
   Widget build(BuildContext context) {
@@ -126,10 +128,62 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         SliverToBoxAdapter(child: _buildFilterSection(context, questions)),
         if (showLayoutOptions)
           SliverToBoxAdapter(child: _buildLayoutSection(context)),
+        if (_lastExportSummary != null)
+          SliverToBoxAdapter(child: _buildLastExportCard(context)),
         SliverToBoxAdapter(child: _buildHistorySection(context)),
         SliverToBoxAdapter(child: _buildPreviewSection(context, showPreview)),
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
+    );
+  }
+
+  Widget _buildLastExportCard(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final exportedAt = _lastExportedAt;
+    final time = exportedAt == null
+        ? ''
+        : '${exportedAt.hour.toString().padLeft(2, '0')}:${exportedAt.minute.toString().padLeft(2, '0')}';
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpace.md),
+      child: AppCard(
+        backgroundColor: scheme.secondaryContainer,
+        borderColor: scheme.secondary.withValues(alpha: 0.35),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Icon(CupertinoIcons.checkmark_seal_fill,
+                color: scheme.onSecondaryContainer),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    '导出已完成${time.isEmpty ? '' : ' · $time'}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSecondaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _lastExportSummary!,
+                    style: TextStyle(color: scheme.onSecondaryContainer),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '文件已保存到下方导出历史，可稍后分享。',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSecondaryContainer.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -744,7 +798,13 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       }
 
       if (!mounted) return;
+      final now = DateTime.now();
       if (failed.isEmpty) {
+        setState(() {
+          _lastExportedAt = now;
+          _lastExportSummary =
+              '已保存 ${succeeded.map(_formatLabel).join('、')} · 共 ${questions.length} 题';
+        });
         messenger.showSnackBar(
           SnackBar(
             content: Text('已导出 ${succeeded.length} 种格式，并保存到导出历史'),
@@ -752,6 +812,11 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         );
       } else if (succeeded.isNotEmpty) {
         final failedLabels = failed.map((e) => _formatLabel(e.key)).join('、');
+        setState(() {
+          _lastExportedAt = now;
+          _lastExportSummary =
+              '成功保存 ${succeeded.map(_formatLabel).join('、')}；失败：$failedLabels';
+        });
         messenger.showSnackBar(
           SnackBar(
             content: Text('部分导出成功，失败：$failedLabels。成功文件已保存到导出历史'),
