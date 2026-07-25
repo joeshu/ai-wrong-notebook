@@ -105,6 +105,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
   }
 
   /// 刷新导出历史列表（分享/删除/重命名后调用）。
+  Future<void> _reloadExports() async {
+    final files = await _loadExportFiles();
+    if (!mounted) return;
+    setState(() => _exportFilesFuture = Future.value(files));
+  }
+
   Future<void> _loadAiDiagnosticsSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
