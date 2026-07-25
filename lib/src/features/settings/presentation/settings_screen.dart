@@ -134,7 +134,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     icon: CupertinoIcons.sparkles,
                     iconColor: AppColors.primary,
                     iconBackgroundColor: AppColors.primaryContainerLight,
-                    title: AppStrings.settingsAiProvider,
+                    title: '模型策略中心',
+                    subtitle: '均衡 · 准确 · 省钱 · 隐私与高级模型配置',
                     trailing: _StatusBadge(
                       ready: _isAiReady(aiConfig),
                       label: _isAiReady(aiConfig) ? '就绪' : '未配置',

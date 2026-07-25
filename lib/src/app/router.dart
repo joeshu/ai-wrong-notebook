@@ -13,6 +13,7 @@ import 'package:smart_wrong_notebook/src/features/review/presentation/review_his
 import 'package:smart_wrong_notebook/src/features/review/presentation/review_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/settings_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/provider_config_screen.dart';
+import 'package:smart_wrong_notebook/src/features/settings/presentation/model_strategy_center_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/layout_provider_config_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/subject_management_screen.dart';
 import 'package:smart_wrong_notebook/src/features/settings/presentation/prompt_settings_screen.dart';
@@ -109,8 +110,15 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
                 builder: (_, __) => const SettingsScreen(),
                 routes: <RouteBase>[
                   GoRoute(
-                      path: 'provider',
-                      builder: (_, __) => const ProviderConfigScreen()),
+                    path: 'provider',
+                    builder: (_, __) => const ModelStrategyCenterScreen(),
+                    routes: <RouteBase>[
+                      GoRoute(
+                        path: 'edit',
+                        builder: (_, __) => const ProviderConfigScreen(),
+                      ),
+                    ],
+                  ),
                   GoRoute(
                       path: 'subjects',
                       builder: (_, __) => const SubjectManagementScreen()),

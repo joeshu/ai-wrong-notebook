@@ -78,7 +78,7 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
         title: const Text(AppStrings.providerConfigTitle),
         leading: IconButton(
           icon: const Icon(CupertinoIcons.chevron_left),
-          onPressed: () => context.go('/settings'),
+          onPressed: () => context.go('/settings/provider'),
         ),
       ),
       body: Padding(
