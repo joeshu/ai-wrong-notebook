@@ -778,6 +778,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       if (mounted) {
         setState(() => _isExporting = false);
       }
+    }
     if (mounted && succeeded.isNotEmpty) {
       final failedLabels = failed.map((e) => _formatLabel(e.key)).toList();
       await Navigator.of(context).push<void>(
