@@ -651,13 +651,14 @@ class _WorksheetRegionEditorScreenState
     setState(() => _retryingRegionId = region.id);
     String? temporaryPath;
     try {
-      temporaryPath = await ref.read(questionRegionCropServiceProvider).cropToStoredImage(
+      final croppedPath = await ref.read(questionRegionCropServiceProvider).cropToStoredImage(
         sourcePath: source.imagePath,
         region: region,
       );
+      temporaryPath = croppedPath;
       final extraction = await ref.read(aiAnalysisServiceProvider).extractQuestionStructure(
         subjectName: (region.subject ?? source.subject).label,
-        imagePath: temporaryPath,
+        imagePath: croppedPath,
         textHint: region.recognizedText,
       );
       final normalized = extraction.normalizedQuestionText.isNotEmpty
