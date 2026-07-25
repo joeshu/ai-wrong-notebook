@@ -57,8 +57,9 @@ void main() {
     expect(find.text('原图附件缺失，请手动录入或放弃此草稿'), findsOneWidget);
     await selectCompactSegment(tester, false);
     expect(find.text('OCR 原文'), findsOneWidget);
-    expect(find.text('用户修正题干'), findsOneWidget);
-    expect(find.text('学生答案'), findsWidgets);
+    expect(find.text('AI 规范化文本'), findsOneWidget);
+    expect(find.text('确认学生答案'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(3));
     expect(tester.takeException(), isNull);
   });
 

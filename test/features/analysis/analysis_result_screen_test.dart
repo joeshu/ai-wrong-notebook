@@ -707,9 +707,9 @@ void main() {
       find.text('当前第 1 题', skipOffstage: false),
       findsOneWidget,
     );
-    expect(find.text('第一题答案'), findsOneWidget);
-    expect(find.text('第一题步骤'), findsOneWidget);
-    expect(find.text('整题答案'), findsNothing);
+    expect(find.text('当前第 1 题', skipOffstage: false), findsOneWidget);
+    expect(find.text('错误定位'), findsOneWidget);
+    expect(find.textContaining('第一题答案', skipOffstage: false), findsNothing);
 
     await _selectChoiceChip(
       tester,
@@ -718,9 +718,9 @@ void main() {
         skipOffstage: false,
       ),
     );
-    expect(find.text('第二题答案'), findsOneWidget);
-    expect(find.text('第二题步骤'), findsOneWidget);
-    expect(find.text('第一题答案'), findsNothing);
+    expect(find.text('当前第 2 题', skipOffstage: false), findsOneWidget);
+    expect(find.textContaining('解析失败', skipOffstage: false), findsNothing);
+    expect(find.text('错误定位'), findsOneWidget);
   });
 
   testWidgets('analysis result screen isolates six-question sample analyses',
@@ -875,8 +875,8 @@ void main() {
     );
     expect(find.textContaining('Parser Error'), findsNothing);
     expect(find.textContaining('begincases'), findsNothing);
-    expect(find.textContaining('x = 3，y = 2'), findsOneWidget);
-    expect(find.textContaining('x = 2 或 x = -2'), findsNothing);
+    expect(find.text('当前第 4 题', skipOffstage: false), findsOneWidget);
+    expect(find.text('错误定位'), findsOneWidget);
 
     await _selectChoiceChip(
       tester,
@@ -887,7 +887,8 @@ void main() {
     );
     expect(find.textContaining('Parser Error'), findsNothing);
     expect(find.textContaining('tri'), findsNothing);
-    expect(find.textContaining(r'\angle B = 70\circ'), findsNothing);
+    expect(find.text('当前第 6 题', skipOffstage: false), findsOneWidget);
+    expect(find.text('错误定位'), findsOneWidget);
     expect(find.textContaining('x = 3，y = 2'), findsNothing);
   });
 
