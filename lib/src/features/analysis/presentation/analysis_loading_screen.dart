@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_wrong_notebook/src/app/providers.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_fingerprint.dart';
@@ -14,6 +16,7 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/domain/services/ai_analysis_review_policy.dart';
+import 'package:smart_wrong_notebook/src/domain/services/recognition_confirmation_policy.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/stage_indicator.dart';
@@ -31,7 +34,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
   String? _debugInfo;
   int _step = 0;
   String? _progressText;
-  Timer? _stepTimer;
   // 是否由极速模式进入（拍照后跳过裁剪/校对直接进入解析）。
   // 失败时若为 true，则提供"重新裁剪 / 重新拍照 / 取消"按钮。
   bool _isQuickCapture = false;
@@ -42,12 +44,11 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
   // 上层总超时阈值。超过 Dio receiveTimeout (240s) 即不合理，给一个更早的兜底。
   static const _analysisTimeout = Duration(seconds: 120);
 
-  final _steps = const ['正在识别题目...', '正在理解题意...', '正在生成解析...', '即将完成...'];
+  final _steps = const ['提取题目结构', '确认题目边界', '执行 AI 分析', '校验并保存'];
 
   @override
   void initState() {
     super.initState();
-    _animateSteps();
     // 先读取极速模式标记，再启动解析流程；避免 catch 块读到默认 false
     // 时显示错误的回退按钮组。
     _initQuickCaptureThenAnalyze();
@@ -71,24 +72,16 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     }
   }
 
-  void _animateSteps() {
-    _stepTimer?.cancel();
-    _stepTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      if (_step < _steps.length - 1) {
-        setState(() => _step++);
-      } else {
-        timer.cancel();
-      }
+  void _reportStage(int step, String message) {
+    if (!mounted) return;
+    setState(() {
+      _step = step.clamp(0, _steps.length - 1).toInt();
+      _progressText = message;
     });
   }
 
   @override
   void dispose() {
-    _stepTimer?.cancel();
     _timeoutTimer?.cancel();
     super.dispose();
   }
@@ -103,7 +96,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       if (_errorMessage != null) return;
       setState(() {
         _isTimeout = true;
-        _stepTimer?.cancel();
         _errorMessage = '识别超时（已等待 ${_analysisTimeout.inSeconds} 秒）。'
             '可重试当前引擎，或切换到其他识别引擎。';
       });
@@ -154,7 +146,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     if (reusable != null) {
       ref.read(currentQuestionProvider.notifier).state = reusable;
       if (mounted) {
-        _stepTimer?.cancel();
         _clearTimeoutTimer();
         context.go('/analysis/result');
       }
@@ -185,8 +176,8 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
 
       var working = current;
       final shouldAnalyzeImageDirectly = _shouldAnalyzeImageDirectly(working);
-      if (working.normalizedQuestionText.isEmpty &&
-          !shouldAnalyzeImageDirectly) {
+      if (working.normalizedQuestionText.isEmpty) {
+        _reportStage(0, '正在从原图提取题干、选项与学生答案…');
         // 录入模式由 capture_entry_sheet 的模式选择器决定，默认 printed。
         final captureMode = ref.read(captureModeProvider);
         final extraction = await service.extractQuestionStructure(
@@ -207,7 +198,45 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         ref.read(currentQuestionProvider.notifier).state = working;
       }
 
+      // Recognition confirmation is a hard gate before problem solving. Worksheet
+      // candidates have already passed the shared region workbench and therefore
+      // continue through the automatic queue without a duplicate prompt.
+      final worksheetAuto = ref.read(worksheetAutoAnalyzeProvider);
+      if (working.analysisResult == null &&
+          working.tags.contains(RecognitionConfirmationPolicy.requiredTag) &&
+          working.contentStatus == ContentStatus.processing &&
+          !worksheetAuto) {
+        final autoConfirm = (await SharedPreferences.getInstance())
+                .getBool('recognition_high_confidence_auto_confirm') ??
+            false;
+        final text = working.normalizedQuestionText.trim();
+        final formulaMarkers = RegExp(r'\$').allMatches(text).length;
+        final safeHighConfidence = autoConfirm &&
+            (working.ocrConfidence ?? 0) >= .85 &&
+            text.isNotEmpty &&
+            formulaMarkers.isEven &&
+            File(working.imagePath).existsSync();
+        if (!safeHighConfidence) {
+          final pending = working.copyWith(
+            contentStatus: ContentStatus.needsConfirmation,
+          );
+          await ref.read(questionRepositoryProvider).saveDraft(pending);
+          ref.read(currentQuestionProvider.notifier).state = pending;
+          _clearTimeoutTimer();
+          if (mounted) context.go('/capture/recognition-confirmation');
+          return;
+        }
+        working = working.copyWith(
+          contentStatus: ContentStatus.analyzing,
+          tags: working.tags
+              .where((tag) => tag != RecognitionConfirmationPolicy.requiredTag)
+              .toList(growable: false),
+        );
+        ref.read(currentQuestionProvider.notifier).state = working;
+      }
+
       if (!(working.splitResult?.hasMultipleCandidates ?? false)) {
+        _reportStage(1, '正在检查题目结构与多题边界…');
         final splitSeed = _splitSeedText(working);
         if (splitSeed.isNotEmpty) {
           final splitResult = await service.splitQuestionCandidates(
@@ -227,8 +256,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
         final totalCandidates = working.splitResult!.candidates.length;
         if (mounted) {
           setState(() {
-            _stepTimer?.cancel();
-            _progressText = '正在并行分析 $totalCandidates 道题...';
+                _progressText = '正在并行分析 $totalCandidates 道题...';
           });
         }
         candidateSnapshots = await service.analyzeSplitCandidates(
@@ -267,6 +295,9 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       }
 
       AnalysisResult analysis;
+      _reportStage(2, firstSuccessfulCandidate != null
+          ? '正在汇总各题真实分析结果…'
+          : '正在调用 AI 生成解析与错因…');
       if (firstSuccessfulCandidate != null) {
         analysis = firstSuccessfulCandidate.analysisResult!;
       } else {
@@ -316,6 +347,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
                   sourceQuestionText: working.correctedText,
                 ));
 
+      _reportStage(3, '正在校验字段置信度并写入安全结果…');
       const reviewPolicy = AiAnalysisReviewPolicy();
       final hasStudentAnswer = (working.studentAnswer ?? '').trim().isNotEmpty;
       var reviewDecision = reviewPolicy.evaluate(
@@ -411,7 +443,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       }
 
       if (mounted) {
-        _stepTimer?.cancel();
         final wasAutoQueue = ref.read(worksheetAutoAnalyzeProvider);
         if (_continueWorksheetQueue(updated)) return;
         if (wasAutoQueue) {
@@ -670,27 +701,74 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
                     label: const Text('重新拍照'),
                   ),
                 ],
-              )
-            else
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  TextButton.icon(
-                    onPressed: () => context.go('/capture/correction'),
-                    icon: const Icon(CupertinoIcons.pencil),
-                    label: const Text('返回校对'),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => context.go('/notebook'),
-                    icon: const Icon(CupertinoIcons.book),
-                    label: const Text('查看已保存草稿'),
-                  ),
-                ],
               ),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                TextButton.icon(
+                  onPressed: () => context.go('/capture/recognition-confirmation'),
+                  icon: const Icon(CupertinoIcons.pencil),
+                  label: const Text('手动录入'),
+                ),
+                TextButton.icon(
+                  onPressed: () => context.go('/notebook'),
+                  icon: const Icon(CupertinoIcons.doc),
+                  label: const Text('保留草稿'),
+                ),
+                TextButton.icon(
+                  onPressed: _abandonAndCleanup,
+                  icon: const Icon(CupertinoIcons.trash),
+                  label: const Text('放弃并清理'),
+                  style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _abandonAndCleanup() async {
+    final current = ref.read(currentQuestionProvider);
+    if (current == null) {
+      if (mounted) context.go('/');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('放弃并清理草稿？'),
+        content: const Text('将删除当前题目的临时草稿；仅当裁剪图没有被其他题目引用时才删除图片。'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('确认清理')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final repository = ref.read(questionRepositoryProvider);
+    final others = (await repository.listAll()).where((item) => item.id != current.id).toList();
+    await repository.delete(current.id);
+    final worksheet = ref.read(currentWorksheetImportProvider);
+    if (worksheet != null && worksheet.pages.any((item) => item.id == current.id)) {
+      await persistWorksheetImport(
+        ref,
+        worksheet.copyWith(
+          pages: worksheet.pages.where((item) => item.id != current.id).toList(),
+        ),
+      );
+    }
+    if (current.imagePath.isNotEmpty &&
+        !others.any((item) => item.imagePath == current.imagePath)) {
+      final image = File(current.imagePath);
+      if (await image.exists()) await image.delete();
+    }
+    ref.read(currentQuestionProvider.notifier).state = null;
+    invalidateQuestionList(ref);
+    if (mounted) context.go('/');
   }
 
   void _retry() {
@@ -700,7 +778,6 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
       _step = 0;
     });
     _runAnalysis();
-    _animateSteps();
   }
 
   /// 弹出引擎选择器，让用户在普通 AI / PaddleOCR / MinerU 间切换。

@@ -25,6 +25,9 @@ class QuestionRegion {
     this.confidence = 1,
     this.source = QuestionRegionSource.manual,
     this.diagramNote,
+    this.studentAnswer,
+    this.aiNormalizedText,
+    this.confirmedFields = const <String>{},
   });
 
   final String id;
@@ -63,6 +66,12 @@ class QuestionRegion {
   /// service only flagged a "图形" block but didn't extract textual content.
   /// Used as a manual cross-check entry; empty string clears the note.
   final String? diagramNote;
+  /// Student answer is edited independently from the question stem/options.
+  final String? studentAnswer;
+  /// Optional AI-normalized layer; never overwrites user-corrected text.
+  final String? aiNormalizedText;
+  /// Explicit per-field confirmations required by the recognition gate.
+  final Set<String> confirmedFields;
 
   QuestionRegion copyWith({
     Rect? normalizedRect,
@@ -83,6 +92,9 @@ class QuestionRegion {
     double? confidence,
     QuestionRegionSource? source,
     String? diagramNote,
+    String? studentAnswer,
+    String? aiNormalizedText,
+    Set<String>? confirmedFields,
   }) {
     return QuestionRegion(
       id: id,
@@ -104,6 +116,9 @@ class QuestionRegion {
       confidence: confidence ?? this.confidence,
       source: source ?? this.source,
       diagramNote: diagramNote ?? this.diagramNote,
+      studentAnswer: studentAnswer ?? this.studentAnswer,
+      aiNormalizedText: aiNormalizedText ?? this.aiNormalizedText,
+      confirmedFields: confirmedFields ?? this.confirmedFields,
     );
   }
 }

@@ -21,6 +21,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_review_summary.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
+import 'package:smart_wrong_notebook/src/domain/services/recognition_confirmation_policy.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/cached_question_image.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/post_recognition_ai_dialog.dart';
@@ -43,6 +44,7 @@ class _WorksheetRegionEditorScreenState
     extends ConsumerState<WorksheetRegionEditorScreen> {
   final List<QuestionRegion> _regions = <QuestionRegion>[];
   bool _isCropping = false;
+  String? _retryingRegionId;
   bool _isDetecting = false;
   String? _detectionMessage;
   String? _detectionProvider;
@@ -305,6 +307,9 @@ class _WorksheetRegionEditorScreenState
                           }),
                           selectedRegionId: _selectedRegionId,
                           sourceImagePath: page.imagePath,
+                          retryingRegionId: _retryingRegionId,
+                          onRetryRecognition: (index, field) =>
+                              _retryRegionRecognition(page, index, field: field),
                           onSelect: (region) => setState(() => _selectedRegionId = region.id),
                         ),
                       ),
@@ -637,6 +642,75 @@ class _WorksheetRegionEditorScreenState
     });
   }
 
+  Future<void> _retryRegionRecognition(
+    QuestionRecord source,
+    int index, {
+    String? field,
+  }) async {
+    final region = _regions[index];
+    setState(() => _retryingRegionId = region.id);
+    String? temporaryPath;
+    try {
+      temporaryPath = await ref.read(questionRegionCropServiceProvider).cropToStoredImage(
+        sourcePath: source.imagePath,
+        region: region,
+      );
+      final extraction = await ref.read(aiAnalysisServiceProvider).extractQuestionStructure(
+        subjectName: (region.subject ?? source.subject).label,
+        imagePath: temporaryPath,
+        textHint: region.recognizedText,
+      );
+      final normalized = extraction.normalizedQuestionText.isNotEmpty
+          ? extraction.normalizedQuestionText
+          : extraction.extractedQuestionText;
+      final options = parseOptionLines(normalized);
+      final stem = normalized.split('\n')
+          .where((line) => !RegExp(r'^\s*[A-H][.．、]\s*\S').hasMatch(line))
+          .join('\n').trim();
+      final formulas = RegExp(r'\$[^$]+\$').allMatches(normalized)
+          .map((match) => match.group(0)!)
+          .toList(growable: false);
+      if (!mounted) return;
+      setState(() {
+        var next = region;
+        if (field == null) {
+          next = region.copyWith(
+            originalRecognizedText: extraction.extractedQuestionText,
+            recognizedText: normalized,
+            aiNormalizedText: normalized,
+            questionStem: stem,
+            options: options,
+            formulas: formulas,
+            studentAnswer: extraction.studentAnswer ?? '',
+            confirmedFields: const <String>{},
+          );
+        } else if (field == RecognitionReviewField.stem) {
+          next = region.copyWith(questionStem: stem, aiNormalizedText: normalized);
+        } else if (field == RecognitionReviewField.options) {
+          next = region.copyWith(options: options, aiNormalizedText: normalized);
+        } else if (field == RecognitionReviewField.studentAnswer) {
+          next = region.copyWith(studentAnswer: extraction.studentAnswer ?? '');
+        } else if (field == RecognitionReviewField.formulas) {
+          next = region.copyWith(formulas: formulas, aiNormalizedText: normalized);
+        }
+        _regions[index] = next;
+        _scheduleDraftSave(source.id);
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('重新识别失败：$error。当前修正内容和草稿已保留。')),
+        );
+      }
+    } finally {
+      if (temporaryPath != null) {
+        final temporary = File(temporaryPath);
+        if (await temporary.exists()) await temporary.delete();
+      }
+      if (mounted) setState(() => _retryingRegionId = null);
+    }
+  }
+
   Future<void> _editRecognizedText(int index) async {
     final region = _regions[index];
     final saved = await showSingleTextFieldDialog(
@@ -660,7 +734,35 @@ class _WorksheetRegionEditorScreenState
   }
 
   Future<void> _confirmAndCrop(QuestionRecord source) async {
+    const policy = RecognitionConfirmationPolicy();
     final accepted = _regions.where((item) => item.reviewStatus == QuestionRegionReviewStatus.accepted).toList();
+    final blocked = <QuestionRegion>[];
+    for (var index = 0; index < _regions.length; index++) {
+      final region = _regions[index];
+      if (region.reviewStatus == QuestionRegionReviewStatus.accepted &&
+          !policy.canProceed(
+            region,
+            detectQuestionRegionRisks(region, _regions, index: index),
+          )) {
+        blocked.add(region);
+      }
+    }
+    if (blocked.isNotEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('仍有题目需要确认'),
+          content: Text('${blocked.length} 道题存在低置信度字段或结构风险。请逐字段确认；贴边、重叠等空间风险必须先调整题框。'),
+          actions: <Widget>[
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('返回待处理队列'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
     final aiCount = accepted.where((item) => item.analyzeWithAi).length;
     final ocrCount = accepted.length - aiCount;
     final ignoredCount = _regions.length - accepted.length;
@@ -777,6 +879,7 @@ class _WorksheetRegionEditorScreenState
               parentQuestionId: source.id,
               rootQuestionId: source.rootQuestionId ?? source.id,
               ocrConfidence: region.confidence,
+              studentAnswer: region.studentAnswer,
             ));
           }
         } else {
@@ -796,6 +899,7 @@ class _WorksheetRegionEditorScreenState
             parentQuestionId: source.id,
             rootQuestionId: source.rootQuestionId ?? source.id,
             ocrConfidence: region.confidence,
+            studentAnswer: region.studentAnswer,
           ));
         }
       }
@@ -1533,6 +1637,24 @@ class _RecognitionEvidencePreviewState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
+        const Text('文字分层对照', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+        const SizedBox(height: 4),
+        _RecognitionTextLayer(
+          label: 'OCR 原文',
+          text: widget.region.originalRecognizedText ?? widget.region.recognizedText ?? '',
+          color: const Color(0xFF64748B),
+        ),
+        _RecognitionTextLayer(
+          label: '用户修正',
+          text: widget.region.recognizedText ?? '',
+          color: const Color(0xFF2563EB),
+        ),
+        _RecognitionTextLayer(
+          label: 'AI 规范化',
+          text: widget.region.aiNormalizedText ?? '尚未重新规范化',
+          color: const Color(0xFF7C3AED),
+        ),
+        const SizedBox(height: 6),
         const Text('结构化识别内容', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
         const SizedBox(height: 5),
         Wrap(
@@ -1616,6 +1738,46 @@ class _RecognitionEvidencePreviewState
       ],
     );
   }
+}
+
+class _RecognitionTextLayer extends StatelessWidget {
+  const _RecognitionTextLayer({
+    required this.label,
+    required this.text,
+    required this.color,
+  });
+
+  final String label;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 3),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Container(
+          width: 68,
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .12),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
+        ),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            text.trim().isEmpty ? '暂无内容' : text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _PreviewBorderPainter extends CustomPainter {
@@ -1744,6 +1906,8 @@ class _RecognizedQuestionWorkbench extends StatefulWidget {
     required this.onIgnore,
     required this.selectedRegionId,
     required this.sourceImagePath,
+    required this.retryingRegionId,
+    required this.onRetryRecognition,
     required this.onSelect,
   });
   final List<QuestionRegion> regions;
@@ -1752,6 +1916,8 @@ class _RecognizedQuestionWorkbench extends StatefulWidget {
   final ValueChanged<int> onIgnore;
   final String? selectedRegionId;
   final String sourceImagePath;
+  final String? retryingRegionId;
+  final void Function(int index, String? field) onRetryRecognition;
   final ValueChanged<QuestionRegion> onSelect;
 
   @override
@@ -1794,6 +1960,13 @@ class _RecognizedQuestionWorkbenchState
     final ignoredCount = widget.regions.length - acceptedCount;
     final riskCount = List<int>.generate(widget.regions.length, (item) => item).where((item) => _riskMessages(item).isNotEmpty).length;
     final editedCount = widget.regions.where((item) => item.originalRecognizedText != null && item.recognizedText != item.originalRecognizedText).length;
+    const confirmationPolicy = RecognitionConfirmationPolicy();
+    final autoConfirmable = List<int>.generate(widget.regions.length, (item) => item)
+        .where((item) => confirmationPolicy.canAutoConfirm(
+              widget.regions[item],
+              _riskMessages(item),
+            ))
+        .toList(growable: false);
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       decoration: BoxDecoration(
@@ -1816,6 +1989,14 @@ class _RecognizedQuestionWorkbenchState
             _filterChip('风险 $riskCount', _QuestionListFilter.risk, warning: riskCount > 0),
             _filterChip('已修改 $editedCount', _QuestionListFilter.edited),
             _filterChip('已忽略 $ignoredCount', _QuestionListFilter.ignored),
+            const SizedBox(width: 4),
+            FilledButton.tonalIcon(
+              onPressed: autoConfirmable.isEmpty
+                  ? null
+                  : () => _autoConfirmHighConfidence(autoConfirmable),
+              icon: const Icon(CupertinoIcons.checkmark_seal, size: 15),
+              label: Text('确认高置信度 ${autoConfirmable.length} 题'),
+            ),
           ]),
         ),
         if (_batchSelectedIds.isNotEmpty || _lastBatchBefore != null) _batchActionBar(),
@@ -1846,21 +2027,52 @@ class _RecognizedQuestionWorkbenchState
   List<String> _riskMessages(int index) =>
       detectQuestionRegionRisks(widget.regions[index], widget.regions, index: index);
 
+  void _autoConfirmHighConfidence(List<int> indices) {
+    setState(() {
+      _lastBatchBefore = <int, QuestionRegion>{
+        for (final index in indices) index: widget.regions[index],
+      };
+      for (final index in indices) {
+        final region = widget.regions[index];
+        widget.onUpdate(
+          index,
+          region.copyWith(
+            reviewStatus: QuestionRegionReviewStatus.accepted,
+            confirmedFields: RecognitionReviewField.all,
+          ),
+        );
+      }
+    });
+  }
+
   void _toggleBatchSelection(String id) => setState(() {
     if (!_batchSelectedIds.add(id)) _batchSelectedIds.remove(id);
   });
 
-  void _applyBatch(QuestionRegion Function(QuestionRegion region) transform) {
+  void _applyBatch(
+    QuestionRegion Function(QuestionRegion region) transform, {
+    bool eligibleOnly = false,
+  }) {
     if (_batchSelectedIds.isEmpty) return;
+    const policy = RecognitionConfirmationPolicy();
+    final selectedIndices = <int>[
+      for (var index = 0; index < widget.regions.length; index++)
+        if (_batchSelectedIds.contains(widget.regions[index].id) &&
+            (!eligibleOnly ||
+                policy.canAutoConfirm(widget.regions[index], _riskMessages(index))))
+          index,
+    ];
+    if (selectedIndices.isEmpty) return;
     setState(() {
       _lastBatchBefore = <int, QuestionRegion>{
-        for (var index = 0; index < widget.regions.length; index++)
-          if (_batchSelectedIds.contains(widget.regions[index].id)) index: widget.regions[index],
+        for (final index in selectedIndices) index: widget.regions[index],
       };
       for (final entry in _lastBatchBefore!.entries) {
         widget.onUpdate(entry.key, transform(entry.value));
       }
-      _batchSelectedIds.clear();
+      _batchSelectedIds.removeAll(
+        selectedIndices.map((index) => widget.regions[index].id),
+      );
     });
   }
 
@@ -1881,9 +2093,9 @@ class _RecognizedQuestionWorkbenchState
         child: Row(children: <Widget>[
           Text('已选 ${_batchSelectedIds.length} 题', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
           const SizedBox(width: 8),
-          OutlinedButton(onPressed: () => _applyBatch((item) => item.copyWith(analyzeWithAi: true, reviewStatus: QuestionRegionReviewStatus.accepted)), child: const Text('采用 + AI')),
+          OutlinedButton(onPressed: () => _applyBatch((item) => item.copyWith(analyzeWithAi: true, reviewStatus: QuestionRegionReviewStatus.accepted, confirmedFields: RecognitionReviewField.all), eligibleOnly: true), child: const Text('采用 + AI')),
           const SizedBox(width: 6),
-          OutlinedButton(onPressed: () => _applyBatch((item) => item.copyWith(analyzeWithAi: false, reviewStatus: QuestionRegionReviewStatus.accepted)), child: const Text('仅 OCR')),
+          OutlinedButton(onPressed: () => _applyBatch((item) => item.copyWith(analyzeWithAi: false, reviewStatus: QuestionRegionReviewStatus.accepted, confirmedFields: RecognitionReviewField.all), eligibleOnly: true), child: const Text('仅 OCR')),
           const SizedBox(width: 6),
           OutlinedButton(onPressed: () => _applyBatch((item) => item.copyWith(reviewStatus: QuestionRegionReviewStatus.ignored)), child: const Text('批量忽略')),
           if (_lastBatchBefore != null) ...<Widget>[
@@ -2209,6 +2421,8 @@ class _RecognizedQuestionWorkbenchState
     final tables = _tablesFor(region);
     final original = region.originalRecognizedText ?? region.recognizedText ?? '';
     final modified = region.originalRecognizedText != null && region.recognizedText != original;
+    const confirmationPolicy = RecognitionConfirmationPolicy();
+    final requiredFields = confirmationPolicy.fieldsRequiringConfirmation(region, risks);
     return ListView(
       key: ValueKey(region.id),
       padding: const EdgeInsets.all(10),
@@ -2221,6 +2435,59 @@ class _RecognizedQuestionWorkbenchState
           tables: tables,
           risks: risks,
         ),
+        if (requiredFields.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Text('低置信度字段需逐项确认', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 5),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 5,
+                  children: requiredFields.map((field) {
+                    final confirmed = region.confirmedFields.contains(field);
+                    return FilterChip(
+                      selected: confirmed,
+                      avatar: Icon(confirmed ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.exclamationmark_triangle, size: 14),
+                      label: Text(_recognitionFieldLabel(field)),
+                      onSelected: (value) {
+                        final next = Set<String>.from(region.confirmedFields);
+                        value ? next.add(field) : next.remove(field);
+                        widget.onUpdate(index, region.copyWith(confirmedFields: next));
+                      },
+                    );
+                  }).toList(growable: false),
+                ),
+                const SizedBox(height: 5),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 5,
+                  children: <Widget>[
+                    OutlinedButton.icon(
+                      onPressed: widget.retryingRegionId == region.id
+                          ? null
+                          : () => widget.onRetryRecognition(index, null),
+                      icon: const Icon(CupertinoIcons.arrow_clockwise, size: 14),
+                      label: Text(widget.retryingRegionId == region.id ? '识别中…' : '重新识别整题'),
+                    ),
+                    ...requiredFields.map((field) => TextButton(
+                      onPressed: widget.retryingRegionId == region.id
+                          ? null
+                          : () => widget.onRetryRecognition(index, field),
+                      child: Text('重识别${_recognitionFieldLabel(field)}'),
+                    )),
+                  ],
+                ),
+              ],
+            ),
+          ),
         Row(children: <Widget>[
           Expanded(child: Text('第 ${region.detectedNumber ?? index + 1} 题详情', style: const TextStyle(fontWeight: FontWeight.w700))),
           ...region.recognizedBlockTypes.where((block) => block != '文字').map(_MiniTypeTag.new),
@@ -2324,6 +2591,24 @@ class _RecognizedQuestionWorkbenchState
           maxLines: 4,
           onChanged: (value) => _updateStructured(index, region, stem: value),
           decoration: const InputDecoration(isDense: true, labelText: '题干', helperText: '先校对题干；公式、表格和内容块可在高级校对中编辑。', alignLabelWithHint: true, border: OutlineInputBorder()),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          key: ValueKey('${region.id}-student-answer-${region.studentAnswer ?? ''}'),
+          initialValue: region.studentAnswer ?? '',
+          minLines: 1,
+          maxLines: 4,
+          onChanged: (value) => widget.onUpdate(
+            index,
+            region.copyWith(studentAnswer: value),
+          ),
+          decoration: const InputDecoration(
+            isDense: true,
+            labelText: '学生答案',
+            helperText: '与题干、选项独立保存；后续错因分析只使用这里确认的作答。',
+            alignLabelWithHint: true,
+            border: OutlineInputBorder(),
+          ),
         ),
         const SizedBox(height: 6),
         ExpansionTile(
@@ -2480,6 +2765,16 @@ class _RecognizedQuestionWorkbenchState
     );
   }
 }
+
+String _recognitionFieldLabel(String field) => switch (field) {
+  RecognitionReviewField.stem => '题干',
+  RecognitionReviewField.options => '选项',
+  RecognitionReviewField.studentAnswer => '学生答案',
+  RecognitionReviewField.formulas => '公式',
+  RecognitionReviewField.tables => '表格',
+  RecognitionReviewField.diagram => '图形',
+  _ => field,
+};
 
 class _RiskActionCard extends StatelessWidget {
   const _RiskActionCard({
@@ -2748,6 +3043,13 @@ List<String> detectQuestionRegionRisks(
     } else if (region.recognizedBlockTypes.any((t) => t == '选项')) {
       risks.add('识别到选项块但未提取到选项行，建议校对');
     }
+  }
+  final hasDiagram = region.recognizedBlockTypes.any((item) {
+    final value = item.toLowerCase();
+    return item == '图形' || value.contains('diagram') || value.contains('figure');
+  });
+  if (hasDiagram && (region.diagramNote ?? '').trim().isEmpty) {
+    risks.add('识别到图形但缺少图形说明，请核对原图并补充');
   }
   return risks;
 }

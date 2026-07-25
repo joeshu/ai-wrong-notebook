@@ -7,6 +7,7 @@ import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_import_session.dart';
 import 'package:smart_wrong_notebook/src/domain/models/layout_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/services/recognition_confirmation_policy.dart';
 import 'package:smart_wrong_notebook/src/shared/extensions/layout_provider_type_label.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/engine_choice_sheet.dart';
 import 'package:uuid/uuid.dart';
@@ -261,7 +262,13 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
           return;
         }
         Navigator.pop(context);
-        ref.read(currentQuestionProvider.notifier).state = result.record;
+        final pendingConfirmation = result.record!.copyWith(
+          tags: <String>{
+            ...result.record!.tags,
+            RecognitionConfirmationPolicy.requiredTag,
+          }.toList(growable: false),
+        );
+        ref.read(currentQuestionProvider.notifier).state = pendingConfirmation;
         if (_isQuickCaptureEnabled) {
           router.go('/analysis/loading');
         } else {
@@ -527,7 +534,13 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
 
       if (result.record != null) {
         Navigator.pop(context);
-        ref.read(currentQuestionProvider.notifier).state = result.record;
+        final pendingConfirmation = result.record!.copyWith(
+          tags: <String>{
+            ...result.record!.tags,
+            RecognitionConfirmationPolicy.requiredTag,
+          }.toList(growable: false),
+        );
+        ref.read(currentQuestionProvider.notifier).state = pendingConfirmation;
         if (_isQuickCaptureEnabled) {
           // 极速模式：跳过裁剪、校对、保存确认页，直接进入 AI 解析加载页。
           // AnalysisLoadingScreen 会读取 currentQuestionProvider 拿到刚拍好的图。

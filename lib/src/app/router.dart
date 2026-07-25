@@ -34,6 +34,7 @@ import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_region_editor_screen.dart';
 import 'package:smart_wrong_notebook/src/features/worksheet_import/presentation/worksheet_review_summary_screen.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/question_save_confirmation_screen.dart';
+import 'package:smart_wrong_notebook/src/features/ocr/presentation/recognition_confirmation_screen.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/question_split_confirmation_screen.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_loading_screen.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_result_screen.dart';
@@ -184,6 +185,10 @@ GoRouter buildRouter(SettingsRepository settingsRepo,
       GoRoute(
           path: '/capture/correction',
           pageBuilder: (_, __) => _buildPage(const QuestionCorrectionScreen())),
+      GoRoute(
+          path: '/capture/recognition-confirmation',
+          pageBuilder: (_, __) =>
+              _buildPage(const RecognitionConfirmationScreen())),
       GoRoute(
           path: '/capture/save-confirmation',
           pageBuilder: (_, __) =>

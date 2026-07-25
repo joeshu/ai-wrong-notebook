@@ -38,6 +38,8 @@ class WorksheetReviewDraftRepository {
     'format': region.contentFormatHint, 'types': region.recognizedBlockTypes, 'subject': region.subject?.index,
     'questionType': region.questionType, 'ai': region.analyzeWithAi, 'review': region.reviewStatus.index,
     'confidence': region.confidence, 'source': region.source.index, 'diagramNote': region.diagramNote,
+    'studentAnswer': region.studentAnswer, 'aiNormalizedText': region.aiNormalizedText,
+    'confirmedFields': region.confirmedFields.toList(growable: false),
   };
 
   QuestionRegion _decode(Map<String, dynamic> json) {
@@ -52,7 +54,9 @@ class WorksheetReviewDraftRepository {
       subject: json['subject'] == null ? null : Subject.values[json['subject'] as int], questionType: json['questionType'] as String?,
       analyzeWithAi: json['ai'] as bool? ?? true, reviewStatus: QuestionRegionReviewStatus.values[json['review'] as int? ?? 0],
       confidence: (json['confidence'] as num?)?.toDouble() ?? 1, source: QuestionRegionSource.values[json['source'] as int? ?? 0],
-      diagramNote: json['diagramNote'] as String?,
+      diagramNote: json['diagramNote'] as String?, studentAnswer: json['studentAnswer'] as String?,
+      aiNormalizedText: json['aiNormalizedText'] as String?,
+      confirmedFields: ((json['confirmedFields'] as List?) ?? const <Object>[]).map((item) => '$item').toSet(),
     );
   }
 }
