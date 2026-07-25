@@ -176,7 +176,9 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
 
       var working = current;
       final shouldAnalyzeImageDirectly = _shouldAnalyzeImageDirectly(working);
-      if (working.normalizedQuestionText.isEmpty) {
+      if (working.normalizedQuestionText.isEmpty &&
+          (!shouldAnalyzeImageDirectly ||
+              working.tags.contains(RecognitionConfirmationPolicy.requiredTag))) {
         _reportStage(0, '正在从原图提取题干、选项与学生答案…');
         // 录入模式由 capture_entry_sheet 的模式选择器决定，默认 printed。
         final captureMode = ref.read(captureModeProvider);
