@@ -61,6 +61,7 @@ class _FailingCandidateAiAnalysisService extends TestAiAnalysisService {
     required String correctedText,
     required String subjectName,
     String? imagePath,
+    String studentAnswer = '',
   }) async {
     attempts[correctedText] = (attempts[correctedText] ?? 0) + 1;
     if (correctedText.contains(failedText)) {
@@ -70,6 +71,7 @@ class _FailingCandidateAiAnalysisService extends TestAiAnalysisService {
       correctedText: correctedText,
       subjectName: subjectName,
       imagePath: imagePath,
+      studentAnswer: studentAnswer,
     );
   }
 }
@@ -122,7 +124,7 @@ void main() {
       imagePath: '/tmp/fake.jpg',
       subject: Subject.math,
       recognizedText: '',
-    );
+    ).copyWith(studentAnswer: 'I=U/R');
 
     final router = GoRouter(
       initialLocation: '/analysis/loading',
@@ -149,6 +151,7 @@ void main() {
     expect(find.text('RESULT_SCREEN'), findsOneWidget);
     expect(service.extractionCallCount, 1);
     expect(service.analysisCallCount, 1);
+    expect(service.lastStudentAnswer, 'I=U/R');
 
     final updated = container.read(currentQuestionProvider);
     expect(updated, isNotNull);

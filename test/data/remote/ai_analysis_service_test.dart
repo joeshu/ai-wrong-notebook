@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_patch.dart';
 import 'package:smart_wrong_notebook/src/domain/models/analysis_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/analysis/presentation/analysis_controller.dart';
@@ -50,6 +51,29 @@ void main() {
     expect(record.analysisResult?.finalAnswer, 'x = 3');
     expect(record.savedExercises.length, 3);
     expect(record.savedExercises.first.difficulty, '简单');
+  });
+
+  test('field retry rejects legacy analysis instead of fabricating V2 trust',
+      () async {
+    final service = AiAnalysisService.fake();
+    const legacy = AnalysisResult(
+      finalAnswer: '3',
+      steps: <String>['移项'],
+      aiTags: <String>[],
+      knowledgePoints: <String>['方程'],
+      mistakeReason: '',
+      studyAdvice: '',
+    );
+
+    await expectLater(
+      service.retryAnalysisFields(
+        current: legacy,
+        fields: const <AiAnalysisField>{AiAnalysisField.standardAnswer},
+        confirmedQuestion: '解方程 x+1=4',
+        subjectName: '数学',
+      ),
+      throwsA(isA<AiAnalysisException>()),
+    );
   });
 
   test('service parses final answer derivation and consistency metadata', () {
@@ -138,6 +162,18 @@ void main() {
     expect(analysis.finalAnswer, '3');
     expect(analysis.solutionSteps, ['移项得 x=3']);
     expect(analysis.reviewPlan?.reviewAfterDays, 3);
+  });
+
+  test('service rejects Markdown-wrapped Contract V2 response', () {
+    final service = AiAnalysisService.fake();
+    const wrapped = '''```json
+{"schemaVersion":2}
+```''';
+
+    expect(
+      () => service.parseAnalysisResponseForTest(wrapped),
+      throwsA(anything),
+    );
   });
 
   test('service parses visual assumptions and marks low confidence for review',

@@ -273,6 +273,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
             correctedText: textForAnalysis,
             subjectName: working.subject.name,
             imagePath: shouldUseImageForAnalysis ? working.imagePath : null,
+            studentAnswer: working.studentAnswer ?? '',
           );
         } on AiAnalysisException {
           // 视觉模型失败时，已校对的文字题仍有可用价值。退回文本分析，
@@ -286,6 +287,7 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
             correctedText: fallbackText,
             subjectName: working.subject.name,
             imagePath: null,
+            studentAnswer: working.studentAnswer ?? '',
           );
         }
       }

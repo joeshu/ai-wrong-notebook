@@ -5,6 +5,9 @@ import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_response_contract.dart';
+import 'package:smart_wrong_notebook/src/data/remote/ai/ai_json_decoder.dart';
+import 'package:smart_wrong_notebook/src/data/remote/ai/ai_prompt_builder.dart';
+import 'package:smart_wrong_notebook/src/data/remote/ai/ai_provider_capabilities.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/settings_repository.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_provider_config.dart';
 import 'package:smart_wrong_notebook/src/domain/models/capture_mode.dart';
@@ -14,7 +17,9 @@ import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_split_result.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_region.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_contract.dart';
 import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_payload.dart';
+import 'package:smart_wrong_notebook/src/domain/models/ai_analysis_patch.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/composite_worksheet_detector.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/latex_normalizer.dart';
 
@@ -313,6 +318,8 @@ class AiAnalysisService {
   AiAnalysisService({required this.settingsRepository});
 
   final SettingsRepository settingsRepository;
+  static const AiJsonDecoder _jsonDecoder = AiJsonDecoder();
+  static const AiPromptBuilder _promptBuilder = AiPromptBuilder();
 
   static const _maxRetries = 2; // 最多重试2次（总共3次请求）
   static const _baseDelayMs = 1000; // 基础延迟1秒
@@ -549,6 +556,7 @@ class AiAnalysisService {
     required String correctedText,
     required String subjectName,
     String? imagePath, // 可选：图片路径
+    String studentAnswer = '',
   }) async {
     debugPrint('[AiAnalysisService] analyzeQuestion called');
     debugPrint(
@@ -570,6 +578,7 @@ class AiAnalysisService {
           correctedText: correctedText,
           subjectName: resolvedSubject?.name ?? subjectName,
           imagePath: imagePath,
+          studentAnswer: studentAnswer,
         );
       }
 
@@ -588,6 +597,7 @@ class AiAnalysisService {
       correctedText: textForAnalysis,
       subjectName: resolvedSubject?.name ?? subjectName,
       imagePath: imagePath,
+      studentAnswer: studentAnswer,
     );
   }
 
@@ -662,7 +672,7 @@ class AiAnalysisService {
       );
     } on DioException catch (e) {
       debugPrint(
-          '[AiAnalysisService] extract DioException: type=${e.type}, message=${e.message}, status=${e.response?.statusCode}, body=${e.response?.data}');
+          '[AiAnalysisService] extract DioException: type=${e.type}, message=${e.message}, status=${e.response?.statusCode}');
       throw AiAnalysisException(_dioErrorMessage(e));
     } catch (e) {
       debugPrint('[AiAnalysisService] extract Exception: $e');
@@ -780,10 +790,19 @@ class AiAnalysisService {
     throw lastError ?? AiAnalysisException('解析失败');
   }
 
+  AnalysisResult _stampAnalysisAudit(AnalysisResult analysis, String modelName) =>
+      analysis.copyWith(
+        schemaVersion: AiAnalysisSchema.currentVersion,
+        promptVersion: AiAnalysisSchema.currentPromptVersion,
+        modelName: modelName,
+        isLegacyContract: false,
+      );
+
   Future<AnalysisResult> analyzeExtractedQuestion({
     required String correctedText,
     required String subjectName,
     String? imagePath,
+    String studentAnswer = '',
   }) async {
     debugPrint('[AiAnalysisService] analyzeExtractedQuestion called');
 
@@ -803,6 +822,8 @@ class AiAnalysisService {
       correctedText,
       subjectName,
       isGraphicalQuestion: shouldAnalyzeImageFirst,
+      studentAnswer: studentAnswer,
+      modelName: config.model,
     );
     final systemPrompt = await _loadAnalysisSystemPrompt();
 
@@ -822,7 +843,7 @@ class AiAnalysisService {
           shouldAnalyzeImageFirst: shouldAnalyzeImageFirst,
         );
         return _ensureAnalysisConsistency(
-          analysis,
+          _stampAnalysisAudit(analysis, config.model),
           questionText: correctedText,
           subjectName: subjectName,
           imagePath: imagePath,
@@ -837,7 +858,7 @@ class AiAnalysisService {
         isCompositeLanguageAnalysis: isCompositeLanguageAnalysis,
       );
       return _ensureAnalysisConsistency(
-        analysis,
+        _stampAnalysisAudit(analysis, config.model),
         questionText: correctedText,
         subjectName: subjectName,
         imagePath: null,
@@ -845,7 +866,7 @@ class AiAnalysisService {
       );
     } on DioException catch (e) {
       debugPrint(
-          '[AiAnalysisService] DioException: type=${e.type}, message=${e.message}, status=${e.response?.statusCode}, body=${e.response?.data}');
+          '[AiAnalysisService] DioException: type=${e.type}, message=${e.message}, status=${e.response?.statusCode}');
       throw AiAnalysisException(_dioErrorMessage(e));
     } catch (e) {
       if (e is AiAnalysisException) rethrow;
@@ -855,6 +876,77 @@ class AiAnalysisService {
       }
       throw AiAnalysisException('AI 解析失败: $e');
     }
+  }
+
+  /// Repairs only selected analysis fields and preserves all other trusted
+  /// values. The caller can use this for field-level retry after user review.
+  Future<AnalysisResult> retryAnalysisFields({
+    required AnalysisResult current,
+    required Set<AiAnalysisField> fields,
+    required String confirmedQuestion,
+    required String subjectName,
+    String studentAnswer = '',
+    String? imagePath,
+  }) async {
+    if (fields.isEmpty) return current;
+    if (!current.hasContractV2 || current.confidence == null) {
+      throw AiAnalysisException('历史分析缺少 Contract V2 置信度，请先完整重新分析');
+    }
+    final config = await _requireConfig();
+    final prompt = _promptBuilder.buildFieldRepairPrompt(
+      current: current,
+      fields: fields,
+      confirmedQuestion: confirmedQuestion,
+      studentAnswer: studentAnswer,
+      modelName: config.model,
+    );
+    const systemPrompt = '你是 AI 错题分析字段修复器。只返回请求字段的严格 JSON 补丁。';
+
+    Future<String> fetch({required int maxTokens}) {
+      if (imagePath != null && File(imagePath).existsSync()) {
+        return File(imagePath).readAsBytes().then(
+              (bytes) => _requestAiContentWithImage(
+                config: config,
+                systemPrompt: systemPrompt,
+                prompt: prompt,
+                imageBytes: bytes,
+                maxTokens: maxTokens,
+                imageDetail: 'high',
+                temperature: 0.1,
+              ),
+            );
+      }
+      return _requestAiContent(
+        config: config,
+        systemPrompt: systemPrompt,
+        prompt: prompt,
+        maxTokens: maxTokens,
+        temperature: 0.1,
+      );
+    }
+
+    AnalysisResult parsePatch(String content) {
+      try {
+        final patch = AiAnalysisPatchContract.parse(
+          _parseResponseJson(content),
+          requestedFields: fields,
+          studentAnswer: studentAnswer,
+        );
+        return _stampAnalysisAudit(patch.applyTo(current), config.model);
+      } on _AiJsonParseException {
+        rethrow;
+      } on FormatException catch (error) {
+        throw _AiJsonParseException(error);
+      }
+    }
+
+    final content = await fetch(maxTokens: 1400);
+    return _parseContentWithJsonRetry(
+      firstContent: content,
+      parse: parsePatch,
+      retryContentFetcher: () => fetch(maxTokens: 1800),
+      stage: 'analysis(field repair)',
+    );
   }
 
   /// 图片分支：先按高清图（high/auto）请求，失败时若条件满足回退到紧凑图重试。
@@ -894,7 +986,7 @@ class AiAnalysisService {
       );
       return await _parseContentWithJsonRetry(
         firstContent: content,
-        parse: _parseAnalysisResponse,
+        parse: _parseAnalysisResponseV2,
         retryContentFetcher: () => _requestAiContentWithImage(
           config: config,
           systemPrompt: systemPrompt,
@@ -925,7 +1017,7 @@ class AiAnalysisService {
       );
       return await _parseContentWithJsonRetry(
         firstContent: content,
-        parse: _parseAnalysisResponse,
+        parse: _parseAnalysisResponseV2,
         retryContentFetcher: () => _requestAiContentWithImage(
           config: config,
           systemPrompt: systemPrompt,
@@ -957,7 +1049,7 @@ class AiAnalysisService {
     );
     return _parseContentWithJsonRetry(
       firstContent: content,
-      parse: _parseAnalysisResponse,
+      parse: _parseAnalysisResponseV2,
       retryContentFetcher: () => _requestAiContent(
         config: config,
         systemPrompt: systemPrompt,
@@ -1603,10 +1695,7 @@ class AiAnalysisService {
     debugPrint(
         '[AiAnalysisService] config: ${config != null ? "loaded" : "null"}');
     if (config != null) {
-      debugPrint('[AiAnalysisService] - baseUrl: ${config.baseUrl}');
-      debugPrint('[AiAnalysisService] - model: ${config.model}');
-      debugPrint(
-          '[AiAnalysisService] - apiKey length: ${config.apiKey.length}');
+      debugPrint('[AiAnalysisService] provider configured: model=${config.model}');
     }
 
     if (config == null ||
@@ -1893,6 +1982,44 @@ class AiAnalysisService {
     return segments;
   }
 
+  Future<Response<T>> _postChatWithStructuredFallback<T>(
+    Dio dio,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      return await _retryPost<T>(dio, '/chat/completions', data: data);
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      final canFallback = data.containsKey('response_format') &&
+          (status == 400 || status == 404 || status == 422);
+      if (!canFallback) rethrow;
+      final fallback = Map<String, dynamic>.from(data)..remove('response_format');
+      debugPrint(
+        '[AiAnalysisService] Provider rejected structured output; '
+        'retrying with prompt-only JSON. status=$status',
+      );
+      return _retryPost<T>(dio, '/chat/completions', data: fallback);
+    }
+  }
+
+  Map<String, dynamic> _chatRequestData({
+    required AiProviderConfig config,
+    required List<Map<String, dynamic>> messages,
+    required int maxTokens,
+    required double temperature,
+  }) {
+    final data = <String, dynamic>{
+      'model': config.model,
+      'messages': messages,
+      'temperature': temperature,
+      'max_tokens': maxTokens,
+    };
+    final mode = AiProviderCapabilities.resolve(config).structuredOutputMode;
+    final responseFormat = _promptBuilder.responseFormat(mode);
+    if (responseFormat != null) data['response_format'] = responseFormat;
+    return data;
+  }
+
   Future<String> _requestAiContent({
     required AiProviderConfig config,
     required String systemPrompt,
@@ -1901,16 +2028,18 @@ class AiAnalysisService {
     double temperature = 0.7,
   }) async {
     final dio = _createClient(config);
-    final response =
-        await _retryPost(dio, '/chat/completions', data: <String, dynamic>{
-      'model': config.model,
-      'messages': <Map<String, String>>[
-        <String, String>{'role': 'system', 'content': systemPrompt},
-        <String, String>{'role': 'user', 'content': prompt},
-      ],
-      'temperature': temperature,
-      'max_tokens': maxTokens,
-    });
+    final response = await _postChatWithStructuredFallback(
+      dio,
+      _chatRequestData(
+        config: config,
+        messages: <Map<String, dynamic>>[
+          <String, dynamic>{'role': 'system', 'content': systemPrompt},
+          <String, dynamic>{'role': 'user', 'content': prompt},
+        ],
+        temperature: temperature,
+        maxTokens: maxTokens,
+      ),
+    );
 
     return _extractContentFromResponse(response);
   }
@@ -1941,28 +2070,30 @@ class AiAnalysisService {
     final model = config.model.toLowerCase();
 
     if (_usesOpenAiCompatibleChat(config)) {
-      final response =
-          await _retryPost(dio, '/chat/completions', data: <String, dynamic>{
-        'model': config.model,
-        'messages': <Map<String, dynamic>>[
-          {'role': 'system', 'content': systemPrompt},
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'image_url',
-                'image_url': {
-                  'url': 'data:$mimeType;base64,$base64Image',
-                  'detail': imageDetail
+      final response = await _postChatWithStructuredFallback(
+        dio,
+        _chatRequestData(
+          config: config,
+          messages: <Map<String, dynamic>>[
+            {'role': 'system', 'content': systemPrompt},
+            {
+              'role': 'user',
+              'content': [
+                {
+                  'type': 'image_url',
+                  'image_url': {
+                    'url': 'data:$mimeType;base64,$base64Image',
+                    'detail': imageDetail
+                  },
                 },
-              },
-              {'type': 'text', 'text': prompt},
-            ],
-          },
-        ],
-        'temperature': temperature,
-        'max_tokens': maxTokens,
-      });
+                {'type': 'text', 'text': prompt},
+              ],
+            },
+          ],
+          temperature: temperature,
+          maxTokens: maxTokens,
+        ),
+      );
       return _extractContentFromResponse(response);
     }
 
@@ -1983,6 +2114,7 @@ class AiAnalysisService {
           'generationConfig': {
             'temperature': temperature,
             'maxOutputTokens': maxTokens,
+            'responseMimeType': 'application/json',
           },
         },
       );
@@ -1990,29 +2122,31 @@ class AiAnalysisService {
           as String;
     }
 
-    final response =
-        await _retryPost(dio, '/chat/completions', data: <String, dynamic>{
-      'model': config.model,
-      'messages': <Map<String, dynamic>>[
-        {'role': 'system', 'content': systemPrompt},
-        {
-          'role': 'user',
-          'content': [
-            {
-              'type': 'image_url',
-              'image_url': {
-                'url': 'data:$mimeType;base64,$base64Image',
-                'detail': imageDetail
+    final response = await _postChatWithStructuredFallback(
+      dio,
+      _chatRequestData(
+        config: config,
+        messages: <Map<String, dynamic>>[
+          {'role': 'system', 'content': systemPrompt},
+          {
+            'role': 'user',
+            'content': [
+              {
+                'type': 'image_url',
+                'image_url': {
+                  'url': 'data:$mimeType;base64,$base64Image',
+                  'detail': imageDetail
+                },
               },
-            },
-            {'type': 'text', 'text': prompt},
-          ],
-        },
-      ],
-      'temperature': temperature,
-      'max_tokens': maxTokens,
-    });
-    return response.data['choices'][0]['message']['content'] as String;
+              {'type': 'text', 'text': prompt},
+            ],
+          },
+        ],
+        temperature: temperature,
+        maxTokens: maxTokens,
+      ),
+    );
+    return _extractContentFromResponse(response);
   }
 
   /// 在 [_parseResponseJson] 失败时重试一次 AI 请求。
@@ -2086,22 +2220,11 @@ class AiAnalysisService {
   7. JSON 转义规则：反斜杠双写，\ → \\，\\ → \\\\。换行用 \\n。cases 环境行分隔符 \\ → \\\\
      - 示例：\\(x^2=4\)\\n  所以 x=\\pm 2  // JSON 中 \\n = 换行，\\pi = \pi，\\pm = \pm
      - 示例：\[\\begin{cases} x+y=5 \\\\ x-y=1 \\end{cases}\]  // \\\\ 在 JSON 中表示 LaTeX 换行符 \\
-返回格式必须严格如下（不要包含 markdown 代码块标记，使用纯 JSON）：
-{
-  "subject": "自动判断的科目名称",
-  "reconstructedQuestionText": "根据文本或图片理解整理出的完整题干",
-  "finalAnswer": "正确答案或解题要点",
-  "finalAnswerDerivation": "最终答案来源说明，必须与 finalAnswer 一致",
-  "steps": ["解题步骤1", "解题步骤2"],
-  "aiTags": ["短标签1", "短标签2", "短标签3"],
-  "knowledgePoints": ["知识点1详细描述", "知识点2详细描述"],
-  "mistakeReason": "错误原因分析",
-  "studyAdvice": "学习建议",
-  "generatedExercises": [
-    {"id": "e1", "difficulty": "简单", "question": "练习题目", "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"], "answer": "A", "explanation": "解析", "diagramData": null},
-    {"id": "e2", "difficulty": "同级", "question": "几何练习题（示例）", "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"], "answer": "B", "explanation": "解析", "diagramData": {"elements":[{"type":"polygon","points":[[0.2,0.8],[0.8,0.8],[0.5,0.2]],"labels":[{"text":"A","x":0.5,"y":0.12},{"text":"B","x":0.15,"y":0.88},{"text":"C","x":0.85,"y":0.88}]},{"type":"text","text":"5cm","x":0.35,"y":0.48,"role":"known"},{"type":"angleArc","vx":0.5,"vy":0.2,"startAngle":55,"sweepAngle":70,"r":0.08,"label":"60°"}]}}
-  ]
-}''';
+返回格式以用户消息中的 Contract V2 为唯一准则，不再返回旧版 V1 顶层结构。
+- standardAnswer 对应旧 finalAnswer；solutionSteps 对应旧 steps；normalizedQuestion 对应旧 reconstructedQuestionText。
+- 可以保留 visualAssumptions 和 exerciseAnchor 作为兼容扩展字段。
+- 没有 studentAnswer 时，mistakeCategory 必须为 null，mistakeReason 必须为空字符串。
+- 只输出纯 JSON，不要包含 Markdown 代码围栏、前缀或后缀。''';
 
   static const _defaultExtractionSystemPrompt =
       r'''你是一个专业的教辅录入员，负责把题目图片整理成可存储、可检索的结构化文本。
@@ -2329,11 +2452,15 @@ class AiAnalysisService {
     String correctedText,
     String subjectName, {
     bool isGraphicalQuestion = false,
+    String studentAnswer = '',
+    String modelName = 'configured-model',
   }) {
     return _buildAnalysisPrompt(
       correctedText,
       subjectName,
       isGraphicalQuestion: isGraphicalQuestion,
+      studentAnswer: studentAnswer,
+      modelName: modelName,
     );
   }
 
@@ -2341,6 +2468,8 @@ class AiAnalysisService {
     String correctedText,
     String subjectName, {
     bool isGraphicalQuestion = false,
+    String studentAnswer = '',
+    String modelName = 'configured-model',
   }) {
     final buffer = StringBuffer();
     buffer.writeln('请分析以下$subjectName科目的错题：');
@@ -2354,6 +2483,9 @@ class AiAnalysisService {
       buffer.writeln('已确认题目文本：');
     }
     buffer.writeln(correctedText);
+    buffer.writeln();
+    buffer.writeln('学生作答：');
+    buffer.writeln(studentAnswer.trim().isEmpty ? '（未提供）' : studentAnswer);
     buffer.writeln();
     if (isGraphicalQuestion) {
       buffer.writeln('图形/示意图题分析要求：');
@@ -2399,8 +2531,13 @@ class AiAnalysisService {
       }
       buffer.writeln();
     }
+    buffer.writeln(_promptBuilder.buildV2ContractInstruction(
+      modelName: modelName,
+    ));
     buffer.writeln(
-        '请以 JSON 格式返回完整的分析结果，包含 subject、reconstructedQuestionText、visualAssumptions、finalAnswer、finalAnswerDerivation、steps、aiTags、knowledgePoints、mistakeReason、studyAdvice、exerciseAnchor、generatedExercises 字段。reconstructedQuestionText 是 AI 根据题目文本或读图理解整理出的完整题干；图形题的 reconstructedQuestionText 只能包含与求解目标直接相关、且从图片可确认的条件，不要强行命名外部轮廓或解释无关数字。visualAssumptions 格式为 {"targetObject":"","targetQuestion":"","measurements":[{"label":"","meaning":"","usedInSolution":true,"evidence":"image|text|inferred","confidence":"high|medium|low"}],"solutionBasis":[""],"uncertainItems":[""],"needsManualReview":false,"reviewReason":""}；所有步骤使用的图中标注都必须先出现在 measurements 或 solutionBasis 中。exerciseAnchor 只用短枚举，格式 {"domain":"","object":"","methods":[""],"avoid":[""]}。finalAnswerDerivation 必须只说明 finalAnswer 的来源，不能列出与 finalAnswer 互斥的另一个答案；finalAnswer、finalAnswerDerivation、steps 最后一条必须一致。方程组或多行公式请使用 aligned/cases 环境，不要使用 \\newline。');
+        '图形题可以额外返回 visualAssumptions；练习锚点可以额外返回 exerciseAnchor。'
+        'visualAssumptions 中所有解题使用的标注都必须给出 evidence 和 confidence。'
+        'standardAnswer、solutionSteps 最后一条必须一致；方程组或多行公式使用 aligned/cases，不要使用 \\newline。');
     return buffer.toString();
   }
 
@@ -2431,179 +2568,32 @@ class AiAnalysisService {
   }
 
   Map<String, dynamic> _parseResponseJson(String content) {
-    debugPrint('[AiAnalysisService] Raw AI response: $content');
-
-    final jsonStr = _stripJsonFence(content);
-
     try {
-      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
-      debugPrint('[AiAnalysisService] Parsed JSON keys: ${map.keys.toList()}');
-      return _normalizeParsedJsonStrings(map);
-    } catch (e) {
-      final repairedJson = _repairInvalidJsonStringEscapes(jsonStr);
-      if (repairedJson != jsonStr) {
-        try {
-          final map = jsonDecode(repairedJson) as Map<String, dynamic>;
-          debugPrint(
-              '[AiAnalysisService] Parsed repaired JSON keys: ${map.keys.toList()}');
-          return _normalizeParsedJsonStrings(map);
-        } catch (repairedError) {
-          debugPrint(
-              '[AiAnalysisService] Repaired parse error: $repairedError');
-          final recoveredMap = _recoverFlatJsonFields(repairedJson);
-          if (recoveredMap.isNotEmpty) {
-            debugPrint(
-                '[AiAnalysisService] Recovered JSON keys: ${recoveredMap.keys.toList()}');
-            return _normalizeParsedJsonStrings(recoveredMap);
-          }
-        }
+      final decoded = _jsonDecoder.decode(content);
+      final schemaVersion = decoded.value['schemaVersion'];
+      if (schemaVersion == AiAnalysisResponseContract.version &&
+          decoded.markdownWrapped) {
+        throw const FormatException(
+          'Contract V2 响应不得包含 Markdown 代码围栏',
+        );
       }
-
-      debugPrint('[AiAnalysisService] Parse error: $e');
-      throw _AiJsonParseException(e);
-    }
-  }
-
-  String _stripJsonFence(String content) {
-    var jsonStr = content.trim();
-    if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr
-          .replaceFirst(RegExp(r'^```\w*\n?'), '')
-          .replaceFirst(RegExp(r'\n?```$'), '');
-    }
-    return jsonStr;
-  }
-
-  Map<String, dynamic> _recoverFlatJsonFields(String jsonStr) {
-    final result = <String, dynamic>{};
-    final keyPattern = RegExp(r'"([^"\\]+)"\s*:');
-    final matches = keyPattern.allMatches(jsonStr).toList();
-
-    for (var i = 0; i < matches.length; i++) {
-      final key = matches[i].group(1)!;
-      final valueStart = matches[i].end;
-      final valueEnd = i + 1 < matches.length
-          ? matches[i + 1].start
-          : jsonStr.lastIndexOf('}');
-      if (valueEnd <= valueStart) continue;
-
-      final rawValue = jsonStr
-          .substring(valueStart, valueEnd)
-          .trim()
-          .replaceFirst(RegExp(r',$'), '')
-          .trim();
-      if (rawValue.startsWith('"')) {
-        result[key] = _recoverJsonStringValue(rawValue);
-      } else if (rawValue.startsWith('[')) {
-        result[key] = _recoverJsonStringArray(rawValue);
+      if (schemaVersion == AiAnalysisResponseContract.version &&
+          decoded.repairStrategy == AiJsonRepairStrategy.flatFieldRecovery) {
+        throw const FormatException(
+          'Contract V2 响应结构损坏，不允许降级为平铺字段恢复',
+        );
       }
+      debugPrint(
+        '[AiAnalysisService] AI JSON decoded: ${decoded.diagnosticSummary}',
+      );
+      return decoded.value;
+    } on AiJsonDecodingException catch (error) {
+      debugPrint('[AiAnalysisService] AI JSON decode failed: ${error.inner}');
+      throw _AiJsonParseException(error.inner);
+    } on FormatException catch (error) {
+      debugPrint('[AiAnalysisService] AI JSON contract envelope rejected: $error');
+      throw _AiJsonParseException(error);
     }
-
-    return result;
-  }
-
-  String _recoverJsonStringValue(String rawValue) {
-    final start = rawValue.indexOf('"');
-    final end = rawValue.lastIndexOf('"');
-    if (start < 0 || end <= start) return '';
-    return rawValue
-        .substring(start + 1, end)
-        .replaceAll(r'\n', '\n')
-        .replaceAll(r'\r', '\r');
-  }
-
-  List<String> _recoverJsonStringArray(String rawValue) {
-    final items = <String>[];
-    final pattern = RegExp(r'"((?:\\.|[^"\\])*)"', dotAll: true);
-    for (final match in pattern.allMatches(rawValue)) {
-      items
-          .add(match.group(1)!.replaceAll(r'\n', '\n').replaceAll(r'\r', '\r'));
-    }
-    return items;
-  }
-
-  Map<String, dynamic> _normalizeParsedJsonStrings(Map<String, dynamic> map) {
-    return map
-        .map((key, value) => MapEntry(key, _normalizeParsedJsonValue(value)));
-  }
-
-  dynamic _normalizeParsedJsonValue(dynamic value) {
-    if (value is String) return _normalizeLatexControlEscapes(value);
-    if (value is List) return value.map(_normalizeParsedJsonValue).toList();
-    if (value is Map) {
-      return value
-          .map((key, item) => MapEntry(key, _normalizeParsedJsonValue(item)));
-    }
-    return value;
-  }
-
-  String _normalizeLatexControlEscapes(String value) {
-    return value
-        .replaceAll(r'\\', r'\')
-        .replaceAll('\b', r'\b')
-        .replaceAll('\f', r'\f')
-        .replaceAll('\t', r'\t');
-  }
-
-  String _repairInvalidJsonStringEscapes(String jsonStr) {
-    final buffer = StringBuffer();
-    var inString = false;
-    var escapeRun = 0;
-
-    for (var index = 0; index < jsonStr.length; index++) {
-      final char = jsonStr[index];
-      final escaped = escapeRun.isOdd;
-
-      if (char == '"' && !escaped) {
-        inString = !inString;
-        buffer.write(char);
-        escapeRun = 0;
-        continue;
-      }
-
-      if (inString && (char == '\n' || char == '\r')) {
-        buffer.write(char == '\n' ? r'\n' : r'\r');
-        escapeRun = 0;
-        continue;
-      }
-
-      if (char == r'\') {
-        if (inString) {
-          if (escaped) {
-            buffer.write(char);
-            escapeRun++;
-            continue;
-          }
-          final next = index + 1 < jsonStr.length ? jsonStr[index + 1] : '';
-          final nextNext = index + 2 < jsonStr.length ? jsonStr[index + 2] : '';
-          if (next.isEmpty || !_isValidJsonEscape(next, nextNext)) {
-            buffer.write(r'\\');
-            escapeRun = 0;
-            continue;
-          }
-        }
-
-        buffer.write(char);
-        escapeRun++;
-        continue;
-      }
-
-      buffer.write(char);
-      escapeRun = 0;
-    }
-
-    return buffer.toString();
-  }
-
-  bool _isValidJsonEscape(String next, String nextNext) {
-    if ('"\\/u'.contains(next)) return true;
-    return 'bfnrt'.contains(next) && !_isAsciiLetter(nextNext);
-  }
-
-  bool _isAsciiLetter(String value) {
-    if (value.isEmpty) return false;
-    final code = value.codeUnitAt(0);
-    return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
   }
 
   AiQuestionExtractionResult _parseExtractionResponse(String content) {
@@ -2625,7 +2615,8 @@ class AiAnalysisService {
       );
       if (correctedExtracted != extractedQuestionText) {
         debugPrint(
-            '[AiAnalysisService] extractedQuestionText OCR 纠错: "$extractedQuestionText" -> "$correctedExtracted"');
+            '[AiAnalysisService] extractedQuestionText OCR correction applied '
+            '(length=${extractedQuestionText.length})');
         extractedQuestionText = correctedExtracted;
       }
       final latexIssue = validateLatexStructure(extractedQuestionText);
@@ -2641,7 +2632,8 @@ class AiAnalysisService {
       );
       if (correctedNormalized != normalizedQuestionText) {
         debugPrint(
-            '[AiAnalysisService] normalizedQuestionText OCR 纠错: "$normalizedQuestionText" -> "$correctedNormalized"');
+            '[AiAnalysisService] normalizedQuestionText OCR correction applied '
+            '(length=${normalizedQuestionText.length})');
         normalizedQuestionText = correctedNormalized;
       }
       final latexIssue = validateLatexStructure(normalizedQuestionText);
@@ -2672,8 +2664,24 @@ class AiAnalysisService {
     );
   }
 
-  AnalysisResult _parseAnalysisResponse(String content) {
-    final map = AiAnalysisResponseContract.normalize(_parseResponseJson(content));
+  AnalysisResult _parseAnalysisResponseV2(String content) {
+    try {
+      return _parseAnalysisResponse(content, allowLegacy: false);
+    } on _AiJsonParseException {
+      rethrow;
+    } on FormatException catch (error) {
+      throw _AiJsonParseException(error);
+    }
+  }
+
+  AnalysisResult _parseAnalysisResponse(
+    String content, {
+    bool allowLegacy = true,
+  }) {
+    final map = AiAnalysisResponseContract.normalize(
+      _parseResponseJson(content),
+      allowLegacy: allowLegacy,
+    );
 
     Subject? subject;
     final subjectStr = map['subject'] as String?;
@@ -4075,10 +4083,10 @@ class AiAnalysisService {
     required String correctAnswer,
     List<String>? options,
   }) async {
-    debugPrint('[AiAnalysisService] judgeAnswer called');
-    debugPrint('[AiAnalysisService] - question: $question');
-    debugPrint('[AiAnalysisService] - userAnswer: $userAnswer');
-    debugPrint('[AiAnalysisService] - correctAnswer: $correctAnswer');
+    debugPrint(
+      '[AiAnalysisService] judgeAnswer called '
+      '(questionLength=${question.length}, userAnswerLength=${userAnswer.length})',
+    );
 
     final config = await settingsRepository.getAiProviderConfig();
 
@@ -4111,7 +4119,10 @@ class AiAnalysisService {
 
       final content =
           response.data['choices'][0]['message']['content'] as String;
-      debugPrint('[AiAnalysisService] judgeAnswer response: $content');
+      debugPrint(
+        '[AiAnalysisService] judgeAnswer response received '
+        '(length=${content.length})',
+      );
 
       // 解析 AI 判断结果
       final lower = content.toLowerCase();
@@ -5747,6 +5758,7 @@ class TestAiAnalysisService extends AiAnalysisService {
   int extractionCallCount = 0;
   int analysisCallCount = 0;
   int analysisImageCallCount = 0;
+  String? lastStudentAnswer;
 
   @override
   Future<AiQuestionExtractionResult> extractQuestionStructure({
@@ -5764,8 +5776,10 @@ class TestAiAnalysisService extends AiAnalysisService {
     required String correctedText,
     required String subjectName,
     String? imagePath,
+    String studentAnswer = '',
   }) async {
     analysisCallCount++;
+    lastStudentAnswer = studentAnswer;
     if (imagePath != null) analysisImageCallCount++;
     if (candidateAnalysisResults != null &&
         analysisCallCount <= candidateAnalysisResults!.length) {
