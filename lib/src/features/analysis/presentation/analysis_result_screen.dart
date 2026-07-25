@@ -1406,6 +1406,7 @@ class _ReviewRequiredBanner extends StatelessWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: FilledButton.tonalIcon(
+                      key: const ValueKey<String>('analysis-confirm-result-button'),
                       onPressed: onConfirm,
                       icon: isConfirming
                           ? const SizedBox(
@@ -1592,6 +1593,7 @@ class _ReviewFieldCard extends StatelessWidget {
             spacing: AppSpace.xs,
             children: <Widget>[
               TextButton.icon(
+                key: ValueKey<String>('review-field-edit-$fieldName'),
                 onPressed: canEdit ? onEdit : null,
                 icon: const Icon(CupertinoIcons.pencil, size: 16),
                 label: const Text('编辑'),

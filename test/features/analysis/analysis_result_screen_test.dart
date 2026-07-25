@@ -89,7 +89,10 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('我已核对，确认采用', skipOffstage: false),
+      find.byKey(
+        const ValueKey<String>('analysis-confirm-result-button'),
+        skipOffstage: false,
+      ),
       findsOneWidget,
     );
     expect(find.text('开始练习'), findsNothing);
@@ -142,7 +145,10 @@ void main() {
     );
     await _tapVisible(
       tester,
-      find.text('我已核对，确认采用', skipOffstage: false),
+      find.byKey(
+        const ValueKey<String>('analysis-confirm-result-button'),
+        skipOffstage: false,
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -218,12 +224,9 @@ void main() {
     );
     await _tapVisible(
       tester,
-      find.descendant(
-        of: find.byKey(
-          const ValueKey<String>('review-field-card-standardAnswer'),
-          skipOffstage: false,
-        ),
-        matching: find.text('编辑', skipOffstage: false),
+      find.byKey(
+        const ValueKey<String>('review-field-edit-standardAnswer'),
+        skipOffstage: false,
       ),
     );
     await tester.pumpAndSettle();
@@ -525,9 +528,18 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('当前第 1 题'), findsOneWidget);
-    await tester.tap(find.text('第 2 题'));
-    await tester.pumpAndSettle();
+    await _scrollUntilVisible(
+      tester,
+      find.text('当前第 1 题', skipOffstage: false),
+    );
+    expect(
+      find.text('当前第 1 题', skipOffstage: false),
+      findsOneWidget,
+    );
+    await _tapVisible(
+      tester,
+      find.text('第 2 题', skipOffstage: false),
+    );
 
     expect(find.text('题号切换'), findsOneWidget);
     expect(find.text('当前第 2 题'), findsOneWidget);
@@ -659,7 +671,14 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('当前第 1 题'), findsOneWidget);
+    await _scrollUntilVisible(
+      tester,
+      find.text('当前第 1 题', skipOffstage: false),
+    );
+    expect(
+      find.text('当前第 1 题', skipOffstage: false),
+      findsOneWidget,
+    );
     expect(find.text('第一题练习'), findsNothing);
     await tester.drag(find.byType(ListView), const Offset(0, -2400));
     await tester.pumpAndSettle();
