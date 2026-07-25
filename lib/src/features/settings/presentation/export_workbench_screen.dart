@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:smart_wrong_notebook/src/shared/ui/app_colors.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:smart_wrong_notebook/src/data/repositories/question_knowledge_li
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/app_share_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/anki_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/csv_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
