@@ -305,6 +305,7 @@ class _AnalysisResultScreenState extends ConsumerState<AnalysisResultScreen> {
             _TenSecondSummary(
               style: analysisStyle,
               result: displayResult,
+              consistencyNotice: _consistencyNotice(displayResult),
             ),
             const SizedBox(height: AppSpace.md),
             _AnalysisLayerHeader(
@@ -1803,10 +1804,15 @@ String _reviewFieldEvidence(AnalysisResult result, String fieldName) {
 }
 
 class _TenSecondSummary extends StatelessWidget {
-  const _TenSecondSummary({required this.style, required this.result});
+  const _TenSecondSummary({
+    required this.style,
+    required this.result,
+    required this.consistencyNotice,
+  });
 
   final AppVisualStyle style;
   final AnalysisResult result;
+  final _ConsistencyNoticeData? consistencyNotice;
 
   @override
   Widget build(BuildContext context) {
@@ -1877,6 +1883,10 @@ class _TenSecondSummary extends StatelessWidget {
             padding: const EdgeInsets.all(AppSpace.md),
             child: Column(
               children: <Widget>[
+                if (consistencyNotice != null) ...<Widget>[
+                  _ConsistencyNotice(notice: consistencyNotice!),
+                  const SizedBox(height: AppSpace.md),
+                ],
                 _SummaryLine(
                   icon: CupertinoIcons.scope,
                   label: '错在哪里',
