@@ -462,8 +462,6 @@ void main() {
       child: const MaterialApp(home: AnalysisResultScreen()),
     ));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -1200));
-    await tester.pumpAndSettle();
 
     expect(find.text('AI 解析结果'), findsOneWidget);
     expect(find.byType(AnalysisResultScreen), findsOneWidget);
@@ -709,12 +707,9 @@ void main() {
       find.text('当前第 1 题', skipOffstage: false),
       findsOneWidget,
     );
-    expect(find.text('第一题练习'), findsNothing);
-    await _scrollUntilVisible(
-      tester,
-      find.text('第一题练习', skipOffstage: false),
-    );
-    expect(find.text('第一题练习'), findsOneWidget);
+    expect(find.text('第一题答案'), findsOneWidget);
+    expect(find.text('第一题步骤'), findsOneWidget);
+    expect(find.text('整题答案'), findsNothing);
 
     await _selectChoiceChip(
       tester,
@@ -723,11 +718,9 @@ void main() {
         skipOffstage: false,
       ),
     );
-    await _scrollUntilVisible(
-      tester,
-      find.text('第二题练习', skipOffstage: false),
-    );
-    expect(find.text('第二题练习'), findsOneWidget);
+    expect(find.text('第二题答案'), findsOneWidget);
+    expect(find.text('第二题步骤'), findsOneWidget);
+    expect(find.text('第一题答案'), findsNothing);
   });
 
   testWidgets('analysis result screen isolates six-question sample analyses',
@@ -869,25 +862,29 @@ void main() {
     expect(find.textContaining('tri'), findsNothing);
     expect(find.textContaining('x = 3，y = 2'), findsNothing);
 
-    await tester.ensureVisible(find.text('题号切换'));
-    await tester.pumpAndSettle();
-    await tester.drag(
-        find.byType(SingleChildScrollView).first, const Offset(-320, 0));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第 4 题'));
-    await tester.pumpAndSettle();
+    await _scrollUntilVisible(
+      tester,
+      find.text('题号切换', skipOffstage: false),
+    );
+    await _selectChoiceChip(
+      tester,
+      find.byKey(
+        const ValueKey<String>('candidate-chip-4'),
+        skipOffstage: false,
+      ),
+    );
     expect(find.textContaining('Parser Error'), findsNothing);
     expect(find.textContaining('begincases'), findsNothing);
     expect(find.textContaining('x = 3，y = 2'), findsOneWidget);
     expect(find.textContaining('x = 2 或 x = -2'), findsNothing);
 
-    await tester.ensureVisible(find.text('题号切换'));
-    await tester.pumpAndSettle();
-    await tester.drag(
-        find.byType(SingleChildScrollView).first, const Offset(-320, 0));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('第 6 题'));
-    await tester.pumpAndSettle();
+    await _selectChoiceChip(
+      tester,
+      find.byKey(
+        const ValueKey<String>('candidate-chip-6'),
+        skipOffstage: false,
+      ),
+    );
     expect(find.textContaining('Parser Error'), findsNothing);
     expect(find.textContaining('tri'), findsNothing);
     expect(find.textContaining(r'\angle B = 70\circ'), findsNothing);
@@ -953,12 +950,15 @@ void main() {
       child: MaterialApp.router(routerConfig: router),
     ));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -1200));
-    await tester.pumpAndSettle();
-
+    await _scrollUntilVisible(
+      tester,
+      find.text('保存到错题本', skipOffstage: false),
+    );
     expect(find.text('保存到错题本'), findsOneWidget);
-    await tester.tap(find.text('保存到错题本'));
-    await tester.pumpAndSettle();
+    await _tapVisible(
+      tester,
+      find.text('保存到错题本', skipOffstage: false),
+    );
 
     expect(find.text('SPLIT_CONFIRMATION'), findsOneWidget);
     expect(container.read(currentQuestionSplitSessionProvider), isNotNull);

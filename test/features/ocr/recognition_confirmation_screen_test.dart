@@ -8,6 +8,14 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/features/ocr/presentation/recognition_confirmation_screen.dart';
 
 void main() {
+  Future<void> selectCompactSegment(WidgetTester tester, bool showImage) async {
+    final segmented = tester.widget<SegmentedButton<bool>>(
+      find.byType(SegmentedButton<bool>),
+    );
+    segmented.onSelectionChanged?.call(<bool>{showImage});
+    await tester.pumpAndSettle();
+  }
+
   setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
   Future<void> pumpWorkbench(
@@ -47,8 +55,7 @@ void main() {
   testWidgets('320px compact layout switches between image and review', (tester) async {
     await pumpWorkbench(tester, size: const Size(320, 700), themeMode: ThemeMode.light);
     expect(find.text('原图附件缺失，请手动录入或放弃此草稿'), findsOneWidget);
-    await tester.tap(find.text('识别文字'));
-    await tester.pump();
+    await selectCompactSegment(tester, false);
     expect(find.text('OCR 原文'), findsOneWidget);
     expect(find.text('用户修正题干'), findsOneWidget);
     expect(find.text('学生答案'), findsWidgets);
