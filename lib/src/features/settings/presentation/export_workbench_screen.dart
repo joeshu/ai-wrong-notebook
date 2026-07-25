@@ -713,6 +713,12 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final formats = _selectedFormats.toList();
+    var progressDialogOpen = true;
+    void closeProgressDialog() {
+      if (!progressDialogOpen || !mounted) return;
+      progressDialogOpen = false;
+      navigator.pop();
+    }
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -823,7 +829,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       }
     } finally {
       if (mounted) {
-        navigator.pop();
+        closeProgressDialog();
         setState(() => _isExporting = false);
       }
     }

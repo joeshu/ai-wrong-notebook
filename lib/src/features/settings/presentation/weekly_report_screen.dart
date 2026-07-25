@@ -97,6 +97,12 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
   /// 移动端：用 flutter_native_html_to_pdf 把 HTML 转 PDF，再调起系统分享。
   Future<void> _exportPdfMobile() async {
     if (!mounted) return;
+    var progressDialogOpen = true;
+    void closeProgressDialog() {
+      if (!progressDialogOpen || !mounted) return;
+      progressDialogOpen = false;
+      Navigator.of(context).pop();
+    }
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -130,7 +136,7 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
         pageSize: html2pdf.PdfPageSize.a4,
       );
       if (!mounted) return;
-      Navigator.of(context).pop();
+      closeProgressDialog();
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
       final origin = box.localToGlobal(Offset.zero) & box.size;
@@ -141,7 +147,7 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      Navigator.of(context).pop();
+      closeProgressDialog();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('导出 PDF 失败: $e')),
       );
