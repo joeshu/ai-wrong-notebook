@@ -101,8 +101,23 @@ class ExportHistoryService {
     await prefs.setStringList(_key, trimmed);
   }
 
-  /// 清空全部历史记录。
-  static Future<void> clear() async {
+  /// 删除与文件对应的历史记录；旧记录仅按时间、格式和文件名尽力匹配。
+  static Future<void> remove(ExportHistoryEntry target) async {
+    final prefs = await SharedPreferences.getInstance();
+    final entries = await list();
+    final remaining = entries.where((entry) {
+      return !(entry.timestamp == target.timestamp &&
+          entry.format == target.format &&
+          entry.fileName == target.fileName);
+    }).toList(growable: false);
+    await prefs.setStringList(
+      _key,
+      remaining.map((entry) => jsonEncode(entry.toJson())).toList(),
+    );
+  }
+
+  /// 删除全部记录中已不再存在的文件名记录由调用方决定；此方法只清空记录。
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
   }
