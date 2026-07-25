@@ -232,7 +232,8 @@ class _CaptureEntrySheetState extends ConsumerState<CaptureEntrySheet> {
                             fontSize: 12,
                             color: warning,
                           ),
-                    ),
+                        ),
+                      ),
                     IconButton(
                       icon: const Icon(CupertinoIcons.xmark, size: 16),
                       onPressed: () => setState(() => _errorMessage = null),
