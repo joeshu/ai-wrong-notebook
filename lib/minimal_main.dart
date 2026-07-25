@@ -57,13 +57,19 @@ void main() async {
       overrides: [
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
       ],
-      child: MaterialApp.router(
-        title: 'AI错题本',
-        theme: buildLightTheme(),
-        darkTheme: buildDarkTheme(),
-        themeMode: ThemeMode.light,
-        routerConfig: router,
-        debugShowCheckedModeBanner: false,
+      child: Consumer(
+        builder: (context, ref, _) => MaterialApp.router(
+          title: 'AI错题本',
+          theme: buildLightTheme(
+            style: ref.watch(appVisualStyleProvider),
+          ),
+          darkTheme: buildDarkTheme(
+            style: ref.watch(appVisualStyleProvider),
+          ),
+          themeMode: ref.watch(themeModeProvider),
+          routerConfig: router,
+          debugShowCheckedModeBanner: false,
+        ),
       ),
     ),
   );
