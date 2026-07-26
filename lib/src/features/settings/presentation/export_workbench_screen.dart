@@ -755,6 +755,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     final formats = _selectedFormats.toList();
     final succeeded = <ExportFormat>[];
     final failed = <MapEntry<ExportFormat, Object>>[];
+    final exportedPaths = <String, String>{};
 
     try {
       for (var i = 0; i < formats.length; i++) {
@@ -766,6 +767,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         }
         try {
           final filePath = await _exportFormat(format, options);
+          exportedPaths[_formatLabel(format)] = filePath;
           succeeded.add(format);
           await ExportHistoryService.add(ExportHistoryEntry(
             timestamp: DateTime.now().millisecondsSinceEpoch,
@@ -823,6 +825,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         MaterialPageRoute<void>(
           builder: (_) => _ExportCompletePage(
             formats: succeeded.map(_formatLabel).toList(growable: false),
+            filePaths: exportedPaths,
             questionCount: questions.length,
             completedAt: DateTime.now(),
             failedFormats: failedLabels,
@@ -1024,12 +1027,14 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
 class _ExportCompletePage extends StatelessWidget {
   const _ExportCompletePage({
     required this.formats,
+    required this.filePaths,
     required this.questionCount,
     required this.completedAt,
     required this.failedFormats,
   });
 
   final List<String> formats;
+  final Map<String, String> filePaths;
   final int questionCount;
   final DateTime completedAt;
   final List<String> failedFormats;
@@ -1083,6 +1088,33 @@ class _ExportCompletePage extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: AppSpace.md),
+            const Text('本次导出文件',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: AppSpace.xs),
+            for (final entry in filePaths.entries)
+              Card(
+                margin: const EdgeInsets.only(bottom: AppSpace.xs),
+                child: ListTile(
+                  dense: true,
+                  leading: const Icon(CupertinoIcons.doc_text),
+                  title: Text(entry.key),
+                  subtitle: Text(
+                    File(entry.value).uri.pathSegments.last,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: FilledButton.tonalIcon(
+                    onPressed: () => AppShareService.shareFile(
+                      context,
+                      entry.value,
+                      text: '错题本 ${entry.key} 导出文件',
+                    ),
+                    icon: const Icon(CupertinoIcons.share, size: 16),
+                    label: const Text('分享'),
+                  ),
+                ),
+              ),
             const SizedBox(height: AppSpace.md),
             Text(
               '文件已经进入导出历史。返回后可在对应记录中分享或删除。',

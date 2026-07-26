@@ -116,8 +116,29 @@ class ExportHistoryService {
     );
   }
 
-  /// 删除全部历史记录。
-  static Future<void> clear() async {
+  /// 更新历史记录中的文件名（用于数据管理页重命名）。
+  static Future<void> renameFile(String oldName, String newName) async {
+    final prefs = await SharedPreferences.getInstance();
+    final entries = await list();
+    final updated = entries.map((entry) {
+      return entry.fileName == oldName
+          ? ExportHistoryEntry(
+              timestamp: entry.timestamp,
+              format: entry.format,
+              template: entry.template,
+              questionCount: entry.questionCount,
+              title: entry.title,
+              fileName: newName,
+            )
+          : entry;
+    }).toList(growable: false);
+    await prefs.setStringList(
+      _key,
+      updated.map((entry) => jsonEncode(entry.toJson())).toList(),
+    );
+  }
+
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
   }

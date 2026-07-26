@@ -24,6 +24,7 @@ import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
 import 'package:smart_wrong_notebook/src/domain/services/ai_response_diagnostics_retention_service.dart';
 import 'package:smart_wrong_notebook/src/shared/ui/app_ui.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/app_share_service.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/pdf_export_service.dart';
@@ -83,20 +84,19 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     super.dispose();
   }
 
-  /// 加载 exports 目录下所有导出文件（按修改时间倒序）。
+  /// 从统一的持久化导出记录解析文件；文件系统只负责确认文件是否存在。
   Future<List<File>> _loadExportFiles() async {
     try {
       final dir = await getApplicationDocumentsDirectory();
       final exportDir = Directory('${dir.path}/exports');
-      if (!exportDir.existsSync()) return const <File>[];
-      final files = exportDir.listSync().whereType<File>().toList();
-      files.sort((a, b) {
-        try {
-          return b.statSync().modified.compareTo(a.statSync().modified);
-        } catch (_) {
-          return 0;
-        }
-      });
+      final entries = await ExportHistoryService.list();
+      final files = <File>[];
+      for (final entry in entries) {
+        final fileName = entry.fileName;
+        if (fileName == null || fileName.isEmpty) continue;
+        final file = File('${exportDir.path}/$fileName');
+        if (await file.exists()) files.add(file);
+      }
       return files;
     } catch (_) {
       return const <File>[];
@@ -274,6 +274,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     if (confirmed != true) return;
     try {
       await file.delete();
+      final history = await ExportHistoryService.list();
+      for (final entry in history) {
+        if (entry.fileName == file.uri.pathSegments.last) {
+          await ExportHistoryService.remove(entry);
+        }
+      }
       await _reloadExports();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -306,6 +312,10 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     if (newPath == file.path) return;
     try {
       await file.rename(newPath);
+      await ExportHistoryService.renameFile(
+        file.uri.pathSegments.last,
+        newPath.split('/').last,
+      );
       await _reloadExports();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -759,6 +769,14 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       final file =
           File('${exportDir.path}/wrong-notebook-${now.millisecondsSinceEpoch}.wnb');
       await file.writeAsBytes(bytesToWrite, flush: true);
+      await ExportHistoryService.add(ExportHistoryEntry(
+        timestamp: now.millisecondsSinceEpoch,
+        format: 'WNB',
+        template: '完整备份',
+        questionCount: questions.length,
+        title: '错题本完整备份',
+        fileName: file.uri.pathSegments.last,
+      ));
       await _reloadExports();
       if (!mounted) return;
       setState(() => _lastBackupLabel =
