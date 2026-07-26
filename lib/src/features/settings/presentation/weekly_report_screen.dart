@@ -146,7 +146,6 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
       await AppShareService.shareFile(
         context,
         file.path,
-        text: '本周学情报告 PDF',
       );
     } catch (e) {
       if (!mounted) return;
@@ -200,7 +199,6 @@ class _WeeklyReportScreenState extends ConsumerState<WeeklyReportScreen> {
       await AppShareService.shareFile(
         context,
         path,
-        text: '本周学情报告',
       );
     } finally {
       if (mounted) setState(() => _sharing = false);

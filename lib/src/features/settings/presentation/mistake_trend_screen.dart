@@ -128,7 +128,6 @@ class _MistakeTrendScreenState extends ConsumerState<MistakeTrendScreen> {
       final origin = box.localToGlobal(Offset.zero) & box.size;
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: '错因趋势热力图 PDF',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -184,7 +183,6 @@ class _MistakeTrendScreenState extends ConsumerState<MistakeTrendScreen> {
           : box.localToGlobal(Offset.zero) & box.size;
       await Share.shareXFiles(
         [XFile(path)],
-        text: '错因趋势热力图',
         sharePositionOrigin: origin,
       );
     } catch (e) {

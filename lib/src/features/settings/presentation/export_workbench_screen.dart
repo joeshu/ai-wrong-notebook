@@ -1108,7 +1108,6 @@ class _ExportCompletePage extends StatelessWidget {
                     onPressed: () => AppShareService.shareFile(
                       context,
                       entry.value,
-                      text: '错题本 ${entry.key} 导出文件',
                     ),
                     icon: const Icon(CupertinoIcons.share, size: 16),
                     label: const Text('分享'),

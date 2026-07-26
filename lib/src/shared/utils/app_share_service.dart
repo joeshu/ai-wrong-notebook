@@ -10,8 +10,6 @@ class AppShareService {
   static Future<ShareResult?> shareFile(
     BuildContext context,
     String path, {
-    String? text,
-    String? subject,
     bool showFeedback = true,
   }) async {
     if (!context.mounted) return null;
@@ -32,8 +30,6 @@ class AppShareService {
       final result = await Future.any<ShareResult?>(<Future<ShareResult?>>[
         Share.shareXFiles(
           [XFile(file.path)],
-          text: text,
-          subject: subject,
           sharePositionOrigin: origin,
         ),
         Future<ShareResult?>.delayed(

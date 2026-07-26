@@ -490,10 +490,8 @@ class HtmlExportService {
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
       final origin = box.localToGlobal(Offset.zero) & box.size;
-      final studentLabel = studentInfo?.displayName ?? '错题本';
       await Share.shareXFiles(
         [XFile(result.filePath)],
-        text: '$studentLabel $title（共 ${questions.length} 题）',
         sharePositionOrigin: origin,
       );
     } catch (e) {
