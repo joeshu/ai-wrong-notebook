@@ -15,6 +15,7 @@ import 'package:smart_wrong_notebook/src/shared/utils/app_share_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/anki_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/csv_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_file_preview_screen.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_file_writer.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
@@ -183,6 +184,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
                   children: items.take(10).map((item) => _ExportHistoryListTile(
                     item: item,
                     onDelete: () => _deleteExportHistoryItem(context, item),
+                    onPreview: () => _previewExportFile(context, item.file!),
                     onShare: () => _shareExportHistoryItem(context, item),
                   )).toList(),
                 ),
@@ -236,6 +238,23 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('删除失败：$e')));
     }
+  }
+
+  Future<void> _previewExportFile(BuildContext context, File file) async {
+    if (!await file.exists()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('文件不可用，请重新导出')),
+        );
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ExportFilePreviewScreen(file: file),
+      ),
+    );
   }
 
   Future<void> _shareExportHistoryItem(
@@ -1156,13 +1175,29 @@ class _ExportCompletePage extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: FilledButton.tonalIcon(
-                    onPressed: () => AppShareService.shareFile(
-                      context,
-                      entry.value,
-                    ),
-                    icon: const Icon(CupertinoIcons.share, size: 16),
-                    label: const Text('分享'),
+                  trailing: Wrap(
+                    spacing: 4,
+                    children: <Widget>[
+                      FilledButton.tonalIcon(
+                        onPressed: () => Navigator.of(context).push<void>(
+                          MaterialPageRoute<void>(
+                            builder: (_) => ExportFilePreviewScreen(
+                              file: File(entry.value),
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(CupertinoIcons.eye, size: 16),
+                        label: const Text('预览'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: () => AppShareService.shareFile(
+                          context,
+                          entry.value,
+                        ),
+                        icon: const Icon(CupertinoIcons.share, size: 16),
+                        label: const Text('分享'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1413,11 +1448,13 @@ class _ExportHistoryListTile extends StatelessWidget {
   const _ExportHistoryListTile({
     required this.item,
     required this.onDelete,
+    required this.onPreview,
     required this.onShare,
   });
 
   final _ExportHistoryItem item;
   final VoidCallback onDelete;
+  final VoidCallback onPreview;
   final VoidCallback onShare;
 
   @override
@@ -1445,6 +1482,11 @@ class _ExportHistoryListTile extends StatelessWidget {
       trailing: Wrap(
         spacing: 0,
         children: <Widget>[
+          IconButton(
+            onPressed: file == null ? null : onPreview,
+            icon: const Icon(CupertinoIcons.eye),
+            tooltip: '预览',
+          ),
           IconButton(
             onPressed: file == null ? null : onShare,
             icon: const Icon(CupertinoIcons.share),
