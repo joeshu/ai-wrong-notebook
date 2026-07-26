@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/content_status.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_file_writer.dart';
 import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 
 import 'export_content_options.dart';
@@ -42,6 +43,7 @@ class PdfExportService {
     void Function(int done, int total)? onProgress,
     String? watermark,
     PdfLayoutOptions? layoutOptions,
+    ExportContentOptions contentOptions = const ExportContentOptions(),
   }) async {
     final layout = layoutOptions ?? PdfLayoutOptions.defaults;
 
@@ -57,8 +59,7 @@ class PdfExportService {
       );
     }
 
-    // 移动端：先从缓存取，未命中则生成 HTML 并交给 WebView 转 PDF。
-    const contentOptions = ExportContentOptions.all;
+    // 移动端和 HTML 使用同一份内容选项，避免 PDF 与 HTML 内容不一致。
     String html;
     final cached = HtmlExportCache.get(
       questions: questions,
@@ -179,10 +180,8 @@ class PdfExportService {
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
       final origin = box.localToGlobal(Offset.zero) & box.size;
-      final studentLabel = studentInfo?.displayName ?? '错题本';
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: '$studentLabel $title（共 ${questions.length} 题）',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -483,8 +482,8 @@ class PdfExportService {
     }
     final filename = HtmlExportService.buildExportFileName(questions,
         mode: mode, studentInfo: studentInfo, extension: 'pdf');
-    final file = File('${exportDir.path}/$filename');
-    await file.writeAsBytes(await doc.save(), flush: true);
+    final file = await ExportFileWriter.uniqueTarget(exportDir, filename);
+    await ExportFileWriter.writeBytesAtomic(file, await doc.save());
     await HtmlExportService.cleanupExports(exportDir);
     return file;
   }

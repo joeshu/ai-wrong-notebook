@@ -15,6 +15,7 @@ import 'package:smart_wrong_notebook/src/shared/utils/app_share_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/anki_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/csv_export_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_file_writer.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_options_dialog.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_template.dart';
@@ -392,6 +393,30 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
+            const Text('快速预设', style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: <Widget>[
+                _presetChip('快速复习', () => _applyExportPreset(
+                      questions,
+                      ExportContentOptions(),
+                    )),
+                _presetChip('完整档案', () => _applyExportPreset(
+                      questions,
+                      ExportContentOptions.all,
+                    )),
+                _presetChip('打印练习', () => _applyExportPreset(
+                      questions,
+                      ExportContentOptions.none.copyWith(
+                        includeImage: true,
+                        includeDates: true,
+                      ),
+                    )),
+              ],
+            ),
+            const SizedBox(height: 10),
             FilledButton.icon(
               onPressed: questions.isEmpty
                   ? null
@@ -423,6 +448,28 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         ),
       ),
     );
+  }
+
+  Widget _presetChip(String label, VoidCallback onPressed) {
+    return ActionChip(
+      label: Text(label),
+      avatar: const Icon(CupertinoIcons.sparkles, size: 14),
+      onPressed: onPressed,
+    );
+  }
+
+  void _applyExportPreset(
+    List<QuestionRecord> questions,
+    ExportContentOptions contentOptions,
+  ) {
+    setState(() {
+      _exportOptions = ExportOptions(
+        mode: WorksheetExportMode.answer,
+        filtered: questions,
+        templateType: _selectedTemplate,
+        contentOptions: contentOptions,
+      );
+    });
   }
 
   Future<void> _openOptionsDialog(
@@ -656,6 +703,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
         studentInfo: options.studentInfo,
         watermark: options.studentInfo?.watermark,
         layoutOptions: _layoutOptions,
+        contentOptions: options.contentOptions,
       );
       if (!context.mounted) return;
       await Navigator.of(context).push(
@@ -739,11 +787,14 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
       return;
     }
     final questions = options.filtered;
-    if (questions.isEmpty) {
+    final missingAnalysis = questions.where((q) => q.analysisResult == null).length;
+    if (missingAnalysis > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('当前筛选下没有可导出的题目')),
+        SnackBar(
+          content: Text('$missingAnalysis 道题还没有 AI 分析，将按当前已有内容导出'),
+          duration: const Duration(seconds: 4),
+        ),
       );
-      return;
     }
 
     setState(() {
@@ -897,7 +948,7 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
           studentInfo: studentInfo,
           watermark: watermark,
           layoutOptions: options.layoutOptions,
-
+          contentOptions: contentOptions,
         );
         return file.path;
       case ExportFormat.markdown:
@@ -951,8 +1002,8 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     final dir = await getApplicationDocumentsDirectory();
     final exportDir = Directory('${dir.path}/exports');
     await exportDir.create(recursive: true);
-    final file = File('${exportDir.path}/$fileName');
-    await file.writeAsString(content, flush: true);
+    final file = await ExportFileWriter.uniqueTarget(exportDir, fileName);
+    await ExportFileWriter.writeTextAtomic(file, content);
     return file.path;
   }
 
@@ -998,7 +1049,8 @@ class _ExportWorkbenchScreenState extends ConsumerState<ExportWorkbenchScreen> {
     final subjectPart = _sanitizeFileNamePart(_subjectScopeLabel(options.filtered));
     final now = DateTime.now();
     final datePart =
-        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_'
+        '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}_${now.millisecond.toString().padLeft(3, '0')}';
     return '${templatePart}_${subjectPart}_$datePart.$extension';
   }
 
@@ -1108,7 +1160,6 @@ class _ExportCompletePage extends StatelessWidget {
                     onPressed: () => AppShareService.shareFile(
                       context,
                       entry.value,
-                      text: '错题本 ${entry.key} 导出文件',
                     ),
                     icon: const Icon(CupertinoIcons.share, size: 16),
                     label: const Text('分享'),

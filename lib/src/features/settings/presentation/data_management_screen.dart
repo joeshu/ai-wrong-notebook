@@ -784,8 +784,6 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       await AppShareService.shareFile(
         context,
         file.path,
-        subject: '错题本备份',
-        text: '错题本完整备份（${questions.length} 道错题）${_encryptBackup ? '（已加密）' : ''}',
       );
     } catch (e) {
       if (mounted) {

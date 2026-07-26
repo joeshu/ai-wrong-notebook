@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_content_options.dart';
+import 'package:smart_wrong_notebook/src/shared/utils/export_file_writer.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/export_template.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/html_render_utils.dart';
 import 'package:smart_wrong_notebook/src/shared/utils/templates/export_template_factory.dart';
@@ -408,8 +409,8 @@ class HtmlExportService {
     }
     final filename =
         buildExportFileName(questions, mode: mode, studentInfo: studentInfo);
-    final file = File('${exportDir.path}/$filename');
-    await file.writeAsString(result.html, flush: true);
+    final file = await ExportFileWriter.uniqueTarget(exportDir, filename);
+    await ExportFileWriter.writeTextAtomic(file, result.html);
     await cleanupExports(exportDir);
     return HtmlExportResult(
       filePath: file.path,
@@ -490,10 +491,8 @@ class HtmlExportService {
       final box = context.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
       final origin = box.localToGlobal(Offset.zero) & box.size;
-      final studentLabel = studentInfo?.displayName ?? '错题本';
       await Share.shareXFiles(
         [XFile(result.filePath)],
-        text: '$studentLabel $title（共 ${questions.length} 题）',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -1036,7 +1035,7 @@ class HtmlExportService {
     final modePart = _sanitizeFileNamePart(_modeLabel(mode));
     final subjectPart = _sanitizeFileNamePart(_subjectScopeLabel(questions));
     final countPart = '${questions.length}题';
-    final timePart = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+    final timePart = DateFormat('yyyyMMdd_HHmmss_SSS').format(DateTime.now());
     return '${namePart}_${modePart}_${subjectPart}_${countPart}_$timePart.$extension';
   }
 

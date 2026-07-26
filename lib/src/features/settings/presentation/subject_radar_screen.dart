@@ -128,7 +128,6 @@ class _SubjectRadarScreenState extends ConsumerState<SubjectRadarScreen> {
       final origin = box.localToGlobal(Offset.zero) & box.size;
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: '学科能力雷达图 PDF',
         sharePositionOrigin: origin,
       );
     } catch (e) {
@@ -184,7 +183,6 @@ class _SubjectRadarScreenState extends ConsumerState<SubjectRadarScreen> {
           : box.localToGlobal(Offset.zero) & box.size;
       await Share.shareXFiles(
         [XFile(path)],
-        text: '学科能力雷达图',
         sharePositionOrigin: origin,
       );
     } catch (e) {
