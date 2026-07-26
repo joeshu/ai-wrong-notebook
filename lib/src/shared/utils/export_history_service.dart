@@ -137,8 +137,8 @@ class ExportHistoryService {
       updated.map((entry) => jsonEncode(entry.toJson())).toList(),
     );
   }
-
-
+  /// 删除全部历史记录。
+  static Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
   }
