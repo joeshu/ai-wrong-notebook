@@ -80,6 +80,7 @@ class _ModelStrategyCenterScreenState
   }
 
   bool _isPrivateProvider(AiProviderConfig? provider) {
+    if (provider?.isPrivate == true) return true;
     final raw = provider?.baseUrl.trim().toLowerCase() ?? '';
     if (raw.isEmpty) return false;
     final uri = Uri.tryParse(raw);

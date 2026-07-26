@@ -51,6 +51,7 @@ class SharedPrefsSettingsRepository implements SettingsRepository {
             (map['timeoutSeconds'] as num?)?.toInt() ?? 60,
         serviceType: AiServiceType.fromSerializedName(
             map['serviceType'] as String?),
+        isPrivate: map['isPrivate'] as bool? ?? false,
       );
     } catch (_) {
       return null;
@@ -68,6 +69,7 @@ class SharedPrefsSettingsRepository implements SettingsRepository {
       'maxConcurrency': config.maxConcurrency,
       'timeoutSeconds': config.timeoutSeconds,
       'serviceType': config.serviceType.serializedName,
+      'isPrivate': config.isPrivate,
     }));
   }
 
