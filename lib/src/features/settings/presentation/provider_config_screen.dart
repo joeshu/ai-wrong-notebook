@@ -28,6 +28,7 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
   bool _obscureApiKey = true;
   String? _testResult;
   AiServiceType _serviceType = AiServiceType.openai;
+  bool _isPrivate = false;
 
   @override
   void initState() {
@@ -59,6 +60,7 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
       _timeoutController.text = config.timeoutSeconds.toString();
       setState(() {
         _serviceType = config.serviceType;
+        _isPrivate = config.isPrivate;
         _loaded = true;
       });
     }
@@ -96,6 +98,14 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
                   labelText: AppStrings.providerConfigUrlLabel,
                   hintText: AppStrings.providerConfigUrlHint,
                 ),
+              ),
+              const SizedBox(height: AppSpace.md),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('私有服务'),
+                subtitle: const Text('仅在确认数据不会发送到公共云服务时开启'),
+                value: _isPrivate,
+                onChanged: (value) => setState(() => _isPrivate = value),
               ),
               const SizedBox(height: AppSpace.md),
               TextFormField(
@@ -270,6 +280,7 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
       apiKey: _apiKeyController.text.trim(),
       timeoutSeconds: int.parse(_timeoutController.text.trim()),
       serviceType: _serviceType,
+      isPrivate: _isPrivate,
     );
     await ref.read(settingsRepositoryProvider).saveAiProviderConfig(config);
     if (mounted) {
@@ -289,6 +300,7 @@ class _ProviderConfigScreenState extends ConsumerState<ProviderConfigScreen> {
       apiKey: _apiKeyController.text.trim(),
       timeoutSeconds: int.parse(_timeoutController.text.trim()),
       serviceType: _serviceType,
+      isPrivate: _isPrivate,
     );
 
     setState(() {

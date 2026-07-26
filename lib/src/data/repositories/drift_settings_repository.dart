@@ -30,6 +30,7 @@ class DriftSettingsRepository implements SettingsRepository {
     final timeoutStr = await getString('ai_timeout_seconds');
     final serviceTypeStr = await getString('ai_service_type');
     final concurrencyStr = await getString('ai_max_concurrency');
+    final privateStr = await getString('ai_provider_private');
     return AiProviderConfig(
       id: id,
       displayName: displayName,
@@ -39,6 +40,7 @@ class DriftSettingsRepository implements SettingsRepository {
       maxConcurrency: int.tryParse(concurrencyStr ?? '') ?? 2,
       timeoutSeconds: int.tryParse(timeoutStr ?? '') ?? 60,
       serviceType: AiServiceType.fromSerializedName(serviceTypeStr),
+      isPrivate: privateStr == 'true',
     );
   }
 
@@ -53,6 +55,7 @@ class DriftSettingsRepository implements SettingsRepository {
     await setString('ai_timeout_seconds', config.timeoutSeconds.toString());
     await setString('ai_service_type', config.serviceType.serializedName);
     await setString('ai_max_concurrency', config.maxConcurrency.toString());
+    await setString('ai_provider_private', config.isPrivate.toString());
   }
 
   @override

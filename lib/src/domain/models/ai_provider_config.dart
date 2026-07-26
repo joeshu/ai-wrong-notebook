@@ -45,6 +45,7 @@ class AiProviderConfig {
     this.maxConcurrency = 2,
     this.timeoutSeconds = 60,
     this.serviceType = AiServiceType.openai,
+    this.isPrivate = false,
   });
 
   final String id;
@@ -61,6 +62,8 @@ class AiProviderConfig {
 
   /// AI 服务类型（Phase 12-3），决定请求适配器分支。
   final AiServiceType serviceType;
+  /// 用户明确确认该服务为本地部署或私有服务。
+  final bool isPrivate;
 
   /// 返回有效并发度（兜底默认 2）。
   int get effectiveMaxConcurrency => maxConcurrency > 0 ? maxConcurrency : 2;
@@ -81,6 +84,7 @@ class AiProviderConfig {
     int? maxConcurrency,
     int? timeoutSeconds,
     AiServiceType? serviceType,
+    bool? isPrivate,
   }) =>
       AiProviderConfig(
         id: id ?? this.id,
@@ -91,5 +95,6 @@ class AiProviderConfig {
         maxConcurrency: maxConcurrency ?? this.maxConcurrency,
         timeoutSeconds: timeoutSeconds ?? this.timeoutSeconds,
         serviceType: serviceType ?? this.serviceType,
+        isPrivate: isPrivate ?? this.isPrivate,
       );
 }
