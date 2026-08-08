@@ -108,7 +108,7 @@ class RecommendationService {
       final daysSinceReview = at.difference(mastery.lastReviewedAt!).inDays;
       recencyScore = (daysSinceReview * 1.5).clamp(0.0, 20.0);
     } else {
-      recencyScore = 20.0; // 从未复习，最高优先
+      recencyScore = 25.0; // 从未复习，优先级高于已久未复习的知识点
       reasons.add('该知识点尚未复习');
     }
     score += recencyScore * 0.2; // 权重 20%
