@@ -127,6 +127,31 @@ void main() {
     expect(await settings.getString(LegacyDataMigration.questionMigrationKey), 'done');
   });
 
+  test('records retryable migration status and clears error after retry', () async {
+    final settings = InMemorySettingsRepository();
+    final questions = _FailOnceQuestionRepository();
+    final legacyQuestions = InMemoryQuestionRepository();
+    await legacyQuestions.saveDraft(_question('legacy-question'));
+    final job = migration(
+      settings: settings,
+      questions: questions,
+      legacyQuestions: legacyQuestions,
+      reviewLogs: InMemoryReviewLogRepository(),
+      legacyReviewLogs: InMemoryReviewLogRepository(),
+    );
+
+    await job.migrateIfNeeded();
+    expect(await settings.getString(LegacyDataMigration.statusKey), 'retryable');
+    expect(
+      await settings.getString(LegacyDataMigration.lastErrorKey),
+      contains('temporary write failure'),
+    );
+
+    await job.migrateIfNeeded();
+    expect(await settings.getString(LegacyDataMigration.statusKey), 'done');
+    expect(await settings.getString(LegacyDataMigration.lastErrorKey), '');
+  });
+
   group('knowledge point links migration', () {
     setUp(() {
       // 知识点仓库和关联仓库都用 SharedPreferences，需要干净的 mock。

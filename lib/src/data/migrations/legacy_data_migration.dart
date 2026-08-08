@@ -31,6 +31,9 @@ class LegacyDataMigration {
   static const questionMigrationKey = 'legacy_questions_to_drift_v1';
   static const reviewLogMigrationKey = 'legacy_review_logs_to_drift_v1';
   static const knowledgePointMigrationKey = 'knowledge_point_links_v1';
+  static const statusKey = 'legacy_migration_status_v1';
+  static const lastErrorKey = 'legacy_migration_last_error_v1';
+  static const lastAttemptKey = 'legacy_migration_last_attempt_v1';
 
   final SettingsRepository settings;
   final QuestionRepository questions;
@@ -45,14 +48,23 @@ class LegacyDataMigration {
   final QuestionKnowledgeLinkRepository? questionKnowledgeLinkRepo;
 
   /// 「待确认知识点」队列仓库。注入后未匹配的 AI 知识点文本会被
-  /// 持久化到队列中，用户可在错题详情页手动映射。null 时未匹配文本
+  /// 持久化到队列中，用户可在错题详情页手动映射或忽略。null 时未匹配文本
   /// 仅被丢弃（旧行为）。
   final PendingKnowledgePointMappingRepository? pendingKnowledgePointRepo;
 
   Future<void> migrateIfNeeded() async {
-    await _migrateQuestions();
-    await _migrateReviewLogs();
-    await _migrateKnowledgePointLinks();
+    await settings.setString(lastAttemptKey, DateTime.now().toIso8601String());
+    await settings.setString(statusKey, 'running');
+    try {
+      await _migrateQuestions();
+      await _migrateReviewLogs();
+      await _migrateKnowledgePointLinks();
+      await settings.setString(statusKey, 'done');
+      await settings.setString(lastErrorKey, '');
+    } catch (error) {
+      await settings.setString(statusKey, 'retryable');
+      await settings.setString(lastErrorKey, '$error');
+    }
   }
 
   Future<void> _migrateQuestions() async {
@@ -63,8 +75,10 @@ class LegacyDataMigration {
         if (legacy.isNotEmpty) await questions.saveDrafts(legacy);
       }
       await settings.setString(questionMigrationKey, 'done');
-    } catch (_) {
+    } catch (error) {
+      await settings.setString(lastErrorKey, 'questions: $error');
       // Keep the marker unset so a transient failure can retry next launch.
+      rethrow;
     }
   }
 
@@ -78,8 +92,10 @@ class LegacyDataMigration {
         }
       }
       await settings.setString(reviewLogMigrationKey, 'done');
-    } catch (_) {
+    } catch (error) {
+      await settings.setString(lastErrorKey, 'review logs: $error');
       // Keep the marker unset so a transient failure can retry next launch.
+      rethrow;
     }
   }
 
@@ -121,8 +137,10 @@ class LegacyDataMigration {
         await mapping.migrateFromQuestionRecords(inputs);
       }
       await settings.setString(knowledgePointMigrationKey, 'done');
-    } catch (_) {
+    } catch (error) {
+      await settings.setString(lastErrorKey, 'knowledge points: $error');
       // Keep the marker unset so a transient failure can retry next launch.
+      rethrow;
     }
   }
 }

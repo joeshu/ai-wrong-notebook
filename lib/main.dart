@@ -18,6 +18,7 @@ import 'package:smart_wrong_notebook/src/data/local/app_database.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/worksheet_import_repository.dart';
 import 'package:smart_wrong_notebook/src/app/theme/app_theme.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
+import 'package:smart_wrong_notebook/src/domain/services/analysis_recovery_service.dart';
 import 'package:smart_wrong_notebook/src/shared/widgets/katex_math_view.dart';
 
 void main() async {
@@ -42,6 +43,18 @@ void main() async {
     questionKnowledgeLinkRepo: questionKnowledgeLinkRepo,
   ).migrateIfNeeded();
 
+  // 跨进程恢复：如果 App 在 AI 分析中被系统杀掉，启动时把“分析中”
+  // 草稿标记为“分析失败，可重试”，避免题目长期卡在处理中。
+  const analysisRecovery = AnalysisRecoveryService();
+  final existingQuestions = await questionRepo.listAll();
+  for (final recovered in analysisRecovery.recoverAll(existingQuestions)) {
+    final original = existingQuestions.firstWhere((item) => item.id == recovered.id);
+    if (original.contentStatus != recovered.contentStatus ||
+        original.lastAnalysisError != recovered.lastAnalysisError) {
+      await questionRepo.saveDraft(recovered);
+    }
+  }
+
   // 跨进程恢复：App 被系统杀掉后，启动时从持久化仓库读回未完成的导入批次，
   // 避免批次状态丢失。通过 override 注入初始值，UI 即可显示"继续处理"入口。
   final worksheetImportRepo = WorksheetImportRepository();
@@ -60,6 +73,7 @@ void main() async {
   runApp(
     ProviderScope(
       overrides: [
+        appDatabaseProvider.overrideWithValue(db),
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
         questionRepositoryProvider.overrideWithValue(questionRepo),
         reviewLogRepositoryProvider.overrideWithValue(reviewLogRepo),

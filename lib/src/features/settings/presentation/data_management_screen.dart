@@ -18,7 +18,9 @@ import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart
 import 'package:smart_wrong_notebook/src/data/files/backup_attachment_integrity.dart';
 import 'package:smart_wrong_notebook/src/domain/models/knowledge_point.dart';
 import 'package:smart_wrong_notebook/src/domain/models/mastery_level.dart';
+import 'package:smart_wrong_notebook/src/domain/models/pending_knowledge_point_mapping.dart';
 import 'package:smart_wrong_notebook/src/domain/models/question_record.dart';
+import 'package:smart_wrong_notebook/src/domain/models/question_knowledge_link.dart';
 import 'package:smart_wrong_notebook/src/domain/models/review_log.dart';
 import 'package:smart_wrong_notebook/src/domain/models/worksheet_draft.dart';
 import 'package:smart_wrong_notebook/src/domain/services/ai_response_diagnostics_retention_service.dart';
@@ -715,6 +717,11 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       // 跨设备恢复完整学习资料。两者都来自 SharedPreferences，向后兼容。
       final knowledgePoints =
           await ref.read(knowledgePointRepositoryProvider).loadAll();
+      final knowledgeLinks =
+          await ref.read(questionKnowledgeLinkRepositoryProvider).allLinks();
+      final pendingKnowledgeMappings = await ref
+          .read(pendingKnowledgePointMappingRepositoryProvider)
+          .allMappings();
       final worksheetDrafts =
           await ref.read(worksheetDraftRepositoryProvider).loadAll();
       final attachmentIndex = attachments
@@ -734,6 +741,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         'reviewLogCount': reviewLogs.length,
         'attachmentCount': attachments.length,
         'knowledgePointCount': knowledgePoints.length,
+        'knowledgeLinkCount': knowledgeLinks.length,
+        'pendingKnowledgeMappingCount': pendingKnowledgeMappings.length,
         'worksheetDraftCount': worksheetDrafts.length,
         'attachments': attachmentIndex,
         if (_encryptBackup) 'encrypted': true,
@@ -749,6 +758,10 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       // 导入时按空列表处理。
       archive.addFile(ArchiveFile('knowledge_points.json', 0,
           utf8.encode(jsonEncode(knowledgePoints.map((kp) => kp.toJson()).toList()))));
+      archive.addFile(ArchiveFile('question_knowledge_links.json', 0,
+          utf8.encode(jsonEncode(knowledgeLinks.map((link) => link.toJson()).toList()))));
+      archive.addFile(ArchiveFile('pending_knowledge_mappings.json', 0,
+          utf8.encode(jsonEncode(pendingKnowledgeMappings.map((mapping) => mapping.toJson()).toList()))));
       archive.addFile(ArchiveFile('worksheet_drafts.json', 0,
           utf8.encode(jsonEncode(worksheetDrafts.map((d) => d.toJson()).toList()))));
       for (final attachment in attachments) {
@@ -803,6 +816,11 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     // Phase 12-2：预览时也读取知识点树与组卷草稿条数，告知用户备份范围。
     final knowledgePoints =
         await ref.read(knowledgePointRepositoryProvider).loadAll();
+    final knowledgeLinks =
+        await ref.read(questionKnowledgeLinkRepositoryProvider).allLinks();
+    final pendingKnowledgeMappings = await ref
+        .read(pendingKnowledgePointMappingRepositoryProvider)
+        .allMappings();
     final worksheetDrafts =
         await ref.read(worksheetDraftRepositoryProvider).loadAll();
     final metadataBytes = utf8
@@ -823,7 +841,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('创建完整备份'),
         content: Text(
-            '将创建可在新设备恢复的 .wnb 备份包：\n\n✓ ${questions.length} 道错题\n✓ $logCount 条复习记录\n✓ ${attachments.length} 张题图\n✓ ${knowledgePoints.length} 个知识点\n✓ ${worksheetDrafts.length} 份组卷草稿\n预计大小：约 $estimate（压缩后可能更小）\n\n不会包含 API Key、临时导入会话和未确认的工作台草稿。'),
+            '将创建可在新设备恢复的 .wnb 备份包：\n\n✓ ${questions.length} 道错题\n✓ $logCount 条复习记录\n✓ ${attachments.length} 张题图\n✓ ${knowledgePoints.length} 个知识点\n✓ ${knowledgeLinks.length} 条知识点关联\n✓ ${pendingKnowledgeMappings.length} 条待确认知识点\n✓ ${worksheetDrafts.length} 份组卷草稿\n预计大小：约 $estimate（压缩后可能更小）\n\n不会包含 API Key、临时导入会话和未确认的工作台草稿。'),
         actions: <Widget>[
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -965,6 +983,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       'questions': jsonDecode(readText('questions.json')),
       'reviewLogs': jsonDecode(readText('review_logs.json')),
       'knowledgePoints': readOptionalList('knowledge_points.json'),
+      'questionKnowledgeLinks': readOptionalList('question_knowledge_links.json'),
+      'pendingKnowledgeMappings': readOptionalList('pending_knowledge_mappings.json'),
       'worksheetDrafts': readOptionalList('worksheet_drafts.json'),
       'attachments': attachments,
       'corruptAttachmentCount': corrupt,
@@ -985,6 +1005,12 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     final knowledgePoints = decoded is Map && decoded['knowledgePoints'] is List
         ? (decoded['knowledgePoints'] as List).length
         : 0;
+    final knowledgeLinks = decoded is Map && decoded['questionKnowledgeLinks'] is List
+        ? (decoded['questionKnowledgeLinks'] as List).length
+        : 0;
+    final pendingKnowledgeMappings = decoded is Map && decoded['pendingKnowledgeMappings'] is List
+        ? (decoded['pendingKnowledgeMappings'] as List).length
+        : 0;
     final worksheetDrafts = decoded is Map && decoded['worksheetDrafts'] is List
         ? (decoded['worksheetDrafts'] as List).length
         : 0;
@@ -995,6 +1021,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         corrupt,
         decoded is Map ? decoded['generatedAt'] as String? : null,
         knowledgePoints,
+        knowledgeLinks,
+        pendingKnowledgeMappings,
         worksheetDrafts);
   }
 
@@ -1005,7 +1033,7 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
         builder: (ctx) => AlertDialog(
           title: const Text('确认恢复备份'),
           content: Text(
-              '备份内容：\n✓ ${preview.questions} 道错题\n✓ ${preview.logs} 条复习记录\n✓ ${preview.attachments} 张题图${preview.corruptAttachments == 0 ? '' : '\n⚠ ${preview.corruptAttachments} 张题图校验失败，将跳过'}\n✓ ${preview.knowledgePoints} 个知识点\n✓ ${preview.worksheetDrafts} 份组卷草稿${preview.generatedAt == null ? '' : '\n\n创建时间：${preview.generatedAt}'}\n\n将以"合并"方式恢复；当前已有的同 ID 题目会跳过，不会清空现有题库。'),
+              '备份内容：\n✓ ${preview.questions} 道错题\n✓ ${preview.logs} 条复习记录\n✓ ${preview.attachments} 张题图${preview.corruptAttachments == 0 ? '' : '\n⚠ ${preview.corruptAttachments} 张题图校验失败，将跳过'}\n✓ ${preview.knowledgePoints} 个知识点\n✓ ${preview.knowledgeLinks} 条知识点关联\n✓ ${preview.pendingKnowledgeMappings} 条待确认知识点\n✓ ${preview.worksheetDrafts} 份组卷草稿${preview.generatedAt == null ? '' : '\n\n创建时间：${preview.generatedAt}'}\n\n将以"合并"方式恢复；当前已有的同 ID 题目会跳过，不会清空现有题库。'),
           actions: <Widget>[
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -1018,13 +1046,14 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       );
 
   Future<void> _showRestoreResult(BuildContext context, int questions, int logs,
-      int images, int skipped, int knowledgePoints, int worksheetDrafts) =>
+      int images, int skipped, int knowledgePoints, int knowledgeLinks,
+      int pendingKnowledgeMappings, int worksheetDrafts) =>
       showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('恢复完成'),
           content: Text(
-              '✓ 新增错题：$questions 道\n✓ 恢复复习记录：$logs 条\n✓ 恢复题图：$images 张\n✓ 恢复知识点：$knowledgePoints 个\n✓ 恢复组卷草稿：$worksheetDrafts 份\n⊘ 跳过重复或无效记录：$skipped 条\n\n可在本页顶部撤销本次恢复。'),
+              '✓ 新增错题：$questions 道\n✓ 恢复复习记录：$logs 条\n✓ 恢复题图：$images 张\n✓ 恢复知识点：$knowledgePoints 个\n✓ 恢复知识点关联：$knowledgeLinks 条\n✓ 恢复待确认知识点：$pendingKnowledgeMappings 条\n✓ 恢复组卷草稿：$worksheetDrafts 份\n⊘ 跳过重复或无效记录：$skipped 条\n\n可在本页顶部撤销本次恢复。'),
           actions: <Widget>[
             FilledButton(
                 onPressed: () => Navigator.pop(ctx), child: const Text('完成')),
@@ -1124,6 +1153,10 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
       // 已有同 ID 记录会被覆盖（upsertAll / save 内部处理）。
       final restoredKnowledgePoints =
           await _restoreKnowledgePoints(decoded, ref);
+      final restoredKnowledgeLinks =
+          await _restoreQuestionKnowledgeLinks(decoded, ref);
+      final restoredPendingKnowledgeMappings =
+          await _restorePendingKnowledgeMappings(decoded, ref);
       final restoredWorksheetDrafts =
           await _restoreWorksheetDrafts(decoded, ref);
       final undo = _ImportUndo(
@@ -1140,6 +1173,8 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
           restoredImagePaths.length,
           skipped,
           restoredKnowledgePoints,
+          restoredKnowledgeLinks,
+          restoredPendingKnowledgeMappings,
           restoredWorksheetDrafts);
     } on _RestoreCancelledException {
       // 用户在密码框取消，静默返回，不显示错误。
@@ -1176,6 +1211,42 @@ class _DataManagementScreenState extends ConsumerState<DataManagementScreen> {
     // 刷新知识点树快照，让 UI 立即看到恢复结果。
     ref.invalidate(knowledgePointTreeProvider);
     return toUpsert.length;
+  }
+
+  Future<int> _restoreQuestionKnowledgeLinks(dynamic decoded, WidgetRef ref) async {
+    if (decoded is! Map || decoded['questionKnowledgeLinks'] is! List) return 0;
+    final repo = ref.read(questionKnowledgeLinkRepositoryProvider);
+    var restored = 0;
+    for (final raw in decoded['questionKnowledgeLinks'] as List) {
+      if (raw is! Map) continue;
+      try {
+        await repo.addLink(
+          QuestionKnowledgeLink.fromJson(Map<String, dynamic>.from(raw)),
+        );
+        restored++;
+      } catch (_) {
+        // 单条关联解析失败不应阻塞整体恢复。
+      }
+    }
+    if (restored > 0) invalidateQuestionList(ref);
+    return restored;
+  }
+
+  Future<int> _restorePendingKnowledgeMappings(dynamic decoded, WidgetRef ref) async {
+    if (decoded is! Map || decoded['pendingKnowledgeMappings'] is! List) return 0;
+    final mappings = <PendingKnowledgePointMapping>[];
+    for (final raw in decoded['pendingKnowledgeMappings'] as List) {
+      if (raw is! Map) continue;
+      try {
+        mappings.add(PendingKnowledgePointMapping.fromJson(Map<String, dynamic>.from(raw)));
+      } catch (_) {
+        // 单条待确认记录解析失败不应阻塞整体恢复。
+      }
+    }
+    if (mappings.isEmpty) return 0;
+    await ref.read(pendingKnowledgePointMappingRepositoryProvider).upsertAll(mappings);
+    invalidatePendingKnowledgePoints(ref);
+    return mappings.length;
   }
 
   /// Phase 12-2：恢复组卷草稿。按 ID 合并：备份中的草稿会 save 到本地
@@ -1567,6 +1638,8 @@ class _BackupPreview {
       this.corruptAttachments,
       this.generatedAt,
       this.knowledgePoints,
+      this.knowledgeLinks,
+      this.pendingKnowledgeMappings,
       this.worksheetDrafts);
   final int questions;
   final int logs;
@@ -1574,6 +1647,8 @@ class _BackupPreview {
   final int corruptAttachments;
   final String? generatedAt;
   final int knowledgePoints;
+  final int knowledgeLinks;
+  final int pendingKnowledgeMappings;
   final int worksheetDrafts;
 }
 

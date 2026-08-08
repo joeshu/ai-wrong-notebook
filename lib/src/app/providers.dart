@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smart_wrong_notebook/src/app/onboarding_notifier.dart';
 import 'package:smart_wrong_notebook/src/app/theme/app_visual_style.dart';
+import 'package:smart_wrong_notebook/src/data/local/app_database.dart';
 import 'package:smart_wrong_notebook/src/data/files/image_storage_service.dart';
 import 'package:smart_wrong_notebook/src/data/remote/ai/ai_analysis_service.dart';
-import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_question_repository.dart';
-import 'package:smart_wrong_notebook/src/data/repositories/shared_prefs_settings_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/drift_question_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/drift_review_log_repository.dart';
+import 'package:smart_wrong_notebook/src/data/repositories/drift_settings_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/question_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/knowledge_point_repository.dart';
 import 'package:smart_wrong_notebook/src/data/repositories/mistake_knowledge_link_repository.dart';
@@ -46,6 +48,7 @@ import 'package:smart_wrong_notebook/src/domain/models/subject.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mapping_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_management_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/knowledge_point_mastery_service.dart';
+import 'package:smart_wrong_notebook/src/domain/services/analysis_recovery_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/worksheet_assembly_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/recommendation_service.dart';
 import 'package:smart_wrong_notebook/src/domain/services/review_schedule_service.dart';
@@ -54,9 +57,19 @@ import 'package:smart_wrong_notebook/src/shared/utils/export_history_service.dar
 
 // --- Repository providers (default implementations) ---
 
+/// 默认业务数据库实例。
+///
+/// 生产环境在 [main] 中覆盖为启动阶段创建的实例；测试或独立入口使用
+/// 默认实现时，所有 Drift 仓库也会共享这一实例，而不是各自打开数据库。
+final Provider<AppDatabase> appDatabaseProvider = Provider<AppDatabase>((ref) {
+  // AppDatabase() 当前由应用级单例持有；不能在 Provider 销毁时关闭，
+  // 否则 ProviderScope 重建后会复用已经关闭的单例实例。
+  return AppDatabase();
+});
+
 final Provider<QuestionRepository> questionRepositoryProvider =
     Provider<QuestionRepository>((ref) {
-  return SharedPrefsQuestionRepository();
+  return DriftQuestionRepository(ref.read(appDatabaseProvider));
 });
 
 final Provider<LayoutProviderRepository> layoutProviderRepositoryProvider =
@@ -544,7 +557,7 @@ final FutureProviderFamily<List<PendingKnowledgePointMapping>, String>
 
 final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((ref) {
-  return SharedPrefsSettingsRepository.instance;
+  return DriftSettingsRepository(ref.read(appDatabaseProvider));
 });
 
 // Production overrides this with a real OnboardingNotifier in main().
@@ -555,7 +568,8 @@ final Provider<OnboardingNotifier> onboardingNotifierProvider =
 
 // Production overrides this with DriftReviewLogRepository in main().
 final Provider<ReviewLogRepository> reviewLogRepositoryProvider =
-    Provider<ReviewLogRepository>((ref) => InMemoryReviewLogRepository());
+    Provider<ReviewLogRepository>(
+        (ref) => DriftReviewLogRepository(ref.read(appDatabaseProvider)));
 
 // --- Service providers ---
 
@@ -590,6 +604,9 @@ final Provider<QuestionSplitService> questionSplitServiceProvider =
   return QuestionSplitService(
       aiAnalysisService: ref.read(aiAnalysisServiceProvider));
 });
+
+final Provider<AnalysisRecoveryService> analysisRecoveryServiceProvider =
+    Provider<AnalysisRecoveryService>((ref) => const AnalysisRecoveryService());
 
 final Provider<NotificationService> notificationServiceProvider =
     Provider<NotificationService>((ref) {
@@ -912,7 +929,11 @@ void invalidateQuestionList(WidgetRef ref) {
 final StreamProvider<List<QuestionRecord>> questionListProvider =
     StreamProvider<List<QuestionRecord>>((ref) {
   ref.watch(_listVersionProvider);
-  return ref.read(questionRepositoryProvider).watchAll();
+  final recovery = ref.read(analysisRecoveryServiceProvider);
+  return ref
+      .read(questionRepositoryProvider)
+      .watchAll()
+      .map(recovery.recoverAll);
 });
 
 final StreamProvider<List<ReviewLog>> reviewLogListProvider =

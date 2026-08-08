@@ -145,6 +145,14 @@ class _AnalysisLoadingScreenState extends ConsumerState<AnalysisLoadingScreen> {
     }
     _startTimeoutTimer();
 
+    if (current.analysisResult != null &&
+        (current.contentStatus == ContentStatus.ready ||
+            current.contentStatus == ContentStatus.needsConfirmation)) {
+      _clearTimeoutTimer();
+      if (mounted) context.go('/analysis/result');
+      return;
+    }
+
     final reusable = await _findReusableLocalAnalysis(current);
     if (reusable != null) {
       ref.read(currentQuestionProvider.notifier).state = reusable;
@@ -1035,4 +1043,3 @@ class _AnalysisPipelineViewState extends State<_AnalysisPipelineView>
     return icons[step.clamp(0, icons.length - 1)];
   }
 }
-

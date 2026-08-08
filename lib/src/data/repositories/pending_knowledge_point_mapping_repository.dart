@@ -103,6 +103,26 @@ class PendingKnowledgePointMappingRepository {
     return _byId.values.where((m) => m.isPending).toList();
   }
 
+  /// 查询全部记录（含已处理项），用于完整备份与审计恢复。
+  Future<List<PendingKnowledgePointMapping>> allMappings() async {
+    await _ensureLoaded();
+    return _byId.values.toList();
+  }
+
+  /// 按 ID 合并恢复全部记录，避免重复导入已处理映射。
+  Future<void> upsertAll(List<PendingKnowledgePointMapping> mappings) async {
+    await _ensureLoaded();
+    for (final mapping in mappings) {
+      final existing = _byId[mapping.id];
+      if (existing != null) {
+        _byQuestion[existing.questionId]
+            ?.removeWhere((item) => item.id == existing.id);
+      }
+      _index(mapping);
+    }
+    await _persist();
+  }
+
   /// 标记某条记录为已处理。`resolution` 不能为 null。
   /// 标记后该记录不再出现在待确认列表中，但仍保留在持久化中以便审计。
   Future<void> resolve(

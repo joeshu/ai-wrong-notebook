@@ -36,7 +36,10 @@ void main() {
     expect(find.text('录入错题'), findsOneWidget);
     expect(find.text('拍照'), findsOneWidget);
     expect(find.text('相册'), findsOneWidget);
-    expect(find.text('试卷批量导入'), findsOneWidget);
+    expect(find.text('试卷批量导入'), findsNothing);
+    expect(find.text('PDF 试卷导入'), findsNothing);
+    expect(find.textContaining('PaddleOCR'), findsNothing);
+    expect(find.textContaining('MinerU'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
